@@ -1,77 +1,306 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { DatabaseSync, type SQLInputValue, type StatementSync } from "node:sqlite";
 import { mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import pg from "pg";
 
 export type Param = SQLInputValue | boolean | undefined;
+export type Dialect = "sqlite" | "postgres";
 
+/**
+ * The repository layer's one dependency. Both backends speak the same SQL subset (see docs/ARCHITECTURE.md, "Portable SQL"):
+ * positional `?` placeholders, 0/1 integers instead of booleans, `ON CONFLICT`, `RETURNING`. Dialect differences are
+ * exposed as small helpers (`ilike`, `forUpdate`, `jsonArrayHas`) instead of being scattered through the services.
+ */
 export interface Db {
-  readonly raw: DatabaseSync;
-  get<T = Record<string, unknown>>(sql: string, ...params: Param[]): T | undefined;
-  all<T = Record<string, unknown>>(sql: string, ...params: Param[]): T[];
-  run(sql: string, ...params: Param[]): { changes: number };
-  /** Runs fn inside a transaction (savepoint when nested). fn must be synchronous. */
-  tx<T>(fn: () => T): T;
-  close(): void;
+  readonly dialect: Dialect;
+  /** case-insensitive LIKE operator for this backend */
+  readonly ilike: string;
+  /** appended to a SELECT that must lock the row it reads (no-op on SQLite, whose writer lock already serialises) */
+  readonly forUpdate: string;
+  /** SQL fragment: does JSON-array column `col` contain the (bound) text value? Bind one parameter. */
+  jsonArrayHas(col: string): string;
+  /** number of statements executed so far (used by tests asserting bounded work) */
+  readonly statements: number;
+  get<T = Record<string, unknown>>(sql: string, ...params: Param[]): Promise<T | undefined>;
+  all<T = Record<string, unknown>>(sql: string, ...params: Param[]): Promise<T[]>;
+  run(sql: string, ...params: Param[]): Promise<{ changes: number }>;
+  exec(sql: string): Promise<void>;
+  /**
+   * Runs fn in a transaction (a savepoint when nested). Every `get/all/run` made from fn's async call tree is routed to the
+   * transaction's connection, so services just use `ctx.db` inside it.
+   */
+  tx<T>(fn: () => Promise<T> | T): Promise<T>;
+  /** Run fn outside any ambient transaction (fire-and-forget background work must not inherit one). */
+  detached<T>(fn: () => T): T;
+  close(): Promise<void>;
 }
 
 const norm = (p: Param): SQLInputValue => (p === undefined ? null : typeof p === "boolean" ? (p ? 1 : 0) : p);
+const clean = <T>(row: unknown) => (row ? ({ ...(row as object) } as T) : undefined);
 
-export function openDb(path: string): Db {
-  if (path !== ":memory:") mkdirSync(dirname(resolve(path)), { recursive: true });
-  const raw = new DatabaseSync(path);
-  raw.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
-  if (path !== ":memory:") raw.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;");
-  const cache = new Map<string, StatementSync>();
-  const stmt = (sql: string) => {
-    let s = cache.get(sql);
-    if (!s) {
-      s = raw.prepare(sql);
-      cache.set(sql, s);
-    }
-    return s;
-  };
-  let depth = 0;
-  const clean = <T>(row: unknown) => (row ? ({ ...(row as object) } as T) : undefined);
-  return {
-    raw,
-    get: (sql, ...p) => clean(stmt(sql).get(...p.map(norm))),
-    all: (sql, ...p) => stmt(sql).all(...p.map(norm)).map((r) => ({ ...r })) as never,
-    run: (sql, ...p) => ({ changes: Number(stmt(sql).run(...p.map(norm)).changes) }),
-    tx<T>(fn: () => T): T {
-      const name = `sp_${depth}`;
-      raw.exec(depth === 0 ? "BEGIN IMMEDIATE" : `SAVEPOINT ${name}`);
-      depth++;
-      try {
-        const out = fn();
-        depth--;
-        raw.exec(depth === 0 ? "COMMIT" : `RELEASE ${name}`);
-        return out;
-      } catch (e) {
-        depth--;
-        raw.exec(depth === 0 ? "ROLLBACK" : `ROLLBACK TO ${name}; RELEASE ${name}`);
-        throw e;
-      }
-    },
-    close: () => raw.close(),
-  };
+interface TxStore {
+  active: boolean;
+  depth: number;
+  client?: pg.PoolClient;
 }
 
-export function migrate(db: Db, dir = resolve(dirname(fileURLToPath(import.meta.url)), "migrations")): string[] {
-  db.raw.exec("CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)");
-  const done = new Set(db.all<{ name: string }>("SELECT name FROM _migrations").map((r) => r.name));
-  const applied: string[] = [];
-  for (const file of readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()) {
-    if (done.has(file)) continue;
-    db.tx(() => {
-      db.raw.exec(readFileSync(resolve(dir, file), "utf8"));
-      db.run("INSERT INTO _migrations(name, applied_at) VALUES (?, ?)", file, new Date().toISOString());
-    });
-    applied.push(file);
+/* ------------------------------------------------------------------ SQLite */
+
+class SqliteDb implements Db {
+  readonly dialect = "sqlite" as const;
+  readonly ilike = "LIKE";
+  readonly forUpdate = "";
+  statements = 0;
+  private readonly raw: DatabaseSync;
+  private readonly cache = new Map<string, StatementSync>();
+  private readonly als = new AsyncLocalStorage<TxStore>();
+  /** Single connection: transactions are serialised with a promise-chain mutex and other statements wait for an open one. */
+  private open: Promise<void> | null = null;
+  private tail: Promise<void> = Promise.resolve();
+
+  constructor(path: string) {
+    if (path !== ":memory:") mkdirSync(dirname(resolve(path)), { recursive: true });
+    this.raw = new DatabaseSync(path);
+    this.raw.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
+    if (path !== ":memory:") this.raw.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;");
   }
-  return applied;
+
+  jsonArrayHas(col: string) {
+    return `EXISTS (SELECT 1 FROM json_each(${col}) WHERE value = ?)`;
+  }
+
+  private stmt(sql: string) {
+    let s = this.cache.get(sql);
+    if (!s) {
+      s = this.raw.prepare(sql);
+      this.cache.set(sql, s);
+    }
+    return s;
+  }
+
+  private async gate() {
+    const st = this.als.getStore();
+    if (!(st && st.active)) while (this.open) await this.open;
+  }
+
+  async get<T>(sql: string, ...p: Param[]) {
+    await this.gate();
+    this.statements++;
+    return clean<T>(this.stmt(sql).get(...p.map(norm)));
+  }
+  async all<T>(sql: string, ...p: Param[]) {
+    await this.gate();
+    this.statements++;
+    return this.stmt(sql)
+      .all(...p.map(norm))
+      .map((r) => ({ ...r })) as T[];
+  }
+  async run(sql: string, ...p: Param[]) {
+    await this.gate();
+    this.statements++;
+    return { changes: Number(this.stmt(sql).run(...p.map(norm)).changes) };
+  }
+  async exec(sql: string) {
+    await this.gate();
+    this.raw.exec(sql);
+  }
+
+  async tx<T>(fn: () => Promise<T> | T): Promise<T> {
+    const cur = this.als.getStore();
+    if (cur?.active) {
+      const name = `sp_${++cur.depth}`;
+      this.raw.exec(`SAVEPOINT ${name}`);
+      try {
+        const out = await fn();
+        this.raw.exec(`RELEASE ${name}`);
+        return out;
+      } catch (e) {
+        this.raw.exec(`ROLLBACK TO ${name}; RELEASE ${name}`);
+        throw e;
+      } finally {
+        cur.depth--;
+      }
+    }
+    const prev = this.tail;
+    let release!: () => void;
+    this.tail = new Promise<void>((r) => (release = r));
+    await prev;
+    const store: TxStore = { active: true, depth: 0 };
+    this.open = this.tail;
+    try {
+      this.raw.exec("BEGIN IMMEDIATE");
+      try {
+        const out = await this.als.run(store, async () => fn());
+        this.raw.exec("COMMIT");
+        return out;
+      } catch (e) {
+        this.raw.exec("ROLLBACK");
+        throw e;
+      }
+    } finally {
+      store.active = false;
+      this.open = null;
+      release();
+    }
+  }
+
+  detached<T>(fn: () => T): T {
+    return this.als.exit(fn);
+  }
+
+  async close() {
+    this.raw.close();
+  }
+}
+
+/* --------------------------------------------------------------- PostgreSQL */
+
+const cvt = new Map<string, string>();
+/** `?` -> `$n` (outside string literals) and `INSERT OR IGNORE` -> `ON CONFLICT DO NOTHING`. */
+export function toPg(sql: string): string {
+  const hit = cvt.get(sql);
+  if (hit) return hit;
+  let out = "";
+  let n = 0;
+  let quote = false;
+  for (const ch of sql) {
+    if (ch === "'") quote = !quote;
+    out += ch === "?" && !quote ? `$${++n}` : ch;
+  }
+  if (/^\s*INSERT\s+OR\s+IGNORE\s+INTO/i.test(out)) out = out.replace(/INSERT\s+OR\s+IGNORE\s+INTO/i, "INSERT INTO").replace(/;?\s*$/, " ON CONFLICT DO NOTHING");
+  cvt.set(sql, out);
+  return out;
+}
+
+class PgDb implements Db {
+  readonly dialect = "postgres" as const;
+  readonly ilike = "ILIKE";
+  readonly forUpdate = " FOR UPDATE";
+  statements = 0;
+  private readonly pool: pg.Pool;
+  private readonly als = new AsyncLocalStorage<TxStore>();
+
+  constructor(url: string, max: number) {
+    // counts and sums come back as bigint/numeric strings; every number we store is far below 2^53
+    pg.types.setTypeParser(20, (v) => Number(v));
+    pg.types.setTypeParser(1700, (v) => Number(v));
+    this.pool = new pg.Pool({ connectionString: url, max, idleTimeoutMillis: 30_000, connectionTimeoutMillis: 10_000 });
+    this.pool.on("error", () => {
+      /* idle client errors must not crash the process; the next query reports the problem */
+    });
+  }
+
+  jsonArrayHas(col: string) {
+    return `EXISTS (SELECT 1 FROM jsonb_array_elements_text((${col})::jsonb) AS je(value) WHERE je.value = ?)`;
+  }
+
+  private target() {
+    const st = this.als.getStore();
+    return st?.active && st.client ? st.client : this.pool;
+  }
+
+  private async query(sql: string, p: Param[]) {
+    this.statements++;
+    return this.target().query(
+      toPg(sql),
+      p.map((v) => (v === undefined ? null : typeof v === "boolean" ? (v ? 1 : 0) : (v as never))),
+    );
+  }
+
+  async get<T>(sql: string, ...p: Param[]) {
+    const r = await this.query(sql, p);
+    return clean<T>(r.rows[0]);
+  }
+  async all<T>(sql: string, ...p: Param[]) {
+    return (await this.query(sql, p)).rows as T[];
+  }
+  async run(sql: string, ...p: Param[]) {
+    return { changes: (await this.query(sql, p)).rowCount ?? 0 };
+  }
+  async exec(sql: string) {
+    await this.target().query(sql);
+  }
+
+  async tx<T>(fn: () => Promise<T> | T): Promise<T> {
+    const cur = this.als.getStore();
+    if (cur?.active && cur.client) {
+      const name = `sp_${++cur.depth}`;
+      await cur.client.query(`SAVEPOINT ${name}`);
+      try {
+        const out = await fn();
+        await cur.client.query(`RELEASE ${name}`);
+        return out;
+      } catch (e) {
+        await cur.client.query(`ROLLBACK TO ${name}`);
+        await cur.client.query(`RELEASE ${name}`);
+        throw e;
+      } finally {
+        cur.depth--;
+      }
+    }
+    const client = await this.pool.connect();
+    const store: TxStore = { active: true, depth: 0, client };
+    let broken = false;
+    try {
+      await client.query("BEGIN");
+      try {
+        const out = await this.als.run(store, async () => fn());
+        await client.query("COMMIT");
+        return out;
+      } catch (e) {
+        await client.query("ROLLBACK").catch(() => (broken = true));
+        throw e;
+      }
+    } finally {
+      store.active = false;
+      client.release(broken);
+    }
+  }
+
+  detached<T>(fn: () => T): T {
+    return this.als.exit(fn);
+  }
+
+  async close() {
+    await this.pool.end();
+  }
+}
+
+export interface DbOptions {
+  /** `postgres://...` selects PostgreSQL; otherwise a SQLite file path (or ":memory:") */
+  url?: string;
+  path?: string;
+  poolMax?: number;
+}
+
+export async function openDb(o: DbOptions | string): Promise<Db> {
+  const opts: DbOptions = typeof o === "string" ? { path: o } : o;
+  if (opts.url && /^postgres(ql)?:\/\//.test(opts.url)) return new PgDb(opts.url, opts.poolMax ?? 10);
+  return new SqliteDb(opts.path ?? ":memory:");
+}
+
+/** Applies `migrations/*.sql` once each. On PostgreSQL a transaction-scoped advisory lock makes concurrent boots of several nodes safe. */
+export async function migrate(db: Db, dir = resolve(dirname(fileURLToPath(import.meta.url)), "migrations")): Promise<string[]> {
+  return db.tx(async () => {
+    if (db.dialect === "postgres") await db.exec("SELECT pg_advisory_xact_lock(727274)");
+    await db.exec("CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)");
+    const done = new Set((await db.all<{ name: string }>("SELECT name FROM _migrations")).map((r) => r.name));
+    const applied: string[] = [];
+    for (const file of readdirSync(dir)
+      .filter((f) => f.endsWith(".sql"))
+      .sort()) {
+      if (done.has(file)) continue;
+      await db.exec(readFileSync(resolve(dir, file), "utf8"));
+      await db.run("INSERT INTO _migrations(name, applied_at) VALUES (?, ?)", file, new Date().toISOString());
+      applied.push(file);
+    }
+    return applied;
+  });
 }
 
 export function isUniqueViolation(e: unknown): boolean {
-  return e instanceof Error && /UNIQUE constraint failed/i.test(e.message);
+  if (!(e instanceof Error)) return false;
+  return /UNIQUE constraint failed/i.test(e.message) || (e as { code?: string }).code === "23505";
 }

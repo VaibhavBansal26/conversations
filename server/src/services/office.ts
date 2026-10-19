@@ -16,7 +16,10 @@ export function nextOpening(oh: OfficeHours, at: Date): string | null {
   const { day, minutes } = zonedParts(at, oh.timezone);
   for (let offset = 0; offset <= 7; offset++) {
     const d = (day + offset) % 7;
-    const starts = oh.days.filter((x) => x.day === d && (offset > 0 || toMin(x.start) > minutes)).map((x) => x.start).sort();
+    const starts = oh.days
+      .filter((x) => x.day === d && (offset > 0 || toMin(x.start) > minutes))
+      .map((x) => x.start)
+      .sort();
     if (starts.length) return `${offset === 0 ? "today" : offset === 1 ? "tomorrow" : DAYS[d]} at ${starts[0]} (${oh.timezone})`;
   }
   return null;

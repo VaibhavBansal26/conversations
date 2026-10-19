@@ -15,10 +15,11 @@ function harness(grace = 5000) {
   });
   const advance = (ms: number) => {
     now += ms;
-    for (const [k, t] of [...timers]) if (t.at <= now) {
-      timers.delete(k);
-      t.fn();
-    }
+    for (const [k, t] of [...timers])
+      if (t.at <= now) {
+        timers.delete(k);
+        t.fn();
+      }
   };
   return { p, changes, advance };
 }

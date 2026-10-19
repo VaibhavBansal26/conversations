@@ -29,12 +29,12 @@ export interface RoomRow {
   updated_at: string;
 }
 
-export function findRoomRow(ctx: AppContext, workspaceId: string, roomId: string): RoomRow | undefined {
-  return ctx.db.get<RoomRow>("SELECT * FROM rooms WHERE id = ? AND workspace_id = ? AND archived = 0", roomId, workspaceId);
+export async function findRoomRow(ctx: AppContext, workspaceId: string, roomId: string): Promise<RoomRow | undefined> {
+  return await ctx.db.get<RoomRow>("SELECT * FROM rooms WHERE id = ? AND workspace_id = ? AND archived = 0", roomId, workspaceId);
 }
 
-export function getRoomRow(ctx: AppContext, workspaceId: string, roomId: string): RoomRow {
-  const r = findRoomRow(ctx, workspaceId, roomId);
+export async function getRoomRow(ctx: AppContext, workspaceId: string, roomId: string): Promise<RoomRow> {
+  const r = await findRoomRow(ctx, workspaceId, roomId);
   if (!r) throw notFound("Room");
   return r;
 }
@@ -55,18 +55,23 @@ export function roomVisibility(actor: Pick<Actor, "role" | "memberId" | "inboxVi
   return { sql: assigned, params: [actor.memberId] };
 }
 
-export function canSeeRoom(ctx: AppContext, actor: Pick<Actor, "role" | "memberId" | "inboxVisibility" | "workspaceId">, roomId: string): boolean {
+export async function canSeeRoom(ctx: AppContext, actor: Pick<Actor, "role" | "memberId" | "inboxVisibility" | "workspaceId">, roomId: string): Promise<boolean> {
   const v = roomVisibility(actor);
-  return !!ctx.db.get(`SELECT 1 FROM rooms r WHERE r.id = ? AND r.workspace_id = ? AND r.archived = 0 AND ${v.sql}`, roomId, actor.workspaceId, ...v.params);
+  return !!(await ctx.db.get(`SELECT 1 FROM rooms r WHERE r.id = ? AND r.workspace_id = ? AND r.archived = 0 AND ${v.sql}`, roomId, actor.workspaceId, ...v.params));
 }
 
 /** 404 (not 403) for rooms outside the seat's scope, so existence is never leaked. */
-export function getVisibleRoom(ctx: AppContext, actor: Actor, roomId: string): RoomRow {
+export async function getVisibleRoom(ctx: AppContext, actor: Actor, roomId: string): Promise<RoomRow> {
   const v = roomVisibility(actor);
-  const row = ctx.db.get<RoomRow>(`SELECT r.* FROM rooms r WHERE r.id = ? AND r.workspace_id = ? AND r.archived = 0 AND ${v.sql}`, roomId, actor.workspaceId, ...v.params);
+  const row = await ctx.db.get<RoomRow>(
+    `SELECT r.* FROM rooms r WHERE r.id = ? AND r.workspace_id = ? AND r.archived = 0 AND ${v.sql}`,
+    roomId,
+    actor.workspaceId,
+    ...v.params,
+  );
   if (!row) throw notFound("Room");
   return row;
 }
 
-export const assigneeIds = (ctx: AppContext, roomId: string): string[] =>
-  ctx.db.all<{ member_id: string }>("SELECT member_id FROM room_assignees WHERE room_id = ? ORDER BY added_at, member_id", roomId).map((r) => r.member_id);
+export const assigneeIds = async (ctx: AppContext, roomId: string): Promise<string[]> =>
+  (await ctx.db.all<{ member_id: string }>("SELECT member_id FROM room_assignees WHERE room_id = ? ORDER BY added_at, member_id", roomId)).map((r) => r.member_id);

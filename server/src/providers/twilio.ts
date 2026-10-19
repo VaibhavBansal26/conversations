@@ -40,18 +40,24 @@ export class TwilioSmsProvider implements SmsProvider {
   }
 
   async fetchStatus(id: string): Promise<{ state: ProviderDeliveryState; error?: string }> {
-    const res = await this.fetchImpl(`${this.baseUrl}/2010-04-01/Accounts/${this.accountSid}/Messages/${encodeURIComponent(id)}.json`, { headers: { Authorization: this.auth } });
+    const res = await this.fetchImpl(`${this.baseUrl}/2010-04-01/Accounts/${this.accountSid}/Messages/${encodeURIComponent(id)}.json`, {
+      headers: { Authorization: this.auth },
+    });
     if (!res.ok) return { state: "unknown" };
     const j = (await res.json()) as { status?: string; error_code?: number | null };
     switch (j.status) {
-      case "delivered": return { state: "delivered" };
+      case "delivered":
+        return { state: "delivered" };
       case "failed":
-      case "undelivered": return { state: "failed", error: j.error_code ? `Carrier error ${j.error_code}` : "Undelivered" };
+      case "undelivered":
+        return { state: "failed", error: j.error_code ? `Carrier error ${j.error_code}` : "Undelivered" };
       case "queued":
       case "sending":
       case "sent":
-      case "accepted": return { state: "sent" };
-      default: return { state: "unknown" };
+      case "accepted":
+        return { state: "sent" };
+      default:
+        return { state: "unknown" };
     }
   }
 }

@@ -57,10 +57,10 @@ describe("socket authentication and tenancy", () => {
     await expect(srv.connect(wsId, v.auth, { origin: "https://evil.example.org" })).rejects.toMatchObject({ code: "ORIGIN_NOT_ALLOWED" });
     expect((await srv.connect(wsId, v.auth, { origin: "https://chat.example.com" })).connected).toBe(true);
     const v2 = await srv.visitor(wsId, "chat.example.com", "device-rt-0002");
-    srv.ctx.db.run("UPDATE tokens SET status = 'revoked' WHERE id = ?", v2.tokenRow.id);
+    await srv.ctx.db.run("UPDATE tokens SET status = 'revoked' WHERE id = ?", v2.tokenRow.id);
     await expect(srv.connect(wsId, v2.auth, { origin: "https://chat.example.com" })).rejects.toMatchObject({ code: "ORIGIN_NOT_ALLOWED" });
     const v3 = await srv.visitor(wsId, "other.example.com", "device-rt-0003");
-    srv.ctx.db.run("UPDATE visitor_sessions SET expires_at = '2000-01-01T00:00:00.000Z' WHERE id = ?", v3.session.id);
+    await srv.ctx.db.run("UPDATE visitor_sessions SET expires_at = '2000-01-01T00:00:00.000Z' WHERE id = ?", v3.session.id);
     await expect(srv.connect(wsId, v3.auth)).rejects.toMatchObject({ code: "SESSION_EXPIRED" });
     expect(owner.memberId).toBeTruthy();
   });
@@ -135,9 +135,9 @@ describe("realtime chat flow", () => {
     expect((await c.agentRec.waitFor("typing")).who.type).toBe("contact");
     const sent = await ack(c.agent, "message:send", { room_id: c.roomId, kind: "text", source: "dm", content: "oops", client_msg_id: "rt-edit-00001" });
     const { editMessage, deleteMessage } = await import("../src/services/messages.js");
-    editMessage(srv.ctx, c.owner, sent.message.id, { content: "fixed" });
+    await editMessage(srv.ctx, c.owner, sent.message.id, { content: "fixed" });
     expect((await c.visRec.waitFor("message:updated", (p) => p.message.id === sent.message.id)).message.content).toBe("fixed");
-    deleteMessage(srv.ctx, c.owner, sent.message.id);
+    await deleteMessage(srv.ctx, c.owner, sent.message.id);
     expect(await c.visRec.waitFor("message:deleted", (p) => p.message_id === sent.message.id)).toEqual({ message_id: sent.message.id, room_id: c.roomId });
     expect((await c.agentRec.waitFor("message:deleted", (p) => p.message_id === sent.message.id)).room_id).toBe(c.roomId);
   });
@@ -180,7 +180,7 @@ describe("per-event authorization (scope is re-checked on every event)", () => {
     const { wsId, owner } = await world();
     const ann = await srv.addMemberRaw(srv.ctx, wsId, { name: "Ann", inbox_visibility: "assigned_inbox" });
     const bob = await srv.addMemberRaw(srv.ctx, wsId, { name: "Bob", inbox_visibility: "assigned" });
-    const inbox = mkInbox(srv.ctx, owner, { name: "Team", member_ids: [ann.memberId] });
+    const inbox = await mkInbox(srv.ctx, owner, { name: "Team", member_ids: [ann.memberId] });
     const ownerS = await srv.team(wsId, owner);
     const annS = await srv.team(wsId, ann);
     const bobS = await srv.team(wsId, bob);
@@ -189,7 +189,7 @@ describe("per-event authorization (scope is re-checked on every event)", () => {
 
   it("only seats that can see a room receive its events", async () => {
     const w = await scoped();
-    const { room } = mkRoom(srv.ctx, w.wsId, { inboxId: w.inbox.id });
+    const { room } = await mkRoom(srv.ctx, w.wsId, { inboxId: w.inbox.id });
     await sleep(40);
     const { sendAgentMessage } = await import("../src/services/messages.js");
     await sendAgentMessage(srv.ctx, w.owner, room.id, { kind: "text", source: "dm", content: "to the inbox", client_msg_id: "rt-scope-0001" });
@@ -202,14 +202,14 @@ describe("per-event authorization (scope is re-checked on every event)", () => {
 
   it("assignment grants live access (room:new) and unassignment revokes it (room:deleted, no more events)", async () => {
     const w = await scoped();
-    const { room } = mkRoom(srv.ctx, w.wsId);
+    const { room } = await mkRoom(srv.ctx, w.wsId);
     await sleep(40);
-    assignRoom(srv.ctx, w.owner, room.id, { member_ids: [w.bob.memberId] });
+    await assignRoom(srv.ctx, w.owner, room.id, { member_ids: [w.bob.memberId] });
     await w.bobR.waitFor("room:new", (p) => p.room.id === room.id);
     const { sendAgentMessage } = await import("../src/services/messages.js");
     await sendAgentMessage(srv.ctx, w.owner, room.id, { kind: "text", source: "dm", content: "bob can see this", client_msg_id: "rt-assign-001" });
     await w.bobR.waitFor("message:new", (p) => p.message.content === "bob can see this");
-    assignRoom(srv.ctx, w.owner, room.id, { member_ids: [w.owner.memberId] });
+    await assignRoom(srv.ctx, w.owner, room.id, { member_ids: [w.owner.memberId] });
     await w.bobR.waitFor("room:deleted", (p) => p.room_id === room.id);
     await sendAgentMessage(srv.ctx, w.owner, room.id, { kind: "text", source: "dm", content: "bob must not see this", client_msg_id: "rt-assign-002" });
     await sleep(80);
@@ -218,10 +218,10 @@ describe("per-event authorization (scope is re-checked on every event)", () => {
 
   it("joining an inbox later opens its existing rooms to the member's live sockets", async () => {
     const w = await scoped();
-    const other = mkInbox(srv.ctx, w.owner, { name: "Other" });
-    const { room } = mkRoom(srv.ctx, w.wsId, { inboxId: other.id });
+    const other = await mkInbox(srv.ctx, w.owner, { name: "Other" });
+    const { room } = await mkRoom(srv.ctx, w.wsId, { inboxId: other.id });
     await sleep(40);
-    addInboxMember(srv.ctx, w.owner, other.id, w.ann.memberId);
+    await addInboxMember(srv.ctx, w.owner, other.id, w.ann.memberId);
     const { sendAgentMessage } = await import("../src/services/messages.js");
     await sleep(40);
     await sendAgentMessage(srv.ctx, w.owner, room.id, { kind: "text", source: "dm", content: "welcome to the inbox", client_msg_id: "rt-inbox-001" });
@@ -230,8 +230,8 @@ describe("per-event authorization (scope is re-checked on every event)", () => {
 
   it("events on rooms outside scope fail with NOT_FOUND (message:send, message:read, room:update, room:assign, typing)", async () => {
     const w = await scoped();
-    const { room } = mkRoom(srv.ctx, w.wsId, { assignees: [w.ann] });
-    const { room: other } = mkRoom(srv.ctx, w.wsId, { assignees: [w.owner] });
+    const { room } = await mkRoom(srv.ctx, w.wsId, { assignees: [w.ann] });
+    const { room: other } = await mkRoom(srv.ctx, w.wsId, { assignees: [w.owner] });
     const probes: [string, object][] = [
       ["message:send", { room_id: other.id, kind: "text", source: "dm", content: "x" }],
       ["message:read", { room_id: other.id, message_id: "msg_x" }],
@@ -243,7 +243,7 @@ describe("per-event authorization (scope is re-checked on every event)", () => {
       const r = await ack(w.annS, event, payload);
       expect(r, event).toMatchObject({ ok: false, error: { code: "NOT_FOUND" } });
     }
-    expect(srv.ctx.db.get<{ status: string }>("SELECT status FROM rooms WHERE id = ?", other.id)!.status).toBe("open");
+    expect((await srv.ctx.db.get<{ status: string }>("SELECT status FROM rooms WHERE id = ?", other.id))!.status).toBe("open");
     // inside scope everything works
     expect((await ack(w.annS, "room:update", { room_id: room.id, priority: 1 })).ok).toBe(true);
     // agents may assign themselves but not colleagues
@@ -252,20 +252,20 @@ describe("per-event authorization (scope is re-checked on every event)", () => {
 
   it("a demoted/removed seat loses access on its very next event, and removed seats are disconnected", async () => {
     const w = await scoped();
-    const { room } = mkRoom(srv.ctx, w.wsId, { assignees: [w.bob] });
+    const { room } = await mkRoom(srv.ctx, w.wsId, { assignees: [w.bob] });
     expect((await ack(w.bobS, "room:update", { room_id: room.id, priority: 1 })).ok).toBe(true);
-    srv.ctx.db.run("UPDATE room_assignees SET member_id = ? WHERE room_id = ?", w.owner.memberId, room.id); // lose access behind the socket's back
+    await srv.ctx.db.run("UPDATE room_assignees SET member_id = ? WHERE room_id = ?", w.owner.memberId, room.id); // lose access behind the socket's back
     expect(await ack(w.bobS, "room:update", { room_id: room.id, priority: 0 })).toMatchObject({ ok: false, error: { code: "NOT_FOUND" } });
     const gone = new Promise((r) => w.bobS.once("disconnect", r));
-    removeMember(srv.ctx, w.owner, w.bob.memberId, () => {});
+    await removeMember(srv.ctx, w.owner, w.bob.memberId, () => {});
     await gone;
     expect(w.bobS.connected).toBe(false);
-    updateMember(srv.ctx, w.owner, w.ann.memberId, { inbox_visibility: "assigned" });
+    await updateMember(srv.ctx, w.owner, w.ann.memberId, { inbox_visibility: "assigned" });
   });
 
   it("agents can only update status/priority/snooze through room:update when allowed, with validation", async () => {
     const w = await scoped();
-    const { room } = mkRoom(srv.ctx, w.wsId, { assignees: [w.ann] });
+    const { room } = await mkRoom(srv.ctx, w.wsId, { assignees: [w.ann] });
     expect((await ack(w.annS, "room:update", { room_id: room.id, status: "closed" })).room.status).toBe("closed");
     expect((await ack(w.annS, "room:update", { room_id: room.id, status: "open" })).room.status).toBe("open");
     expect(await ack(w.annS, "room:update", { room_id: room.id })).toMatchObject({ ok: false, error: { code: "NOTHING_TO_UPDATE" } });
@@ -278,7 +278,7 @@ describe("per-event authorization (scope is re-checked on every event)", () => {
 
   it("room:create by an agent starts a conversation and reports duplicates", async () => {
     const w = await scoped();
-    const c = mkContact(srv.ctx, w.wsId, { name: "Dana" });
+    const c = await mkContact(srv.ctx, w.wsId, { name: "Dana" });
     const r = await ack(w.annS, "room:create", { contact_id: c.id });
     expect(r).toMatchObject({ ok: true, created: true });
     expect((await ack(w.annS, "room:create", { contact_id: c.id })).created).toBe(false);
@@ -291,7 +291,19 @@ describe("robustness: malformed payloads and rate limiting", () => {
   it("answers malformed payloads with VALIDATION_ERROR instead of crashing", async () => {
     const { wsId, owner } = await world();
     const s = await srv.team(wsId, owner);
-    for (const bad of [undefined, null, 42, "text", [], {}, { room_id: 5 }, { room_id: "x".repeat(200), content: "x" }, { room_id: "r", kind: "bogus" }, { room_id: "r", content: "x".repeat(20001) }, { room_id: "r", client_msg_id: "short" }]) {
+    for (const bad of [
+      undefined,
+      null,
+      42,
+      "text",
+      [],
+      {},
+      { room_id: 5 },
+      { room_id: "x".repeat(200), content: "x" },
+      { room_id: "r", kind: "bogus" },
+      { room_id: "r", content: "x".repeat(20001) },
+      { room_id: "r", client_msg_id: "short" },
+    ]) {
       const r = await ack(s, "message:send", bad);
       expect(r, JSON.stringify(bad)).toMatchObject({ ok: false, error: { code: expect.stringMatching(/VALIDATION_ERROR/) } });
     }
@@ -372,7 +384,9 @@ describe("presence (refcounted across tabs, with a grace period)", () => {
     const s = await srv.team(wsId, owner);
     expect(s.connected).toBe(true);
     const { createApp } = await import("../src/app.js");
-    const res = await createApp(srv.ctx).request("/api/presence", { headers: { authorization: `Bearer ${await (await import("./helpers.js")).tokenFor(srv.ctx, owner)}` } });
+    const res = await createApp(srv.ctx).request("/api/presence", {
+      headers: { authorization: `Bearer ${await (await import("./helpers.js")).tokenFor(srv.ctx, owner)}` },
+    });
     expect((await res.json()).online).toContain(owner.memberId);
   });
 });
@@ -385,18 +399,18 @@ describe("notifications and room events pushed to seats", () => {
     const ownerS = await srv.team(wsId, owner);
     const annR = recorder(annS, ALL_EVENTS);
     const ownerR = recorder(ownerS, ALL_EVENTS);
-    const { room } = mkRoom(srv.ctx, wsId, { assignees: [ann] });
+    const { room } = await mkRoom(srv.ctx, wsId, { assignees: [ann] });
     await sleep(40);
     const { contactSays } = await import("./helpers.js");
     const { onContactMessage } = await import("../src/services/postProcess.js");
-    const m = contactSays(srv.ctx, room, "please help");
-    onContactMessage(srv.ctx, room, m);
+    const m = await contactSays(srv.ctx, room, "please help");
+    await onContactMessage(srv.ctx, room, m);
     await srv.ctx.background.settle();
     const n = await annR.waitFor("notification:new");
     expect(n).toMatchObject({ unread_count: 1, notification: { type: "message", room_id: room.id } });
     await sleep(40);
     expect(ownerR.of("notification:new")).toHaveLength(0);
-    setStatus(srv.ctx, owner, room.id, "closed");
+    await setStatus(srv.ctx, owner, room.id, "closed");
     await annR.waitFor("room:updated", (p) => p.room.status === "closed");
   });
 });

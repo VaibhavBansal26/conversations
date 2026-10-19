@@ -10,7 +10,7 @@ CREATE TABLE workspaces (
 
 CREATE TABLE users (
   id TEXT PRIMARY KEY,
-  email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  email TEXT NOT NULL UNIQUE, -- always stored lower-case
   password_hash TEXT NOT NULL,
   name TEXT NOT NULL,
   created_at TEXT NOT NULL
@@ -219,7 +219,7 @@ CREATE TABLE sms_numbers (
 CREATE TABLE email_senders (
   id TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  address TEXT NOT NULL COLLATE NOCASE,
+  address TEXT NOT NULL, -- always stored lower-case
   display_name TEXT NOT NULL DEFAULT '',
   verified INTEGER NOT NULL DEFAULT 0,
   is_default INTEGER NOT NULL DEFAULT 0,
@@ -228,7 +228,7 @@ CREATE TABLE email_senders (
 );
 
 CREATE TABLE inbound_addresses (
-  address TEXT PRIMARY KEY COLLATE NOCASE,
+  address TEXT PRIMARY KEY, -- always stored lower-case
   workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   created_at TEXT NOT NULL
 );

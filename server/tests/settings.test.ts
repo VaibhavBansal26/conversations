@@ -10,14 +10,49 @@ describe("workspace settings", () => {
   it("returns defaults, merges nested widget patches and validates values", async () => {
     const { http, token } = await fullApp();
     const w = await http.get("/api/workspace", token);
-    expect(w.body.settings).toMatchObject({ default_region: "US", edit_window_seconds: 900, credits_enforced: false, ai_triage_enabled: false, ai_autoresponder_enabled: false, ai_redact_pii: false });
-    expect(w.body.settings.widget).toMatchObject({ title: "Chat with us", primary_color: "#4f46e5", launcher_position: "right", chat_type: "live_chat", required_info: [] });
-    const patched = await http.patch("/api/workspace", { name: "Renamed", settings: { default_region: "gb", widget: { title: "Hello", required_info: ["email"], office_hours: { enabled: true, timezone: "Europe/London", days: [{ day: 1, start: "08:30", end: "18:00" }] } } } }, token);
+    expect(w.body.settings).toMatchObject({
+      default_region: "US",
+      edit_window_seconds: 900,
+      credits_enforced: false,
+      ai_triage_enabled: false,
+      ai_autoresponder_enabled: false,
+      ai_redact_pii: false,
+    });
+    expect(w.body.settings.widget).toMatchObject({
+      title: "Chat with us",
+      primary_color: "#4f46e5",
+      launcher_position: "right",
+      chat_type: "live_chat",
+      required_info: [],
+    });
+    const patched = await http.patch(
+      "/api/workspace",
+      {
+        name: "Renamed",
+        settings: {
+          default_region: "gb",
+          widget: {
+            title: "Hello",
+            required_info: ["email"],
+            office_hours: { enabled: true, timezone: "Europe/London", days: [{ day: 1, start: "08:30", end: "18:00" }] },
+          },
+        },
+      },
+      token,
+    );
     expect(patched.body.name).toBe("Renamed");
     expect(patched.body.settings.default_region).toBe("GB");
     expect(patched.body.settings.widget).toMatchObject({ title: "Hello", primary_color: "#4f46e5", required_info: ["email"] });
     expect(patched.body.settings.widget.office_hours.days).toEqual([{ day: 1, start: "08:30", end: "18:00" }]);
-    for (const bad of [{ widget: { primary_color: "red" } }, { widget: { office_hours: { days: [{ day: 9, start: "08:30", end: "18:00" }] } } }, { widget: { office_hours: { days: [{ day: 1, start: "8am", end: "18:00" }] } } }, { default_region: "USA" }, { edit_window_seconds: -1 }, { widget: { required_info: ["ssn"] } }, { ai_tone: "angry" }]) {
+    for (const bad of [
+      { widget: { primary_color: "red" } },
+      { widget: { office_hours: { days: [{ day: 9, start: "08:30", end: "18:00" }] } } },
+      { widget: { office_hours: { days: [{ day: 1, start: "8am", end: "18:00" }] } } },
+      { default_region: "USA" },
+      { edit_window_seconds: -1 },
+      { widget: { required_info: ["ssn"] } },
+      { ai_tone: "angry" },
+    ]) {
       expect((await http.patch("/api/workspace", { settings: bad }, token)).status, JSON.stringify(bad)).toBe(400);
     }
     expect((await http.get("/api/workspace", token)).body.settings.widget.title).toBe("Hello");
@@ -33,9 +68,9 @@ describe("workspace settings", () => {
   });
   it("tolerates corrupt stored settings by falling back to defaults", async () => {
     const { ctx, http, token, wsId } = await fullApp();
-    ctx.db.run("UPDATE workspaces SET settings = '{not json' WHERE id = ?", wsId);
+    await ctx.db.run("UPDATE workspaces SET settings = '{not json' WHERE id = ?", wsId);
     expect((await http.get("/api/workspace", token)).body.settings.default_region).toBe("US");
-    ctx.db.run("UPDATE workspaces SET settings = ? WHERE id = ?", JSON.stringify({ widget: { primary_color: "bad" } }), wsId);
+    await ctx.db.run("UPDATE workspaces SET settings = ? WHERE id = ?", JSON.stringify({ widget: { primary_color: "bad" } }), wsId);
     expect((await http.get("/api/workspace", token)).body.settings.widget.primary_color).toBe("#4f46e5");
   });
 });
@@ -47,20 +82,23 @@ describe("SMS numbers, senders and inbound addresses", () => {
     expect(a.body).toMatchObject({ e164: "+14155550100", is_default: true });
     const b = await http.post("/api/sms-numbers", { e164: "+14155550101", is_default: true }, token);
     expect(b.body.is_default).toBe(true);
-    expect((await http.get("/api/sms-numbers", token)).body.data.map((n: any) => [n.e164, n.is_default])).toEqual([["+14155550101", true], ["+14155550100", false]]);
+    expect((await http.get("/api/sms-numbers", token)).body.data.map((n: any) => [n.e164, n.is_default])).toEqual([
+      ["+14155550101", true],
+      ["+14155550100", false],
+    ]);
     expect((await http.post("/api/sms-numbers", { e164: "+14155550100" }, token)).body.error.code).toBe("NUMBER_EXISTS");
     expect((await http.post("/api/sms-numbers", { e164: "12345" }, token)).body.error.code).toBe("INVALID_PHONE");
     // numbers are globally unique (inbound routing is by number)
     const other = await seedWorkspace(ctx, "Other");
     expect((await http.post("/api/sms-numbers", { e164: "+14155550100" }, await tokenFor(ctx, other.owner))).status).toBe(409);
-    const { room } = mkRoom(ctx, wsId, { contact: { phone: "+14155552671" } });
+    const { room } = await mkRoom(ctx, wsId, { contact: { phone: "+14155552671" } });
     const { sendAgentMessage } = await import("../src/services/messages.js");
     await sendAgentMessage(ctx, owner, room.id, { kind: "text", source: "sms", content: "hi" });
-    expect(ctx.db.all("SELECT 1 FROM message_locks")).toHaveLength(1);
+    expect(await ctx.db.all("SELECT 1 FROM message_locks")).toHaveLength(1);
     expect((await http.post(`/api/sms-numbers/${a.body.id}/default`, {}, token)).body.data[0].e164).toBe("+14155550100");
     // the message above went out from the then-default number b; removing b releases its lock
     expect((await http.del(`/api/sms-numbers/${b.body.id}`, token)).status).toBe(204);
-    expect(ctx.db.all("SELECT 1 FROM message_locks")).toHaveLength(0);
+    expect(await ctx.db.all("SELECT 1 FROM message_locks")).toHaveLength(0);
     expect((await http.get("/api/sms-numbers", token)).body.data).toEqual([expect.objectContaining({ e164: "+14155550100", is_default: true })]);
     expect((await http.del(`/api/sms-numbers/${b.body.id}`, token)).status).toBe(404);
   });
@@ -125,15 +163,19 @@ describe("members and presence endpoints", () => {
     expect((await http.post("/api/members", { email: "x@example.test", name: "X" }, token)).body.error.code).toBe("PASSWORD_REQUIRED");
     const login = await http.post("/api/auth/login", { email: "new@example.test", password: "password123" });
     expect(login.status).toBe(200);
-    const me = await http.patch("/api/members/me", { availability: "away", dnd_until: "2099-01-01T00:00:00Z", notification_prefs: { assigned_to_your_team: false } }, login.body.token);
+    const me = await http.patch(
+      "/api/members/me",
+      { availability: "away", dnd_until: "2099-01-01T00:00:00Z", notification_prefs: { assigned_to_your_team: false } },
+      login.body.token,
+    );
     expect(me.body).toMatchObject({ availability: "away", dnd_until: "2099-01-01T00:00:00Z" });
     expect(me.body.notification_prefs).toMatchObject({ assigned_to_your_team: false, assigned_to_you: true });
     expect((await http.patch("/api/members/me", { role: "owner" }, login.body.token)).status).toBe(200); // unknown/forbidden keys are stripped
     expect((await http.get("/api/members/me", login.body.token)).body.role).toBe("agent");
-    const { room } = mkRoom(ctx, wsId);
-    assignRoom(ctx, owner, room.id, { member_ids: [added.body.id] });
+    const { room } = await mkRoom(ctx, wsId);
+    await assignRoom(ctx, owner, room.id, { member_ids: [added.body.id] });
     expect((await http.del(`/api/members/${added.body.id}`, token)).status).toBe(204);
-    expect(ctx.db.all("SELECT 1 FROM room_assignees WHERE room_id = ?", room.id)).toHaveLength(0);
+    expect(await ctx.db.all("SELECT 1 FROM room_assignees WHERE room_id = ?", room.id)).toHaveLength(0);
     expect((await http.get("/api/members", token)).body.data).toHaveLength(1);
     // removed seats can be re-added and keep their user
     const back = await http.post("/api/members", { email: "new@example.test", name: "Newbie", role: "manager" }, token);
@@ -164,7 +206,7 @@ describe("static assets and widget delivery", () => {
     mkdirSync(join(dist, "assets"));
     writeFileSync(join(dist, "index.html"), "<!doctype html><title>app</title>");
     writeFileSync(join(dist, "assets", "app.js"), "console.log(1)");
-    const ctx = makeCtx({ WEB_DIST: dist });
+    const ctx = await makeCtx({ WEB_DIST: dist });
     const app = createApp(ctx);
     const http = client(app);
     expect(await (await app.request("/inbox/room_1")).text()).toContain("<title>app</title>");

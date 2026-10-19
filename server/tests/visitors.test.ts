@@ -107,13 +107,15 @@ describe("embed tokens", () => {
     const wild = await widgetWorld({}, "*.example.com");
     expect((await wild.http.get("/public/widget/config", undefined, { "x-api-key": wild.apiKey, origin: "https://deep.sub.example.com" })).status).toBe(200);
     expect((await wild.http.get("/public/widget/config", undefined, { "x-api-key": wild.apiKey, origin: "https://example.com" })).status).toBe(403);
-    expect((await w.http.post("/public/sessions", {}, undefined, { "x-api-key": w.apiKey, origin: "https://evil.test", "x-device-id": "device-aaaa-0001" })).status).toBe(403);
+    expect((await w.http.post("/public/sessions", {}, undefined, { "x-api-key": w.apiKey, origin: "https://evil.test", "x-device-id": "device-aaaa-0001" })).status).toBe(
+      403,
+    );
   });
   it("serves public config without leaking private settings", async () => {
     const w = await widgetWorld();
-    setSettings(w.ctx, w.wsId, { widget: { title: "Hi!", primary_color: "#112233", default_inbox_id: "inb_secret", required_info: ["email"] } });
-    const inbox = mkInbox(w.ctx, w.owner, { name: "Sales", live_routing_visibility: true });
-    mkInbox(w.ctx, w.owner, { name: "Internal" });
+    await setSettings(w.ctx, w.wsId, { widget: { title: "Hi!", primary_color: "#112233", default_inbox_id: "inb_secret", required_info: ["email"] } });
+    const inbox = await mkInbox(w.ctx, w.owner, { name: "Sales", live_routing_visibility: true });
+    await mkInbox(w.ctx, w.owner, { name: "Internal" });
     const r = await w.http.get("/public/widget/config", undefined, w.h());
     expect(r.body.widget).toMatchObject({ title: "Hi!", primary_color: "#112233", required_info: ["email"] });
     expect(JSON.stringify(r.body)).not.toContain("inb_secret");
@@ -122,7 +124,10 @@ describe("embed tokens", () => {
   });
   it("sets CORS for public endpoints", async () => {
     const w = await widgetWorld();
-    const res = await w.app.request("/public/sessions", { method: "OPTIONS", headers: { origin: "https://shop.example.com", "access-control-request-method": "POST", "access-control-request-headers": "x-api-key,x-device-id" } });
+    const res = await w.app.request("/public/sessions", {
+      method: "OPTIONS",
+      headers: { origin: "https://shop.example.com", "access-control-request-method": "POST", "access-control-request-headers": "x-api-key,x-device-id" },
+    });
     expect(res.headers.get("access-control-allow-origin")).toBe("https://shop.example.com");
     expect(res.headers.get("access-control-allow-headers")?.toLowerCase()).toContain("x-support-session");
   });
@@ -145,7 +150,7 @@ describe("visitor sessions", () => {
   });
   it("enforces required info and the device header", async () => {
     const w = await widgetWorld();
-    setSettings(w.ctx, w.wsId, { widget: { required_info: ["name", "email"] } });
+    await setSettings(w.ctx, w.wsId, { widget: { required_info: ["name", "email"] } });
     const missing = await w.newSession({ name: "Pat" });
     expect(missing.res.status).toBe(422);
     expect(missing.res.body.error.details).toEqual({ missing: ["email"] });
@@ -223,7 +228,7 @@ describe("visitor rooms and chat", () => {
     const kinds = list.body.data.map((m: any) => `${m.sender.type}:${m.kind}`);
     expect(kinds).toEqual(["system:system", "bot:text", "contact:text"]);
     expect(list.body.data[1].content_text).toContain("Hi there");
-    expect(messagesOf(w.ctx, roomId).filter((m) => m.client_msg_id === "visitor-qid-0001")).toHaveLength(1);
+    expect((await messagesOf(w.ctx, roomId)).filter((m) => m.client_msg_id === "visitor-qid-0001")).toHaveLength(1);
     expect((await w.http.post(`/public/rooms/${roomId}/messages`, { content: "" }, undefined, s.headers)).status).toBe(400);
     expect((await w.http.post(`/public/rooms/${roomId}/messages`, { content: "x".repeat(4001) }, undefined, s.headers)).status).toBe(400);
   });
@@ -276,7 +281,7 @@ describe("visitor rooms and chat", () => {
     w.ctx.bus.clear();
     const r = await w.http.post(`/public/rooms/${room.id}/read`, { message_id: reply.id }, undefined, s.headers);
     expect(r.body.moved).toBe(true);
-    expect(roomRow(w.ctx, room.id).visitor_read_seq).toBe(reply.seq);
+    expect((await roomRow(w.ctx, room.id)).visitor_read_seq).toBe(reply.seq);
     expect(w.ctx.bus.ofType("message:receipt")[0]!.payload.reader).toEqual({ type: "contact" });
     expect((await w.http.post(`/public/rooms/${room.id}/read`, { message_id: reply.id }, undefined, s.headers)).body.moved).toBe(false);
     const list = (await w.http.get(`/public/rooms/${room.id}/messages`, undefined, s.headers)).body.data;
@@ -287,27 +292,29 @@ describe("visitor rooms and chat", () => {
   it("routes new widget rooms through the configured inbox and round robin", async () => {
     const w = await widgetWorld();
     const ann = await addMemberRaw(w.ctx, w.wsId, { name: "Ann" });
-    const inbox = mkInbox(w.ctx, w.owner, { name: "Chat", algorithm: "round_robin", member_ids: [ann.memberId], live_routing_visibility: true });
-    setSettings(w.ctx, w.wsId, { widget: { default_inbox_id: inbox.id } });
+    const inbox = await mkInbox(w.ctx, w.owner, { name: "Chat", algorithm: "round_robin", member_ids: [ann.memberId], live_routing_visibility: true });
+    await setSettings(w.ctx, w.wsId, { widget: { default_inbox_id: inbox.id } });
     const s = await w.newSession();
     const room = (await w.http.post("/public/rooms", {}, undefined, s.headers)).body.room;
-    expect(w.ctx.db.get("SELECT member_id FROM room_assignees WHERE room_id = ?", room.id)).toEqual({ member_id: ann.memberId });
-    expect(roomRow(w.ctx, room.id).inbox_id).toBe(inbox.id);
+    expect(await w.ctx.db.get("SELECT member_id FROM room_assignees WHERE room_id = ?", room.id)).toEqual({ member_id: ann.memberId });
+    expect((await roomRow(w.ctx, room.id)).inbox_id).toBe(inbox.id);
     const s2 = await w.newSession({}, "device-cccc-0003");
-    const hidden = mkInbox(w.ctx, w.owner, { name: "Hidden" });
+    const hidden = await mkInbox(w.ctx, w.owner, { name: "Hidden" });
     expect((await w.http.post("/public/rooms", { inbox_id: hidden.id }, undefined, s2.headers)).body.error.code).toBe("INBOX_NOT_AVAILABLE");
-    assignRoom(w.ctx, w.owner, room.id, { member_ids: [] });
+    await assignRoom(w.ctx, w.owner, room.id, { member_ids: [] });
   });
   it("posts the away message outside office hours, once per window", async () => {
     const w = await widgetWorld();
     // 2026-03-02 is a Monday 10:00 UTC; hours Tue-Thu only
-    setSettings(w.ctx, w.wsId, { widget: { away_message: "We're out.", office_hours: { enabled: true, timezone: "UTC", days: [2, 3, 4].map((day) => ({ day, start: "09:00", end: "17:00" })) } } });
+    await setSettings(w.ctx, w.wsId, {
+      widget: { away_message: "We're out.", office_hours: { enabled: true, timezone: "UTC", days: [2, 3, 4].map((day) => ({ day, start: "09:00", end: "17:00" })) } },
+    });
     const s = await w.newSession();
     const room = (await w.http.post("/public/rooms", {}, undefined, s.headers)).body.room;
     await w.http.post(`/public/rooms/${room.id}/messages`, { content: "anyone?" }, undefined, s.headers);
     await w.http.post(`/public/rooms/${room.id}/messages`, { content: "hello??" }, undefined, s.headers);
     await w.ctx.background.settle();
-    const away = messagesOf(w.ctx, room.id).filter((m) => m.meta.includes('"away":true'));
+    const away = (await messagesOf(w.ctx, room.id)).filter((m) => m.meta.includes('"away":true'));
     expect(away).toHaveLength(1);
     expect(away[0]!.content_text).toBe("We're out. We'll be back tomorrow at 09:00 (UTC).");
     expect((await w.http.get("/public/widget/config", undefined, w.h())).body.office_open).toBe(false);
@@ -315,7 +322,7 @@ describe("visitor rooms and chat", () => {
     w.ctx.clockCtl.advance(86400_000);
     await w.http.post(`/public/rooms/${room.id}/messages`, { content: "now?" }, undefined, s.headers);
     await w.ctx.background.settle();
-    expect(messagesOf(w.ctx, room.id).filter((m) => m.meta.includes('"away":true'))).toHaveLength(1);
+    expect((await messagesOf(w.ctx, room.id)).filter((m) => m.meta.includes('"away":true'))).toHaveLength(1);
   });
   it("rate limits visitor sends", async () => {
     const w = await widgetWorld();
@@ -354,7 +361,7 @@ describe("OTP verification", () => {
     const s = await w.newSession({ phone: "415-555-2671" });
     const noNumber = await w.http.post("/public/otp/send", {}, undefined, s.headers);
     expect(noNumber.body.error.code).toBe("OTP_CHANNEL_UNAVAILABLE");
-    addSmsNumberRaw(w.ctx, w.wsId, "+15550000001", true);
+    await addSmsNumberRaw(w.ctx, w.wsId, "+15550000001", true);
     const ok = await w.http.post("/public/otp/send", {}, undefined, s.headers);
     expect(ok.body.channel).toBe("sms");
     expect(w.ctx.sms.sent[0]).toMatchObject({ to: "+14155552671", from: "+15550000001" });

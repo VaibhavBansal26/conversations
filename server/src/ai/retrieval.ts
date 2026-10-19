@@ -1,9 +1,15 @@
-const STOP = new Set("a an the and or but if then of to in on at for with from by is are was were be been am it this that these those i you we they he she my your our their me us do does did can could would should will just not no yes so as about into than too very please hi hello hey thanks thank".split(" "));
+const STOP = new Set(
+  "a an the and or but if then of to in on at for with from by is are was were be been am it this that these those i you we they he she my your our their me us do does did can could would should will just not no yes so as about into than too very please hi hello hey thanks thank".split(
+    " ",
+  ),
+);
 
 export function tokenize(text: string): string[] {
   return (text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [])
     .filter((t) => t.length > 1 && !STOP.has(t))
-    .map((t) => (t.length > 4 && t.endsWith("ing") ? t.slice(0, -3) : t.length > 3 && t.endsWith("es") ? t.slice(0, -2) : t.length > 3 && t.endsWith("s") ? t.slice(0, -1) : t));
+    .map((t) =>
+      t.length > 4 && t.endsWith("ing") ? t.slice(0, -3) : t.length > 3 && t.endsWith("es") ? t.slice(0, -2) : t.length > 3 && t.endsWith("s") ? t.slice(0, -1) : t,
+    );
 }
 
 export interface KbDoc {
@@ -43,5 +49,8 @@ export function searchKb(query: string, docs: KbDoc[], opts: { k1?: number; b?: 
     }
     return { doc, score, coverage: matched / q.length };
   });
-  return hits.filter((h) => h.score > 0).sort((a, b2) => b2.score - a.score || a.doc.id.localeCompare(b2.doc.id)).slice(0, opts.limit ?? 3);
+  return hits
+    .filter((h) => h.score > 0)
+    .sort((a, b2) => b2.score - a.score || a.doc.id.localeCompare(b2.doc.id))
+    .slice(0, opts.limit ?? 3);
 }

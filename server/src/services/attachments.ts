@@ -72,17 +72,24 @@ export async function saveUpload(ctx: AppContext, actor: Actor, file: { name: st
   const contentType = sniffed.mime.startsWith("application/vnd.openxmlformats") ? OFFICE_MIME[ext]! : ext === "csv" ? "text/csv" : sniffed.mime;
   const stored = await ctx.storage.put(actor.workspaceId, { name: fileName, contentType, content: file.content });
   const id = newId("att");
-  ctx.db.run(
+  await ctx.db.run(
     "INSERT INTO attachments(id, workspace_id, key, file_name, content_type, size, uploaded_by, created_at) VALUES (?,?,?,?,?,?,?,?)",
-    id, actor.workspaceId, stored.key, fileName, contentType, stored.size, actor.memberId, nowIso(ctx),
+    id,
+    actor.workspaceId,
+    stored.key,
+    fileName,
+    contentType,
+    stored.size,
+    actor.memberId,
+    nowIso(ctx),
   );
   return { id, key: stored.key, file_name: fileName, content_type: contentType, size: stored.size };
 }
 
-export function resolveAttachments(ctx: AppContext, workspaceId: string, ids: string[]): Attachment[] {
+export async function resolveAttachments(ctx: AppContext, workspaceId: string, ids: string[]): Promise<Attachment[]> {
   const out: Attachment[] = [];
   for (const id of new Set(ids)) {
-    const a = ctx.db.get<Attachment>("SELECT id, key, file_name, content_type, size FROM attachments WHERE id = ? AND workspace_id = ?", id, workspaceId);
+    const a = await ctx.db.get<Attachment>("SELECT id, key, file_name, content_type, size FROM attachments WHERE id = ? AND workspace_id = ?", id, workspaceId);
     if (!a) throw unprocessable("UNKNOWN_ATTACHMENT", `Attachment ${id} not found`);
     out.push(a);
   }

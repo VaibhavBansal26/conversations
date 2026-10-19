@@ -6,7 +6,9 @@ import { safeEqual, sha256 } from "../util/crypto.js";
 
 /** Twilio: base64(HMAC-SHA1(authToken, fullUrl + params sorted by name, each name immediately followed by its value)). */
 export function twilioSignature(authToken: string, url: string, params: Record<string, string>): string {
-  const data = Object.keys(params).sort().reduce((acc, k) => acc + k + params[k], url);
+  const data = Object.keys(params)
+    .sort()
+    .reduce((acc, k) => acc + k + params[k], url);
   return createHmac("sha1", authToken).update(data).digest("base64");
 }
 
@@ -20,15 +22,17 @@ export function verifySendgridSignature(publicKeyB64: string, rawBody: string, s
   if (!signatureB64 || !timestamp) return false;
   try {
     const key = createPublicKey({ key: Buffer.from(publicKeyB64, "base64"), format: "der", type: "spki" });
-    return createVerify("sha256").update(timestamp + rawBody).verify({ key, dsaEncoding: "der" }, Buffer.from(signatureB64, "base64"));
+    return createVerify("sha256")
+      .update(timestamp + rawBody)
+      .verify({ key, dsaEncoding: "der" }, Buffer.from(signatureB64, "base64"));
   } catch {
     return false;
   }
 }
 
 /** Remember a webhook key; returns false when it was already seen (duplicate / replay). */
-export function claimEvent(ctx: AppContext, provider: string, key: string): boolean {
-  return ctx.db.run("INSERT OR IGNORE INTO webhook_events(provider, event_key, created_at) VALUES (?,?,?)", provider, key, nowIso(ctx)).changes > 0;
+export async function claimEvent(ctx: AppContext, provider: string, key: string): Promise<boolean> {
+  return (await ctx.db.run("INSERT OR IGNORE INTO webhook_events(provider, event_key, created_at) VALUES (?,?,?)", provider, key, nowIso(ctx))).changes > 0;
 }
 
 function unconfigured(ctx: AppContext, what: string): void {
@@ -50,7 +54,7 @@ export function requireSharedSecret(ctx: AppContext, provided: string | undefine
 }
 
 /** Event webhook: ECDSA signature when a public key is configured, else the shared-secret fallback. Stale and replayed requests are refused. */
-export function requireSendgridEvents(ctx: AppContext, raw: string, h: { signature?: string; timestamp?: string; secret?: string }): void {
+export async function requireSendgridEvents(ctx: AppContext, raw: string, h: { signature?: string; timestamp?: string; secret?: string }): Promise<void> {
   const pub = ctx.config.SENDGRID_WEBHOOK_PUBLIC_KEY;
   if (!pub) return requireSharedSecret(ctx, h.secret);
   if (!verifySendgridSignature(pub, raw, h.signature, h.timestamp)) throw unauthorized("Invalid webhook signature", "INVALID_SIGNATURE");
@@ -58,5 +62,5 @@ export function requireSendgridEvents(ctx: AppContext, raw: string, h: { signatu
   if (!Number.isFinite(ts) || Math.abs(ctx.clock().getTime() / 1000 - ts) > ctx.config.WEBHOOK_TOLERANCE_SECONDS) {
     throw unauthorized("Webhook timestamp is outside the tolerated window", "STALE_WEBHOOK");
   }
-  if (!claimEvent(ctx, "sendgrid_sig", sha256(`${h.signature}|${h.timestamp}`))) throw unauthorized("Webhook was already processed", "REPLAYED_WEBHOOK");
+  if (!(await claimEvent(ctx, "sendgrid_sig", sha256(`${h.signature}|${h.timestamp}`)))) throw unauthorized("Webhook was already processed", "REPLAYED_WEBHOOK");
 }

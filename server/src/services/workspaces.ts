@@ -13,33 +13,32 @@ export interface WorkspaceRow {
   created_at: string;
 }
 
-export function getWorkspace(ctx: AppContext, id: string): WorkspaceRow {
-  const row = ctx.db.get<WorkspaceRow>("SELECT * FROM workspaces WHERE id = ?", id);
+export async function getWorkspace(ctx: AppContext, id: string): Promise<WorkspaceRow> {
+  const row = await ctx.db.get<WorkspaceRow>("SELECT * FROM workspaces WHERE id = ?", id);
   if (!row) throw notFound("Workspace");
   return row;
 }
 
-export const getSettings = (ctx: AppContext, id: string): WorkspaceSettings => parseSettings(getWorkspace(ctx, id).settings);
+export const getSettings = async (ctx: AppContext, id: string): Promise<WorkspaceSettings> => parseSettings((await getWorkspace(ctx, id)).settings);
 
-export function workspaceDto(ctx: AppContext, id: string) {
-  const w = getWorkspace(ctx, id);
+export async function workspaceDto(ctx: AppContext, id: string) {
+  const w = await getWorkspace(ctx, id);
   return { id: w.id, name: w.name, created_at: w.created_at, settings: parseSettings(w.settings), credit_balance: w.credit_balance };
 }
 
-export function updateWorkspace(ctx: AppContext, id: string, patch: { name?: string; settings?: z.infer<typeof WorkspaceSettingsPatchSchema> }) {
-  const w = getWorkspace(ctx, id);
+export async function updateWorkspace(ctx: AppContext, id: string, patch: { name?: string; settings?: z.infer<typeof WorkspaceSettingsPatchSchema> }) {
+  const w = await getWorkspace(ctx, id);
   const next = patch.settings ? mergeSettings(parseSettings(w.settings), patch.settings) : parseSettings(w.settings);
-  ctx.db.run("UPDATE workspaces SET name = ?, settings = ? WHERE id = ?", patch.name ?? w.name, JSON.stringify(next), id);
-  return workspaceDto(ctx, id);
+  await ctx.db.run("UPDATE workspaces SET name = ?, settings = ? WHERE id = ?", patch.name ?? w.name, JSON.stringify(next), id);
+  return await workspaceDto(ctx, id);
 }
 
 /** Cost of one outbound send, in credits. */
-export const creditCost = (ctx: AppContext, kind: "sms" | "email"): number =>
-  kind === "sms" ? ctx.config.CREDIT_COST_SMS : ctx.config.CREDIT_COST_EMAIL;
+export const creditCost = (ctx: AppContext, kind: "sms" | "email"): number => (kind === "sms" ? ctx.config.CREDIT_COST_SMS : ctx.config.CREDIT_COST_EMAIL);
 
 /** Throws 402 when credits are enforced and the balance cannot cover the send. */
-export function verifyBalance(ctx: AppContext, workspaceId: string, kind: "sms" | "email"): void {
-  const w = getWorkspace(ctx, workspaceId);
+export async function verifyBalance(ctx: AppContext, workspaceId: string, kind: "sms" | "email"): Promise<void> {
+  const w = await getWorkspace(ctx, workspaceId);
   if (!parseSettings(w.settings).credits_enforced) return;
   if (w.credit_balance < creditCost(ctx, kind)) {
     throw paymentRequired("INSUFFICIENT_CREDITS", `Not enough credits to send ${kind === "sms" ? "an SMS" : "an email"}`);
@@ -47,11 +46,11 @@ export function verifyBalance(ctx: AppContext, workspaceId: string, kind: "sms" 
 }
 
 /** Append a ledger entry and move the balance in one statement pair. delta is negative for usage. */
-export function recordUsage(ctx: AppContext, workspaceId: string, kind: string, delta: number, ref?: string): number {
-  return ctx.db.tx(() => {
-    ctx.db.run("UPDATE workspaces SET credit_balance = credit_balance + ? WHERE id = ?", delta, workspaceId);
-    const bal = ctx.db.get<{ credit_balance: number }>("SELECT credit_balance FROM workspaces WHERE id = ?", workspaceId)!.credit_balance;
-    ctx.db.run(
+export async function recordUsage(ctx: AppContext, workspaceId: string, kind: string, delta: number, ref?: string): Promise<number> {
+  return await ctx.db.tx(async () => {
+    await ctx.db.run("UPDATE workspaces SET credit_balance = credit_balance + ? WHERE id = ?", delta, workspaceId);
+    const bal = (await ctx.db.get<{ credit_balance: number }>("SELECT credit_balance FROM workspaces WHERE id = ?", workspaceId))!.credit_balance;
+    await ctx.db.run(
       "INSERT INTO usage_ledger(id, workspace_id, kind, delta, balance_after, ref, created_at) VALUES (?,?,?,?,?,?,?)",
       newId("led"),
       workspaceId,
@@ -66,4 +65,8 @@ export function recordUsage(ctx: AppContext, workspaceId: string, kind: string, 
 }
 
 export const listLedger = (ctx: AppContext, workspaceId: string, limit = 50) =>
-  ctx.db.all("SELECT id, kind, delta, balance_after, ref, created_at FROM usage_ledger WHERE workspace_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?", workspaceId, limit);
+  ctx.db.all(
+    "SELECT id, kind, delta, balance_after, ref, created_at FROM usage_ledger WHERE workspace_id = ? ORDER BY created_at DESC, id DESC LIMIT ?",
+    workspaceId,
+    limit,
+  );

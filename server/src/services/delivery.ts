@@ -12,10 +12,19 @@ import { getContact } from "./contacts.js";
 export const retryDelaySeconds = (ctx: AppContext, attempt: number): number =>
   Math.min(ctx.config.SEND_RETRY_CAP_SECONDS, ctx.config.SEND_RETRY_BASE_SECONDS * 2 ** Math.max(0, attempt - 1));
 
-function mark(ctx: AppContext, id: string, delivery: "sent" | "failed" | "pending", fields: { reason?: string | null; providerId?: string | null; retry?: number } = {}) {
-  ctx.db.run(
+async function mark(
+  ctx: AppContext,
+  id: string,
+  delivery: "sent" | "failed" | "pending",
+  fields: { reason?: string | null; providerId?: string | null; retry?: number } = {},
+) {
+  await ctx.db.run(
     "UPDATE messages SET delivery = ?, failure_reason = ?, provider_message_id = COALESCE(?, provider_message_id), retry_count = COALESCE(?, retry_count) WHERE id = ?",
-    delivery, fields.reason ?? null, fields.providerId ?? null, fields.retry ?? null, id,
+    delivery,
+    fields.reason ?? null,
+    fields.providerId ?? null,
+    fields.retry ?? null,
+    id,
   );
 }
 
@@ -34,25 +43,32 @@ async function attachmentBuffers(ctx: AppContext, atts: Attachment[]) {
  * exponential-backoff retry job (capped). The caller broadcasts the resulting state.
  */
 export async function deliverMessage(ctx: AppContext, messageId: string): Promise<MessageRow> {
-  const msg = ctx.db.get<MessageRow>("SELECT * FROM messages WHERE id = ?", messageId)!;
+  const msg = (await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE id = ?", messageId))!;
   if (msg.delivery === "sent" || msg.delivery === "delivered") return msg;
-  const room = getRoomRow(ctx, msg.workspace_id, msg.room_id);
+  const room = await getRoomRow(ctx, msg.workspace_id, msg.room_id);
   const kind = msg.source === "sms" ? "sms" : "email";
   let failure: { reason: string; retryable: boolean } | null = null;
   try {
-    const contact = getContact(ctx, msg.workspace_id, room.contact_id);
+    const contact = await getContact(ctx, msg.workspace_id, room.contact_id);
     if (msg.source === "sms") {
       if (contact.sms_opt_out) failure = { reason: "Contact has opted out of SMS", retryable: false };
       else {
         const r = await ctx.sms.send({
-          to: msg.to_addr!, from: msg.from_addr!, body: msg.content_text, idempotencyKey: msg.id,
+          to: msg.to_addr!,
+          from: msg.from_addr!,
+          body: msg.content_text,
+          idempotencyKey: msg.id,
           statusCallbackUrl: `${ctx.config.PUBLIC_URL.replace(/\/$/, "")}/webhooks/twilio/status`,
         });
-        mark(ctx, msg.id, "sent", { providerId: r.providerMessageId });
+        await mark(ctx, msg.id, "sent", { providerId: r.providerMessageId });
       }
     } else if (msg.source === "email") {
-      const sender = ctx.db.get<{ display_name: string }>("SELECT display_name FROM email_senders WHERE workspace_id = ? AND address = ?", msg.workspace_id, msg.from_addr);
-      const inbound = ctx.db.get<{ address: string }>("SELECT address FROM inbound_addresses WHERE workspace_id = ? ORDER BY created_at LIMIT 1", msg.workspace_id);
+      const sender = await ctx.db.get<{ display_name: string }>(
+        "SELECT display_name FROM email_senders WHERE workspace_id = ? AND address = ?",
+        msg.workspace_id,
+        msg.from_addr,
+      );
+      const inbound = await ctx.db.get<{ address: string }>("SELECT address FROM inbound_addresses WHERE workspace_id = ? ORDER BY created_at LIMIT 1", msg.workspace_id);
       const refs = (msg.references_hdr ?? "").split(/\s+/).filter(Boolean);
       const r = await ctx.email.send({
         from: { address: msg.from_addr!, name: sender?.display_name || undefined },
@@ -66,11 +82,11 @@ export async function deliverMessage(ctx: AppContext, messageId: string): Promis
         replyTo: inbound?.address,
         attachments: await attachmentBuffers(ctx, parseJson<Attachment[]>(msg.attachments, [])),
       });
-      mark(ctx, msg.id, "sent", { providerId: r.providerMessageId });
+      await mark(ctx, msg.id, "sent", { providerId: r.providerMessageId });
     }
     if (!failure) {
       const cost = creditCost(ctx, kind);
-      if (cost > 0) recordUsage(ctx, msg.workspace_id, kind, -cost, msg.id);
+      if (cost > 0) await recordUsage(ctx, msg.workspace_id, kind, -cost, msg.id);
     }
   } catch (e) {
     const retryable = e instanceof ProviderError ? e.retryable : true;
@@ -79,21 +95,25 @@ export async function deliverMessage(ctx: AppContext, messageId: string): Promis
   }
   if (failure) {
     const attempts = msg.retry_count + 1;
-    mark(ctx, msg.id, "failed", { reason: failure.reason, retry: attempts });
+    await mark(ctx, msg.id, "failed", { reason: failure.reason, retry: attempts });
     if (failure.retryable && attempts < ctx.config.SEND_RETRY_MAX_ATTEMPTS) {
-      enqueueJob(ctx, "send_retry", { message_id: msg.id }, { runAt: addSeconds(ctx.clock(), retryDelaySeconds(ctx, attempts)), dedupeKey: `send_retry:${msg.id}:${attempts}` });
+      await enqueueJob(
+        ctx,
+        "send_retry",
+        { message_id: msg.id },
+        { runAt: addSeconds(ctx.clock(), retryDelaySeconds(ctx, attempts)), dedupeKey: `send_retry:${msg.id}:${attempts}` },
+      );
     }
   }
-  const fresh = findMessageRow(ctx, msg.workspace_id, msg.id)!;
-  emitMessage(ctx, getRoomRow(ctx, msg.workspace_id, msg.room_id), fresh, "message:updated");
+  const fresh = (await findMessageRow(ctx, msg.workspace_id, msg.id))!;
+  await emitMessage(ctx, await getRoomRow(ctx, msg.workspace_id, msg.room_id), fresh, "message:updated");
   return fresh;
 }
 
 /** Job handler + manual retry share this. */
 export async function retryDelivery(ctx: AppContext, messageId: string): Promise<MessageRow | null> {
-  const msg = ctx.db.get<MessageRow>("SELECT * FROM messages WHERE id = ?", messageId);
+  const msg = await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE id = ?", messageId);
   if (!msg || msg.deleted_at || msg.delivery !== "failed") return msg ?? null;
-  ctx.db.run("UPDATE messages SET delivery = 'pending' WHERE id = ?", messageId);
-  return deliverMessage(ctx, messageId);
+  await ctx.db.run("UPDATE messages SET delivery = 'pending' WHERE id = ?", messageId);
+  return await deliverMessage(ctx, messageId);
 }
-

@@ -52,7 +52,7 @@ describe("contacts API", () => {
 
   it("uses the workspace default region for local numbers", async () => {
     const { ctx, http, wsId, token } = await fullApp();
-    setSettings(ctx, wsId, { default_region: "GB" });
+    await setSettings(ctx, wsId, { default_region: "GB" });
     const c = await http.post("/api/contacts", { name: "Brit", phone: "020 7946 0958" }, token);
     expect(c.body.phone).toBe("+442079460958");
   });
@@ -81,12 +81,12 @@ describe("contacts API", () => {
 
   it("find-or-create merges missing details into the existing contact", async () => {
     const { ctx, wsId } = await fullApp();
-    const first = findOrCreateContact(ctx, wsId, { email: "m@example.test" });
+    const first = await findOrCreateContact(ctx, wsId, { email: "m@example.test" });
     expect(first.created).toBe(true);
-    const again = findOrCreateContact(ctx, wsId, { email: "M@example.test", phone: "415-555-2671", name: "Mo" });
+    const again = await findOrCreateContact(ctx, wsId, { email: "M@example.test", phone: "415-555-2671", name: "Mo" });
     expect(again.created).toBe(false);
     expect(again.contact).toMatchObject({ id: first.contact.id, phone: "+14155552671", name: "Mo" });
-    const byPhone = findOrCreateContact(ctx, wsId, { phone: "+14155552671" });
+    const byPhone = await findOrCreateContact(ctx, wsId, { phone: "+14155552671" });
     expect(byPhone.contact.id).toBe(first.contact.id);
   });
 
@@ -127,7 +127,11 @@ describe("contacts API", () => {
 
 describe("contact CSV import", () => {
   it("parses quoted fields, escaped quotes, CRLF and BOM", () => {
-    expect(parseCsv('﻿name,email\r\n"Lee, Dana","d@x.test"\r\n"He said ""hi""",\r\n\r\n')).toEqual([["name", "email"], ["Lee, Dana", "d@x.test"], ['He said "hi"', ""]]);
+    expect(parseCsv('﻿name,email\r\n"Lee, Dana","d@x.test"\r\n"He said ""hi""",\r\n\r\n')).toEqual([
+      ["name", "email"],
+      ["Lee, Dana", "d@x.test"],
+      ['He said "hi"', ""],
+    ]);
   });
   it("creates, updates, skips and reports row errors", async () => {
     const { ctx, wsId } = await fullApp();
@@ -138,17 +142,17 @@ describe("contact CSV import", () => {
       ",,,,pro",
       "Ann Again,ANN@example.test,,lead,",
     ].join("\n");
-    const res = importContactsCsv(ctx, wsId, csv);
+    const res = await importContactsCsv(ctx, wsId, csv);
     expect(res).toMatchObject({ created: 1, updated: 1, skipped: 1 });
     expect(res.errors).toEqual([{ row: 3, error: "Phone number is not valid" }]);
-    const ann = ctx.db.get<{ tags: string; attrs: string }>("SELECT tags, attrs FROM contacts WHERE email = 'ann@example.test'")!;
+    const ann = (await ctx.db.get<{ tags: string; attrs: string }>("SELECT tags, attrs FROM contacts WHERE email = 'ann@example.test'"))!;
     expect(JSON.parse(ann.tags)).toEqual(["vip", "new", "lead"]);
     expect(JSON.parse(ann.attrs)).toEqual({ plan: "pro" });
   });
   it("rejects files without a recognisable header and oversize imports; works over HTTP (multipart and raw)", async () => {
     const { ctx, wsId, http, token } = await fullApp();
-    expect(() => importContactsCsv(ctx, wsId, "foo,bar\n1,2")).toThrow(/header/);
-    expect(() => importContactsCsv(ctx, wsId, "name\n" + "x\n".repeat(30), 10)).toThrow(/At most/);
+    await expect(() => importContactsCsv(ctx, wsId, "foo,bar\n1,2")).rejects.toThrow(/header/);
+    await expect(() => importContactsCsv(ctx, wsId, "name\n" + "x\n".repeat(30), 10)).rejects.toThrow(/At most/);
     const raw = await http.call("POST", "/api/contacts/import", { token, raw: "name,email\nZed,zed@example.test", headers: { "content-type": "text/csv" } });
     expect(raw.body.created).toBe(1);
     const form = new FormData();

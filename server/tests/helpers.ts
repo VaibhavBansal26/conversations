@@ -40,18 +40,32 @@ export function testConfig(env: Record<string, string> = {}): Config {
   return loadConfig(
     {
       // WEB_DIST points nowhere so tests never depend on whether the web app happens to be built
-      NODE_ENV: "test", JWT_SECRET: "test-secret-test-secret-test-secret", DATABASE_PATH: ":memory:", DATA_DIR: dir, WEB_DIST: join(dir, "no-web-build"),
-      LOG_LEVEL: "silent", PUBLIC_URL: "http://localhost:3000", SEND_RETRY_BASE_SECONDS: "10", SEND_RETRY_CAP_SECONDS: "100", SEND_RETRY_MAX_ATTEMPTS: "4", ...env,
+      NODE_ENV: "test",
+      JWT_SECRET: "test-secret-test-secret-test-secret",
+      DATABASE_PATH: ":memory:",
+      DATA_DIR: dir,
+      WEB_DIST: join(dir, "no-web-build"),
+      LOG_LEVEL: "silent",
+      PUBLIC_URL: "http://localhost:3000",
+      SEND_RETRY_BASE_SECONDS: "10",
+      SEND_RETRY_CAP_SECONDS: "100",
+      SEND_RETRY_MAX_ATTEMPTS: "4",
+      ...env,
     },
     () => {},
   );
 }
 
-export function makeCtx(env: Record<string, string> = {}, over: ContextOverrides = {}): TestCtx {
+export async function makeCtx(env: Record<string, string> = {}, over: ContextOverrides = {}): Promise<TestCtx> {
   const clockCtl = new TestClock();
-  const ctx = createContext(testConfig(env), {
-    log: silentLogger, bus: new RecordingBus(), sms: new FakeSmsProvider(), email: new FakeEmailProvider(), ai: new HeuristicProvider(), ...over,
-  }) as TestCtx;
+  const ctx = (await createContext(testConfig(env), {
+    log: silentLogger,
+    bus: new RecordingBus(),
+    sms: new FakeSmsProvider(),
+    email: new FakeEmailProvider(),
+    ai: new HeuristicProvider(),
+    ...over,
+  })) as TestCtx;
   ctx.clock = clockCtl.now;
   ctx.clockCtl = clockCtl;
   return ctx;
@@ -60,43 +74,84 @@ export function makeCtx(env: Record<string, string> = {}, over: ContextOverrides
 let pwHash: string | undefined;
 
 /** Insert a user+member directly (scrypt is slow; one shared hash keeps tests fast). */
-export async function addMemberRaw(ctx: AppContext, workspaceId: string, o: { name?: string; role?: Role; email?: string; inbox_visibility?: "assigned" | "assigned_inbox"; live_seat?: boolean } = {}): Promise<Actor> {
+export async function addMemberRaw(
+  ctx: AppContext,
+  workspaceId: string,
+  o: { name?: string; role?: Role; email?: string; inbox_visibility?: "assigned" | "assigned_inbox"; live_seat?: boolean } = {},
+): Promise<Actor> {
   pwHash ??= await hashPassword("password123");
   const uid = newId("usr");
   const mid = newId("mem");
   const name = o.name ?? "Agent";
-  ctx.db.run("INSERT INTO users(id, email, password_hash, name, created_at) VALUES (?,?,?,?,?)", uid, o.email ?? `${name.toLowerCase().replace(/\W+/g, "")}.${uid.slice(-6)}@example.test`, pwHash, name, ctx.clock().toISOString());
-  ctx.db.run("INSERT INTO members(id, workspace_id, user_id, role, live_seat, inbox_visibility, created_at) VALUES (?,?,?,?,?,?,?)", mid, workspaceId, uid, o.role ?? "agent", o.live_seat ?? true, o.inbox_visibility ?? "assigned_inbox", ctx.clock().toISOString());
-  return actorFromRow(getMember(ctx, workspaceId, mid));
+  await ctx.db.run(
+    "INSERT INTO users(id, email, password_hash, name, created_at) VALUES (?,?,?,?,?)",
+    uid,
+    o.email ?? `${name.toLowerCase().replace(/\W+/g, "")}.${uid.slice(-6)}@example.test`,
+    pwHash,
+    name,
+    ctx.clock().toISOString(),
+  );
+  await ctx.db.run(
+    "INSERT INTO members(id, workspace_id, user_id, role, live_seat, inbox_visibility, created_at) VALUES (?,?,?,?,?,?,?)",
+    mid,
+    workspaceId,
+    uid,
+    o.role ?? "agent",
+    o.live_seat ?? true,
+    o.inbox_visibility ?? "assigned_inbox",
+    ctx.clock().toISOString(),
+  );
+  return actorFromRow(await getMember(ctx, workspaceId, mid));
 }
 
 export async function seedWorkspace(ctx: AppContext, name = "Acme") {
   const wsId = newId("ws");
-  ctx.db.run("INSERT INTO workspaces(id, name, settings, created_at) VALUES (?,?,?,?)", wsId, name, "{}", ctx.clock().toISOString());
+  await ctx.db.run("INSERT INTO workspaces(id, name, settings, created_at) VALUES (?,?,?,?)", wsId, name, "{}", ctx.clock().toISOString());
   const owner = await addMemberRaw(ctx, wsId, { name: "Olivia Owner", role: "owner", email: `owner.${wsId.slice(-6)}@example.test` });
   return { wsId, owner };
 }
 
-export const setSettings = (ctx: AppContext, wsId: string, patch: Record<string, unknown>) => {
-  const cur = JSON.parse(ctx.db.get<{ settings: string }>("SELECT settings FROM workspaces WHERE id = ?", wsId)!.settings);
-  ctx.db.run("UPDATE workspaces SET settings = ? WHERE id = ?", JSON.stringify({ ...cur, ...patch }), wsId);
+export const setSettings = async (ctx: AppContext, wsId: string, patch: Record<string, unknown>) => {
+  const cur = JSON.parse((await ctx.db.get<{ settings: string }>("SELECT settings FROM workspaces WHERE id = ?", wsId))!.settings);
+  await ctx.db.run("UPDATE workspaces SET settings = ? WHERE id = ?", JSON.stringify({ ...cur, ...patch }), wsId);
 };
 
-export function addSmsNumberRaw(ctx: AppContext, wsId: string, e164: string, isDefault = false) {
-  ctx.db.run("INSERT INTO sms_numbers(id, workspace_id, e164, label, is_default, created_at) VALUES (?,?,?,?,?,?)", newId("num"), wsId, e164, "", isDefault, ctx.clock().toISOString());
+export async function addSmsNumberRaw(ctx: AppContext, wsId: string, e164: string, isDefault = false) {
+  await ctx.db.run(
+    "INSERT INTO sms_numbers(id, workspace_id, e164, label, is_default, created_at) VALUES (?,?,?,?,?,?)",
+    newId("num"),
+    wsId,
+    e164,
+    "",
+    isDefault,
+    ctx.clock().toISOString(),
+  );
 }
-export function addSenderRaw(ctx: AppContext, wsId: string, address: string, verified = true, isDefault = false) {
-  ctx.db.run("INSERT INTO email_senders(id, workspace_id, address, display_name, verified, is_default, created_at) VALUES (?,?,?,?,?,?,?)", newId("snd"), wsId, address, "Support", verified, isDefault, ctx.clock().toISOString());
+export async function addSenderRaw(ctx: AppContext, wsId: string, address: string, verified = true, isDefault = false) {
+  await ctx.db.run(
+    "INSERT INTO email_senders(id, workspace_id, address, display_name, verified, is_default, created_at) VALUES (?,?,?,?,?,?,?)",
+    newId("snd"),
+    wsId,
+    address,
+    "Support",
+    verified,
+    isDefault,
+    ctx.clock().toISOString(),
+  );
 }
-export function addInboundAddressRaw(ctx: AppContext, wsId: string, address: string) {
-  ctx.db.run("INSERT INTO inbound_addresses(address, workspace_id, created_at) VALUES (?,?,?)", address, wsId, ctx.clock().toISOString());
+export async function addInboundAddressRaw(ctx: AppContext, wsId: string, address: string) {
+  await ctx.db.run("INSERT INTO inbound_addresses(address, workspace_id, created_at) VALUES (?,?,?)", address, wsId, ctx.clock().toISOString());
 }
 
 export const mkContact = (ctx: AppContext, wsId: string, input: ContactInput = {}) =>
-  createContact(ctx, wsId, { name: "Casey Customer", ...(input.email === undefined && input.phone === undefined ? { email: `casey.${newId("x").slice(-8)}@example.test` } : {}), ...input });
+  createContact(ctx, wsId, {
+    name: "Casey Customer",
+    ...(input.email === undefined && input.phone === undefined ? { email: `casey.${newId("x").slice(-8)}@example.test` } : {}),
+    ...input,
+  });
 
 export async function tokenFor(ctx: AppContext, a: Actor): Promise<string> {
-  return signAccessToken(ctx, a);
+  return await signAccessToken(ctx, a);
 }
 
 export interface Res<T = any> {
@@ -105,7 +160,11 @@ export interface Res<T = any> {
 }
 
 export function client(app: Hono) {
-  async function call<T = any>(method: string, path: string, opts: { token?: string; json?: unknown; headers?: Record<string, string>; form?: FormData; raw?: string } = {}): Promise<Res<T>> {
+  async function call<T = any>(
+    method: string,
+    path: string,
+    opts: { token?: string; json?: unknown; headers?: Record<string, string>; form?: FormData; raw?: string } = {},
+  ): Promise<Res<T>> {
     const headers: Record<string, string> = { ...opts.headers };
     if (opts.token) headers.authorization = `Bearer ${opts.token}`;
     let body: BodyInit | undefined;
@@ -135,7 +194,7 @@ export function client(app: Hono) {
 }
 
 export async function fullApp(env: Record<string, string> = {}) {
-  const ctx = makeCtx(env);
+  const ctx = await makeCtx(env);
   const app = createApp(ctx);
   const ws = await seedWorkspace(ctx);
   const token = await tokenFor(ctx, ws.owner);
@@ -152,26 +211,47 @@ import { getRoomRow, type RoomRow } from "../src/services/roomStore.js";
 import { sendAgentMessage, type SendInput } from "../src/services/messages.js";
 
 /** A contact plus their (single) room. */
-export function mkRoom(ctx: AppContext, wsId: string, o: { contact?: ContactInput; inboxId?: string | null; assignees?: Actor[] } = {}) {
-  const contact = mkContact(ctx, wsId, o.contact);
-  const { room } = findOrCreateRoom(ctx, wsId, { contactId: contact.id, inboxId: o.inboxId ?? null });
-  if (o.assignees?.length) setAssignees(ctx, room, o.assignees.map((a) => a.memberId), "Test");
-  return { contact, room: getRoomRow(ctx, wsId, room.id) };
+export async function mkRoom(ctx: AppContext, wsId: string, o: { contact?: ContactInput; inboxId?: string | null; assignees?: Actor[] } = {}) {
+  const contact = await mkContact(ctx, wsId, o.contact);
+  const { room } = await findOrCreateRoom(ctx, wsId, { contactId: contact.id, inboxId: o.inboxId ?? null });
+  if (o.assignees?.length)
+    await setAssignees(
+      ctx,
+      room,
+      o.assignees.map((a) => a.memberId),
+      "Test",
+    );
+  return { contact, room: await getRoomRow(ctx, wsId, room.id) };
 }
 
-export function contactSays(ctx: AppContext, room: RoomRow, text: string, source: "dm" | "sms" | "email" = "dm", extra: { clientMsgId?: string } = {}): MessageRow {
-  return insertMessage(ctx, {
-    workspaceId: room.workspace_id, roomId: room.id, senderType: "contact", senderId: room.contact_id, senderName: "Contact", kind: "text", source,
-    content: text, contentText: text, clientMsgId: extra.clientMsgId ?? null,
-  }).message;
+export async function contactSays(
+  ctx: AppContext,
+  room: RoomRow,
+  text: string,
+  source: "dm" | "sms" | "email" = "dm",
+  extra: { clientMsgId?: string } = {},
+): Promise<MessageRow> {
+  return (
+    await insertMessage(ctx, {
+      workspaceId: room.workspace_id,
+      roomId: room.id,
+      senderType: "contact",
+      senderId: room.contact_id,
+      senderName: "Contact",
+      kind: "text",
+      source,
+      content: text,
+      contentText: text,
+      clientMsgId: extra.clientMsgId ?? null,
+    })
+  ).message;
 }
 
 export async function agentSays(ctx: AppContext, actor: Actor, roomId: string, text: string, extra: Partial<SendInput> = {}): Promise<MessageRow> {
   return (await sendAgentMessage(ctx, actor, roomId, { kind: "text", source: "dm", content: text, ...extra })).message;
 }
 
-export const mkInbox = (ctx: AppContext, owner: Actor, input: Partial<InboxInput> & { name?: string } = {}) =>
-  createInbox(ctx, owner, { name: "Support", ...input });
+export const mkInbox = (ctx: AppContext, owner: Actor, input: Partial<InboxInput> & { name?: string } = {}) => createInbox(ctx, owner, { name: "Support", ...input });
 
-export const roomRow = (ctx: AppContext, id: string) => ctx.db.get<RoomRow>("SELECT * FROM rooms WHERE id = ?", id)!;
+export const roomRow = async (ctx: AppContext, id: string) => (await ctx.db.get<RoomRow>("SELECT * FROM rooms WHERE id = ?", id))!;
 export const messagesOf = (ctx: AppContext, roomId: string) => ctx.db.all<MessageRow>("SELECT * FROM messages WHERE room_id = ? ORDER BY seq", roomId);

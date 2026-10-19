@@ -14,16 +14,32 @@ const ZIP = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.alloc(3
 
 describe("magic-byte sniffing", () => {
   const cases: [string, Buffer, string | null][] = [
-    ["png", PNG, "image/png"], ["jpeg", JPG, "image/jpeg"], ["pdf", PDF, "application/pdf"], ["gif", GIF, "image/gif"], ["webm audio", WEBM, "audio/webm"],
-    ["plain text", Buffer.from("hello, café"), "text/plain"], ["exe", EXE, null], ["svg (xss vector)", SVG, "text/plain"], ["binary garbage", Buffer.from([0, 1, 2, 3, 4, 5]), null], ["tiny text", Buffer.from("ab"), "text/plain"], ["empty", Buffer.alloc(0), null],
+    ["png", PNG, "image/png"],
+    ["jpeg", JPG, "image/jpeg"],
+    ["pdf", PDF, "application/pdf"],
+    ["gif", GIF, "image/gif"],
+    ["webm audio", WEBM, "audio/webm"],
+    ["plain text", Buffer.from("hello, café"), "text/plain"],
+    ["exe", EXE, null],
+    ["svg (xss vector)", SVG, "text/plain"],
+    ["binary garbage", Buffer.from([0, 1, 2, 3, 4, 5]), null],
+    ["tiny text", Buffer.from("ab"), "text/plain"],
+    ["empty", Buffer.alloc(0), null],
   ];
   it.each(cases)("%s", (_n, buf, mime) => expect(sniff(buf)?.mime ?? null).toBe(mime));
 });
 
 describe("file name sanitising", () => {
   const cases: [string, string][] = [
-    ["../../etc/passwd", "passwd"], ["..\\..\\windows\\system32\\cmd.exe", "cmd.exe"], ["/abs/path/photo.png", "photo.png"], ["we ird\u0000na\u0007me.png", "we irdname.png"],
-    ['a"b<c>d:e|f?g*.txt', "abcdefg.txt"], ["....hidden", "hidden"], ["   ", "file"], ["", "file"], ["a".repeat(300) + ".png", "a".repeat(120)],
+    ["../../etc/passwd", "passwd"],
+    ["..\\..\\windows\\system32\\cmd.exe", "cmd.exe"],
+    ["/abs/path/photo.png", "photo.png"],
+    ["we ird\u0000na\u0007me.png", "we irdname.png"],
+    ['a"b<c>d:e|f?g*.txt', "abcdefg.txt"],
+    ["....hidden", "hidden"],
+    ["   ", "file"],
+    ["", "file"],
+    ["a".repeat(300) + ".png", "a".repeat(120)],
   ];
   it.each(cases)("%j -> %j", (input, out) => expect(sanitizeFileName(input)).toBe(out));
 });
@@ -34,7 +50,15 @@ describe("upload rules", () => {
     return { ...f, run: () => saveUpload(f.ctx, f.owner, { name, content }) };
   }
   it("accepts allowed types whose extension matches the contents", async () => {
-    for (const [name, buf, type] of [["photo.PNG", PNG, "image/png"], ["pic.jpeg", JPG, "image/jpeg"], ["doc.pdf", PDF, "application/pdf"], ["clip.webm", WEBM, "audio/webm"], ["notes.txt", Buffer.from("hi"), "text/plain"], ["data.csv", Buffer.from("a,b\n1,2"), "text/csv"], ["sheet.xlsx", ZIP, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]] as const) {
+    for (const [name, buf, type] of [
+      ["photo.PNG", PNG, "image/png"],
+      ["pic.jpeg", JPG, "image/jpeg"],
+      ["doc.pdf", PDF, "application/pdf"],
+      ["clip.webm", WEBM, "audio/webm"],
+      ["notes.txt", Buffer.from("hi"), "text/plain"],
+      ["data.csv", Buffer.from("a,b\n1,2"), "text/csv"],
+      ["sheet.xlsx", ZIP, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+    ] as const) {
       const r = await (await up(name, buf)).run();
       expect(r.content_type, name).toBe(type);
     }
@@ -70,7 +94,7 @@ describe("attachments over HTTP", () => {
   };
   it("uploads, attaches to a message, and serves via a signed URL with safe headers", async () => {
     const { ctx, app, http, token, wsId } = await fullApp();
-    const { room } = mkRoom(ctx, wsId);
+    const { room } = await mkRoom(ctx, wsId);
     const up = await upload(http, token, "my photo.png", PNG, "image/png");
     expect(up.status).toBe(201);
     const msg = await http.post(`/api/rooms/${room.id}/messages`, { kind: "image", source: "dm", attachment_ids: [up.body.id], client_msg_id: "attach-qid-001" }, token);
@@ -122,13 +146,13 @@ describe("attachments over HTTP", () => {
     const { ctx, http, token, wsId } = await fullApp();
     const other = await seedWorkspace(ctx, "Other");
     const foreign = await upload(http, await tokenFor(ctx, other.owner), "a.png", PNG);
-    const { room } = mkRoom(ctx, wsId);
+    const { room } = await mkRoom(ctx, wsId);
     expect((await http.post(`/api/rooms/${room.id}/messages`, { kind: "image", attachment_ids: [foreign.body.id] }, token)).body.error.code).toBe("UNKNOWN_ATTACHMENT");
     await expect(sendAgentMessage(ctx, (await fullApp()).owner, room.id, { kind: "image", source: "dm", attachment_ids: [] })).rejects.toBeTruthy();
   });
   it("voice notes (webm) and documents attach as their own kinds", async () => {
     const { ctx, http, token, wsId } = await fullApp();
-    const { room } = mkRoom(ctx, wsId);
+    const { room } = await mkRoom(ctx, wsId);
     const voice = await upload(http, token, "voice.webm", WEBM, "audio/webm");
     const doc = await upload(http, token, "invoice.pdf", PDF, "application/pdf");
     expect((await http.post(`/api/rooms/${room.id}/messages`, { kind: "voice", attachment_ids: [voice.body.id] }, token)).body.kind).toBe("voice");

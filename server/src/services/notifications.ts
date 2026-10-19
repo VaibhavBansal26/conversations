@@ -28,11 +28,11 @@ const isSnoozed = (ctx: AppContext, room: RoomRow) => !!room.snooze_until && roo
  *  unassigned       - owners/managers, only while nobody is assigned
  * Per-seat preferences can switch a tier off. Snoozed rooms notify nobody.
  */
-export function selectRecipients(ctx: AppContext, room: RoomRow, opts: { excludeMemberId?: string | null } = {}): Recipient[] {
+export async function selectRecipients(ctx: AppContext, room: RoomRow, opts: { excludeMemberId?: string | null } = {}): Promise<Recipient[]> {
   if (isSnoozed(ctx, room)) return [];
-  const members = listMemberRows(ctx, room.workspace_id).filter((m) => m.live_seat && m.availability !== "inactive" && m.id !== opts.excludeMemberId);
-  const assignees = new Set(assigneeIds(ctx, room.id));
-  const team = new Set(room.inbox_id ? memberIds(ctx, room.inbox_id) : []);
+  const members = (await listMemberRows(ctx, room.workspace_id)).filter((m) => m.live_seat && m.availability !== "inactive" && m.id !== opts.excludeMemberId);
+  const assignees = new Set(await assigneeIds(ctx, room.id));
+  const team = new Set(room.inbox_id ? await memberIds(ctx, room.inbox_id) : []);
   const chosen = new Map<string, Recipient>();
   for (const m of members) {
     let tier: Tier | null = null;
@@ -47,8 +47,8 @@ export function selectRecipients(ctx: AppContext, room: RoomRow, opts: { exclude
   return [...chosen.values()];
 }
 
-export const canEmail = (ctx: AppContext, m: MemberRow): boolean =>
-  prefsOf(m).email && !isDnd(ctx, m) && !ctx.presence.isOnline(memberScope(m.workspace_id), m.id);
+export const canEmail = async (ctx: AppContext, m: MemberRow): Promise<boolean> =>
+  prefsOf(m).email && !isDnd(ctx, m) && !(await ctx.presence.isOnline(memberScope(m.workspace_id), m.id));
 
 interface NotificationRow {
   id: string;
@@ -63,63 +63,79 @@ interface NotificationRow {
 
 /** Only what the client needs: no workspace/seat ids, no email bookkeeping. */
 export const notificationDto = (n: NotificationRow) => ({
-  id: n.id, type: n.type, room_id: n.room_id, message_id: n.message_id, title: n.title, body: n.body, read_at: n.read_at, created_at: n.created_at,
+  id: n.id,
+  type: n.type,
+  room_id: n.room_id,
+  message_id: n.message_id,
+  title: n.title,
+  body: n.body,
+  read_at: n.read_at,
+  created_at: n.created_at,
 });
 
-function create(ctx: AppContext, m: MemberRow, n: { type: string; room: RoomRow; message: MessageRow; title: string; body: string }): string | null {
+async function create(ctx: AppContext, m: MemberRow, n: { type: string; room: RoomRow; message: MessageRow; title: string; body: string }): Promise<string | null> {
   const id = newId("ntf");
-  const res = ctx.db.run(
+  const res = await ctx.db.run(
     "INSERT OR IGNORE INTO notifications(id, workspace_id, member_id, type, room_id, message_id, title, body, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
-    id, m.workspace_id, m.id, n.type, n.room.id, n.message.id, n.title, n.body, nowIso(ctx),
+    id,
+    m.workspace_id,
+    m.id,
+    n.type,
+    n.room.id,
+    n.message.id,
+    n.title,
+    n.body,
+    nowIso(ctx),
   );
   if (!res.changes) return null;
   ctx.bus.toMember(m.workspace_id, m.id, "notification:new", {
-    notification: notificationDto(ctx.db.get<NotificationRow>("SELECT * FROM notifications WHERE id = ?", id)!),
-    unread_count: unreadNotificationCount(ctx, m.id),
+    notification: notificationDto((await ctx.db.get<NotificationRow>("SELECT * FROM notifications WHERE id = ?", id))!),
+    unread_count: await unreadNotificationCount(ctx, m.id),
   });
   return id;
 }
 
 /** In-app feed entry for every selected seat; an offline-email job for assignees who are away from the app. */
-export function notifyContactMessage(ctx: AppContext, room: RoomRow, message: MessageRow): void {
-  const contact = getContact(ctx, room.workspace_id, room.contact_id);
+export async function notifyContactMessage(ctx: AppContext, room: RoomRow, message: MessageRow): Promise<void> {
+  const contact = await getContact(ctx, room.workspace_id, room.contact_id);
   const who = contact.name || contact.email || contact.phone || "A contact";
-  for (const r of selectRecipients(ctx, room)) {
-    const id = create(ctx, r.member, { type: "message", room, message, title: `New message from ${who}`, body: snippet(message.content_text, 140) });
-    if (id && r.tier === "assigned_to_you" && canEmail(ctx, r.member)) {
-      enqueueJob(ctx, "notify_email", { notification_id: id }, { dedupeKey: `notify_email:${id}` });
+  for (const r of await selectRecipients(ctx, room)) {
+    const id = await create(ctx, r.member, { type: "message", room, message, title: `New message from ${who}`, body: snippet(message.content_text, 140) });
+    if (id && r.tier === "assigned_to_you" && (await canEmail(ctx, r.member))) {
+      await enqueueJob(ctx, "notify_email", { notification_id: id }, { dedupeKey: `notify_email:${id}` });
     }
   }
 }
 
-export function notifyMentions(ctx: AppContext, room: RoomRow, message: MessageRow, actor: Actor, memberIds_: string[]): void {
-  const members = listMemberRows(ctx, room.workspace_id);
+export async function notifyMentions(ctx: AppContext, room: RoomRow, message: MessageRow, actor: Actor, memberIds_: string[]): Promise<void> {
+  const members = await listMemberRows(ctx, room.workspace_id);
   for (const id of memberIds_) {
     const m = members.find((x) => x.id === id);
     if (!m || m.id === actor.memberId || !prefsOf(m).mentions) continue;
-    const nid = create(ctx, m, { type: "mention", room, message, title: `${actor.name} mentioned you`, body: snippet(message.content_text, 140) });
-    if (nid && canEmail(ctx, m)) enqueueJob(ctx, "notify_email", { notification_id: nid }, { dedupeKey: `notify_email:${nid}` });
+    const nid = await create(ctx, m, { type: "mention", room, message, title: `${actor.name} mentioned you`, body: snippet(message.content_text, 140) });
+    if (nid && (await canEmail(ctx, m))) await enqueueJob(ctx, "notify_email", { notification_id: nid }, { dedupeKey: `notify_email:${nid}` });
   }
 }
 
 /** Tell the seat that snoozed a room that it is back. */
-export function notifySnoozeEnded(ctx: AppContext, room: RoomRow, snoozedBy: string | null): void {
+export async function notifySnoozeEnded(ctx: AppContext, room: RoomRow, snoozedBy: string | null): Promise<void> {
   if (!snoozedBy) return;
-  const m = listMemberRows(ctx, room.workspace_id).find((x) => x.id === snoozedBy);
-  const last = room.last_message_id ? ctx.db.get<MessageRow>("SELECT * FROM messages WHERE id = ?", room.last_message_id) : undefined;
+  const m = (await listMemberRows(ctx, room.workspace_id)).find((x) => x.id === snoozedBy);
+  const last = room.last_message_id ? await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE id = ?", room.last_message_id) : undefined;
   if (!m || !last) return;
-  create(ctx, m, { type: "snooze_ended", room, message: last, title: "Snoozed conversation is back", body: snippet(last.content_text, 140) });
+  await create(ctx, m, { type: "snooze_ended", room, message: last, title: "Snoozed conversation is back", body: snippet(last.content_text, 140) });
 }
 
 /** Job handler: re-check presence/DND at send time, then email. */
 export async function sendNotificationEmail(ctx: AppContext, payload: { notification_id: string }): Promise<void> {
-  const n = ctx.db.get<{ id: string; workspace_id: string; member_id: string; title: string; body: string; room_id: string | null; emailed_at: string | null }>(
-    "SELECT * FROM notifications WHERE id = ?", payload.notification_id,
+  const n = await ctx.db.get<{ id: string; workspace_id: string; member_id: string; title: string; body: string; room_id: string | null; emailed_at: string | null }>(
+    "SELECT * FROM notifications WHERE id = ?",
+    payload.notification_id,
   );
   if (!n || n.emailed_at) return;
-  const m = listMemberRows(ctx, n.workspace_id).find((x) => x.id === n.member_id);
-  if (!m || !canEmail(ctx, m)) return;
-  const room = n.room_id ? ctx.db.get<RoomRow>("SELECT * FROM rooms WHERE id = ?", n.room_id) : undefined;
+  const m = (await listMemberRows(ctx, n.workspace_id)).find((x) => x.id === n.member_id);
+  if (!m || !(await canEmail(ctx, m))) return;
+  const room = n.room_id ? await ctx.db.get<RoomRow>("SELECT * FROM rooms WHERE id = ?", n.room_id) : undefined;
   if (room && isSnoozed(ctx, room)) return;
   const link = `${ctx.config.PUBLIC_URL.replace(/\/$/, "")}/inbox/${n.room_id ?? ""}`;
   await ctx.email.send({
@@ -130,32 +146,34 @@ export async function sendNotificationEmail(ctx: AppContext, payload: { notifica
     html: `<p>${escape(n.body)}</p><p><a href="${link}">Open the conversation</a></p>`,
     messageId: `<${newId("n")}@${ctx.config.SYSTEM_EMAIL_FROM.split("@")[1] ?? "localhost"}>`,
   });
-  ctx.db.run("UPDATE notifications SET emailed_at = ? WHERE id = ?", nowIso(ctx), n.id);
+  await ctx.db.run("UPDATE notifications SET emailed_at = ? WHERE id = ?", nowIso(ctx), n.id);
 }
 
 const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-export const unreadNotificationCount = (ctx: AppContext, memberId: string): number =>
-  ctx.db.get<{ n: number }>("SELECT COUNT(*) n FROM notifications WHERE member_id = ? AND read_at IS NULL", memberId)!.n;
+export const unreadNotificationCount = async (ctx: AppContext, memberId: string): Promise<number> =>
+  (await ctx.db.get<{ n: number }>("SELECT COUNT(*) n FROM notifications WHERE member_id = ? AND read_at IS NULL", memberId))!.n;
 
-export function listNotifications(ctx: AppContext, actor: Actor, q: { unread_only?: boolean; limit: number; before?: string }) {
-  const rows = ctx.db.all<NotificationRow>(
-    `SELECT * FROM notifications WHERE member_id = ? ${q.unread_only ? "AND read_at IS NULL" : ""} ${q.before ? "AND created_at < ?" : ""} ORDER BY created_at DESC, rowid DESC LIMIT ?`,
-    actor.memberId, ...(q.before ? [q.before] : []), q.limit,
+export async function listNotifications(ctx: AppContext, actor: Actor, q: { unread_only?: boolean; limit: number; before?: string }) {
+  const rows = await ctx.db.all<NotificationRow>(
+    `SELECT * FROM notifications WHERE member_id = ? ${q.unread_only ? "AND read_at IS NULL" : ""} ${q.before ? "AND created_at < ?" : ""} ORDER BY created_at DESC, id DESC LIMIT ?`,
+    actor.memberId,
+    ...(q.before ? [q.before] : []),
+    q.limit,
   );
-  return { data: rows.map(notificationDto), unread_count: unreadNotificationCount(ctx, actor.memberId) };
+  return { data: rows.map(notificationDto), unread_count: await unreadNotificationCount(ctx, actor.memberId) };
 }
 
-export function markNotificationRead(ctx: AppContext, actor: Actor, id: string) {
-  const res = ctx.db.run("UPDATE notifications SET read_at = COALESCE(read_at, ?) WHERE id = ? AND member_id = ?", nowIso(ctx), id, actor.memberId);
+export async function markNotificationRead(ctx: AppContext, actor: Actor, id: string) {
+  const res = await ctx.db.run("UPDATE notifications SET read_at = COALESCE(read_at, ?) WHERE id = ? AND member_id = ?", nowIso(ctx), id, actor.memberId);
   if (!res.changes) throw notFound("Notification");
-  const unread = unreadNotificationCount(ctx, actor.memberId);
+  const unread = await unreadNotificationCount(ctx, actor.memberId);
   ctx.bus.toMember(actor.workspaceId, actor.memberId, "notification:read", { id, unread_count: unread });
   return { unread_count: unread };
 }
 
-export function markAllNotificationsRead(ctx: AppContext, actor: Actor) {
-  ctx.db.run("UPDATE notifications SET read_at = ? WHERE member_id = ? AND read_at IS NULL", nowIso(ctx), actor.memberId);
+export async function markAllNotificationsRead(ctx: AppContext, actor: Actor) {
+  await ctx.db.run("UPDATE notifications SET read_at = ? WHERE member_id = ? AND read_at IS NULL", nowIso(ctx), actor.memberId);
   ctx.bus.toMember(actor.workspaceId, actor.memberId, "notification:read", { all: true, unread_count: 0 });
   return { unread_count: 0 };
 }

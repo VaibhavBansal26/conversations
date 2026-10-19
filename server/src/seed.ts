@@ -22,8 +22,8 @@ export const DEMO_PASSWORD = "demo-password-123";
 export async function seed(env: Record<string, string | undefined> = process.env) {
   const config = loadConfig(env);
   if (config.NODE_ENV === "production") throw new Error("Refusing to seed in production");
-  const ctx = createContext(config, { bus: new RecordingBus() });
-  if (ctx.db.get("SELECT 1 FROM users WHERE email = ?", DEMO_EMAIL)) {
+  const ctx = await createContext(config, { bus: new RecordingBus() });
+  if (await ctx.db.get("SELECT 1 FROM users WHERE email = ?", DEMO_EMAIL)) {
     console.log(`Already seeded. Log in as ${DEMO_EMAIL} / ${DEMO_PASSWORD}`);
     return;
   }
@@ -34,21 +34,39 @@ export async function seed(env: Record<string, string | undefined> = process.env
 
   const reg = await register(ctx, { email: DEMO_EMAIL, password: DEMO_PASSWORD, name: "Demo Owner", workspace_name: "Demo Co" });
   const ws = reg.workspace.id;
-  const owner: Actor = actorFromRow(getMember(ctx, ws, reg.member.id));
-  const person = async (name: string, email: string, role: "manager" | "agent") => actorFromRow(await addMember(ctx, owner, { name, email, password: DEMO_PASSWORD, role }));
+  const owner: Actor = actorFromRow(await getMember(ctx, ws, reg.member.id));
+  const person = async (name: string, email: string, role: "manager" | "agent") =>
+    actorFromRow(await addMember(ctx, owner, { name, email, password: DEMO_PASSWORD, role }));
   const maya = await person("Maya Manager", "maya@example.test", "manager");
   const sam = await person("Sam Agent", "sam@example.test", "agent");
   const priya = await person("Priya Agent", "priya@example.test", "agent");
 
-  updateWorkspace(ctx, ws, { settings: { widget: { title: "Chat with Demo Co", intro: "We usually reply in a few minutes.", primary_color: "#0f766e", required_info: ["name"] } } });
-  const sales = createInbox(ctx, owner, { name: "Sales", icon: "tag", algorithm: "round_robin", member_ids: [sam.memberId, priya.memberId], live_routing_visibility: true });
-  const support = createInbox(ctx, owner, { name: "Support", icon: "life-buoy", member_ids: [sam.memberId, maya.memberId], default_email_inbound: true, default_sms_inbound: true });
+  await updateWorkspace(ctx, ws, {
+    settings: { widget: { title: "Chat with Demo Co", intro: "We usually reply in a few minutes.", primary_color: "#0f766e", required_info: ["name"] } },
+  });
+  const sales = await createInbox(ctx, owner, {
+    name: "Sales",
+    icon: "tag",
+    algorithm: "round_robin",
+    member_ids: [sam.memberId, priya.memberId],
+    live_routing_visibility: true,
+  });
+  const support = await createInbox(ctx, owner, {
+    name: "Support",
+    icon: "life-buoy",
+    member_ids: [sam.memberId, maya.memberId],
+    default_email_inbound: true,
+    default_sms_inbound: true,
+  });
 
-  addSmsNumber(ctx, owner, { e164: "+14155550100", label: "Main line", is_default: true });
-  updateSender(ctx, owner, addSender(ctx, owner, { address: "support@demo.example.test", display_name: "Demo Co Support" }).id, { verified: true, is_default: true });
-  addInboundAddress(ctx, owner, "inbound@parse.demo.example.test");
-  createToken(ctx, owner, "localhost:5173");
-  createToken(ctx, owner, "localhost:3000");
+  await addSmsNumber(ctx, owner, { e164: "+14155550100", label: "Main line", is_default: true });
+  await updateSender(ctx, owner, (await addSender(ctx, owner, { address: "support@demo.example.test", display_name: "Demo Co Support" })).id, {
+    verified: true,
+    is_default: true,
+  });
+  await addInboundAddress(ctx, owner, "inbound@parse.demo.example.test");
+  await createToken(ctx, owner, "localhost:5173");
+  await createToken(ctx, owner, "localhost:3000");
 
   for (const [question, answer] of [
     ["What are your opening hours?", "We are open Monday to Friday, 9am to 5pm Eastern."],
@@ -56,59 +74,93 @@ export async function seed(env: Record<string, string | undefined> = process.env
     ["How do I reset my password?", "Use the 'Forgot password' link on the sign-in page and follow the emailed instructions."],
     ["What is your refund policy?", "Refunds are available within 30 days of purchase for unused items."],
     ["Do you ship internationally?", "Yes, we ship to more than 40 countries."],
-  ] as const) createKb(ctx, owner, { question, answer });
+  ] as const)
+    await createKb(ctx, owner, { question, answer });
 
   for (const tpl of [
-    { name: "Greeting", channel: "any" as const, shortcut: "hi", body: "Hi {{contact.first_name|there}}, thanks for reaching out! This is {{agent.name}} from {{workspace.name}}. How can I help?" },
-    { name: "Order status", channel: "email" as const, shortcut: "status", subject: "About your order", body: "Hi {{contact.first_name|there}},\n\nI'm checking on your order now and will update you shortly.\n\n{{agent.name}}" },
-    { name: "SMS follow-up", channel: "sms" as const, shortcut: "follow", body: "Hi {{contact.first_name|there}}, just following up. Reply here any time. - {{workspace.name}}" },
+    {
+      name: "Greeting",
+      channel: "any" as const,
+      shortcut: "hi",
+      body: "Hi {{contact.first_name|there}}, thanks for reaching out! This is {{agent.name}} from {{workspace.name}}. How can I help?",
+    },
+    {
+      name: "Order status",
+      channel: "email" as const,
+      shortcut: "status",
+      subject: "About your order",
+      body: "Hi {{contact.first_name|there}},\n\nI'm checking on your order now and will update you shortly.\n\n{{agent.name}}",
+    },
+    {
+      name: "SMS follow-up",
+      channel: "sms" as const,
+      shortcut: "follow",
+      body: "Hi {{contact.first_name|there}}, just following up. Reply here any time. - {{workspace.name}}",
+    },
     { name: "Closing", channel: "any" as const, shortcut: "bye", body: "Glad I could help, {{contact.first_name|friend}}! Reach out any time." },
-  ]) createTemplate(ctx, owner, tpl);
+  ])
+    await createTemplate(ctx, owner, tpl);
 
   const contact = (c: ContactInput) => createContact(ctx, ws, { source: "seed", ...c });
-  const room = (c: ContactInput, inboxId: string | null) => findOrCreateRoom(ctx, ws, { contactId: contact(c).id, inboxId }).room;
-  const says = (roomId: string, text: string, source: "dm" | "sms" | "email" = "dm", subject?: string) => {
+  const room = async (c: ContactInput, inboxId: string | null) => (await findOrCreateRoom(ctx, ws, { contactId: (await contact(c)).id, inboxId })).room;
+  const says = async (roomId: string, text: string, source: "dm" | "sms" | "email" = "dm", subject?: string) => {
     tick(2);
-    return insertMessage(ctx, { workspaceId: ws, roomId, senderType: "contact", kind: "text", source, content: text, contentText: text, subject: subject ?? null, senderName: ctx.db.get<{ name: string }>("SELECT c.name FROM contacts c JOIN rooms r ON r.contact_id = c.id WHERE r.id = ?", roomId)?.name ?? "Contact" }).message;
+    return (
+      await insertMessage(ctx, {
+        workspaceId: ws,
+        roomId,
+        senderType: "contact",
+        kind: "text",
+        source,
+        content: text,
+        contentText: text,
+        subject: subject ?? null,
+        senderName: (await ctx.db.get<{ name: string }>("SELECT c.name FROM contacts c JOIN rooms r ON r.contact_id = c.id WHERE r.id = ?", roomId))?.name ?? "Contact",
+      })
+    ).message;
   };
   const reply = async (a: Actor, roomId: string, text: string, source: "dm" | "sms" | "email" = "dm") => {
     tick(3);
     await sendAgentMessage(ctx, a, roomId, { kind: "text", source, content: text });
   };
 
-  const alice = room({ name: "Alice Johnson", email: "alice@example.test", phone: "(415) 555-2671", tags: ["vip"] }, sales.id);
-  says(alice.id, "Hi! I'm interested in the Pro plan. Do you offer annual billing?");
+  const alice = await room({ name: "Alice Johnson", email: "alice@example.test", phone: "(415) 555-2671", tags: ["vip"] }, sales.id);
+  await says(alice.id, "Hi! I'm interested in the Pro plan. Do you offer annual billing?");
   await reply(sam, alice.id, "Hi Alice, yes we do! Annual billing saves 15%. Want me to send a quote?");
-  says(alice.id, "Yes please, for 5 seats.");
+  await says(alice.id, "Yes please, for 5 seats.");
 
-  const bob = room({ name: "Bob Martinez", phone: "(415) 555-0199", tags: ["trial"] }, support.id);
-  says(bob.id, "My package hasn't arrived yet, order 48213", "sms");
+  const bob = await room({ name: "Bob Martinez", phone: "(415) 555-0199", tags: ["trial"] }, support.id);
+  await says(bob.id, "My package hasn't arrived yet, order 48213", "sms");
   await reply(sam, bob.id, "Sorry about that Bob, let me look into it.", "sms");
-  assignRoom(ctx, owner, bob.id, { member_ids: [sam.memberId] });
+  await assignRoom(ctx, owner, bob.id, { member_ids: [sam.memberId] });
 
-  const carol = room({ name: "Carol Singh", email: "carol@example.test" }, support.id);
-  ctx.db.run("UPDATE rooms SET subject = ? WHERE id = ?", "Can't log in", carol.id);
-  says(carol.id, "I keep getting an error when I try to sign in.", "email", "Can't log in");
+  const carol = await room({ name: "Carol Singh", email: "carol@example.test" }, support.id);
+  await ctx.db.run("UPDATE rooms SET subject = ? WHERE id = ?", "Can't log in", carol.id);
+  await says(carol.id, "I keep getting an error when I try to sign in.", "email", "Can't log in");
   await reply(maya, carol.id, "Hi Carol, please try resetting your password with the link on the sign-in page.", "email");
-  says(carol.id, "That worked, thank you!", "email", "Re: Can't log in");
-  setStatus(ctx, maya, carol.id, "closed");
+  await says(carol.id, "That worked, thank you!", "email", "Re: Can't log in");
+  await setStatus(ctx, maya, carol.id, "closed");
 
-  const dave = room({ name: "Dave Kim", email: "dave@example.test" }, support.id);
-  says(dave.id, "THE SITE IS DOWN and we are losing orders!!! Please help asap");
-  setPriority(ctx, owner, dave.id, 1);
+  const dave = await room({ name: "Dave Kim", email: "dave@example.test" }, support.id);
+  await says(dave.id, "THE SITE IS DOWN and we are losing orders!!! Please help asap");
+  await setPriority(ctx, owner, dave.id, 1);
 
-  const erin = room({ name: "Erin O'Neil", email: "erin@example.test", phone: "+442079460958", tags: ["wholesale"] }, sales.id);
-  says(erin.id, "Can you share your wholesale price list?");
+  const erin = await room({ name: "Erin O'Neil", email: "erin@example.test", phone: "+442079460958", tags: ["wholesale"] }, sales.id);
+  await says(erin.id, "Can you share your wholesale price list?");
   await reply(priya, erin.id, "Absolutely, sending it over now.");
-  await sendAgentMessage(ctx, priya, erin.id, { kind: "note", source: "dm", content: `Waiting on finance to approve the discount. cc @[Maya Manager](${maya.memberId})` });
-  snoozeRoom(ctx, priya, erin.id, new Date(real().getTime() + 6 * 3600_000).toISOString());
+  await sendAgentMessage(ctx, priya, erin.id, {
+    kind: "note",
+    source: "dm",
+    content: `Waiting on finance to approve the discount. cc @[Maya Manager](${maya.memberId})`,
+  });
+  await snoozeRoom(ctx, priya, erin.id, new Date(real().getTime() + 6 * 3600_000).toISOString());
 
-  const frank = room({ name: "Frank Lopez", email: "frank@example.test" }, null);
-  says(frank.id, "Hello? Is anyone there?");
+  const frank = await room({ name: "Frank Lopez", email: "frank@example.test" }, null);
+  await says(frank.id, "Hello? Is anyone there?");
 
   console.log(`Seeded demo workspace "Demo Co" (${ws}).\nLogin: ${DEMO_EMAIL} / ${DEMO_PASSWORD}  (also maya@, sam@, priya@example.test with the same password)`);
   await ctx.background.settle();
-  ctx.db.close();
+  await ctx.db.close();
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

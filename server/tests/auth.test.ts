@@ -58,7 +58,7 @@ describe("auth", () => {
     expect((await http.get("/api/members", good + "x")).status).toBe(401);
     ctx.clockCtl.advance((ctx.config.ACCESS_TOKEN_TTL_SECONDS + 5) * 1000);
     expect((await http.get("/api/members", good)).status).toBe(401);
-    const other = makeCtx({ JWT_SECRET: "another-secret-another-secret-123" });
+    const other = await makeCtx({ JWT_SECRET: "another-secret-another-secret-123" });
     await expect(verifyAccessToken(other, await signAccessToken(ctx, owner))).rejects.toThrow();
   });
 
@@ -143,7 +143,7 @@ describe("config", () => {
 
 describe("http hardening", () => {
   it("sends security headers, health endpoints, JSON 404 and body limits", async () => {
-    const ctx = makeCtx({ BODY_LIMIT_BYTES: "200" });
+    const ctx = await makeCtx({ BODY_LIMIT_BYTES: "200" });
     const app = createApp(ctx);
     const http = client(app);
     const health = await app.request("/healthz");
@@ -154,7 +154,7 @@ describe("http hardening", () => {
     expect(big.status).toBe(413);
   });
   it("applies the CORS allow-list to the team API", async () => {
-    const ctx = makeCtx({ CORS_ORIGINS: "http://allowed.test" });
+    const ctx = await makeCtx({ CORS_ORIGINS: "http://allowed.test" });
     const app = createApp(ctx);
     const ok = await app.request("/api/auth/login", { method: "OPTIONS", headers: { origin: "http://allowed.test", "access-control-request-method": "POST" } });
     expect(ok.headers.get("access-control-allow-origin")).toBe("http://allowed.test");

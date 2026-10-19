@@ -13,11 +13,11 @@ export interface RealtimeBus {
   toManagers(workspaceId: string, event: string, payload: unknown): void;
   toWorkspace(workspaceId: string, event: string, payload: unknown): void;
   /** Re-evaluate which sockets belong in the room (after create/assign/inbox change). */
-  refreshRoomAccess(workspaceId: string, roomId: string): void;
+  refreshRoomAccess(workspaceId: string, roomId: string): Promise<void>;
   /** Re-evaluate everything a member's sockets are joined to (role/inbox change). */
-  refreshMemberAccess(workspaceId: string, memberId: string): void;
+  refreshMemberAccess(workspaceId: string, memberId: string): Promise<void>;
   /** Re-evaluate which rooms a visitor session may join (after OTP verification). */
-  refreshVisitorAccess(workspaceId: string, sessionId: string): void;
+  refreshVisitorAccess(workspaceId: string, sessionId: string): Promise<void>;
   disconnectMember(workspaceId: string, memberId: string): void;
 }
 
@@ -51,13 +51,13 @@ export class RecordingBus implements RealtimeBus {
   toWorkspace(workspaceId: string, event: string, payload: unknown) {
     this.events.push({ workspaceId, target: "workspace", event, payload });
   }
-  refreshRoomAccess(_ws: string, roomId: string) {
+  async refreshRoomAccess(_ws: string, roomId: string) {
     this.refreshed.push(`room:${roomId}`);
   }
-  refreshMemberAccess(_ws: string, memberId: string) {
+  async refreshMemberAccess(_ws: string, memberId: string) {
     this.refreshed.push(`member:${memberId}`);
   }
-  refreshVisitorAccess(_ws: string, sessionId: string) {
+  async refreshVisitorAccess(_ws: string, sessionId: string) {
     this.refreshed.push(`visitor:${sessionId}`);
   }
   disconnectMember(_ws: string, memberId: string) {

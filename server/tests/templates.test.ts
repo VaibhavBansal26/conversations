@@ -2,14 +2,20 @@ import { describe, expect, it } from "vitest";
 import { renderTemplateText } from "../src/services/templates.js";
 import { fullApp, mkRoom, seedWorkspace, tokenFor, addMemberRaw } from "./helpers.js";
 
-const contact = (o: Partial<{ name: string; email: string | null; phone: string | null; attrs: string }> = {}) => ({ name: "Dana Lee-Smith", email: "dana@example.test", phone: "+14155552671", attrs: JSON.stringify({ Plan: "Pro", seats: 5, nested: { a: 1 } }), ...o });
+const contact = (o: Partial<{ name: string; email: string | null; phone: string | null; attrs: string }> = {}) => ({
+  name: "Dana Lee-Smith",
+  email: "dana@example.test",
+  phone: "+14155552671",
+  attrs: JSON.stringify({ Plan: "Pro", seats: 5, nested: { a: 1 } }),
+  ...o,
+});
 const data = { contact: contact(), agent: { name: "Olivia Owner" }, workspace: { name: "Acme" } };
 
 describe("template merge fields", () => {
   it("substitutes the supported fields", () => {
-    expect(renderTemplateText("Hi {{contact.first_name}} {{contact.last_name}} / {{contact.name}}, {{agent.name}} ({{agent.first_name}}) at {{workspace.name}}", data)).toBe(
-      "Hi Dana Lee-Smith / Dana Lee-Smith, Olivia Owner (Olivia) at Acme",
-    );
+    expect(
+      renderTemplateText("Hi {{contact.first_name}} {{contact.last_name}} / {{contact.name}}, {{agent.name}} ({{agent.first_name}}) at {{workspace.name}}", data),
+    ).toBe("Hi Dana Lee-Smith / Dana Lee-Smith, Olivia Owner (Olivia) at Acme");
     expect(renderTemplateText("{{contact.email}} {{contact.phone}}", data)).toBe("dana@example.test +14155552671");
   });
   it("is whitespace tolerant and case-insensitive on the field path", () => {
@@ -46,15 +52,29 @@ describe("template merge fields", () => {
 describe("templates API", () => {
   it("creates, lists, updates, renders server-side and deletes", async () => {
     const { ctx, http, token, wsId } = await fullApp();
-    const { room, contact: c } = mkRoom(ctx, wsId, { contact: { name: "Dana Lee", email: "d@example.test" } });
-    const t = await http.post("/api/templates", { name: "Greeting", channel: "email", subject: "Hello {{contact.first_name|there}}", body: "Hi {{contact.first_name|there}},\n{{agent.name}} from {{workspace.name}}", shortcut: "hello" }, token);
+    const { room, contact: c } = await mkRoom(ctx, wsId, { contact: { name: "Dana Lee", email: "d@example.test" } });
+    const t = await http.post(
+      "/api/templates",
+      {
+        name: "Greeting",
+        channel: "email",
+        subject: "Hello {{contact.first_name|there}}",
+        body: "Hi {{contact.first_name|there}},\n{{agent.name}} from {{workspace.name}}",
+        shortcut: "hello",
+      },
+      token,
+    );
     expect(t.status).toBe(201);
     expect((await http.get("/api/templates", token)).body.data).toHaveLength(1);
     const byRoom = await http.post(`/api/templates/${t.body.id}/render`, { room_id: room.id }, token);
     expect(byRoom.body).toEqual({ subject: "Hello Dana", body: "Hi Dana,\nOlivia Owner from Acme" });
     expect((await http.post(`/api/templates/${t.body.id}/render`, { contact_id: c.id, format: "html" }, token)).body.body).toContain("Dana");
     expect((await http.post(`/api/templates/${t.body.id}/render`, {}, token)).body.body).toBe("Hi there,\nOlivia Owner from Acme");
-    expect((await http.patch(`/api/templates/${t.body.id}`, { name: "Renamed", subject: null }, token)).body).toMatchObject({ name: "Renamed", subject: null, body: expect.any(String) });
+    expect((await http.patch(`/api/templates/${t.body.id}`, { name: "Renamed", subject: null }, token)).body).toMatchObject({
+      name: "Renamed",
+      subject: null,
+      body: expect.any(String),
+    });
     expect((await http.del(`/api/templates/${t.body.id}`, token)).status).toBe(204);
     expect((await http.get("/api/templates", token)).body.data).toEqual([]);
   });
@@ -74,7 +94,7 @@ describe("templates API", () => {
     const other = await seedWorkspace(ctx, "Other");
     const ot = await tokenFor(ctx, other.owner);
     expect((await http.post(`/api/templates/${t.body.id}/render`, {}, ot)).status).toBe(404);
-    const { contact } = mkRoom(ctx, wsId, { contact: { name: "Secret Person" } });
+    const { contact } = await mkRoom(ctx, wsId, { contact: { name: "Secret Person" } });
     expect((await http.post(`/api/templates/${t.body.id}/render`, { contact_id: contact.id }, ot)).status).toBe(404);
     expect(await addMemberRaw(ctx, wsId, { name: "A" })).toBeTruthy();
   });

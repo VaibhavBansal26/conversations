@@ -53,7 +53,10 @@ export class AnthropicProvider implements AiProvider {
       messages: [{ role: "user", content: req.prompt }],
     });
     if (res.stop_reason === "refusal") throw new AiUnavailableError("The model declined this request");
-    return res.content.map((b) => (b.type === "text" ? b.text : "")).join("").trim();
+    return res.content
+      .map((b) => (b.type === "text" ? b.text : ""))
+      .join("")
+      .trim();
   }
 }
 

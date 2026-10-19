@@ -22,12 +22,21 @@ export interface TemplateRow {
   updated_at: string;
 }
 
-export const templateDto = (t: TemplateRow) => ({ id: t.id, name: t.name, channel: t.channel, subject: t.subject, body: t.body, shortcut: t.shortcut, created_at: t.created_at, updated_at: t.updated_at });
+export const templateDto = (t: TemplateRow) => ({
+  id: t.id,
+  name: t.name,
+  channel: t.channel,
+  subject: t.subject,
+  body: t.body,
+  shortcut: t.shortcut,
+  created_at: t.created_at,
+  updated_at: t.updated_at,
+});
 
-export const listTemplates = (ctx: AppContext, ws: string) => ctx.db.all<TemplateRow>("SELECT * FROM templates WHERE workspace_id = ? ORDER BY name COLLATE NOCASE, id", ws);
+export const listTemplates = (ctx: AppContext, ws: string) => ctx.db.all<TemplateRow>("SELECT * FROM templates WHERE workspace_id = ? ORDER BY lower(name), id", ws);
 
-export function getTemplate(ctx: AppContext, ws: string, id: string): TemplateRow {
-  const t = ctx.db.get<TemplateRow>("SELECT * FROM templates WHERE id = ? AND workspace_id = ?", id, ws);
+export async function getTemplate(ctx: AppContext, ws: string, id: string): Promise<TemplateRow> {
+  const t = await ctx.db.get<TemplateRow>("SELECT * FROM templates WHERE id = ? AND workspace_id = ?", id, ws);
   if (!t) throw notFound("Template");
   return t;
 }
@@ -40,29 +49,48 @@ export interface TemplateInput {
   shortcut?: string | null;
 }
 
-export function createTemplate(ctx: AppContext, actor: Actor, i: TemplateInput): TemplateRow {
+export async function createTemplate(ctx: AppContext, actor: Actor, i: TemplateInput): Promise<TemplateRow> {
   const id = newId("tpl");
   const now = nowIso(ctx);
   try {
-    ctx.db.run("INSERT INTO templates(id, workspace_id, name, channel, subject, body, shortcut, created_by, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
-      id, actor.workspaceId, i.name, i.channel, i.subject ?? null, i.body, i.shortcut || null, actor.memberId, now, now);
+    await ctx.db.run(
+      "INSERT INTO templates(id, workspace_id, name, channel, subject, body, shortcut, created_by, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+      id,
+      actor.workspaceId,
+      i.name,
+      i.channel,
+      i.subject ?? null,
+      i.body,
+      i.shortcut || null,
+      actor.memberId,
+      now,
+      now,
+    );
   } catch (e) {
     if (isUniqueViolation(e)) throw new AppError(409, "TEMPLATE_EXISTS", "A template with this shortcut already exists");
     throw e;
   }
-  return getTemplate(ctx, actor.workspaceId, id);
+  return await getTemplate(ctx, actor.workspaceId, id);
 }
 
-export function updateTemplate(ctx: AppContext, actor: Actor, id: string, i: Partial<TemplateInput>): TemplateRow {
-  const cur = getTemplate(ctx, actor.workspaceId, id);
-  ctx.db.run("UPDATE templates SET name = ?, channel = ?, subject = ?, body = ?, shortcut = ?, updated_at = ? WHERE id = ?",
-    i.name ?? cur.name, i.channel ?? cur.channel, i.subject === undefined ? cur.subject : i.subject, i.body ?? cur.body, i.shortcut === undefined ? cur.shortcut : i.shortcut || null, nowIso(ctx), id);
-  return getTemplate(ctx, actor.workspaceId, id);
+export async function updateTemplate(ctx: AppContext, actor: Actor, id: string, i: Partial<TemplateInput>): Promise<TemplateRow> {
+  const cur = await getTemplate(ctx, actor.workspaceId, id);
+  await ctx.db.run(
+    "UPDATE templates SET name = ?, channel = ?, subject = ?, body = ?, shortcut = ?, updated_at = ? WHERE id = ?",
+    i.name ?? cur.name,
+    i.channel ?? cur.channel,
+    i.subject === undefined ? cur.subject : i.subject,
+    i.body ?? cur.body,
+    i.shortcut === undefined ? cur.shortcut : i.shortcut || null,
+    nowIso(ctx),
+    id,
+  );
+  return await getTemplate(ctx, actor.workspaceId, id);
 }
 
-export function deleteTemplate(ctx: AppContext, actor: Actor, id: string): void {
-  getTemplate(ctx, actor.workspaceId, id);
-  ctx.db.run("DELETE FROM templates WHERE id = ?", id);
+export async function deleteTemplate(ctx: AppContext, actor: Actor, id: string): Promise<void> {
+  await getTemplate(ctx, actor.workspaceId, id);
+  await ctx.db.run("DELETE FROM templates WHERE id = ?", id);
 }
 
 export interface MergeData {
@@ -81,11 +109,16 @@ function lookup(path: string, d: MergeData): string {
   if (scope === "contact" && d.contact) {
     const c = d.contact;
     switch (key) {
-      case "name": return c.name ?? "";
-      case "first_name": return first(c.name ?? "");
-      case "last_name": return rest(c.name ?? "");
-      case "email": return c.email ?? "";
-      case "phone": return c.phone ?? "";
+      case "name":
+        return c.name ?? "";
+      case "first_name":
+        return first(c.name ?? "");
+      case "last_name":
+        return rest(c.name ?? "");
+      case "email":
+        return c.email ?? "";
+      case "phone":
+        return c.phone ?? "";
       default: {
         const attrs = parseJson<Record<string, unknown>>(c.attrs, {});
         const hit = Object.entries(attrs).find(([k]) => k.toLowerCase() === key.replace(/^attrs\./, ""));
@@ -110,14 +143,16 @@ export function renderTemplateText(text: string, data: MergeData, format: "text"
   });
 }
 
-export function renderTemplate(ctx: AppContext, actor: Actor, id: string, input: { contact_id?: string; room_id?: string; format: "text" | "html" }) {
-  const t = getTemplate(ctx, actor.workspaceId, id);
+export async function renderTemplate(ctx: AppContext, actor: Actor, id: string, input: { contact_id?: string; room_id?: string; format: "text" | "html" }) {
+  const t = await getTemplate(ctx, actor.workspaceId, id);
   let contactId = input.contact_id;
-  if (!contactId && input.room_id) contactId = ctx.db.get<{ contact_id: string }>("SELECT contact_id FROM rooms WHERE id = ? AND workspace_id = ?", input.room_id, actor.workspaceId)?.contact_id;
+  if (!contactId && input.room_id)
+    contactId = (await ctx.db.get<{ contact_id: string }>("SELECT contact_id FROM rooms WHERE id = ? AND workspace_id = ?", input.room_id, actor.workspaceId))
+      ?.contact_id;
   const data: MergeData = {
-    contact: contactId ? getContact(ctx, actor.workspaceId, contactId) : null,
+    contact: contactId ? await getContact(ctx, actor.workspaceId, contactId) : null,
     agent: { name: actor.name },
-    workspace: { name: getWorkspace(ctx, actor.workspaceId).name },
+    workspace: { name: (await getWorkspace(ctx, actor.workspaceId)).name },
   };
   return { subject: t.subject ? renderTemplateText(t.subject, data, input.format) : null, body: renderTemplateText(t.body, data, input.format) };
 }

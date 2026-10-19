@@ -1,8 +1,16 @@
+import { hostname } from "node:os";
+import { randomBytes } from "node:crypto";
 import { resolve } from "node:path";
 import { createAiProvider, type AiProvider } from "./ai/provider.js";
 import type { Config } from "./config.js";
 import { BackgroundTracker, type AppContext } from "./context.js";
 import { migrate, openDb } from "./db/index.js";
+import { LocalCache } from "./infra/cache.js";
+import { MemoryLimiterFactory, RedisLimiterFactory, type LimiterFactory } from "./infra/limiter.js";
+import { MemoryLocks, RedisLocks } from "./infra/locks.js";
+import { MemoryPresenceService, RedisPresenceService, type PresenceService } from "./infra/presence.js";
+import { RedisHub } from "./infra/redis.js";
+import { BullJobQueue, DbJobQueue } from "./jobs/queue.js";
 import { createLogger, type Logger } from "./logger.js";
 import { ConsoleEmailProvider, ConsoleSmsProvider } from "./providers/fake.js";
 import { LocalDiskStorage } from "./providers/storage.js";
@@ -21,40 +29,84 @@ export interface ContextOverrides {
   storage?: Storage;
   ai?: AiProvider;
   clock?: () => Date;
-  presence?: Presence;
+  presence?: PresenceService;
+  limiters?: LimiterFactory;
+  /** force-disable Redis even when REDIS_URL is set (tests of the in-memory path) */
+  noRedis?: boolean;
 }
 
-/** Wires config -> concrete providers. Anything can be overridden (tests inject fakes; index.ts injects the SocketBus). */
-export function createContext(config: Config, o: ContextOverrides = {}): AppContext {
+/**
+ * Wires config -> concrete implementations. Everything has an in-memory/SQLite default so `npm run dev` needs no services;
+ * setting `DATABASE_URL` switches to PostgreSQL and `REDIS_URL` switches limiter, presence, cache invalidation, locks and the
+ * job queue to Redis. Tests inject fakes through `overrides`.
+ */
+export async function createContext(config: Config, o: ContextOverrides = {}): Promise<AppContext> {
   const log = o.log ?? createLogger(config.LOG_LEVEL);
-  const db = openDb(config.DATABASE_PATH);
-  migrate(db);
+  const db = await openDb({ url: config.DATABASE_URL, path: config.DATABASE_PATH, poolMax: config.DATABASE_POOL_MAX });
+  await migrate(db);
   const bus = o.bus ?? new RecordingBus();
-  const ctx: AppContext = {
+  const nodeId = config.NODE_ID ?? `${hostname()}-${randomBytes(3).toString("hex")}`;
+  const hub = config.REDIS_URL && !o.noRedis ? new RedisHub(config.REDIS_URL, log) : null;
+  const clock = o.clock ?? (() => new Date());
+
+  const cache = new LocalCache(config.CACHE_TTL_MS, () => ctxRef.clock().getTime());
+  if (hub) await cache.attach(hub);
+
+  const ctxRef: AppContext = {
     config,
     db,
     log,
-    clock: o.clock ?? (() => new Date()),
+    clock,
     bus,
     presence: undefined as never,
     sms: o.sms ?? (config.SMS_PROVIDER === "twilio" ? new TwilioSmsProvider(config.TWILIO_ACCOUNT_SID!, config.TWILIO_AUTH_TOKEN!) : new ConsoleSmsProvider(log)),
     email: o.email ?? (config.EMAIL_PROVIDER === "sendgrid" ? new SendGridEmailProvider(config.SENDGRID_API_KEY!) : new ConsoleEmailProvider(log)),
-    storage: o.storage ?? new LocalDiskStorage(resolve(config.DATA_DIR, "uploads"), config.PUBLIC_URL, config.JWT_SECRET, () => ctx.clock().getTime()),
+    storage: o.storage ?? new LocalDiskStorage(resolve(config.DATA_DIR, "uploads"), config.PUBLIC_URL, config.JWT_SECRET, () => ctxRef.clock().getTime()),
     ai: o.ai ?? createAiProvider(config),
-    limiters: new Map(),
-    background: new BackgroundTracker((e) => log.error("background task failed", { error: e instanceof Error ? e.message : String(e) })),
+    limiters:
+      o.limiters ??
+      (hub
+        ? new RedisLimiterFactory(hub, (e) => log.warn("redis limiter failed open", { error: e instanceof Error ? e.message : String(e) }))
+        : new MemoryLimiterFactory(() => ctxRef.clock().getTime())),
+    cache,
+    locks: hub ? new RedisLocks(hub) : new MemoryLocks(),
+    queue: undefined as never,
+    redis: hub,
+    nodeId,
+    background: new BackgroundTracker(
+      (e) => log.error("background task failed", { error: e instanceof Error ? e.message : String(e) }),
+      (fn) => db.detached(fn),
+    ),
   };
-  ctx.presence =
-    o.presence ??
-    new Presence(config.PRESENCE_GRACE_MS, (scope, idv, online) => {
-      const [ws] = scope.split(":");
-      if (!ws) return;
-      if (scope === memberScope(ws)) {
-        ctx.bus.toWorkspace(ws, "presence:update", { member_id: idv, online });
-      } else {
-        const rooms = ctx.db.all<{ id: string }>("SELECT id FROM rooms WHERE workspace_id = ? AND contact_id = ? AND archived = 0", ws, idv);
-        for (const r of rooms) ctx.bus.toRoom(ws, r.id, "visitor:presence", { room_id: r.id, contact_id: idv, online });
-      }
+
+  const onPresence = (scope: string, idv: string, online: boolean) => {
+    const [ws] = scope.split(":");
+    if (!ws) return;
+    if (scope === memberScope(ws)) {
+      ctxRef.bus.toWorkspace(ws, "presence:update", { member_id: idv, online });
+      return;
+    }
+    ctxRef.background.run(async () => {
+      const rooms = await ctxRef.db.all<{ id: string }>("SELECT id FROM rooms WHERE workspace_id = ? AND contact_id = ? AND archived = 0", ws, idv);
+      for (const r of rooms) ctxRef.bus.toRoom(ws, r.id, "visitor:presence", { room_id: r.id, contact_id: idv, online });
     });
-  return ctx;
+  };
+  ctxRef.presence =
+    o.presence ??
+    (hub
+      ? new RedisPresenceService(hub, onPresence, { nodeId, graceMs: config.PRESENCE_GRACE_MS, ttlMs: config.PRESENCE_TTL_MS })
+      : new MemoryPresenceService(new Presence(config.PRESENCE_GRACE_MS, onPresence)));
+
+  const useBull = config.JOB_QUEUE === "bullmq" || (config.JOB_QUEUE === "auto" && !!hub);
+  ctxRef.queue = useBull && hub ? new BullJobQueue(ctxRef, hub) : new DbJobQueue(ctxRef);
+  return ctxRef;
+}
+
+/** Orderly teardown of everything createContext opened. */
+export async function closeContext(ctx: AppContext): Promise<void> {
+  await ctx.background.settle();
+  await ctx.queue.close();
+  await ctx.presence.close();
+  await ctx.redis?.close();
+  await ctx.db.close();
 }

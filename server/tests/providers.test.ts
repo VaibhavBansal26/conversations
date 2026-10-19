@@ -18,7 +18,13 @@ describe("TwilioSmsProvider (mocked fetch)", () => {
   const make = (f: typeof fetch) => new TwilioSmsProvider("AC123", "tok", f, "https://twilio.test");
   it("posts a form-encoded message with basic auth, idempotency token and status callback", async () => {
     const f = vi.fn(async () => json(201, { sid: "SM999", status: "queued" }));
-    const r = await make(f as never).send({ to: "+14155552671", from: "+15550000001", body: "Hi", idempotencyKey: "msg_1", statusCallbackUrl: "https://app.test/webhooks/twilio/status" });
+    const r = await make(f as never).send({
+      to: "+14155552671",
+      from: "+15550000001",
+      body: "Hi",
+      idempotencyKey: "msg_1",
+      statusCallbackUrl: "https://app.test/webhooks/twilio/status",
+    });
     expect(r).toEqual({ providerMessageId: "SM999" });
     const [url, init] = f.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("https://twilio.test/2010-04-01/Accounts/AC123/Messages.json");
@@ -31,11 +37,19 @@ describe("TwilioSmsProvider (mocked fetch)", () => {
   });
   it("classifies failures: 4xx permanent, 429/5xx/network transient", async () => {
     const send = (f: typeof fetch) => make(f).send({ to: "+1", from: "+2", body: "x", idempotencyKey: "k" });
-    await expect(send((async () => json(400, { code: 21211, message: "Invalid 'To' Phone Number" })) as never)).rejects.toMatchObject({ retryable: false, status: 400, message: expect.stringContaining("21211") });
+    await expect(send((async () => json(400, { code: 21211, message: "Invalid 'To' Phone Number" })) as never)).rejects.toMatchObject({
+      retryable: false,
+      status: 400,
+      message: expect.stringContaining("21211"),
+    });
     await expect(send((async () => json(401, { message: "Authenticate" })) as never)).rejects.toMatchObject({ retryable: false });
     await expect(send((async () => json(429, { message: "slow down" })) as never)).rejects.toMatchObject({ retryable: true });
     await expect(send((async () => json(503, {})) as never)).rejects.toMatchObject({ retryable: true });
-    await expect(send((async () => { throw new Error("ECONNRESET"); }) as never)).rejects.toMatchObject({ retryable: true, message: expect.stringContaining("ECONNRESET") });
+    await expect(
+      send((async () => {
+        throw new Error("ECONNRESET");
+      }) as never),
+    ).rejects.toMatchObject({ retryable: true, message: expect.stringContaining("ECONNRESET") });
     await expect(send((async () => json(200, {})) as never)).rejects.toBeInstanceOf(ProviderError);
   });
   it("maps provider status for reconciliation", async () => {
@@ -52,8 +66,15 @@ describe("TwilioSmsProvider (mocked fetch)", () => {
 describe("SendGridEmailProvider (mocked fetch)", () => {
   const make = (f: typeof fetch) => new SendGridEmailProvider("SG.key", f, "https://sg.test");
   const input = {
-    from: { address: "support@acme.test", name: "Acme Support" }, to: "cust@example.test", subject: "Re: Hello", html: "<p>Hi</p>", text: "Hi",
-    messageId: "<m1@acme.test>", inReplyTo: "<m0@acme.test>", references: ["<a@x>", "<m0@acme.test>"], replyTo: "inbound@parse.acme.test",
+    from: { address: "support@acme.test", name: "Acme Support" },
+    to: "cust@example.test",
+    subject: "Re: Hello",
+    html: "<p>Hi</p>",
+    text: "Hi",
+    messageId: "<m1@acme.test>",
+    inReplyTo: "<m0@acme.test>",
+    references: ["<a@x>", "<m0@acme.test>"],
+    replyTo: "inbound@parse.acme.test",
     attachments: [{ filename: "a.txt", contentType: "text/plain", content: Buffer.from("hello") }],
   };
   it("builds the v3 payload with threading headers, reply-to, attachments and returns x-message-id", async () => {
@@ -65,9 +86,15 @@ describe("SendGridEmailProvider (mocked fetch)", () => {
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer SG.key");
     const p = JSON.parse(init.body as string);
     expect(p).toMatchObject({
-      personalizations: [{ to: [{ email: "cust@example.test" }] }], from: { email: "support@acme.test", name: "Acme Support" }, reply_to: { email: "inbound@parse.acme.test" }, subject: "Re: Hello",
+      personalizations: [{ to: [{ email: "cust@example.test" }] }],
+      from: { email: "support@acme.test", name: "Acme Support" },
+      reply_to: { email: "inbound@parse.acme.test" },
+      subject: "Re: Hello",
       headers: { "Message-ID": "<m1@acme.test>", "In-Reply-To": "<m0@acme.test>", References: "<a@x> <m0@acme.test>" },
-      content: [{ type: "text/plain", value: "Hi" }, { type: "text/html", value: "<p>Hi</p>" }],
+      content: [
+        { type: "text/plain", value: "Hi" },
+        { type: "text/html", value: "<p>Hi</p>" },
+      ],
       attachments: [{ content: Buffer.from("hello").toString("base64"), filename: "a.txt", type: "text/plain", disposition: "attachment" }],
     });
   });
@@ -82,10 +109,17 @@ describe("SendGridEmailProvider (mocked fetch)", () => {
   });
   it("classifies failures", async () => {
     const send = (f: typeof fetch) => make(f).send(input);
-    await expect(send((async () => json(400, { errors: [{ message: "bad from" }] })) as never)).rejects.toMatchObject({ retryable: false, message: "SendGrid 400: bad from" });
+    await expect(send((async () => json(400, { errors: [{ message: "bad from" }] })) as never)).rejects.toMatchObject({
+      retryable: false,
+      message: "SendGrid 400: bad from",
+    });
     await expect(send((async () => json(429, {})) as never)).rejects.toMatchObject({ retryable: true });
     await expect(send((async () => json(500, {})) as never)).rejects.toMatchObject({ retryable: true });
-    await expect(send((async () => { throw new Error("socket hang up"); }) as never)).rejects.toMatchObject({ retryable: true });
+    await expect(
+      send((async () => {
+        throw new Error("socket hang up");
+      }) as never),
+    ).rejects.toMatchObject({ retryable: true });
   });
 });
 
@@ -102,7 +136,9 @@ describe("fake and console providers", () => {
     await new ConsoleSmsProvider(log).send({ to: "+1", from: "+2", body: "c", idempotencyKey: "3" });
     await new ConsoleEmailProvider(log).send({ from: { address: "a@b.test" }, to: "c@d.test", subject: "s", html: "", text: "", messageId: "<m>" });
     expect(lines).toEqual(["sms (console provider)", "email (console provider)"]);
-    expect((await new FakeEmailProvider().send({ from: { address: "a@b.test" }, to: "c@d.test", subject: "s", html: "", text: "", messageId: "<m>" })).providerMessageId).toBe("fake_email_1");
+    expect(
+      (await new FakeEmailProvider().send({ from: { address: "a@b.test" }, to: "c@d.test", subject: "s", html: "", text: "", messageId: "<m>" })).providerMessageId,
+    ).toBe("fake_email_1");
   });
 });
 

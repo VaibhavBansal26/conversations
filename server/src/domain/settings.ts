@@ -6,9 +6,7 @@ export const OfficeHoursSchema = z.object({
   enabled: z.boolean().default(false),
   timezone: z.string().default("UTC"),
   /** day: 0 = Sunday .. 6 = Saturday */
-  days: z
-    .array(z.object({ day: z.number().int().min(0).max(6), start: hhmm, end: hhmm }))
-    .default([1, 2, 3, 4, 5].map((day) => ({ day, start: "09:00", end: "17:00" }))),
+  days: z.array(z.object({ day: z.number().int().min(0).max(6), start: hhmm, end: hhmm })).default([1, 2, 3, 4, 5].map((day) => ({ day, start: "09:00", end: "17:00" }))),
 });
 
 export const RequiredInfoSchema = z.enum(["name", "email", "phone"]);
@@ -16,8 +14,14 @@ export const RequiredInfoSchema = z.enum(["name", "email", "phone"]);
 const WidgetShape = z.object({
   title: z.string().max(80).default("Chat with us"),
   intro: z.string().max(240).default("We usually reply within a few minutes."),
-  primary_color: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#4f46e5"),
-  text_color: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#ffffff"),
+  primary_color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .default("#4f46e5"),
+  text_color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .default("#ffffff"),
   logo_url: z.string().url().max(500).nullable().default(null),
   launcher_position: z.enum(["left", "right"]).default("right"),
   launcher_spacing: z.number().int().min(0).max(200).default(20),

@@ -36,17 +36,34 @@ export function createApp(ctx: AppContext): Hono {
   app.use("*", secureHeaders({ crossOriginResourcePolicy: false, contentSecurityPolicy: undefined }));
 
   // team API: explicit allow-list from env. Public widget endpoints: any origin (access is decided by the embed token's domain).
-  app.use("/api/*", cors({ origin: ctx.config.corsOrigins, allowHeaders: ["authorization", "content-type"], allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], maxAge: 600 }));
-  app.use("/public/*", cors({ origin: (o) => o, allowHeaders: ["content-type", "x-api-key", "x-device-id", "x-support-session"], allowMethods: ["GET", "POST", "OPTIONS"], maxAge: 600 }));
+  app.use(
+    "/api/*",
+    cors({
+      origin: ctx.config.corsOrigins,
+      allowHeaders: ["authorization", "content-type"],
+      allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+      maxAge: 600,
+    }),
+  );
+  app.use(
+    "/public/*",
+    cors({ origin: (o) => o, allowHeaders: ["content-type", "x-api-key", "x-device-id", "x-support-session"], allowMethods: ["GET", "POST", "OPTIONS"], maxAge: 600 }),
+  );
 
-  const jsonLimit = bodyLimit({ maxSize: ctx.config.BODY_LIMIT_BYTES, onError: (c) => c.json({ error: { code: "BODY_TOO_LARGE", message: "Request body is too large" } }, 413) });
-  const uploadLimit = bodyLimit({ maxSize: ctx.config.UPLOAD_MAX_BYTES + 64 * 1024, onError: (c) => c.json({ error: { code: "FILE_TOO_LARGE", message: "File is too large" } }, 413) });
-  app.use("*", (c, next) => (c.req.path === "/api/attachments" ? uploadLimit(c, next) : jsonLimit(c, next)));
+  const jsonLimit = bodyLimit({
+    maxSize: ctx.config.BODY_LIMIT_BYTES,
+    onError: (c) => c.json({ error: { code: "BODY_TOO_LARGE", message: "Request body is too large" } }, 413),
+  });
+  const uploadLimit = bodyLimit({
+    maxSize: ctx.config.UPLOAD_MAX_BYTES + 64 * 1024,
+    onError: (c) => c.json({ error: { code: "FILE_TOO_LARGE", message: "File is too large" } }, 413),
+  });
+  app.use("*", async (c, next) => (c.req.path === "/api/attachments" ? await uploadLimit(c, next) : await jsonLimit(c, next)));
 
   app.get("/healthz", (c) => c.json({ status: "ok" }));
-  app.get("/readyz", (c) => {
+  app.get("/readyz", async (c) => {
     try {
-      ctx.db.get("SELECT 1");
+      await ctx.db.get("SELECT 1");
       return c.json({ status: "ready" });
     } catch {
       return c.json({ status: "unavailable" }, 503);
@@ -71,7 +88,7 @@ export function createApp(ctx: AppContext): Hono {
     if (!(storage instanceof LocalDiskStorage) || !storage.verify(key, Number(q.exp), q.sig ?? "")) {
       return c.json({ error: { code: "INVALID_SIGNATURE", message: "Link is invalid or has expired" } }, 403);
     }
-    const meta = attachmentByKey(ctx, key);
+    const meta = await attachmentByKey(ctx, key);
     const data = await storage.read(key);
     if (!meta || !data) return c.json({ error: { code: "NOT_FOUND", message: "File not found" } }, 404);
     const safeName = encodeURIComponent(meta.file_name);
@@ -88,7 +105,12 @@ export function createApp(ctx: AppContext): Hono {
   app.get("/widget.js", (c) => {
     const f = readPublicFile(PUBLIC_DIR, "widget.js");
     if (!f) return c.notFound();
-    return c.body(new Uint8Array(f), 200, { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "public, max-age=300", "Access-Control-Allow-Origin": "*", "Cross-Origin-Resource-Policy": "cross-origin" });
+    return c.body(new Uint8Array(f), 200, {
+      "Content-Type": "application/javascript; charset=utf-8",
+      "Cache-Control": "public, max-age=300",
+      "Access-Control-Allow-Origin": "*",
+      "Cross-Origin-Resource-Policy": "cross-origin",
+    });
   });
   app.get("/widget-demo.html", (c) => {
     const f = readPublicFile(PUBLIC_DIR, "widget-demo.html");

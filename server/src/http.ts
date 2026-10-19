@@ -5,7 +5,6 @@ import type { AppContext } from "./context.js";
 import type { Actor } from "./domain/types.js";
 import { AppError, badRequest, forbidden, tooMany, unauthorized } from "./errors.js";
 import { actorFromToken } from "./services/auth.js";
-import { RateLimiter } from "./util/ratelimit.js";
 
 export interface Env {
   Variables: { actor: Actor };
@@ -53,14 +52,9 @@ export const parseQuery = <S extends z.ZodType>(c: Context, schema: S): z.infer<
 
 /** Token-bucket limiter middleware. `key` defaults to the client IP. */
 export function rateLimit(ctx: AppContext, name: string, capacity: number, perSecond: number, key?: (c: Context) => string): MiddlewareHandler {
-  let limiter = ctx.limiters.get(name);
-  if (!limiter) {
-    limiter = new RateLimiter(capacity, perSecond, () => ctx.clock().getTime());
-    ctx.limiters.set(name, limiter);
-  }
-  const l = limiter;
+  const l = ctx.limiters.get(name, capacity, perSecond);
   return async (c, next) => {
-    if (!l.take(key ? key(c) : clientIp(ctx, c))) {
+    if (!(await l.take(key ? key(c) : clientIp(ctx, c)))) {
       c.header("Retry-After", String(Math.ceil(1 / perSecond)));
       throw tooMany();
     }

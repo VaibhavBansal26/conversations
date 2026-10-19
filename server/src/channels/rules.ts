@@ -12,7 +12,10 @@ const OPT_IN = new Set(["START", "YES", "UNSTOP"]);
 
 /** Case, whitespace and punctuation insensitive: " Stop. " and "STOP!" both count; "please stop" does not. */
 export function classifySmsKeyword(body: string): "opt_out" | "opt_in" | null {
-  const k = body.normalize("NFKC").replace(/[^\p{L}\p{N}]/gu, "").toUpperCase();
+  const k = body
+    .normalize("NFKC")
+    .replace(/[^\p{L}\p{N}]/gu, "")
+    .toUpperCase();
   if (OPT_OUT.has(k)) return "opt_out";
   if (OPT_IN.has(k)) return "opt_in";
   return null;
@@ -30,13 +33,22 @@ export interface SmsRoute {
  * otherwise the first owned number that is not pinned to the same recipient by another room.
  * The number of owned numbers is therefore the cap on simultaneous SMS conversations per recipient.
  */
-export function chooseSmsNumber(ctx: AppContext, ws: string, roomId: string, to: string): SmsRoute {
-  const owned = ctx.db.all<{ e164: string }>("SELECT e164 FROM sms_numbers WHERE workspace_id = ? ORDER BY is_default DESC, created_at, id", ws).map((n) => n.e164);
+export async function chooseSmsNumber(ctx: AppContext, ws: string, roomId: string, to: string): Promise<SmsRoute> {
+  const owned = (await ctx.db.all<{ e164: string }>("SELECT e164 FROM sms_numbers WHERE workspace_id = ? ORDER BY is_default DESC, created_at, id", ws)).map(
+    (n) => n.e164,
+  );
   if (!owned.length) throw unprocessable("NO_SMS_NUMBERS", "This workspace has no SMS number configured");
-  const mine = ctx.db.get<{ from_addr: string }>("SELECT from_addr FROM message_locks WHERE room_id = ? AND type = 'sms'", roomId);
+  const mine = await ctx.db.get<{ from_addr: string }>("SELECT from_addr FROM message_locks WHERE room_id = ? AND type = 'sms'", roomId);
   if (mine && owned.includes(mine.from_addr)) return { from: mine.from_addr };
   const taken = new Set(
-    ctx.db.all<{ from_addr: string }>("SELECT from_addr FROM message_locks WHERE workspace_id = ? AND type = 'sms' AND to_addr = ? AND room_id != ?", ws, to, roomId).map((l) => l.from_addr),
+    (
+      await ctx.db.all<{ from_addr: string }>(
+        "SELECT from_addr FROM message_locks WHERE workspace_id = ? AND type = 'sms' AND to_addr = ? AND room_id != ?",
+        ws,
+        to,
+        roomId,
+      )
+    ).map((l) => l.from_addr),
   );
   const free = owned.find((n) => !taken.has(n));
   if (!free) throw unprocessable("SMS_NUMBERS_EXHAUSTED", "All SMS numbers are already used in other conversations with this contact. Close one of them first.");
@@ -44,12 +56,18 @@ export function chooseSmsNumber(ctx: AppContext, ws: string, roomId: string, to:
 }
 
 /** Pin (room, type) to a from/to pair. Replaces the room's previous pin; a pair owned by another room is a conflict. */
-export function lockChannel(ctx: AppContext, ws: string, roomId: string, type: "sms" | "email", from: string, to: string): void {
+export async function lockChannel(ctx: AppContext, ws: string, roomId: string, type: "sms" | "email", from: string, to: string): Promise<void> {
   try {
-    ctx.db.run(
+    await ctx.db.run(
       `INSERT INTO message_locks(id, workspace_id, type, from_addr, to_addr, room_id, created_at) VALUES (?,?,?,?,?,?,?)
        ON CONFLICT(room_id, type) DO UPDATE SET from_addr = excluded.from_addr, to_addr = excluded.to_addr`,
-      newId("lock"), ws, type, from, to, roomId, nowIso(ctx),
+      newId("lock"),
+      ws,
+      type,
+      from,
+      to,
+      roomId,
+      nowIso(ctx),
     );
   } catch (e) {
     if (isUniqueViolation(e)) {
@@ -75,9 +93,10 @@ export interface Sender {
   display_name: string;
 }
 
-export function chooseEmailSender(ctx: AppContext, ws: string, requested?: string | null): Sender {
-  const senders = ctx.db.all<{ address: string; display_name: string; verified: number; is_default: number }>(
-    "SELECT address, display_name, verified, is_default FROM email_senders WHERE workspace_id = ? ORDER BY is_default DESC, created_at, id", ws,
+export async function chooseEmailSender(ctx: AppContext, ws: string, requested?: string | null): Promise<Sender> {
+  const senders = await ctx.db.all<{ address: string; display_name: string; verified: number; is_default: number }>(
+    "SELECT address, display_name, verified, is_default FROM email_senders WHERE workspace_id = ? ORDER BY is_default DESC, created_at, id",
+    ws,
   );
   const verified = senders.filter((s) => s.verified);
   if (!verified.length) throw unprocessable("NO_VERIFIED_SENDER", "No verified email sender address is configured");
@@ -98,9 +117,13 @@ export interface EmailThread {
 export const domainOf = (address: string): string => address.split("@")[1]?.toLowerCase() || "localhost";
 
 /** Message-ID for the new message; In-Reply-To = latest known id in the room; References = the chain (capped). */
-export function buildThread(ctx: AppContext, roomId: string, fromAddress: string): EmailThread {
-  const ids = ctx.db
-    .all<{ rfc_message_id: string }>("SELECT rfc_message_id FROM messages WHERE room_id = ? AND rfc_message_id IS NOT NULL ORDER BY seq DESC LIMIT 20", roomId)
+export async function buildThread(ctx: AppContext, roomId: string, fromAddress: string): Promise<EmailThread> {
+  const ids = (
+    await ctx.db.all<{ rfc_message_id: string }>(
+      "SELECT rfc_message_id FROM messages WHERE room_id = ? AND rfc_message_id IS NOT NULL ORDER BY seq DESC LIMIT 20",
+      roomId,
+    )
+  )
     .map((r) => r.rfc_message_id)
     .reverse();
   return {

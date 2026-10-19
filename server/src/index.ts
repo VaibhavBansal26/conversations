@@ -1,6 +1,6 @@
 import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
-import { createContext } from "./app-context.js";
+import { closeContext, createContext } from "./app-context.js";
 import { loadConfig } from "./config.js";
 import { startScheduler } from "./jobs/scheduler.js";
 import { createLogger } from "./logger.js";
@@ -9,7 +9,7 @@ import { SocketBus, attachSocketServer } from "./realtime/socket.js";
 const config = loadConfig();
 const log = createLogger(config.LOG_LEVEL);
 const bus = new SocketBus();
-const ctx = createContext(config, { log, bus });
+const ctx = await createContext(config, { log, bus });
 const app = createApp(ctx);
 
 const server = serve({ fetch: app.fetch, port: config.PORT, hostname: config.HOST }, (info) => {
@@ -25,8 +25,7 @@ async function shutdown(signal: string) {
   log.info("shutting down", { signal });
   stopScheduler();
   await sockets.close();
-  await ctx.background.settle();
-  ctx.db.close();
+  await closeContext(ctx);
   process.exit(0);
 }
 process.on("SIGTERM", () => void shutdown("SIGTERM"));

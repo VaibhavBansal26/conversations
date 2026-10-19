@@ -1,26 +1,68 @@
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 
-const bool = z
-  .enum(["true", "false", "1", "0"])
-  .transform((v) => v === "true" || v === "1");
+const bool = z.enum(["true", "false", "1", "0"]).transform((v) => v === "true" || v === "1");
 
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().min(0).max(65535).default(3000),
   HOST: z.string().default("0.0.0.0"),
   DATABASE_PATH: z.string().default("./data/conversations.db"),
+  /** postgres://... selects PostgreSQL (multi-node); unset keeps the embedded SQLite file above */
+  DATABASE_URL: z.string().optional(),
+  DATABASE_POOL_MAX: z.coerce.number().int().positive().default(10),
   DATA_DIR: z.string().default("./data"),
   WEB_DIST: z.string().optional(),
   JWT_SECRET: z.string().min(16).optional(),
-  ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(60 * 60 * 12),
+  ACCESS_TOKEN_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(60 * 60 * 12),
   PUBLIC_URL: z.string().url().default("http://localhost:3000"),
   CORS_ORIGINS: z.string().default("http://localhost:5173"),
   TRUST_PROXY: bool.default(false),
-  BODY_LIMIT_BYTES: z.coerce.number().int().positive().default(1024 * 1024),
+  BODY_LIMIT_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(1024 * 1024),
 
-  SOCKET_ADAPTER: z.enum(["memory", "redis"]).default("memory"),
+  /** "auto" = Redis adapter when REDIS_URL is set, in-memory otherwise */
+  SOCKET_ADAPTER: z.enum(["auto", "memory", "redis"]).default("auto"),
   REDIS_URL: z.string().optional(),
+  JOB_QUEUE: z.enum(["auto", "db", "bullmq"]).default("auto"),
+  CACHE_TTL_MS: z.coerce.number().int().min(0).default(3000),
+  NODE_ID: z.string().optional(),
+  PRESENCE_TTL_MS: z.coerce.number().int().positive().default(30000),
+
+  WS_PING_INTERVAL_MS: z.coerce.number().int().positive().default(25000),
+  WS_PING_TIMEOUT_MS: z.coerce.number().int().positive().default(20000),
+  WS_MAX_BUFFER_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(256 * 1024),
+  /** 0 = unlimited */
+  WS_MAX_CONNECTIONS: z.coerce.number().int().min(0).default(0),
+  WS_MAX_CONNECTIONS_PER_IP: z.coerce.number().int().min(0).default(0),
+  WS_CONNECT_RATE_PER_IP: z.coerce.number().positive().default(20),
+  /** a socket whose outbound queue grows past this many packets is a slow consumer and is disconnected */
+  WS_MAX_WRITE_BUFFER: z.coerce.number().int().positive().default(500),
+  WS_DRAIN_MS: z.coerce.number().int().min(0).default(5000),
+  WS_PERMESSAGE_DEFLATE: bool.default(false),
+  WS_TRANSPORTS: z.enum(["websocket", "polling,websocket", "websocket,polling"]).default("polling,websocket"),
+  /** shared secret a CDN adds as `x-edge-secret`; only then is CF-Connecting-IP believed */
+  CF_SHARED_SECRET: z.string().optional(),
+  REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
+  /** Bearer token required for /metrics (unset = open, intended for a private network only) */
+  METRICS_TOKEN: z.string().optional(),
+  WORKER_POOL_SIZE: z.coerce.number().int().min(0).default(2),
+  WORKER_THRESHOLD_BYTES: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .default(32 * 1024),
   PRESENCE_GRACE_MS: z.coerce.number().int().min(0).default(5000),
   SOCKET_RATE_PER_SEC: z.coerce.number().positive().default(10),
   SOCKET_RATE_BURST: z.coerce.number().positive().default(30),
@@ -42,7 +84,11 @@ const schema = z.object({
   AI_TIMEOUT_MS: z.coerce.number().int().positive().default(20000),
 
   STORAGE_DRIVER: z.enum(["local"]).default("local"),
-  UPLOAD_MAX_BYTES: z.coerce.number().int().positive().default(10 * 1024 * 1024),
+  UPLOAD_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(10 * 1024 * 1024),
   SIGNED_URL_TTL_SECONDS: z.coerce.number().int().positive().default(900),
 
   SCHEDULER_ENABLED: bool.default(true),
@@ -78,10 +124,13 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   if (cfg.EMAIL_PROVIDER === "sendgrid" && !cfg.SENDGRID_API_KEY) {
     throw new Error("EMAIL_PROVIDER=sendgrid requires SENDGRID_API_KEY");
   }
-  if (cfg.SOCKET_ADAPTER === "redis" && !cfg.REDIS_URL) throw new Error("SOCKET_ADAPTER=redis requires REDIS_URL");
+  if ((cfg.SOCKET_ADAPTER === "redis" || cfg.JOB_QUEUE === "bullmq") && !cfg.REDIS_URL) throw new Error("SOCKET_ADAPTER=redis / JOB_QUEUE=bullmq require REDIS_URL");
+  if (cfg.DATABASE_URL && !/^postgres(ql)?:\/\//.test(cfg.DATABASE_URL)) throw new Error("DATABASE_URL must be a postgres:// URL");
   return {
     ...cfg,
     JWT_SECRET: secret,
-    corsOrigins: cfg.CORS_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean),
+    corsOrigins: cfg.CORS_ORIGINS.split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
   };
 }

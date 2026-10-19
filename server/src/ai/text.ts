@@ -22,7 +22,11 @@ const LABEL: Record<TranscriptLine["role"], string> = { customer: "Customer", ag
  * Render a thread within a token budget. Always keeps the first message (what the customer originally wanted) and
  * as many of the newest as fit; the gap is marked so the model knows it is missing context.
  */
-export function buildTranscript(lines: TranscriptLine[], budgetTokens: number, opts: { redact?: boolean; perMessageChars?: number } = {}): { text: string; omitted: number } {
+export function buildTranscript(
+  lines: TranscriptLine[],
+  budgetTokens: number,
+  opts: { redact?: boolean; perMessageChars?: number } = {},
+): { text: string; omitted: number } {
   const cap = opts.perMessageChars ?? 1200;
   const fmt = (l: TranscriptLine) => {
     let t = l.text.replace(/\s+/g, " ").trim().slice(0, cap);
@@ -85,4 +89,3 @@ export function unsupportedCommitment(candidate: string, trustedContext: string)
   for (const m of candidate.match(PRICE_TOKEN) ?? []) if (!ctx.includes(m.toLowerCase())) return true;
   return false;
 }
-

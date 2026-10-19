@@ -13,15 +13,19 @@ import { TestClock, testConfig, type TestCtx, seedWorkspace, tokenFor, addMember
 export async function startServer(env: Record<string, string> = {}) {
   const clockCtl = new TestClock(Date.now());
   const bus = new SocketBus();
-  const ctx = createContext(testConfig({ PRESENCE_GRACE_MS: "150", ...env }), {
-    log: silentLogger, bus, sms: new FakeSmsProvider(), email: new FakeEmailProvider(), ai: new HeuristicProvider(),
-  }) as TestCtx;
+  const ctx = (await createContext(testConfig({ PRESENCE_GRACE_MS: "150", ...env }), {
+    log: silentLogger,
+    bus,
+    sms: new FakeSmsProvider(),
+    email: new FakeEmailProvider(),
+    ai: new HeuristicProvider(),
+  })) as TestCtx;
   ctx.clock = clockCtl.now;
   ctx.clockCtl = clockCtl;
   const app = createApp(ctx);
-  const port = await new Promise<number>((resolve) => {
+  const port = await new Promise<number>(async (resolve) => {
     const s = serve({ fetch: app.fetch, port: 0, hostname: "127.0.0.1" }, (info) => resolve(info.port));
-    attachSocketServer(s as never, ctx, bus).then((h) => ((ctx as any).__handle = { s, h }));
+    await attachSocketServer(s as never, ctx, bus).then((h) => ((ctx as any).__handle = { s, h }));
   });
   await new Promise((r) => setTimeout(r, 30));
   const sockets: Socket[] = [];
@@ -35,10 +39,10 @@ export async function startServer(env: Record<string, string> = {}) {
     });
   const team = async (ws: string, actor: Actor) => connect(ws, { token: await tokenFor(ctx, actor) });
   async function visitor(wsId: string, domain = "chat.example.com", device = "device-rt-0001", info: Record<string, string> = {}) {
-    const owner = ctx.db.get<{ id: string }>("SELECT id FROM members WHERE workspace_id = ? LIMIT 1", wsId)!;
-    const existing = ctx.db.get<{ token: string; id: string }>("SELECT * FROM tokens WHERE workspace_id = ? AND domain = ? AND status = 'active'", wsId, domain);
-    const token = existing ?? createToken(ctx, { role: "owner", memberId: owner.id, workspaceId: wsId } as Actor, domain);
-    const s = createSession(ctx, token as never, { device_id: device, ip: null, ...info });
+    const owner = (await ctx.db.get<{ id: string }>("SELECT id FROM members WHERE workspace_id = ? LIMIT 1", wsId))!;
+    const existing = await ctx.db.get<{ token: string; id: string }>("SELECT * FROM tokens WHERE workspace_id = ? AND domain = ? AND status = 'active'", wsId, domain);
+    const token = existing ?? (await createToken(ctx, { role: "owner", memberId: owner.id, workspaceId: wsId } as Actor, domain));
+    const s = await createSession(ctx, token as never, { device_id: device, ip: null, ...info });
     return { ...s, auth: { session: s.secret, deviceId: device }, domain, tokenRow: token };
   }
   async function close() {
@@ -83,6 +87,23 @@ export function recorder(s: Socket, events: string[]) {
 
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export const ALL_EVENTS = [
-  "message:new", "message:updated", "message:deleted", "message:receipt", "room:new", "room:updated", "room:deleted", "room:unread", "inbox:new", "inbox:updated",
-  "presence:update", "typing", "visitor:presence", "notification:new", "notification:read", "member:updated", "member:removed", "session:verified", "contact:updated",
+  "message:new",
+  "message:updated",
+  "message:deleted",
+  "message:receipt",
+  "room:new",
+  "room:updated",
+  "room:deleted",
+  "room:unread",
+  "inbox:new",
+  "inbox:updated",
+  "presence:update",
+  "typing",
+  "visitor:presence",
+  "notification:new",
+  "notification:read",
+  "member:updated",
+  "member:removed",
+  "session:verified",
+  "contact:updated",
 ];
