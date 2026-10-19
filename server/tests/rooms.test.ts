@@ -36,7 +36,7 @@ describe("one room per contact", () => {
     const rs = await Promise.all(Array.from({ length: 6 }, () => http.post("/api/rooms", { contact_id: c.id }, token)));
     expect(new Set(rs.map((r) => r.body.room.id)).size).toBe(1);
     await expect(() => ctx.db.run("INSERT INTO rooms(id, workspace_id, contact_id, created_at, updated_at) VALUES ('dupe', ?, ?, 'x', 'x')", wsId, c.id)).rejects.toThrow(
-      /UNIQUE/,
+      /UNIQUE|duplicate key/i,
     );
   });
 
@@ -126,7 +126,7 @@ describe("snooze", () => {
     ctx.clockCtl.advance(3600_000);
     ctx.bus.clear();
     const woken: string[] = [];
-    expect(await wakeDueRooms(ctx, (r) => woken.push(r.id))).toBe(1);
+    expect(await wakeDueRooms(ctx, (r) => void woken.push(r.id))).toBe(1);
     expect(woken).toEqual([room.id]);
     expect(await roomRow(ctx, room.id)).toMatchObject({ snooze_until: null, snoozed_by: null });
     expect((await messagesOf(ctx, room.id)).pop()!.content).toBe("Snooze ended");

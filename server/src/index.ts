@@ -13,20 +13,43 @@ const ctx = await createContext(config, { log, bus });
 const app = createApp(ctx);
 
 const server = serve({ fetch: app.fetch, port: config.PORT, hostname: config.HOST }, (info) => {
-  log.info("conversations server listening", { port: info.port, env: config.NODE_ENV, sms: ctx.sms.name, email: ctx.email.name, ai: ctx.ai.name });
+  log.info("conversations server listening", {
+    port: info.port,
+    node: ctx.nodeId,
+    env: config.NODE_ENV,
+    db: ctx.db.dialect,
+    redis: !!ctx.redis,
+    queue: ctx.queue.kind,
+    sms: ctx.sms.name,
+    email: ctx.email.name,
+    ai: ctx.ai.name,
+  });
 });
+// keep-alive above typical load-balancer idle timeouts so the proxy, not this node, decides when to close idle connections
+(server as import("node:http").Server).keepAliveTimeout = 65_000;
+(server as import("node:http").Server).headersTimeout = 66_000;
 const sockets = await attachSocketServer(server as never, ctx, bus);
-const stopScheduler = config.SCHEDULER_ENABLED ? startScheduler(ctx) : () => {};
+const stopScheduler = config.SCHEDULER_ENABLED ? await startScheduler(ctx) : () => {};
 
 let closing = false;
+/**
+ * Graceful shutdown: flip readiness to 503 (the load balancer stops routing here), stop accepting new sockets, tell connected clients to
+ * reconnect with jitter, let in-flight requests finish, flush coalesced events and background work, then close dependencies.
+ */
 async function shutdown(signal: string) {
   if (closing) return;
   closing = true;
-  log.info("shutting down", { signal });
+  log.info("draining", { signal, node: ctx.nodeId, ...sockets.stats() });
+  ctx.state.draining = true;
   stopScheduler();
+  await sockets.drain(config.WS_DRAIN_MS);
+  await new Promise<void>((resolve) => (server as import("node:http").Server).close(() => resolve()));
   await sockets.close();
   await closeContext(ctx);
+  log.info("shutdown complete", { node: ctx.nodeId });
   process.exit(0);
 }
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
 process.on("SIGINT", () => void shutdown("SIGINT"));
+// force-exit if something hangs, so orchestrators never wait for the kill timeout
+process.on("SIGTERM", () => setTimeout(() => process.exit(1), config.WS_DRAIN_MS + 15_000).unref());

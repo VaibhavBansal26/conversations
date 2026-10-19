@@ -88,12 +88,12 @@ export async function visitorSend(
   session: SessionRow,
   roomId: string,
   input: { content: string; client_msg_id?: string },
-): Promise<{ message: MessageRow; created: boolean }> {
+): Promise<{ message: MessageRow; created: boolean; room: RoomRow }> {
   const room = await getVisitorRoom(ctx, session, roomId);
   const findDup = async () =>
     input.client_msg_id ? await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE room_id = ? AND client_msg_id = ?", roomId, input.client_msg_id) : undefined;
   const dup = await findDup();
-  if (dup) return { message: dup, created: false };
+  if (dup) return { message: dup, created: false, room };
   const raw = input.content ?? "";
   if (raw.length > VISITOR_MAX_CHARS) throw unprocessable("CONTENT_TOO_LONG", `Messages are limited to ${VISITOR_MAX_CHARS} characters`);
   const { content, text } = processContent("dm", raw, "text");
@@ -114,11 +114,11 @@ export async function visitorSend(
     });
     await emitInserted(ctx, r);
     await onContactMessage(ctx, r.room, r.message);
-    return { message: r.message, created: true };
+    return { message: r.message, created: true, room };
   } catch (e) {
     if (isUniqueViolation(e)) {
       const winner = await findDup();
-      if (winner) return { message: winner, created: false };
+      if (winner) return { message: winner, created: false, room };
     }
     throw e;
   }

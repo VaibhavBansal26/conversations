@@ -284,6 +284,7 @@ export const lastMessageBrief = (m: MessageRow) => ({
 
 /** Broadcast a stored message: notes stay on the team channel; system/bot/contact/agent also reach the visitor. */
 export async function emitMessage(ctx: AppContext, room: RoomRow, m: MessageRow, event: "message:new" | "message:updated" = "message:new"): Promise<void> {
+  await ctx.cache.invalidate(`counts:${room.workspace_id}:*`);
   const refs = await loadRefs(ctx, [m]);
   const payload = { message: messageDto(ctx, m, { visitorReadSeq: room.visitor_read_seq, refs }), room: await roomPatch(ctx, room) };
   const visitor = m.kind === "note" ? undefined : { message: visitorMessageDto(ctx, m, room.visitor_read_seq, refs), room: { id: room.id, status: room.status } };

@@ -1,7 +1,10 @@
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { randomUUID } from "node:crypto";
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
+import { timeout } from "hono/timeout";
 import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
@@ -28,11 +31,22 @@ const INLINE_TYPES = /^(image\/(png|jpeg|gif|webp)|application\/pdf|audio\/)/;
 export function createApp(ctx: AppContext): Hono {
   const app = new Hono();
 
+  // request id (client-supplied ids are accepted when sane so traces join up across a proxy), access log and latency histogram
   app.use("*", async (c, next) => {
-    const started = Date.now();
+    const supplied = c.req.header("x-request-id");
+    const rid = supplied && /^[\w.-]{8,64}$/.test(supplied) ? supplied : randomUUID();
+    c.header("x-request-id", rid);
+    const started = process.hrtime.bigint();
     await next();
-    ctx.log.info("request", { method: c.req.method, path: new URL(c.req.url).pathname, status: c.res.status, ms: Date.now() - started });
+    const sec = Number(process.hrtime.bigint() - started) / 1e9;
+    const path = new URL(c.req.url).pathname;
+    if (path !== "/metrics" && path !== "/healthz") {
+      ctx.metrics.http.observe({ method: c.req.method, route: c.req.routePath === "/*" ? "unmatched" : c.req.routePath, status: String(c.res.status) }, sec);
+      ctx.log.info("request", { request_id: rid, node: ctx.nodeId, method: c.req.method, path, status: c.res.status, ms: Math.round(sec * 1000) });
+    }
   });
+  app.use("/api/*", timeout(ctx.config.REQUEST_TIMEOUT_MS, () => new HTTPException(504, { message: "Request timed out" })));
+  app.use("/public/*", timeout(ctx.config.REQUEST_TIMEOUT_MS, () => new HTTPException(504, { message: "Request timed out" })));
   app.use("*", secureHeaders({ crossOriginResourcePolicy: false, contentSecurityPolicy: undefined }));
 
   // team API: explicit allow-list from env. Public widget endpoints: any origin (access is decided by the embed token's domain).
@@ -61,13 +75,18 @@ export function createApp(ctx: AppContext): Hono {
   app.use("*", async (c, next) => (c.req.path === "/api/attachments" ? await uploadLimit(c, next) : await jsonLimit(c, next)));
 
   app.get("/healthz", (c) => c.json({ status: "ok" }));
+  // readiness reflects every dependency this node needs, and flips to 503 while draining so load balancers stop sending traffic
   app.get("/readyz", async (c) => {
-    try {
-      await ctx.db.get("SELECT 1");
-      return c.json({ status: "ready" });
-    } catch {
-      return c.json({ status: "unavailable" }, 503);
-    }
+    const checks: Record<string, boolean> = { draining: !ctx.state.draining };
+    checks.database = await ctx.db.get("SELECT 1").then(() => true, () => false);
+    if (ctx.redis) checks.redis = await ctx.redis.ping();
+    const ok = Object.values(checks).every(Boolean);
+    return c.json({ status: ok ? "ready" : "unavailable", node: ctx.nodeId, checks }, ok ? 200 : 503);
+  });
+  app.get("/metrics", async (c) => {
+    const want = ctx.config.METRICS_TOKEN;
+    if (want && c.req.header("authorization") !== `Bearer ${want}`) return c.json({ error: { code: "UNAUTHORIZED", message: "Metrics token required" } }, 401);
+    return c.text(await ctx.metrics.render(ctx), 200, { "Content-Type": ctx.metrics.registry.contentType });
   });
 
   app.route("/api/auth", authRoutes(ctx));
@@ -128,6 +147,7 @@ export function createApp(ctx: AppContext): Hono {
 
   app.notFound((c) => c.json({ error: { code: "NOT_FOUND", message: "Route not found" } }, 404));
   app.onError((err, c) => {
+    if (err instanceof HTTPException) return c.json({ error: { code: err.status === 504 ? "REQUEST_TIMEOUT" : "HTTP_ERROR", message: err.message } }, err.status);
     if (err instanceof AppError) {
       return c.json({ error: { code: err.code, message: err.message, ...(err.details !== undefined ? { details: err.details } : {}) } }, err.status as never);
     }

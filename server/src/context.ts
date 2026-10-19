@@ -8,6 +8,7 @@ import type { Cache } from "./infra/cache.js";
 import type { Locks } from "./infra/locks.js";
 import type { RedisHub } from "./infra/redis.js";
 import type { JobQueue } from "./jobs/queue.js";
+import type { Metrics } from "./metrics.js";
 import type { EmailProvider, SmsProvider, Storage } from "./providers/types.js";
 import type { AiProvider } from "./ai/provider.js";
 
@@ -28,8 +29,11 @@ export interface AppContext {
   cache: Cache;
   locks: Locks;
   queue: JobQueue;
+  metrics: Metrics;
   /** present only when REDIS_URL is configured */
   redis: RedisHub | null;
+  /** mutable process state shared by the HTTP and socket layers */
+  state: { draining: boolean };
   /** identifies this process in logs, metrics and Redis keys */
   nodeId: string;
   /** Fire-and-forget side effects (triage, notifications). Tests await `settle()`. */

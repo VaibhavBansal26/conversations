@@ -118,7 +118,7 @@ describe("outbound SMS rules", () => {
     const { ctx, owner, wsId, room } = await smsWorld();
     await addSmsNumberRaw(ctx, wsId, "+15550000002");
     await sendAgentMessage(ctx, owner, room.id, sms("one"));
-    await ctx.db.run("UPDATE sms_numbers SET is_default = (e164 = '+15550000002')");
+    await ctx.db.run("UPDATE sms_numbers SET is_default = CASE WHEN e164 = '+15550000002' THEN 1 ELSE 0 END");
     await sendAgentMessage(ctx, owner, room.id, sms("two"));
     expect(ctx.sms.sent.map((s) => s.from)).toEqual(["+15550000001", "+15550000001"]);
   });

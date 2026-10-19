@@ -177,7 +177,7 @@ export function toPg(sql: string): string {
 class PgDb implements Db {
   readonly dialect = "postgres" as const;
   readonly ilike = "ILIKE";
-  readonly forUpdate = " FOR UPDATE";
+  readonly forUpdate = " FOR NO KEY UPDATE"; // self-conflicting, but compatible with the FOR KEY SHARE locks foreign-key inserts take on the same row
   statements = 0;
   private readonly pool: pg.Pool;
   private readonly als = new AsyncLocalStorage<TxStore>();

@@ -1,19 +1,20 @@
 import { serve } from "@hono/node-server";
 import { io as connectIo, type Socket } from "socket.io-client";
 import { createApp } from "../src/app.js";
-import { createContext } from "../src/app-context.js";
+import { closeContext, createContext } from "../src/app-context.js";
 import { HeuristicProvider } from "../src/ai/heuristic.js";
 import { silentLogger } from "../src/logger.js";
 import { FakeEmailProvider, FakeSmsProvider } from "../src/providers/fake.js";
 import { SocketBus, attachSocketServer } from "../src/realtime/socket.js";
 import { createToken, createSession } from "../src/services/visitors.js";
 import type { Actor } from "../src/domain/types.js";
-import { TestClock, testConfig, type TestCtx, seedWorkspace, tokenFor, addMemberRaw } from "./helpers.js";
+import { TestClock, testConfig, isolatedDbEnv, dropSchema, type TestCtx, seedWorkspace, tokenFor, addMemberRaw } from "./helpers.js";
 
 export async function startServer(env: Record<string, string> = {}) {
   const clockCtl = new TestClock(Date.now());
   const bus = new SocketBus();
-  const ctx = (await createContext(testConfig({ PRESENCE_GRACE_MS: "150", ...env }), {
+  const iso = await isolatedDbEnv({ PRESENCE_GRACE_MS: "150", WS_CONNECT_RATE_PER_IP: "1000", ...env });
+  const ctx = (await createContext(testConfig(iso.env), {
     log: silentLogger,
     bus,
     sms: new FakeSmsProvider(),
@@ -50,7 +51,8 @@ export async function startServer(env: Record<string, string> = {}) {
     const { s, h } = (ctx as any).__handle;
     await h.close();
     s.close();
-    await ctx.background.settle();
+    await closeContext(ctx);
+    await dropSchema(iso.schema);
   }
   return { ctx, url, connect, team, visitor, close, clockCtl, seedWorkspace, addMemberRaw, sockets };
 }

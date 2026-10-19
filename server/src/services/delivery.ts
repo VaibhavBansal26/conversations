@@ -2,7 +2,7 @@ import type { AppContext } from "../context.js";
 import type { Attachment } from "../domain/types.js";
 import { ProviderError } from "../providers/types.js";
 import { parseJson } from "../util/json.js";
-import { addSeconds } from "../util/time.js";
+import { addMinutes, addSeconds } from "../util/time.js";
 import { enqueueJob } from "../jobs/queue.js";
 import { emitMessage, findMessageRow, type MessageRow } from "./messageStore.js";
 import { getRoomRow } from "./roomStore.js";
@@ -61,6 +61,8 @@ export async function deliverMessage(ctx: AppContext, messageId: string): Promis
           statusCallbackUrl: `${ctx.config.PUBLIC_URL.replace(/\/$/, "")}/webhooks/twilio/status`,
         });
         await mark(ctx, msg.id, "sent", { providerId: r.providerMessageId });
+        // delivery receipts normally arrive by webhook; this delayed check covers the ones that never do
+        await enqueueJob(ctx, "reconcile_sms", { message_id: msg.id, attempt: 0 }, { runAt: addMinutes(ctx.clock(), 2), dedupeKey: `reconcile:${msg.id}:0` });
       }
     } else if (msg.source === "email") {
       const sender = await ctx.db.get<{ display_name: string }>(

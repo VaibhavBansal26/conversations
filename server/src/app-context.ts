@@ -11,6 +11,7 @@ import { MemoryLocks, RedisLocks } from "./infra/locks.js";
 import { MemoryPresenceService, RedisPresenceService, type PresenceService } from "./infra/presence.js";
 import { RedisHub } from "./infra/redis.js";
 import { BullJobQueue, DbJobQueue } from "./jobs/queue.js";
+import { Metrics } from "./metrics.js";
 import { createLogger, type Logger } from "./logger.js";
 import { ConsoleEmailProvider, ConsoleSmsProvider } from "./providers/fake.js";
 import { LocalDiskStorage } from "./providers/storage.js";
@@ -71,8 +72,10 @@ export async function createContext(config: Config, o: ContextOverrides = {}): P
     cache,
     locks: hub ? new RedisLocks(hub) : new MemoryLocks(),
     queue: undefined as never,
+    metrics: new Metrics(config.NODE_ENV !== "test"),
     redis: hub,
     nodeId,
+    state: { draining: false },
     background: new BackgroundTracker(
       (e) => log.error("background task failed", { error: e instanceof Error ? e.message : String(e) }),
       (fn) => db.detached(fn),
@@ -104,8 +107,11 @@ export async function createContext(config: Config, o: ContextOverrides = {}): P
 
 /** Orderly teardown of everything createContext opened. */
 export async function closeContext(ctx: AppContext): Promise<void> {
+  if ((ctx as { closed?: boolean }).closed) return;
+  (ctx as { closed?: boolean }).closed = true;
   await ctx.background.settle();
   await ctx.queue.close();
+  ctx.metrics.close();
   await ctx.presence.close();
   await ctx.redis?.close();
   await ctx.db.close();

@@ -112,6 +112,7 @@ export async function createInbox(ctx: AppContext, actor: Actor, input: InboxInp
     await setMembers(ctx, actor.workspaceId, id, input.member_ids ?? []);
   });
   const row = await getInbox(ctx, actor.workspaceId, id);
+  await ctx.cache.invalidate(`counts:${actor.workspaceId}:*`);
   ctx.bus.toWorkspace(actor.workspaceId, "inbox:new", await inboxDto(ctx, row));
   for (const m of await memberIds(ctx, id)) await ctx.bus.refreshMemberAccess(actor.workspaceId, m);
   return row;
@@ -136,6 +137,7 @@ export async function updateInbox(ctx: AppContext, actor: Actor, id: string, inp
     if (input.member_ids) await setMembers(ctx, actor.workspaceId, id, input.member_ids);
   });
   const row = await getInbox(ctx, actor.workspaceId, id);
+  await ctx.cache.invalidate(`counts:${actor.workspaceId}:*`);
   ctx.bus.toWorkspace(actor.workspaceId, "inbox:updated", await inboxDto(ctx, row));
   for (const m of new Set([...before, ...(await memberIds(ctx, id))])) await ctx.bus.refreshMemberAccess(actor.workspaceId, m);
   return row;
@@ -148,6 +150,7 @@ export async function addInboxMember(ctx: AppContext, actor: Actor, inboxId: str
   await addMemberRow(ctx, inboxId, memberId);
   await ctx.bus.refreshMemberAccess(actor.workspaceId, memberId);
   const row = await getInbox(ctx, actor.workspaceId, inboxId);
+  await ctx.cache.invalidate(`counts:${actor.workspaceId}:*`);
   ctx.bus.toWorkspace(actor.workspaceId, "inbox:updated", await inboxDto(ctx, row));
   return row;
 }
@@ -158,6 +161,7 @@ export async function removeInboxMember(ctx: AppContext, actor: Actor, inboxId: 
   await ctx.db.run("DELETE FROM inbox_members WHERE inbox_id = ? AND member_id = ?", inboxId, memberId);
   await ctx.bus.refreshMemberAccess(actor.workspaceId, memberId);
   const row = await getInbox(ctx, actor.workspaceId, inboxId);
+  await ctx.cache.invalidate(`counts:${actor.workspaceId}:*`);
   ctx.bus.toWorkspace(actor.workspaceId, "inbox:updated", await inboxDto(ctx, row));
   return row;
 }
@@ -168,6 +172,7 @@ export async function deleteInbox(ctx: AppContext, actor: Actor, id: string): Pr
   const members = await memberIds(ctx, id);
   await ctx.db.run("DELETE FROM inboxes WHERE id = ?", id);
   for (const m of members) await ctx.bus.refreshMemberAccess(actor.workspaceId, m);
+  await ctx.cache.invalidate(`counts:${actor.workspaceId}:*`);
   ctx.bus.toWorkspace(actor.workspaceId, "inbox:updated", { id, deleted: true });
 }
 

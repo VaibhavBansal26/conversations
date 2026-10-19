@@ -3,6 +3,7 @@ import { getConnInfo } from "@hono/node-server/conninfo";
 import type { z } from "zod";
 import type { AppContext } from "./context.js";
 import type { Actor } from "./domain/types.js";
+import { resolveClientIp } from "./util/clientIp.js";
 import { AppError, badRequest, forbidden, tooMany, unauthorized } from "./errors.js";
 import { actorFromToken } from "./services/auth.js";
 
@@ -11,15 +12,15 @@ export interface Env {
 }
 
 export function clientIp(ctx: AppContext, c: Context): string {
-  if (ctx.config.TRUST_PROXY) {
-    const xff = c.req.header("x-forwarded-for")?.split(",")[0]?.trim();
-    if (xff) return xff;
-  }
+  let remote: string | undefined;
   try {
-    return getConnInfo(c).remote.address ?? "unknown";
+    remote = getConnInfo(c).remote.address;
   } catch {
-    return "unknown";
+    /* no socket under app.request() */
   }
+  const headers: Record<string, string | undefined> = {};
+  for (const n of ["x-edge-secret", "cf-connecting-ip", "x-forwarded-for"]) headers[n] = c.req.header(n);
+  return resolveClientIp({ trustProxy: ctx.config.TRUST_PROXY, edgeSecret: ctx.config.CF_SHARED_SECRET }, headers, remote) ?? "unknown";
 }
 
 /** The caller's address, or null when it cannot be determined (never a shared placeholder that could "match"). */

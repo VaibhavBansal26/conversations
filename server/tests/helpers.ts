@@ -1,8 +1,11 @@
+import { randomBytes } from "node:crypto";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Hono } from "hono";
-import { createContext, type ContextOverrides } from "../src/app-context.js";
+import pg from "pg";
+import { afterEach } from "vitest";
+import { closeContext, createContext, type ContextOverrides } from "../src/app-context.js";
 import { createApp } from "../src/app.js";
 import { loadConfig, type Config } from "../src/config.js";
 import type { AppContext } from "../src/context.js";
@@ -35,6 +38,48 @@ export interface TestCtx extends AppContext {
   clockCtl: TestClock;
 }
 
+const tracked: { ctx: AppContext; schema?: string }[] = [];
+
+/**
+ * With TEST_DATABASE_URL every context gets its own schema in that PostgreSQL database, so tests stay independent
+ * exactly as they are with a fresh `:memory:` SQLite database.
+ */
+export async function isolatedDbEnv(env: Record<string, string>): Promise<{ env: Record<string, string>; schema?: string }> {
+  const url = process.env.TEST_DATABASE_URL;
+  if (!url || env.DATABASE_URL) return { env };
+  const schema = `t_${randomBytes(6).toString("hex")}`;
+  const admin = new pg.Client({ connectionString: url });
+  await admin.connect();
+  await admin.query(`CREATE SCHEMA ${schema}`);
+  await admin.end();
+  const u = new URL(url);
+  u.searchParams.set("options", `-c search_path=${schema}`);
+  return { env: { ...env, DATABASE_URL: u.toString(), DATABASE_POOL_MAX: "4" }, schema };
+}
+
+export function trackCtx(ctx: AppContext, schema?: string) {
+  tracked.push({ ctx, schema });
+}
+
+/** Drop a schema created by isolatedDbEnv (used by helpers that own a long-lived context). */
+export async function dropSchema(schema?: string) {
+  if (!schema || !process.env.TEST_DATABASE_URL) return;
+  const admin = new pg.Client({ connectionString: process.env.TEST_DATABASE_URL });
+  await admin.connect();
+  await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`).catch(() => {});
+  await admin.end();
+}
+
+afterEach(async () => {
+  const admin = process.env.TEST_DATABASE_URL ? new pg.Client({ connectionString: process.env.TEST_DATABASE_URL }) : null;
+  await admin?.connect();
+  for (const t of tracked.splice(0)) {
+    await closeContext(t.ctx).catch(() => {});
+    if (t.schema) await admin?.query(`DROP SCHEMA IF EXISTS ${t.schema} CASCADE`).catch(() => {});
+  }
+  await admin?.end();
+});
+
 export function testConfig(env: Record<string, string> = {}): Config {
   const dir = mkdtempSync(join(tmpdir(), "conv-test-"));
   return loadConfig(
@@ -46,6 +91,7 @@ export function testConfig(env: Record<string, string> = {}): Config {
       DATA_DIR: dir,
       WEB_DIST: join(dir, "no-web-build"),
       LOG_LEVEL: "silent",
+      CACHE_TTL_MS: "0",
       PUBLIC_URL: "http://localhost:3000",
       SEND_RETRY_BASE_SECONDS: "10",
       SEND_RETRY_CAP_SECONDS: "100",
@@ -58,7 +104,8 @@ export function testConfig(env: Record<string, string> = {}): Config {
 
 export async function makeCtx(env: Record<string, string> = {}, over: ContextOverrides = {}): Promise<TestCtx> {
   const clockCtl = new TestClock();
-  const ctx = (await createContext(testConfig(env), {
+  const iso = await isolatedDbEnv(env);
+  const ctx = (await createContext(testConfig(iso.env), {
     log: silentLogger,
     bus: new RecordingBus(),
     sms: new FakeSmsProvider(),
@@ -66,6 +113,7 @@ export async function makeCtx(env: Record<string, string> = {}, over: ContextOve
     ai: new HeuristicProvider(),
     ...over,
   })) as TestCtx;
+  trackCtx(ctx, iso.schema);
   ctx.clock = clockCtl.now;
   ctx.clockCtl = clockCtl;
   return ctx;

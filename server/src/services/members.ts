@@ -27,9 +27,19 @@ const SELECT = `SELECT m.*, u.name AS name, u.email AS email FROM members m JOIN
 export const memberScope = (workspaceId: string) => `${workspaceId}:member`;
 export const visitorScope = (workspaceId: string) => `${workspaceId}:visitor`;
 
+const loadMember = (ctx: AppContext, workspaceId: string, memberId: string, includeRemoved: boolean) =>
+  ctx.db.get<MemberRow>(`${SELECT} WHERE m.id = ? AND m.workspace_id = ? ${includeRemoved ? "" : "AND m.removed_at IS NULL"}`, memberId, workspaceId);
+
+/**
+ * Seat lookup, on the hot path of every request and socket event. Cached for a few seconds (CACHE_TTL_MS); every change to a seat
+ * invalidates its entry on all nodes (see invalidateMember), so removals and demotions still take effect immediately.
+ */
 export async function findMember(ctx: AppContext, workspaceId: string, memberId: string, includeRemoved = false): Promise<MemberRow | undefined> {
-  return await ctx.db.get<MemberRow>(`${SELECT} WHERE m.id = ? AND m.workspace_id = ? ${includeRemoved ? "" : "AND m.removed_at IS NULL"}`, memberId, workspaceId);
+  if (includeRemoved) return loadMember(ctx, workspaceId, memberId, true);
+  return ctx.cache.wrap(`member:${workspaceId}:${memberId}`, () => loadMember(ctx, workspaceId, memberId, false));
 }
+
+export const invalidateMember = (ctx: AppContext, workspaceId: string, memberId: string) => ctx.cache.invalidate(`member:${workspaceId}:${memberId}`);
 
 export async function getMember(ctx: AppContext, workspaceId: string, memberId: string): Promise<MemberRow> {
   const m = await findMember(ctx, workspaceId, memberId);
@@ -131,6 +141,7 @@ export async function addMember(
       nowIso(ctx),
     );
   }
+  await invalidateMember(ctx, actor.workspaceId, id);
   const row = await getMember(ctx, actor.workspaceId, id);
   ctx.bus.toWorkspace(actor.workspaceId, "member:updated", await memberDto(ctx, row));
   return row;
@@ -177,6 +188,7 @@ export async function updateMember(ctx: AppContext, actor: Actor, memberId: stri
     memberId,
   );
   if (patch.name) await ctx.db.run("UPDATE users SET name = ? WHERE id = ?", patch.name, target.user_id);
+  await invalidateMember(ctx, actor.workspaceId, memberId);
   const row = await getMember(ctx, actor.workspaceId, memberId);
   if (patch.role || patch.inbox_visibility) await ctx.bus.refreshMemberAccess(actor.workspaceId, memberId);
   ctx.bus.toWorkspace(actor.workspaceId, "member:updated", await memberDto(ctx, row));
@@ -214,6 +226,8 @@ export async function removeMember(ctx: AppContext, actor: Actor, memberId: stri
     await ctx.db.run("DELETE FROM contact_followers WHERE member_id = ?", memberId);
     await ctx.db.run("DELETE FROM room_favorites WHERE member_id = ?", memberId);
   });
+  await invalidateMember(ctx, actor.workspaceId, memberId);
+  await ctx.cache.invalidate(`counts:${actor.workspaceId}:*`);
   for (const r of rooms) await reassign(r.room_id);
   ctx.bus.disconnectMember(actor.workspaceId, memberId);
   ctx.bus.toWorkspace(actor.workspaceId, "member:removed", { member_id: memberId });

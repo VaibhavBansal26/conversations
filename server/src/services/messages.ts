@@ -233,11 +233,13 @@ export async function pageMessages(ctx: AppContext, roomId: string, opts: ListOp
     rows = got.slice(0, limit);
     moreOlder = !!(await ctx.db.get(`SELECT 1 FROM messages WHERE ${base} AND seq <= ? LIMIT 1`, roomId, s));
   } else {
-    const upper = opts.before ? await seqOf(opts.before) : Number.MAX_SAFE_INTEGER;
-    const got = await ctx.db.all<MessageRow>(`SELECT * FROM messages WHERE ${base} AND seq < ? ORDER BY seq DESC LIMIT ?`, roomId, upper, limit + 1);
+    const upper = opts.before ? await seqOf(opts.before) : null;
+    const got = upper === null
+      ? await ctx.db.all<MessageRow>(`SELECT * FROM messages WHERE ${base} ORDER BY seq DESC LIMIT ?`, roomId, limit + 1)
+      : await ctx.db.all<MessageRow>(`SELECT * FROM messages WHERE ${base} AND seq < ? ORDER BY seq DESC LIMIT ?`, roomId, upper, limit + 1);
     moreOlder = got.length > limit;
     rows = got.slice(0, limit).reverse();
-    moreNewer = opts.before ? !!(await ctx.db.get(`SELECT 1 FROM messages WHERE ${base} AND seq >= ? LIMIT 1`, roomId, upper)) : false;
+    moreNewer = upper !== null ? !!(await ctx.db.get(`SELECT 1 FROM messages WHERE ${base} AND seq >= ? LIMIT 1`, roomId, upper)) : false;
   }
   return {
     data: rows,

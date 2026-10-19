@@ -5,68 +5,145 @@ import type { z } from "zod";
 import type { AppContext } from "../context.js";
 import { seesAll, type Actor } from "../domain/types.js";
 import { AppError, unauthorized } from "../errors.js";
-import { actorFromToken } from "../services/auth.js";
-import { findMember, onlineMemberIds, actorFromRow, memberScope, visitorScope } from "../services/members.js";
-import { roomVisibility, canSeeRoom } from "../services/roomStore.js";
-import type { RoomRow } from "../services/roomStore.js";
-import { assignRoom, markRead, setPriority, setStatus, setSubject, snoozeRoom, startConversation, unsnoozeRoom, roomBaseDto } from "../services/rooms.js";
-import { sendAgentMessage, viewMessage } from "../services/messages.js";
-import { visitorMarkRead, visitorRooms, visitorSend, visitorStartRoom, visitorRoomDto } from "../services/visitorChat.js";
-import { authenticateSession, verifyOtp, originMatches, type SessionRow } from "../services/visitors.js";
-import { visitorMessageDto } from "../services/messageStore.js";
-import { listInboxes } from "../services/inboxes.js";
-import { RateLimiter } from "../util/ratelimit.js";
-import { isWorkspaceId } from "../util/ids.js";
 import { AssignBody, OtpVerify, ReadBody, RoomCreate, RoomPatch, SendMessageBody, TypingBody, id } from "../schemas.js";
+import { actorFromToken } from "../services/auth.js";
+import { listInboxes } from "../services/inboxes.js";
+import { actorFromRow, findMember, memberScope, onlineMemberIds, visitorScope } from "../services/members.js";
+import { sendAgentMessage, viewMessage } from "../services/messages.js";
+import { visitorMessageDto } from "../services/messageStore.js";
+import { canSeeRoom, roomVisibility } from "../services/roomStore.js";
+import type { RoomRow } from "../services/roomStore.js";
+import { assignRoom, markRead, roomBaseDto, setPriority, setStatus, setSubject, snoozeRoom, startConversation, unsnoozeRoom } from "../services/rooms.js";
+import { visitorMarkRead, visitorRoomDto, visitorRooms, visitorSend, visitorStartRoom } from "../services/visitorChat.js";
+import { authenticateSession, originMatches, verifyOtp, type SessionRow } from "../services/visitors.js";
+import { resolveClientIp } from "../util/clientIp.js";
+import { isWorkspaceId } from "../util/ids.js";
+import { RateLimiter } from "../util/ratelimit.js";
 import type { RealtimeBus } from "./bus.js";
 
-type TeamData = { kind: "team"; memberId: string; userId: string; workspaceId: string; exp: number };
-type VisitorData = { kind: "visitor"; sessionId: string; contactId: string; workspaceId: string };
+type TeamData = { kind: "team"; memberId: string; userId: string; workspaceId: string; exp: number; ip: string | null };
+type VisitorData = { kind: "visitor"; sessionId: string; contactId: string; workspaceId: string; ip: string | null };
 type SockData = TeamData | VisitorData;
 type Ack = (r: unknown) => void;
+interface Who {
+  actor?: Actor;
+  session?: SessionRow;
+}
 
 const nspName = (ws: string) => `/ws/${ws}`;
+const PRESENCE_FLUSH_MS = 150;
+const RECEIPT_FLUSH_MS = 100;
+const TYPING_MIN_GAP_MS = 500;
 
 /**
  * RealtimeBus backed by one Socket.IO namespace per workspace. Channels inside a namespace:
  *   room:<id> team members who may see the room    vroom:<id> visitor sockets of that room
  *   member:<id> one seat (all its tabs)            inbox:<id> members of an inbox
  *   managers owners+managers                       team everyone on the team
- * Access changes call refresh*Access, which re-evaluates scope for the affected local sockets synchronously and tells peer nodes to do the same.
+ * Access changes call refresh*Access, which re-evaluates scope for the affected local sockets and (with a clustered adapter) tells
+ * peer nodes to do the same. Bursty, idempotent events (presence flips, read receipts) are coalesced: only the newest state in a
+ * short window is sent.
  */
 export class SocketBus implements RealtimeBus {
   io: Server | null = null;
   private ctx: AppContext | null = null;
-  /** Only adapters with peers (redis) need access refreshes fanned out to other nodes. */
   private clustered = false;
+  get draining(): boolean {
+    return this.ctx?.state.draining ?? false;
+  }
+  private presenceQueue = new Map<string, { ws: string; payload: unknown }>();
+  private receiptQueue = new Map<string, { ws: string; roomId: string; payload: any; visitor?: unknown }>();
+  private flushTimers: ReturnType<typeof setTimeout>[] = [];
 
-  bind(ctx: AppContext, io: Server) {
+  bind(ctx: AppContext, io: Server, clustered: boolean) {
     this.ctx = ctx;
     this.io = io;
-    this.clustered = ctx.config.SOCKET_ADAPTER === "redis";
+    this.clustered = clustered;
   }
 
   private nsp(ws: string): Namespace | null {
     return this.io ? this.io.of(nspName(ws)) : null;
   }
 
+  private timed<T>(event: string, fn: () => T): T {
+    const m = this.ctx?.metrics;
+    if (!m) return fn();
+    const end = m.wsFanout.startTimer();
+    m.wsEmits.inc({ event });
+    try {
+      return fn();
+    } finally {
+      end();
+    }
+  }
+
   toRoom(ws: string, roomId: string, event: string, payload: unknown, opts?: { visitor?: unknown }) {
-    const n = this.nsp(ws);
-    if (!n) return;
-    n.to(`room:${roomId}`).emit(event, payload);
-    if (opts?.visitor !== undefined) n.to(`vroom:${roomId}`).emit(event, opts.visitor);
+    if (event === "message:receipt") return this.queueReceipt(ws, roomId, payload as { reader: { type: string; id?: string } }, opts?.visitor);
+    this.timed(event, () => {
+      const n = this.nsp(ws);
+      if (!n) return;
+      n.to(`room:${roomId}`).emit(event, payload);
+      if (opts?.visitor !== undefined) n.to(`vroom:${roomId}`).emit(event, opts.visitor);
+    });
   }
   toMember(ws: string, memberId: string, event: string, payload: unknown) {
-    this.nsp(ws)?.to(`member:${memberId}`).emit(event, payload);
+    this.timed(event, () => this.nsp(ws)?.to(`member:${memberId}`).emit(event, payload));
   }
   toInbox(ws: string, inboxId: string, event: string, payload: unknown) {
-    this.nsp(ws)?.to(`inbox:${inboxId}`).emit(event, payload);
+    this.timed(event, () => this.nsp(ws)?.to(`inbox:${inboxId}`).emit(event, payload));
   }
   toManagers(ws: string, event: string, payload: unknown) {
-    this.nsp(ws)?.to("managers").emit(event, payload);
+    this.timed(event, () => this.nsp(ws)?.to("managers").emit(event, payload));
   }
   toWorkspace(ws: string, event: string, payload: unknown) {
-    this.nsp(ws)?.to("team").emit(event, payload);
+    if (event === "presence:update") return this.queuePresence(ws, payload as { member_id: string });
+    this.timed(event, () => this.nsp(ws)?.to("team").emit(event, payload));
+  }
+
+  /** Last state per seat wins inside the window, so a flapping tab produces one update instead of a storm. */
+  private queuePresence(ws: string, payload: { member_id: string }) {
+    const first = this.presenceQueue.size === 0;
+    this.presenceQueue.set(`${ws}:${payload.member_id}`, { ws, payload });
+    if (first) this.schedule(PRESENCE_FLUSH_MS, () => this.flushPresence());
+  }
+  private flushPresence() {
+    const q = this.presenceQueue;
+    this.presenceQueue = new Map();
+    for (const { ws, payload } of q.values()) this.timed("presence:update", () => this.nsp(ws)?.to("team").emit("presence:update", payload));
+  }
+
+  /** A receipt only ever moves forward, so intermediate ones in the window are redundant. */
+  private queueReceipt(ws: string, roomId: string, payload: { reader: { type: string; id?: string } }, visitor?: unknown) {
+    const first = this.receiptQueue.size === 0;
+    this.receiptQueue.set(`${roomId}:${payload.reader.type}:${payload.reader.id ?? ""}`, { ws, roomId, payload, visitor });
+    if (first) this.schedule(RECEIPT_FLUSH_MS, () => this.flushReceipts());
+  }
+  private flushReceipts() {
+    const q = this.receiptQueue;
+    this.receiptQueue = new Map();
+    for (const { ws, roomId, payload, visitor } of q.values()) {
+      this.timed("message:receipt", () => {
+        const n = this.nsp(ws);
+        if (!n) return;
+        n.to(`room:${roomId}`).emit("message:receipt", payload);
+        if (visitor !== undefined) n.to(`vroom:${roomId}`).emit("message:receipt", visitor);
+      });
+    }
+  }
+  private schedule(ms: number, fn: () => void) {
+    const t = setTimeout(() => {
+      this.flushTimers = this.flushTimers.filter((x) => x !== t);
+      fn();
+    }, ms);
+    t.unref();
+    this.flushTimers.push(t);
+  }
+  /** Send anything still queued (graceful shutdown). */
+  flush() {
+    for (const t of this.flushTimers) clearTimeout(t);
+    this.flushTimers = [];
+    this.flushPresence();
+    this.flushReceipts();
   }
 
   async refreshRoomAccess(ws: string, roomId: string) {
@@ -83,6 +160,7 @@ export class SocketBus implements RealtimeBus {
   }
   disconnectMember(ws: string, memberId: string) {
     for (const s of this.localSockets(ws)) if (s.data.kind === "team" && s.data.memberId === memberId) s.disconnect(true);
+    this.peers(ws, { t: "disconnect", id: memberId });
   }
 
   private peers(ws: string, msg: { t: string; id: string }) {
@@ -90,7 +168,7 @@ export class SocketBus implements RealtimeBus {
     try {
       this.nsp(ws)?.serverSideEmit("access:refresh", msg);
     } catch {
-      /* single-node adapters have no peers */
+      /* no peers */
     }
   }
 
@@ -99,38 +177,51 @@ export class SocketBus implements RealtimeBus {
     if (msg.t === "room") await this.applyRoom(ws, msg.id);
     else if (msg.t === "member") await this.applyMember(ws, msg.id);
     else if (msg.t === "visitor") await this.applyVisitor(ws, msg.id);
+    else if (msg.t === "disconnect") for (const s of this.localSockets(ws)) if (s.data.kind === "team" && s.data.memberId === msg.id) s.disconnect(true);
   }
 
-  private localSockets(ws: string): Socket[] {
+  localSockets(ws: string): Socket[] {
     const n = this.nsp(ws);
     return n ? [...n.sockets.values()] : [];
   }
 
-  private async actorOf(ws: string, s: Socket): Promise<Actor | null> {
-    const d = s.data as SockData;
-    if (d.kind !== "team" || !this.ctx) return null;
-    const row = await findMember(this.ctx, ws, d.memberId);
-    return row ? actorFromRow(row) : null;
+  /** Every local socket across all workspace namespaces (connection sweeps, drain). */
+  allSockets(parent: Namespace): Socket[] {
+    const out: Socket[] = [];
+    for (const n of (parent as unknown as { children: Set<Namespace> }).children) out.push(...n.sockets.values());
+    return out;
   }
 
+  private teamSocketsByMember(ws: string): Map<string, Socket[]> {
+    const by = new Map<string, Socket[]>();
+    for (const s of this.localSockets(ws)) {
+      const d = s.data as SockData;
+      if (d.kind !== "team") continue;
+      by.set(d.memberId, [...(by.get(d.memberId) ?? []), s]);
+    }
+    return by;
+  }
+
+  /** Scope is evaluated once per seat, not once per tab. */
   private async applyRoom(ws: string, roomId: string) {
     const ctx = this.ctx;
     if (!ctx) return;
-    for (const s of this.localSockets(ws)) {
-      const a = await this.actorOf(ws, s);
-      if (!a) continue;
-      if (await canSeeRoom(ctx, a, roomId)) s.join(`room:${roomId}`);
-      else s.leave(`room:${roomId}`);
+    for (const [memberId, socks] of this.teamSocketsByMember(ws)) {
+      const row = await findMember(ctx, ws, memberId);
+      const can = row ? await canSeeRoom(ctx, actorFromRow(row), roomId) : false;
+      for (const s of socks) {
+        if (can) s.join(`room:${roomId}`);
+        else s.leave(`room:${roomId}`);
+      }
     }
-    const room = await ctx.db.get<{ contact_id: string; session_id: string | null; archived: number }>(
-      "SELECT contact_id, session_id, archived FROM rooms WHERE id = ? AND workspace_id = ?",
-      roomId,
-      ws,
-    );
-    for (const s of this.localSockets(ws)) {
-      const d = s.data as SockData;
-      if (d.kind !== "visitor") continue;
-      const sess = await ctx.db.get<SessionRow>("SELECT * FROM visitor_sessions WHERE id = ?", d.sessionId);
+    const visitors = this.localSockets(ws).filter((s) => (s.data as SockData).kind === "visitor");
+    if (!visitors.length) return;
+    const room = await ctx.db.get<{ contact_id: string; session_id: string | null; archived: number }>("SELECT contact_id, session_id, archived FROM rooms WHERE id = ? AND workspace_id = ?", roomId, ws);
+    const sessions = new Map<string, SessionRow | undefined>();
+    for (const s of visitors) {
+      const sid = (s.data as VisitorData).sessionId;
+      if (!sessions.has(sid)) sessions.set(sid, await ctx.db.get<SessionRow>("SELECT * FROM visitor_sessions WHERE id = ?", sid));
+      const sess = sessions.get(sid);
       const ok = room && !room.archived && sess && (sess.verified ? room.contact_id === sess.contact_id : room.session_id === sess.id);
       if (ok) s.join(`vroom:${roomId}`);
       else s.leave(`vroom:${roomId}`);
@@ -139,14 +230,15 @@ export class SocketBus implements RealtimeBus {
 
   private async applyMember(ws: string, memberId: string) {
     const ctx = this.ctx;
-    if (!ctx) return;
-    for (const s of this.localSockets(ws)) {
-      if ((s.data as SockData).kind !== "team" || (s.data as TeamData).memberId !== memberId) continue;
-      const a = await this.actorOf(ws, s);
-      if (!a) {
-        s.disconnect(true);
-        continue;
-      }
+    const socks = this.teamSocketsByMember(ws).get(memberId);
+    if (!ctx || !socks) return;
+    const row = await findMember(ctx, ws, memberId);
+    if (!row) {
+      for (const s of socks) s.disconnect(true);
+      return;
+    }
+    const a = actorFromRow(row);
+    for (const s of socks) {
       for (const r of s.rooms) if (r.startsWith("room:") || r.startsWith("inbox:") || r === "managers") s.leave(r);
       await joinTeamRooms(ctx, s, a);
     }
@@ -155,12 +247,14 @@ export class SocketBus implements RealtimeBus {
   private async applyVisitor(ws: string, sessionId: string) {
     const ctx = this.ctx;
     if (!ctx) return;
-    for (const s of this.localSockets(ws)) {
-      if ((s.data as SockData).kind !== "visitor" || (s.data as VisitorData).sessionId !== sessionId) continue;
-      const sess = await ctx.db.get<SessionRow>("SELECT * FROM visitor_sessions WHERE id = ?", sessionId);
-      if (!sess) continue;
+    const socks = this.localSockets(ws).filter((s) => (s.data as SockData).kind === "visitor" && (s.data as VisitorData).sessionId === sessionId);
+    if (!socks.length) return;
+    const sess = await ctx.db.get<SessionRow>("SELECT * FROM visitor_sessions WHERE id = ?", sessionId);
+    if (!sess) return;
+    const rooms = await visitorRooms(ctx, sess);
+    for (const s of socks) {
       for (const r of s.rooms) if (r.startsWith("vroom:")) s.leave(r);
-      for (const room of await visitorRooms(ctx, sess)) s.join(`vroom:${room.id}`);
+      for (const room of rooms) s.join(`vroom:${room.id}`);
       s.emit("session:verified", { verified: !!sess.verified });
     }
   }
@@ -182,115 +276,206 @@ function errorAck(e: unknown) {
 
 export interface SocketServerHandle {
   io: Server;
+  /** Stop accepting connections, tell clients to reconnect elsewhere (jittered), then drop them after `delayMs`. */
+  drain(delayMs: number): Promise<void>;
+  /** Live connection counts on this node. */
+  stats(): { total: number; team: number; visitors: number; perIp: number };
   close(): Promise<void>;
 }
 
-export async function attachSocketServer(httpServer: HttpServer, ctx: AppContext, bus: SocketBus): Promise<SocketServerHandle> {
-  const io = new Server(httpServer, {
-    // visitors connect from customer websites; auth is a bearer token (no cookies) and visitor origins are checked against the embed token
-    cors: { origin: true, credentials: false },
-    maxHttpBufferSize: 256 * 1024,
-    serveClient: true,
-  });
-  if (ctx.config.SOCKET_ADAPTER === "redis") await useRedisAdapter(io, ctx);
-  bus.bind(ctx, io);
-
-  const parent = io.of(/^\/ws\/ws_[0-9a-f]{24}$/);
-  parent.use(async (socket, next) => {
-    try {
-      const ws = socket.nsp.name.slice(4);
-      if (!isWorkspaceId(ws) || !(await ctx.db.get("SELECT 1 FROM workspaces WHERE id = ?", ws))) throw unauthorized("Unknown workspace", "UNKNOWN_WORKSPACE");
-      const auth = (socket.handshake.auth ?? {}) as { token?: string; session?: string; deviceId?: string };
-      if (typeof auth.token === "string") {
-        const actor = await actorFromToken(ctx, auth.token, ws);
-        socket.data = { kind: "team", memberId: actor.memberId, userId: actor.userId, workspaceId: ws, exp: decodeExp(auth.token) } satisfies TeamData;
-      } else if (typeof auth.session === "string") {
-        const ip = socket.handshake.address;
-        const session = await authenticateSession(ctx, auth.session, { deviceId: auth.deviceId, ip }, ws);
-        const token = session.token_id
-          ? await ctx.db.get<{ domain: string; status: string }>("SELECT domain, status FROM tokens WHERE id = ?", session.token_id)
-          : undefined;
-        const origin = socket.handshake.headers.origin;
-        if (token && (token.status !== "active" || (origin !== undefined && !originMatches(origin, token.domain))))
-          throw unauthorized("Origin not allowed", "ORIGIN_NOT_ALLOWED");
-        socket.data = { kind: "visitor", sessionId: session.id, contactId: session.contact_id, workspaceId: ws } satisfies VisitorData;
-      } else throw unauthorized("Missing credentials", "UNAUTHORIZED");
-      next();
-    } catch (e) {
-      const err = new Error(e instanceof AppError ? e.message : "unauthorized") as Error & { data?: unknown };
-      err.data = { code: e instanceof AppError ? e.code : "UNAUTHORIZED" };
-      next(err);
-    }
-  });
-
-  const limiter = new RateLimiter(ctx.config.SOCKET_RATE_BURST, ctx.config.SOCKET_RATE_PER_SEC, () => ctx.clock().getTime());
-
-  const wired = new Set<string>();
-  parent.on("connection", async (socket) => {
-    const ws = socket.nsp.name.slice(4);
-    if (!wired.has(ws)) {
-      wired.add(ws);
-      socket.nsp.on("access:refresh", (msg: { t: string; id: string }) => bus.applyPeerMessage(ws, msg));
-    }
-    const data = socket.data as SockData;
-    if (data.kind === "team") {
-      const row = await findMember(ctx, ws, data.memberId);
-      if (!row) return socket.disconnect(true);
-      await joinTeamRooms(ctx, socket, actorFromRow(row));
-      await ctx.presence.connect(memberScope(ws), data.memberId, socket.id);
-    } else {
-      const sess = await ctx.db.get<SessionRow>("SELECT * FROM visitor_sessions WHERE id = ?", data.sessionId);
-      if (!sess) return socket.disconnect(true);
-      socket.join([`session:${sess.id}`, ...(await visitorRooms(ctx, sess)).map((r) => `vroom:${r.id}`)]);
-      await ctx.presence.connect(visitorScope(ws), data.contactId, socket.id);
-    }
-    socket.on("disconnect", async () => {
-      if (data.kind === "team") await ctx.presence.disconnect(memberScope(ws), data.memberId, socket.id);
-      else await ctx.presence.disconnect(visitorScope(ws), data.contactId, socket.id);
-    });
-    registerHandlers(ctx, socket, limiter);
-  });
-
-  return {
-    io,
-    close: () =>
-      new Promise<void>(async (resolve) => {
-        await io.close(() => resolve());
-      }),
-  };
-}
-
-function decodeExp(token: string): number {
+const decodeExp = (token: string): number => {
   try {
     const payload = JSON.parse(Buffer.from(token.split(".")[1]!, "base64url").toString("utf8")) as { exp?: number };
     return payload.exp ?? 0;
   } catch {
     return 0;
   }
+};
+
+async function useRedisAdapter(io: Server, ctx: AppContext): Promise<boolean> {
+  if (!ctx.redis) return false;
+  const { createAdapter } = await import("@socket.io/redis-adapter");
+  io.adapter(createAdapter(ctx.redis.duplicate(), ctx.redis.duplicate()) as never);
+  ctx.log.info("socket.io redis adapter enabled", { node: ctx.nodeId });
+  return true;
 }
 
-async function useRedisAdapter(io: Server, ctx: AppContext) {
-  // Optional dependencies, resolved only when SOCKET_ADAPTER=redis. Variable specifiers keep tsc and bundlers from requiring them.
-  const adapterPkg = "@socket.io/redis-adapter";
-  const redisPkg = "redis";
-  try {
-    const { createAdapter } = (await import(adapterPkg)) as { createAdapter: (a: unknown, b: unknown) => unknown };
-    const { createClient } = (await import(redisPkg)) as {
-      createClient: (o: { url: string }) => { connect(): Promise<void>; duplicate(): { connect(): Promise<void> } };
-    };
-    const pub = createClient({ url: ctx.config.REDIS_URL! });
-    const sub = pub.duplicate();
-    await Promise.all([pub.connect(), sub.connect()]);
-    io.adapter(createAdapter(pub, sub) as never);
-    ctx.log.info("socket.io redis adapter enabled");
-  } catch (e) {
-    throw new Error(`SOCKET_ADAPTER=redis but the optional packages could not be loaded (npm i @socket.io/redis-adapter redis): ${e instanceof Error ? e.message : e}`);
-  }
+export async function attachSocketServer(httpServer: HttpServer, ctx: AppContext, bus: SocketBus): Promise<SocketServerHandle> {
+  const cfg = ctx.config;
+  const transports = cfg.WS_TRANSPORTS.split(",") as ("polling" | "websocket")[];
+  const io = new Server(httpServer, {
+    // visitors connect from customer websites; auth is a bearer token (no cookies) and visitor origins are checked against the embed token
+    cors: { origin: true, credentials: false },
+    maxHttpBufferSize: cfg.WS_MAX_BUFFER_BYTES,
+    pingInterval: cfg.WS_PING_INTERVAL_MS,
+    pingTimeout: cfg.WS_PING_TIMEOUT_MS,
+    transports,
+    // measured, not assumed: see docs/PERFORMANCE.md. Off by default; chat payloads are small and CPU is the scarcer resource
+    perMessageDeflate: cfg.WS_PERMESSAGE_DEFLATE ? { threshold: 1024 } : false,
+    serveClient: true,
+  });
+  const useRedis = cfg.SOCKET_ADAPTER !== "memory" && !!ctx.redis && (await useRedisAdapter(io, ctx));
+  bus.bind(ctx, io, useRedis);
+
+  const parent = io.of(/^\/ws\/ws_[0-9a-f]{24}$/);
+  const perIp = new Map<string, number>();
+  let total = 0;
+  const connectLimiter = ctx.limiters.get("ws-connect", Math.max(5, cfg.WS_CONNECT_RATE_PER_IP * 2), cfg.WS_CONNECT_RATE_PER_IP);
+  const actorLimiter = ctx.limiters.get("ws-actor", cfg.SOCKET_RATE_BURST * 4, cfg.SOCKET_RATE_PER_SEC * 4);
+  const socketLimiter = new RateLimiter(cfg.SOCKET_RATE_BURST, cfg.SOCKET_RATE_PER_SEC, () => ctx.clock().getTime());
+  const ipOf = (s: Socket) => resolveClientIp({ trustProxy: cfg.TRUST_PROXY, edgeSecret: cfg.CF_SHARED_SECRET }, s.handshake.headers, s.handshake.address);
+
+  const reject = (next: (e?: Error) => void, code: string, message: string, extra: Record<string, unknown> = {}) => {
+    const err = new Error(message) as Error & { data?: unknown };
+    err.data = { code, ...extra };
+    next(err);
+  };
+
+  // 1) cheap admission control before any database work: drain state, global/per-IP caps and a per-IP connection rate (reconnect storms)
+  parent.use(async (socket, next) => {
+    const ip = ipOf(socket) ?? "unknown";
+    if (bus.draining) {
+      ctx.metrics.wsConnects.inc({ kind: "unknown", result: "draining" });
+      return reject(next, "DRAINING", "Server is restarting", { retry_after_ms: 1000 + Math.floor(Math.random() * 4000) });
+    }
+    if (cfg.WS_MAX_CONNECTIONS && total >= cfg.WS_MAX_CONNECTIONS) {
+      ctx.metrics.wsConnects.inc({ kind: "unknown", result: "busy" });
+      return reject(next, "BUSY", "Server is at capacity", { retry_after_ms: 2000 + Math.floor(Math.random() * 8000) });
+    }
+    if (cfg.WS_MAX_CONNECTIONS_PER_IP && (perIp.get(ip) ?? 0) >= cfg.WS_MAX_CONNECTIONS_PER_IP) {
+      ctx.metrics.wsConnects.inc({ kind: "unknown", result: "ip_cap" });
+      return reject(next, "TOO_MANY_CONNECTIONS", "Too many connections from your address", { retry_after_ms: 5000 });
+    }
+    if (!(await connectLimiter.take(ip))) {
+      ctx.metrics.wsConnects.inc({ kind: "unknown", result: "rate_limited" });
+      return reject(next, "RATE_LIMITED", "Reconnecting too fast", { retry_after_ms: 1000 + Math.floor(Math.random() * 2000) });
+    }
+    next();
+  });
+
+  // 2) authentication: team JWT or visitor session, both verified against THIS namespace's workspace
+  parent.use(async (socket, next) => {
+    try {
+      const ws = socket.nsp.name.slice(4);
+      const known = await ctx.cache.wrap(`ws-exists:${ws}`, async () => !!(await ctx.db.get("SELECT 1 FROM workspaces WHERE id = ?", ws)));
+      if (!isWorkspaceId(ws) || !known) throw unauthorized("Unknown workspace", "UNKNOWN_WORKSPACE");
+      const ip = ipOf(socket);
+      const auth = (socket.handshake.auth ?? {}) as { token?: string; session?: string; deviceId?: string };
+      if (typeof auth.token === "string") {
+        const actor = await actorFromToken(ctx, auth.token, ws);
+        socket.data = { kind: "team", memberId: actor.memberId, userId: actor.userId, workspaceId: ws, exp: decodeExp(auth.token), ip } satisfies TeamData;
+      } else if (typeof auth.session === "string") {
+        const session = await authenticateSession(ctx, auth.session, { deviceId: auth.deviceId, ip }, ws);
+        const token = session.token_id ? await ctx.db.get<{ domain: string; status: string }>("SELECT domain, status FROM tokens WHERE id = ?", session.token_id) : undefined;
+        const origin = socket.handshake.headers.origin;
+        if (token && (token.status !== "active" || (origin !== undefined && !originMatches(origin, token.domain)))) throw unauthorized("Origin not allowed", "ORIGIN_NOT_ALLOWED");
+        socket.data = { kind: "visitor", sessionId: session.id, contactId: session.contact_id, workspaceId: ws, ip } satisfies VisitorData;
+      } else throw unauthorized("Missing credentials", "UNAUTHORIZED");
+      next();
+    } catch (e) {
+      ctx.metrics.wsConnects.inc({ kind: "unknown", result: "auth_failed" });
+      reject(next, e instanceof AppError ? e.code : "UNAUTHORIZED", e instanceof AppError ? e.message : "unauthorized");
+    }
+  });
+
+  const wired = new Set<string>();
+  parent.on("connection", (socket) => {
+    const ws = socket.nsp.name.slice(4);
+    if (!wired.has(ws)) {
+      wired.add(ws);
+      socket.nsp.on("access:refresh", (msg: { t: string; id: string }) => void bus.applyPeerMessage(ws, msg).catch(() => {}));
+    }
+    const data = socket.data as SockData;
+    const ip = data.ip ?? "unknown";
+    total++;
+    perIp.set(ip, (perIp.get(ip) ?? 0) + 1);
+    ctx.metrics.wsConnections.inc({ kind: data.kind });
+    ctx.metrics.wsConnects.inc({ kind: data.kind, result: "ok" });
+
+    // handlers are registered synchronously (a fast client may emit right after `connect`); they wait for the joins to finish
+    const ready = (async () => {
+      if (data.kind === "team") {
+        const row = await findMember(ctx, ws, data.memberId);
+        if (!row) throw new Error("seat gone");
+        await joinTeamRooms(ctx, socket, actorFromRow(row));
+        await ctx.presence.connect(memberScope(ws), data.memberId, socket.id);
+      } else {
+        const sess = await ctx.db.get<SessionRow>("SELECT * FROM visitor_sessions WHERE id = ?", data.sessionId);
+        if (!sess) throw new Error("session gone");
+        socket.join([`session:${sess.id}`, ...(await visitorRooms(ctx, sess)).map((r) => `vroom:${r.id}`)]);
+        await ctx.presence.connect(visitorScope(ws), data.contactId, socket.id);
+      }
+    })();
+    ready.catch(() => socket.disconnect(true));
+
+    // a long-lived socket must not outlive its credential: tell the client, then drop it
+    let expiry: ReturnType<typeof setTimeout> | undefined;
+    if (data.kind === "team" && data.exp) {
+      const ms = Math.min(2 ** 31 - 1, Math.max(0, data.exp * 1000 - ctx.clock().getTime()));
+      expiry = setTimeout(() => {
+        socket.emit("auth:expired", {});
+        socket.disconnect(true);
+      }, ms);
+      expiry.unref();
+    }
+
+    socket.on("disconnect", () => {
+      clearTimeout(expiry);
+      total--;
+      const n = (perIp.get(ip) ?? 1) - 1;
+      if (n <= 0) perIp.delete(ip);
+      else perIp.set(ip, n);
+      ctx.metrics.wsConnections.dec({ kind: data.kind });
+      ready
+        .then(() => (data.kind === "team" ? ctx.presence.disconnect(memberScope(ws), data.memberId, socket.id) : ctx.presence.disconnect(visitorScope(ws), data.contactId, socket.id)))
+        .catch(() => {});
+    });
+    registerHandlers(ctx, socket, ready, socketLimiter, actorLimiter);
+  });
+
+  // slow consumers: a socket whose outbound queue keeps growing would pin memory for everyone, so it is dropped (clients reconnect and re-sync over REST)
+  const sweep = setInterval(() => {
+    let max = 0;
+    for (const s of bus.allSockets(parent)) {
+      const q = (s.conn as unknown as { writeBuffer?: unknown[] }).writeBuffer?.length ?? 0;
+      max = Math.max(max, q);
+      if (q > cfg.WS_MAX_WRITE_BUFFER) {
+        ctx.metrics.slowConsumers.inc();
+        ctx.log.warn("dropping slow consumer", { socket: s.id, queued: q });
+        s.emit("server:overflow", {});
+        s.disconnect(true);
+      }
+    }
+    ctx.metrics.wsWriteBufferMax.set(max);
+  }, 2000);
+  sweep.unref();
+
+  return {
+    io,
+    stats: () => {
+      const all = bus.allSockets(parent);
+      const team = all.filter((s) => (s.data as SockData).kind === "team").length;
+      return { total, team, visitors: all.length - team, perIp: perIp.size };
+    },
+    async drain(delayMs: number) {
+      ctx.state.draining = true;
+      bus.flush();
+      for (const s of bus.allSockets(parent)) s.emit("server:draining", { reconnect_in_ms: Math.floor(Math.random() * Math.max(1, delayMs)) });
+      await new Promise((r) => setTimeout(r, delayMs));
+      for (const s of bus.allSockets(parent)) s.disconnect(true);
+    },
+    close: async () => {
+      clearInterval(sweep);
+      bus.flush();
+      await new Promise<void>((resolve) => void io.close(() => resolve()));
+    },
+  };
 }
 
-function registerHandlers(ctx: AppContext, socket: Socket, limiter: RateLimiter) {
+function registerHandlers(ctx: AppContext, socket: Socket, ready: Promise<void>, socketLimiter: RateLimiter, actorLimiter: ReturnType<AppContext["limiters"]["get"]>) {
   const data = socket.data as SockData;
   const ws = data.workspaceId;
+  const lastTyping = new Map<string, number>();
 
   const visitorSession = async (): Promise<SessionRow> => {
     const d = data as VisitorData;
@@ -303,20 +488,18 @@ function registerHandlers(ctx: AppContext, socket: Socket, limiter: RateLimiter)
   };
 
   /**
-   * Wraps every client event: rate limit -> audience check -> fresh scope lookup -> zod -> handler.
-   * Scope is re-read on every event, so a demotion or removal takes effect immediately.
+   * Wraps every client event: rate limits (per socket, then per seat across tabs and nodes) -> audience check -> fresh scope lookup ->
+   * zod -> handler. Scope is re-read on every event, so a demotion or removal takes effect immediately.
    * Failures become `{ ok: false, error: { code, message } }` acks; success is `{ ok: true, ...result }`.
    */
-  function on<S extends z.ZodType>(
-    event: string,
-    schema: S | null,
-    only: "team" | "visitor" | undefined,
-    handler: (payload: z.infer<S>, who: Who) => unknown | Promise<unknown>,
-  ) {
+  function on<S extends z.ZodType>(event: string, schema: S | null, only: "team" | "visitor" | undefined, handler: (payload: z.infer<S>, who: Who) => unknown | Promise<unknown>) {
     socket.on(event, async (raw: unknown, ack?: Ack) => {
       const reply = typeof ack === "function" ? ack : () => {};
+      const end = ctx.metrics.wsAck.startTimer({ event });
+      let result = "ok";
       try {
-        if (!limiter.take(socket.id)) throw new AppError(429, "RATE_LIMITED", "Too many events, slow down");
+        await ready;
+        if (!socketLimiter.take(socket.id)) throw new AppError(429, "RATE_LIMITED", "Too many events, slow down");
         if (only && data.kind !== only) throw new AppError(403, "FORBIDDEN", "Not available for this connection");
         const who: Who = {};
         if (data.kind === "team") {
@@ -331,13 +514,19 @@ function registerHandlers(ctx: AppContext, socket: Socket, limiter: RateLimiter)
           }
           who.actor = actorFromRow(row);
         } else who.session = await visitorSession();
+        if (!(await actorLimiter.take(`${ws}:${data.kind === "team" ? data.memberId : data.contactId}`))) throw new AppError(429, "RATE_LIMITED", "Too many events, slow down");
         const parsed = schema ? schema.safeParse(raw ?? {}) : { success: true as const, data: undefined };
         if (!parsed.success) throw new AppError(400, "VALIDATION_ERROR", parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "));
         const out = await handler(parsed.data as z.infer<S>, who);
         reply({ ok: true, ...(out && typeof out === "object" ? out : {}) });
       } catch (e) {
-        if (!(e instanceof AppError)) ctx.log.error("socket handler error", { event, error: e instanceof Error ? e.message : String(e) });
+        result = e instanceof AppError ? (e.code === "RATE_LIMITED" ? "rate_limited" : "rejected") : "error";
+        if (result === "rate_limited") ctx.metrics.rateLimited.inc({ scope: "socket" });
+        if (!(e instanceof AppError)) ctx.log.error("socket handler error", { event, socket: socket.id, node: ctx.nodeId, error: e instanceof Error ? e.message : String(e) });
         reply(errorAck(e));
+      } finally {
+        end();
+        ctx.metrics.wsEvents.inc({ event, result });
       }
     });
   }
@@ -346,8 +535,7 @@ function registerHandlers(ctx: AppContext, socket: Socket, limiter: RateLimiter)
     if (who.session) {
       if (p.kind !== "text" || p.source !== "dm") throw new AppError(403, "FORBIDDEN", "Visitors can only send text chat messages");
       const r = await visitorSend(ctx, who.session, p.room_id, { content: p.content ?? "", client_msg_id: p.client_msg_id });
-      const room = (await ctx.db.get<{ visitor_read_seq: number }>("SELECT visitor_read_seq FROM rooms WHERE id = ?", r.message.room_id))!;
-      return { message: visitorMessageDto(ctx, r.message, room.visitor_read_seq), created: r.created };
+      return { message: visitorMessageDto(ctx, r.message, r.room.visitor_read_seq), created: r.created };
     }
     const { room_id, ...input } = p;
     const r = await sendAgentMessage(ctx, who.actor!, room_id, input);
@@ -372,8 +560,7 @@ function registerHandlers(ctx: AppContext, socket: Socket, limiter: RateLimiter)
     if (p.status) room = await setStatus(ctx, actor!, p.room_id, p.status);
     if (p.priority !== undefined) room = await setPriority(ctx, actor!, p.room_id, p.priority);
     if (p.subject !== undefined) room = await setSubject(ctx, actor!, p.room_id, p.subject);
-    if (p.snooze_until !== undefined)
-      room = p.snooze_until === null ? await unsnoozeRoom(ctx, actor!, p.room_id) : await snoozeRoom(ctx, actor!, p.room_id, p.snooze_until);
+    if (p.snooze_until !== undefined) room = p.snooze_until === null ? await unsnoozeRoom(ctx, actor!, p.room_id) : await snoozeRoom(ctx, actor!, p.room_id, p.snooze_until);
     if (!room) throw new AppError(400, "NOTHING_TO_UPDATE", "No changes supplied");
     return { room: await roomBaseDto(ctx, room) };
   });
@@ -381,6 +568,12 @@ function registerHandlers(ctx: AppContext, socket: Socket, limiter: RateLimiter)
   on("room:assign", AssignBody.extend({ room_id: id }), "team", async (p, { actor }) => ({ room: await roomBaseDto(ctx, await assignRoom(ctx, actor!, p.room_id, p)) }));
 
   on("typing", TypingBody, undefined, async (p, who) => {
+    // typing is purely cosmetic: identical updates inside a short gap are dropped before any lookup
+    const key = `${p.room_id}:${p.typing}:${!!p.internal}`;
+    const now = Date.now();
+    if (now - (lastTyping.get(key) ?? 0) < TYPING_MIN_GAP_MS) return {};
+    lastTyping.set(key, now);
+    if (lastTyping.size > 200) lastTyping.clear();
     if (who.actor) {
       if (!(await canSeeRoom(ctx, who.actor, p.room_id))) throw new AppError(404, "NOT_FOUND", "Room not found");
       const payload = { room_id: p.room_id, typing: p.typing, who: { type: "agent", id: who.actor.memberId, name: who.actor.name } };
@@ -395,12 +588,5 @@ function registerHandlers(ctx: AppContext, socket: Socket, limiter: RateLimiter)
 
   on("otp:verify", OtpVerify, "visitor", (p, { session }) => verifyOtp(ctx, session!, p.code));
 
-  on("presence:list", null, "team", async () => ({
-    online: await onlineMemberIds(ctx, ws),
-  }));
-}
-
-interface Who {
-  actor?: Actor;
-  session?: SessionRow;
+  on("presence:list", null, "team", async () => ({ online: await onlineMemberIds(ctx, ws) }));
 }

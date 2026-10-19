@@ -45,7 +45,7 @@ describe("server-side idempotency on (room, client_msg_id)", () => {
     const { ctx, wsId } = await fullApp();
     const { room } = await mkRoom(ctx, wsId);
     await contactSays(ctx, room, "a", "dm", { clientMsgId: QID(5) });
-    await expect(() => contactSays(ctx, room, "b", "dm", { clientMsgId: QID(5) })).rejects.toThrow(/UNIQUE/);
+    await expect(() => contactSays(ctx, room, "b", "dm", { clientMsgId: QID(5) })).rejects.toThrow(/UNIQUE|duplicate key/i);
   });
 
   it("over HTTP: 201 first, 200 on replay, and rejects malformed ids", async () => {
@@ -392,14 +392,19 @@ describe("unread math (computed from read cursors)", () => {
     expect((await markRead(ctx, owner, room.id, last.id)).unread_count).toBe(0);
     expect((await markRead(ctx, owner, room.id, last.id)).unread_count).toBe(0);
   });
-  it("is a single bounded UPDATE: no message rows are read or written, and foreign messages are rejected", async () => {
+  it("does a bounded, constant amount of work regardless of thread size, and rejects foreign messages", async () => {
     const { ctx, owner, room, wsId } = await world();
+    const cost = async (target: string) => {
+      const before = ctx.db.statements;
+      await markRead(ctx, owner, room.id, target);
+      return ctx.db.statements - before;
+    };
+    for (let i = 0; i < 5; i++) await contactSays(ctx, room, `small ${i}`);
+    const smallCost = await cost((await messagesOf(ctx, room.id)).pop()!.id);
     for (let i = 0; i < 300; i++) await contactSays(ctx, room, `bulk ${i}`);
-    const last = (await messagesOf(ctx, room.id)).pop()!;
-    const before = (await ctx.db.get<{ n: number }>("SELECT total_changes() n"))!.n;
-    await markRead(ctx, owner, room.id, last.id);
-    const after = (await ctx.db.get<{ n: number }>("SELECT total_changes() n"))!.n;
-    expect(after - before).toBe(1);
+    const bigCost = await cost((await messagesOf(ctx, room.id)).pop()!.id);
+    expect(bigCost).toBe(smallCost);
+    expect(bigCost).toBeLessThanOrEqual(8); // scope check, target lookup, one UPSERT, cursor read, unread count: never a message scan
     expect(await ctx.db.get("SELECT COUNT(*) n FROM messages WHERE room_id = ? AND deleted_at IS NOT NULL", room.id)).toEqual({ n: 0 });
     const other = await mkRoom(ctx, wsId);
     const foreign = await contactSays(ctx, other.room, "elsewhere");

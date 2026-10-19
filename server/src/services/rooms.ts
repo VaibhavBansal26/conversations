@@ -3,6 +3,7 @@ import { nowIso } from "../context.js";
 import { isUniqueViolation, type Param } from "../db/index.js";
 import { seesAll, type Actor } from "../domain/types.js";
 import { AppError, forbidden, notFound, unprocessable } from "../errors.js";
+import { enqueueJob } from "../jobs/queue.js";
 import { newId } from "../util/ids.js";
 import { parseJson } from "../util/json.js";
 import { addFollower, contactBrief, findContact, getContact, normalizeTags, type ContactInput, type ContactRow, findOrCreateContact } from "./contacts.js";
@@ -193,6 +194,7 @@ export async function getRoomDto(ctx: AppContext, actor: Actor, roomId: string):
 
 /** Re-point socket membership, then tell everyone who can see the room. `lost` seats get room:deleted. */
 export async function publishRoomUpdated(ctx: AppContext, room: RoomRow, opts: { lost?: string[]; created?: boolean; newlyVisible?: string[] } = {}): Promise<void> {
+  await ctx.cache.invalidate(`counts:${room.workspace_id}:*`);
   const fresh = await getRoomRow(ctx, room.workspace_id, room.id);
   const dto = await roomBaseDto(ctx, fresh);
   for (const m of opts.lost ?? []) ctx.bus.toMember(fresh.workspace_id, m, "room:deleted", { room_id: fresh.id });
@@ -411,6 +413,8 @@ export async function snoozeRoom(ctx: AppContext, actor: Actor, roomId: string, 
   if (room.status === "closed") throw unprocessable("ROOM_CLOSED", "Closed conversations cannot be snoozed");
   const iso = new Date(t).toISOString();
   await ctx.db.run("UPDATE rooms SET snooze_until = ?, snoozed_by = ?, updated_at = ? WHERE id = ?", iso, actor.memberId, nowIso(ctx), roomId);
+  // wake-up is a delayed job (exact timing, no polling); the periodic sweep only exists as a safety net
+  await enqueueJob(ctx, "wake_room", { room_id: roomId, until: iso }, { runAt: new Date(t), dedupeKey: `wake:${roomId}:${iso}` });
   await postSystemMessage(ctx, roomId, actor.workspaceId, `${actor.name} snoozed this conversation until ${iso}`, {
     sub_type: "snooze",
     until: iso,
@@ -430,26 +434,25 @@ export async function unsnoozeRoom(ctx: AppContext, actor: Actor, roomId: string
   return fresh;
 }
 
-/** Scheduler entry point. The conditional UPDATE makes a double run (or two workers) wake each room once. */
-export async function wakeDueRooms(ctx: AppContext, onWake?: (room: RoomRow, snoozedBy: string | null) => void): Promise<number> {
+export type WakeHook = (room: RoomRow, snoozedBy: string | null) => Promise<void> | void;
+
+/** Wake one snoozed room. The conditional UPDATE makes duplicate triggers (a delayed job and the sweep, or two nodes) wake it exactly once. */
+export async function wakeRoom(ctx: AppContext, r: RoomRow, onWake?: WakeHook): Promise<boolean> {
   const now = nowIso(ctx);
-  const due = await ctx.db.all<RoomRow>("SELECT * FROM rooms WHERE snooze_until IS NOT NULL AND snooze_until <= ? AND archived = 0 ORDER BY snooze_until LIMIT 200", now);
+  const res = await ctx.db.run("UPDATE rooms SET snooze_until = NULL, snoozed_by = NULL, updated_at = ? WHERE id = ? AND snooze_until = ?", now, r.id, r.snooze_until);
+  if (res.changes === 0) return false;
+  await postSystemMessage(ctx, r.id, r.workspace_id, "Snooze ended", { sub_type: "snooze_ended" });
+  const fresh = await getRoomRow(ctx, r.workspace_id, r.id);
+  ctx.bus.toRoom(r.workspace_id, r.id, "room:updated", { room: await roomBaseDto(ctx, fresh), reason: "snooze_ended" }, { visitor: { room: { id: r.id, status: fresh.status } } });
+  await onWake?.(fresh, r.snoozed_by);
+  return true;
+}
+
+/** Safety-net sweep for snoozes whose delayed job was lost; the normal path is the per-room delayed job scheduled by snoozeRoom. */
+export async function wakeDueRooms(ctx: AppContext, onWake?: WakeHook): Promise<number> {
+  const due = await ctx.db.all<RoomRow>("SELECT * FROM rooms WHERE snooze_until IS NOT NULL AND snooze_until <= ? AND archived = 0 ORDER BY snooze_until LIMIT 200", nowIso(ctx));
   let woken = 0;
-  for (const r of due) {
-    const res = await ctx.db.run("UPDATE rooms SET snooze_until = NULL, snoozed_by = NULL, updated_at = ? WHERE id = ? AND snooze_until = ?", now, r.id, r.snooze_until);
-    if (res.changes === 0) continue;
-    woken++;
-    await postSystemMessage(ctx, r.id, r.workspace_id, "Snooze ended", { sub_type: "snooze_ended" });
-    const fresh = await getRoomRow(ctx, r.workspace_id, r.id);
-    ctx.bus.toRoom(
-      r.workspace_id,
-      r.id,
-      "room:updated",
-      { room: await roomBaseDto(ctx, fresh), reason: "snooze_ended" },
-      { visitor: { room: { id: r.id, status: fresh.status } } },
-    );
-    onWake?.(fresh, r.snoozed_by);
-  }
+  for (const r of due) if (await wakeRoom(ctx, r, onWake)) woken++;
   return woken;
 }
 
@@ -553,7 +556,12 @@ export interface Counts {
   mentions: number;
 }
 
-export async function roomCounts(ctx: AppContext, actor: Actor) {
+/** Inbox counts are polled by every open tab; computed once per seat per cache window and dropped whenever a room or message in the workspace changes. */
+export function roomCounts(ctx: AppContext, actor: Actor) {
+  return ctx.cache.wrap(`counts:${actor.workspaceId}:${actor.memberId}`, () => computeRoomCounts(ctx, actor));
+}
+
+async function computeRoomCounts(ctx: AppContext, actor: Actor) {
   const vis = roomVisibility(actor);
   const now = nowIso(ctx);
   const base = `FROM rooms r WHERE r.workspace_id = ? AND r.archived = 0 AND ${vis.sql}`;
