@@ -23,6 +23,12 @@ export function clientIp(ctx: AppContext, c: Context): string {
   }
 }
 
+/** The caller's address, or null when it cannot be determined (never a shared placeholder that could "match"). */
+export function knownIp(ctx: AppContext, c: Context): string | null {
+  const ip = clientIp(ctx, c);
+  return ip === "unknown" ? null : ip;
+}
+
 /** Parse + validate a JSON body. Bad JSON and schema failures are 400s with a readable message. */
 export async function parseBody<S extends z.ZodType>(c: Context, schema: S): Promise<z.infer<S>> {
   let raw: unknown;

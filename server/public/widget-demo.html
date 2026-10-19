@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Conversations widget demo</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 48px auto; padding: 0 16px; color: #111827; line-height: 1.5; }
+    code, input { font-family: ui-monospace, monospace; }
+    input { width: 100%; padding: 8px; margin: 8px 0 16px; box-sizing: border-box; }
+    button { padding: 8px 14px; }
+    .note { background: #eef2ff; padding: 12px 16px; border-radius: 8px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <h1>Live chat widget demo</h1>
+  <p class="note">Create an embed token for <code id="host"></code> in <em>Settings &rarr; Tokens</em> (the domain must match this page's host, including the port), paste it below and load the widget.</p>
+  <label for="token">Embed token</label>
+  <input id="token" placeholder="cvt_..." autocomplete="off">
+  <button id="load" type="button">Load widget</button>
+  <p id="msg" role="status"></p>
+  <script>
+    document.getElementById("host").textContent = location.host;
+    var params = new URLSearchParams(location.search);
+    function load(token) {
+      if (!token) return;
+      document.getElementById("token").value = token;
+      var s = document.createElement("script");
+      s.src = "/widget.js";
+      s.async = true;
+      s.setAttribute("data-token", token);
+      document.body.appendChild(s);
+      document.getElementById("msg").textContent = "Widget loaded. Look for the launcher in the corner.";
+    }
+    document.getElementById("load").addEventListener("click", function () { load(document.getElementById("token").value.trim()); });
+    load(params.get("token"));
+  </script>
+</body>
+</html>

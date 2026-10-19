@@ -13,7 +13,7 @@ import { FakeEmailProvider, FakeSmsProvider } from "../src/providers/fake.js";
 import { RecordingBus } from "../src/realtime/bus.js";
 import { signAccessToken } from "../src/services/auth.js";
 import { createContact, type ContactInput } from "../src/services/contacts.js";
-import { actorFromRow, getMember, type MemberRow } from "../src/services/members.js";
+import { actorFromRow, getMember } from "../src/services/members.js";
 import { hashPassword } from "../src/util/crypto.js";
 import { newId } from "../src/util/ids.js";
 
@@ -91,7 +91,7 @@ export function addInboundAddressRaw(ctx: AppContext, wsId: string, address: str
 }
 
 export const mkContact = (ctx: AppContext, wsId: string, input: ContactInput = {}) =>
-  createContact(ctx, wsId, { name: "Casey Customer", email: `casey.${newId("x").slice(-8)}@example.test`, ...input });
+  createContact(ctx, wsId, { name: "Casey Customer", ...(input.email === undefined && input.phone === undefined ? { email: `casey.${newId("x").slice(-8)}@example.test` } : {}), ...input });
 
 export async function tokenFor(ctx: AppContext, a: Actor): Promise<string> {
   return signAccessToken(ctx, a);
@@ -142,3 +142,34 @@ export async function fullApp(env: Record<string, string> = {}) {
 
 /** Create a room for a contact, optionally inside an inbox, returning rows. */
 export { newId };
+
+import { insertMessage, type MessageRow } from "../src/services/messageStore.js";
+import { createInbox, type InboxInput } from "../src/services/inboxes.js";
+import { findOrCreateRoom, setAssignees } from "../src/services/rooms.js";
+import { getRoomRow, type RoomRow } from "../src/services/roomStore.js";
+import { sendAgentMessage, type SendInput } from "../src/services/messages.js";
+
+/** A contact plus their (single) room. */
+export function mkRoom(ctx: AppContext, wsId: string, o: { contact?: ContactInput; inboxId?: string | null; assignees?: Actor[] } = {}) {
+  const contact = mkContact(ctx, wsId, o.contact);
+  const { room } = findOrCreateRoom(ctx, wsId, { contactId: contact.id, inboxId: o.inboxId ?? null });
+  if (o.assignees?.length) setAssignees(ctx, room, o.assignees.map((a) => a.memberId), "Test");
+  return { contact, room: getRoomRow(ctx, wsId, room.id) };
+}
+
+export function contactSays(ctx: AppContext, room: RoomRow, text: string, source: "dm" | "sms" | "email" = "dm", extra: { clientMsgId?: string } = {}): MessageRow {
+  return insertMessage(ctx, {
+    workspaceId: room.workspace_id, roomId: room.id, senderType: "contact", senderId: room.contact_id, senderName: "Contact", kind: "text", source,
+    content: text, contentText: text, clientMsgId: extra.clientMsgId ?? null,
+  }).message;
+}
+
+export async function agentSays(ctx: AppContext, actor: Actor, roomId: string, text: string, extra: Partial<SendInput> = {}): Promise<MessageRow> {
+  return (await sendAgentMessage(ctx, actor, roomId, { kind: "text", source: "dm", content: text, ...extra })).message;
+}
+
+export const mkInbox = (ctx: AppContext, owner: Actor, input: Partial<InboxInput> & { name?: string } = {}) =>
+  createInbox(ctx, owner, { name: "Support", ...input });
+
+export const roomRow = (ctx: AppContext, id: string) => ctx.db.get<RoomRow>("SELECT * FROM rooms WHERE id = ?", id)!;
+export const messagesOf = (ctx: AppContext, roomId: string) => ctx.db.all<MessageRow>("SELECT * FROM messages WHERE room_id = ? ORDER BY seq", roomId);

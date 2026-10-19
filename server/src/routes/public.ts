@@ -3,7 +3,7 @@ import type { Context } from "hono";
 import type { AppContext } from "../context.js";
 import { publicWidgetConfig } from "../domain/settings.js";
 import { badRequest, forbidden } from "../errors.js";
-import { clientIp, parseBody, parseQuery, rateLimit } from "../http.js";
+import { knownIp, parseBody, parseQuery, rateLimit } from "../http.js";
 import { MessageListQuery, OtpVerify, ReadBody, SessionBody, VisitorSend } from "../schemas.js";
 import { listMemberRows } from "../services/members.js";
 import { visitorMessageDto } from "../services/messageStore.js";
@@ -48,14 +48,14 @@ export function publicRoutes(ctx: AppContext) {
     const device = c.req.header("x-device-id") ?? "";
     if (!DEVICE_RE.test(device)) throw badRequest("DEVICE_ID_REQUIRED", "x-device-id header (8-64 chars of A-Z a-z 0-9 _ -) is required");
     const b = await parseBody(c, SessionBody);
-    const res = createSession(ctx, token, { device_id: device, ip: clientIp(ctx, c), ...b });
+    const res = createSession(ctx, token, { device_id: device, ip: knownIp(ctx, c), ...b });
     return c.json({ ...sessionDto(res.session, res.contact, res.secret), requires_verification: res.requires_verification }, 201);
   });
 
   r.use("/*", async (c, next) => {
     if (c.req.path === "/public/sessions" || c.req.path === "/public/widget/config") return next();
     const secret = c.req.header("x-support-session");
-    const s = authenticateSession(ctx, secret, { deviceId: c.req.header("x-device-id"), ip: clientIp(ctx, c) });
+    const s = authenticateSession(ctx, secret, { deviceId: c.req.header("x-device-id"), ip: knownIp(ctx, c) });
     // browsers always send Origin; if it is present it must still belong to the embed token that created the session
     const origin = c.req.header("origin");
     if (origin && s.token_id) {

@@ -26,7 +26,7 @@ export class LocalDiskStorage implements Storage {
     return p;
   }
 
-  async put(workspaceId: string, file: { content: Buffer }): Promise<StoredFile> {
+  async put(workspaceId: string, file: { name: string; contentType: string; content: Buffer }): Promise<StoredFile> {
     const key = `${workspaceId}/${newId("f")}`;
     const p = this.path(key);
     await mkdir(dirname(p), { recursive: true });
