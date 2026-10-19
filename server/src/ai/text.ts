@@ -5,7 +5,7 @@ import type { z } from "zod";
 export function redactPii(text: string): string {
   return text
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[email]")
-    .replace(/\b(?:\d[ -]?){13,19}\b/g, "[number]")
+    .replace(/\b\d(?:[ -]?\d){12,18}\b/g, "[number]")
     .replace(/(?<![\w])\+?\d[\d\s().-]{6,}\d(?![\w])/g, "[phone]");
 }
 

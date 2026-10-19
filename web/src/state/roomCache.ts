@@ -1,7 +1,7 @@
 import type { InfiniteData } from "@tanstack/react-query";
 import type { Room, RoomPage, RoomPatch, RoomSort, RoomStatusTab } from "../api/types";
 
-export type RoomListData = InfiniteData<RoomPage, number>;
+export type RoomListData = InfiniteData<RoomPage>;
 
 export interface ListOptions {
   status: RoomStatusTab;
@@ -29,7 +29,7 @@ export function removeRoom(data: RoomListData, id: string): RoomListData {
 function moveToFront(data: RoomListData, id: string): RoomListData {
   const room = findRoom(data, id);
   if (!room) return data;
-  const pages = data.pages.map((p, i) => ({ ...p, data: p.data.filter((r) => r.id !== id).slice() }));
+  const pages = data.pages.map((p) => ({ ...p, data: p.data.filter((r) => r.id !== id) }));
   const first = pages[0];
   if (first) first.data.unshift(room);
   return { ...data, pages };

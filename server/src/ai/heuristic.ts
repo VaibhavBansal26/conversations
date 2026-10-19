@@ -1,11 +1,11 @@
 import type { AiProvider, AiRequest } from "./provider.js";
 
-const has = (text: string, words: string[]) => words.some((w) => new RegExp(`\\b${w}`, "i").test(text));
+const has = (text: string, words: string[]) => words.some((w) => new RegExp(`\\b${w}\\b`, "i").test(text));
 
 const SPAM = ["viagra", "casino", "crypto giveaway", "free money", "click here", "you have won", "winner", "lottery", "seo services", "work from home"];
 const COMPLAINT = ["terrible", "worst", "angry", "unacceptable", "furious", "disappointed", "ridiculous", "scam", "complain", "awful", "horrible"];
 const PURCHASE = ["price", "pricing", "quote", "buy", "purchase", "order", "subscribe", "upgrade", "demo", "plan"];
-const SUPPORT = ["help", "issue", "error", "broken", "bug", "not working", "doesn't work", "cannot", "can't", "unable", "failed", "crash"];
+const SUPPORT = ["help", "issue", "error", "broken", "bug", "not working", "doesn't work", "cannot", "can't", "unable", "failed", "crash", "down", "outage", "fix"];
 const URGENT = ["urgent", "asap", "immediately", "emergency", "right now", "outage", "down", "critical", "production"];
 const NEGATIVE = [...COMPLAINT, "bad", "slow", "problem", "frustrated", "annoyed", "hate", "broken"];
 const POSITIVE = ["thanks", "thank you", "great", "love", "awesome", "perfect", "happy", "excellent", "appreciate", "amazing"];

@@ -5,7 +5,7 @@ export interface KeyInfo {
   ctrlKey?: boolean;
   metaKey?: boolean;
   altKey?: boolean;
-  target?: { tagName?: string; isContentEditable?: boolean; getAttribute?(name: string): string | null } | null;
+  target?: EventTarget | null;
 }
 
 const KEYS: Record<string, ShortcutAction> = {
@@ -18,10 +18,11 @@ const KEYS: Record<string, ShortcutAction> = {
 };
 
 export function isTypingTarget(target: KeyInfo["target"]): boolean {
-  if (!target) return false;
-  const tag = (target.tagName ?? "").toUpperCase();
+  const el = target as Partial<HTMLElement> | null | undefined;
+  if (!el) return false;
+  const tag = (el.tagName ?? "").toUpperCase();
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
-  return !!target.isContentEditable || target.getAttribute?.("contenteditable") === "true";
+  return !!el.isContentEditable || el.getAttribute?.("contenteditable") === "true";
 }
 
 /** Escape always closes overlays; letter shortcuts are ignored while the agent is typing or using a modifier. */

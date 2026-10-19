@@ -1,4 +1,4 @@
-import type { Message, SendPayload } from "../api/types";
+import type { LocalState, Message, SendPayload } from "../api/types";
 import { upsertMessage, type Thread } from "./messageCache";
 
 export type SendState = "sending" | "sent" | "failed";
@@ -41,10 +41,14 @@ export function buildOptimistic(payload: SendPayload, roomId: string, sender: { 
   };
 }
 
-const withLocal = (thread: Thread, clientMsgId: string, fn: (m: Message) => Message): Thread => {
+/** Apply a send-state transition to the local (unconfirmed) bubble with this client_msg_id. */
+function transition(thread: Thread, clientMsgId: string, event: "fail" | "retry", patch: (m: Message, local: LocalState) => Message): Thread {
   const target = thread.messages.find((m) => m.client_msg_id === clientMsgId && m.local);
-  return target ? upsertMessage(thread, fn(target)) : thread;
-};
+  if (!target?.local) return thread;
+  const status = nextSendState(target.local.status, event);
+  if (status === "sent") return thread;
+  return upsertMessage(thread, patch(target, { ...target.local, status }));
+}
 
 /** Add the optimistic bubble (no-op when a bubble with that client_msg_id already exists). */
 export function addOptimistic(thread: Thread, message: Message): Thread {
@@ -55,21 +59,11 @@ export function addOptimistic(thread: Thread, message: Message): Thread {
 export const markSent = (thread: Thread, confirmed: Message): Thread => upsertMessage(thread, { ...confirmed, local: undefined });
 
 export const markFailed = (thread: Thread, clientMsgId: string, error: string): Thread =>
-  withLocal(thread, clientMsgId, (m) => ({
-    ...m,
-    delivery: "failed",
-    failure_reason: error,
-    local: { ...m.local!, status: nextSendState(m.local!.status, "fail"), error },
-  }));
+  transition(thread, clientMsgId, "fail", (m, local) => ({ ...m, delivery: "failed", failure_reason: error, local: { ...local, error } }));
 
 /** Retry keeps the same client_msg_id, so a send that actually reached the server is not duplicated. */
 export const markRetrying = (thread: Thread, clientMsgId: string): Thread =>
-  withLocal(thread, clientMsgId, (m) => ({
-    ...m,
-    delivery: "pending",
-    failure_reason: null,
-    local: { ...m.local!, status: nextSendState(m.local!.status, "retry"), error: undefined },
-  }));
+  transition(thread, clientMsgId, "retry", (m, local) => ({ ...m, delivery: "pending", failure_reason: null, local: { ...local, error: undefined } }));
 
 export const payloadOf = (thread: Thread, clientMsgId: string): SendPayload | undefined =>
   thread.messages.find((m) => m.client_msg_id === clientMsgId)?.local?.payload;

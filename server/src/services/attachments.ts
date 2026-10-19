@@ -14,7 +14,6 @@ const ascii = (b: Buffer, from: number, to: number) => b.subarray(from, to).toSt
 
 /** Identify a file by its leading bytes. Declared type / extension are never trusted. */
 export function sniff(b: Buffer): Sniffed | null {
-  if (b.length < 4) return null;
   if (startsWith(b, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return { mime: "image/png", exts: ["png"] };
   if (startsWith(b, [0xff, 0xd8, 0xff])) return { mime: "image/jpeg", exts: ["jpg", "jpeg"] };
   if (ascii(b, 0, 4) === "GIF8") return { mime: "image/gif", exts: ["gif"] };
@@ -29,9 +28,10 @@ export function sniff(b: Buffer): Sniffed | null {
     return { mime: "application/vnd.openxmlformats-officedocument", exts: ["docx", "xlsx", "pptx"] };
   }
   const head = b.subarray(0, 4096);
-  if (!head.includes(0)) {
+  if (b.length > 0 && !head.includes(0)) {
     try {
-      new TextDecoder("utf-8", { fatal: true }).decode(head.subarray(0, head.length - 3 > 0 ? head.length - 3 : head.length));
+      // when the sample cut the file mid-way, drop up to 3 bytes so a split multi-byte character is not mistaken for binary
+      new TextDecoder("utf-8", { fatal: true }).decode(b.length > 4096 ? head.subarray(0, head.length - 3) : head);
       return { mime: "text/plain", exts: ["txt", "csv", "log", "md"] };
     } catch {
       return null;

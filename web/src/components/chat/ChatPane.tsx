@@ -78,7 +78,9 @@ export function ChatPane({ roomId, backTo, panelOpen, onTogglePanel }: Props) {
     focus_composer: () => composerRef.current?.focus(),
   });
 
-  const merge = (m: Message) => qc.setQueryData<Thread>(keys.thread(roomId), (cur) => (cur ? upsertMessage(cur, m) : cur));
+  const merge = (m: Message): void => {
+    qc.setQueryData<Thread>(keys.thread(roomId), (cur) => (cur ? upsertMessage(cur, m) : cur));
+  };
   const guard = async (fn: () => Promise<void>) => {
     setActionError(null);
     try {
