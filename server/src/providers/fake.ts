@@ -2,6 +2,8 @@ import type { EmailProvider, EmailSendInput, EmailSendResult, ProviderDeliverySt
 import { ProviderError } from "./types.js";
 import type { Logger } from "../logger.js";
 
+const OUTBOX_CAP = 1000;
+
 interface FailPlan {
   remaining: number;
   retryable: boolean;
@@ -27,6 +29,7 @@ export class FakeSmsProvider implements SmsProvider {
     }
     const providerMessageId = `fake_sms_${++this.n}`;
     this.sent.push({ ...input, providerMessageId });
+    if (this.sent.length > OUTBOX_CAP) this.sent.shift(); // the console provider may run for a long time in development
     this.statuses.set(providerMessageId, "sent");
     return { providerMessageId };
   }
@@ -53,6 +56,7 @@ export class FakeEmailProvider implements EmailProvider {
     }
     const providerMessageId = `fake_email_${++this.n}`;
     this.sent.push({ ...input, providerMessageId });
+    if (this.sent.length > OUTBOX_CAP) this.sent.shift();
     return { providerMessageId };
   }
 }

@@ -219,16 +219,21 @@ export async function sendOtp(ctx: AppContext, session: SessionRow): Promise<{ c
   const code = randomDigits(5);
   const workspace = getWorkspace(ctx, session.workspace_id);
   const text = `Your ${workspace.name} verification code is ${code}. It expires in 2 minutes.`;
-  if (channel === "email") {
-    await ctx.email.send({
-      from: { address: ctx.config.SYSTEM_EMAIL_FROM, name: workspace.name },
-      to: contact.email!, subject: "Your verification code", text, html: `<p>${text}</p>`,
-      messageId: `<${newId("otp")}@${ctx.config.SYSTEM_EMAIL_FROM.split("@")[1] ?? "localhost"}>`,
-    });
-  } else {
-    const from = ctx.db.get<{ e164: string }>("SELECT e164 FROM sms_numbers WHERE workspace_id = ? ORDER BY is_default DESC, created_at LIMIT 1", session.workspace_id);
-    if (!from) throw unprocessable("OTP_CHANNEL_UNAVAILABLE", "SMS verification is not available for this workspace");
-    await ctx.sms.send({ to: contact.phone!, from: from.e164, body: text, idempotencyKey: newId("otp") });
+  const smsFrom = channel === "sms" ? ctx.db.get<{ e164: string }>("SELECT e164 FROM sms_numbers WHERE workspace_id = ? ORDER BY is_default DESC, created_at LIMIT 1", session.workspace_id) : undefined;
+  if (channel === "sms" && !smsFrom) throw unprocessable("OTP_CHANNEL_UNAVAILABLE", "SMS verification is not available for this workspace");
+  try {
+    if (channel === "email") {
+      await ctx.email.send({
+        from: { address: ctx.config.SYSTEM_EMAIL_FROM, name: workspace.name },
+        to: contact.email!, subject: "Your verification code", text, html: `<p>${text}</p>`,
+        messageId: `<${newId("otp")}@${ctx.config.SYSTEM_EMAIL_FROM.split("@")[1] ?? "localhost"}>`,
+      });
+    } else {
+      await ctx.sms.send({ to: contact.phone!, from: smsFrom!.e164, body: text, idempotencyKey: newId("otp") });
+    }
+  } catch (e) {
+    ctx.log.warn("otp delivery failed", { session: session.id, channel, error: e instanceof Error ? e.message : String(e) });
+    throw new AppError(502, "OTP_DELIVERY_FAILED", "We could not send the verification code. Please try again shortly.");
   }
   const expires = addSeconds(now, OTP_TTL_SECONDS);
   ctx.db.run(

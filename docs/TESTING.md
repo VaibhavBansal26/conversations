@@ -83,4 +83,11 @@ Spawns the **built** server (`node dist/index.js`, `NODE_ENV=production`, temp d
 
 ## Web tests
 
-See the end of this document (filled in with the web suite description and counts).
+`web/src/**/*.test.ts(x)` (135 tests, Vitest + Testing Library + jsdom):
+
+- socket-to-cache bridge (`message:new` dedupe by id and `client_msg_id`, updated/deleted/receipt, room reorder + unread bump, `room:*`, notifications)
+- optimistic send state machine (ack before/after broadcast, failure, retry with the same `client_msg_id`, socket-to-REST fallback)
+- composer channel rules (SMS 1599/1600, missing phone/email, opt-out, email sender/subject, notes always chat)
+- unread badge logic, keyboard shortcuts (ignored while typing), grouping/day separators, mentions, relative times, filter params
+- components: login, API error display incl. `AI_UNAVAILABLE`, message bubble variants, room list item, snooze menu, keyboard menu, widget preview
+- `widget.test.ts`: the embeddable `server/public/widget.js` in jsdom with a fake fetch and fake Socket.IO client: shadow-DOM rendering, pre-chat form, optimistic send + ack merge, same-`client_msg_id` retry, REST fallback and resend on reconnect, typing/unread/receipts, safe text rendering, OTP flow, polling fallback, session restore

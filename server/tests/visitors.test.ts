@@ -378,6 +378,14 @@ describe("OTP verification", () => {
     await w.send();
     expect((await w.verify(w.code())).body.verified).toBe(true);
   });
+  it("reports a delivery failure instead of crashing when the provider is down, and does not start the cooldown", async () => {
+    const w = await otpWorld();
+    w.ctx.email.failNext(1);
+    const failed = await w.send();
+    expect(failed.status).toBe(502);
+    expect(failed.body.error.code).toBe("OTP_DELIVERY_FAILED");
+    expect((await w.send()).status).toBe(200);
+  });
   it("rejects malformed codes without leaking or counting differently", async () => {
     const w = await otpWorld();
     await w.send();

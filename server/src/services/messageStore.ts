@@ -116,14 +116,17 @@ export function insertMessage(ctx: AppContext, m: NewMessage): InsertResult {
     }
     const message = rawInsert(ctx, m, now);
     const unsnoozed = m.senderType !== "system" && before.snooze_until !== null;
+    // status/assignment lines are not "the last message" shown in lists
+    const isSystem = m.senderType === "system";
     ctx.db.run(
-      `UPDATE rooms SET last_message_id = ?, last_message_at = ?, last_message_seq = ?, updated_at = ?,
+      `UPDATE rooms SET last_message_id = CASE WHEN ? THEN last_message_id ELSE ? END, last_message_at = CASE WHEN ? THEN last_message_at ELSE ? END,
+         last_message_seq = CASE WHEN ? THEN last_message_seq ELSE ? END, updated_at = ?,
          last_contact_message_at = CASE WHEN ? = 'contact' THEN ? ELSE last_contact_message_at END,
          status = CASE WHEN ? THEN 'open' ELSE status END,
          snooze_until = CASE WHEN ? THEN NULL ELSE snooze_until END,
          snoozed_by = CASE WHEN ? THEN NULL ELSE snoozed_by END
        WHERE id = ?`,
-      message.id, now, message.seq, now, m.senderType, now, reopens, unsnoozed, unsnoozed, m.roomId,
+      isSystem, message.id, isSystem, now, isSystem, message.seq, now, m.senderType, now, reopens, unsnoozed, unsnoozed, m.roomId,
     );
     return { message, room: getRoomRow(ctx, m.workspaceId, m.roomId), reopened: reopens, unsnoozed, extra };
   });
@@ -222,7 +225,7 @@ export function postSystemMessage(ctx: AppContext, roomId: string, workspaceId: 
 
 /** After a delete, point the room's "last message" at the newest surviving message. */
 export function refreshLastMessage(ctx: AppContext, roomId: string): void {
-  const last = ctx.db.get<MessageRow>("SELECT * FROM messages WHERE room_id = ? AND deleted_at IS NULL ORDER BY seq DESC LIMIT 1", roomId);
+  const last = ctx.db.get<MessageRow>("SELECT * FROM messages WHERE room_id = ? AND deleted_at IS NULL AND kind != 'system' ORDER BY seq DESC LIMIT 1", roomId);
   ctx.db.run("UPDATE rooms SET last_message_id = ?, last_message_at = ?, last_message_seq = ? WHERE id = ?", last?.id ?? null, last?.created_at ?? null, last?.seq ?? 0, roomId);
 }
 

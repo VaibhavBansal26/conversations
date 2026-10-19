@@ -69,7 +69,7 @@ export async function seed(env: Record<string, string | undefined> = process.env
   const room = (c: ContactInput, inboxId: string | null) => findOrCreateRoom(ctx, ws, { contactId: contact(c).id, inboxId }).room;
   const says = (roomId: string, text: string, source: "dm" | "sms" | "email" = "dm", subject?: string) => {
     tick(2);
-    return insertMessage(ctx, { workspaceId: ws, roomId, senderType: "contact", kind: "text", source, content: text, contentText: text, subject: subject ?? null, senderName: "Contact" }).message;
+    return insertMessage(ctx, { workspaceId: ws, roomId, senderType: "contact", kind: "text", source, content: text, contentText: text, subject: subject ?? null, senderName: ctx.db.get<{ name: string }>("SELECT c.name FROM contacts c JOIN rooms r ON r.contact_id = c.id WHERE r.id = ?", roomId)?.name ?? "Contact" }).message;
   };
   const reply = async (a: Actor, roomId: string, text: string, source: "dm" | "sms" | "email" = "dm") => {
     tick(3);

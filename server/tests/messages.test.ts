@@ -251,10 +251,8 @@ describe("edit and delete", () => {
     const second = await agentSays(ctx, owner, room.id, "second");
     ctx.bus.clear();
     deleteMessage(ctx, owner, second.id);
-    const survivor = messagesOf(ctx, room.id).filter((m) => !m.deleted_at).pop()!;
-    expect(survivor.kind).toBe("system"); // the auto-assignment line written after the reply
-    expect(roomRow(ctx, room.id).last_message_id).toBe(survivor.id);
-    expect(first.id).not.toBe(survivor.id);
+    // the auto-assignment system line written after the reply is not a "last message"
+    expect(roomRow(ctx, room.id).last_message_id).toBe(first.id);
     expect(ctx.bus.ofType("message:deleted")[0]!.payload).toEqual({ message_id: second.id, room_id: room.id });
   });
   it("edit/delete over HTTP", async () => {

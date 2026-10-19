@@ -1,0 +1,260 @@
+// Tests the embeddable widget (server/public/widget.js) in jsdom with a fake fetch and a fake Socket.IO client.
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import source from "../../server/public/widget.js?raw";
+
+type Handler = (...a: any[]) => void;
+class FakeSocket {
+  handlers: Record<string, Handler[]> = {};
+  emitted: { event: string; payload: any; ack?: Handler }[] = [];
+  connected = false;
+  constructor(public url: string, public opts: any) {}
+  on(e: string, h: Handler) { (this.handlers[e] ||= []).push(h); return this; }
+  off() { return this; }
+  emit(event: string, payload: any, ack?: Handler) { this.emitted.push({ event, payload, ack }); }
+  disconnect() { this.connected = false; }
+  fire(e: string, ...a: any[]) { (this.handlers[e] || []).forEach((h) => h(...a)); }
+  connect() { this.connected = true; this.fire("connect"); }
+}
+
+const config = {
+  workspace_id: "ws_" + "a".repeat(24), workspace_name: "Acme", office_open: true, live_routing_inboxes: [], agents_available: 1, agents: [],
+  widget: { title: "Chat with Acme", intro: "Hi", primary_color: "#112233", text_color: "#ffffff", logo_url: null, launcher_position: "left", launcher_spacing: 30, sound: false, welcome_message: "Welcome", away_message: "", required_info: [] as string[], chat_type: "live_chat", office_hours: {} },
+};
+const mkMsg = (o: any) => ({ id: "msg_" + Math.random().toString(16).slice(2), seq: 1, kind: "text", source: "dm", sender: { type: "agent", name: "Olivia" }, content_text: "hi", delivery: "sent", read: false, meta: {}, ...o });
+
+let calls: { method: string; path: string; body: any; headers: any }[];
+let sockets: FakeSocket[];
+let replies: Record<string, (body: any) => { status?: number; json: any }>;
+let widget: any;
+
+const fakeFetch = async (url: string, init: any) => {
+  const path = url.replace("http://api.test", "");
+  const body = init.body ? JSON.parse(init.body) : undefined;
+  calls.push({ method: init.method, path, body, headers: init.headers });
+  const key = `${init.method} ${path.split("?")[0]}`;
+  const r = replies[key]?.(body) ?? { status: 404, json: { error: { code: "NOT_FOUND", message: "nope" } } };
+  const status = r.status ?? 200;
+  return { ok: status < 400, status, text: async () => JSON.stringify(r.json) } as any;
+};
+
+async function boot(extraConfig: any = {}, opts: any = {}) {
+  replies["GET /public/widget/config"] = () => ({ json: { ...config, widget: { ...config.widget, ...extraConfig } } });
+  const w = (window as any).ConversationsWidget.init({ token: "cvt_testtoken1234", apiBase: "http://api.test", fetch: fakeFetch, io: (url: string, o: any) => { const s = new FakeSocket(url, o); sockets.push(s); return s; }, pollMs: 50, ...opts });
+  await w.ready;
+  return w;
+}
+const shadow = () => document.getElementById("conversations-widget-host")!.shadowRoot!;
+const flush = () => new Promise((r) => setTimeout(r, 0));
+const session = { session_id: "ses_1", session_token: "ses_secret", workspace_id: config.workspace_id, verified: true, requires_verification: false, contact: { id: "con_1", name: "V" } };
+
+beforeEach(() => {
+  document.body.innerHTML = "";
+  localStorage.clear();
+  calls = []; sockets = []; replies = {};
+  replies["POST /public/sessions"] = () => ({ status: 201, json: session });
+  replies["GET /public/rooms"] = () => ({ json: { data: [{ id: "room_1" }] } });
+  replies["GET /public/rooms/room_1/messages"] = () => ({ json: { data: [mkMsg({ id: "msg_w", seq: 1, sender: { type: "bot", name: "Chatbot" }, content_text: "Welcome" })] } });
+  // eslint-disable-next-line no-eval
+  (0, eval)(source);
+});
+afterEach(() => { widget?.destroy(); widget = null; });
+
+describe("widget rendering", () => {
+  it("renders a themed launcher and a closed panel in a shadow root, with accessible names", async () => {
+    widget = await boot();
+    const root = shadow();
+    const launcher = root.querySelector("button.launcher")!;
+    expect(launcher.getAttribute("aria-label")).toBe("Open chat");
+    expect(launcher.className).toContain("left");
+    expect((document.getElementById("conversations-widget-host") as HTMLElement).style.getPropertyValue("--c")).toBe("#112233");
+    expect((root.querySelector(".panel") as HTMLElement).hidden).toBe(true);
+    expect(root.querySelector(".ttl")!.textContent).toBe("Chat with Acme");
+    expect(document.body.textContent).not.toContain("Welcome"); // nothing leaks outside the shadow root
+  });
+
+  it("opens, creates an anonymous session and room, loads the welcome message and sends the API key/device headers", async () => {
+    widget = await boot();
+    widget.open();
+    await flush(); await flush(); await flush();
+    const sess = calls.find((c) => c.path === "/public/sessions")!;
+    expect(sess.headers["x-api-key"]).toBe("cvt_testtoken1234");
+    expect(sess.headers["x-device-id"]).toBe(widget.deviceId());
+    expect(shadow().querySelector(".msgs")!.textContent).toContain("Welcome");
+    expect(shadow().querySelector(".msgs")!.getAttribute("aria-live")).toBe("polite");
+    expect(shadow().querySelector(".tag")).toBeNull();
+    expect(sockets[0]!.url).toBe(`http://api.test/ws/${config.workspace_id}`);
+    expect(sockets[0]!.opts.auth).toEqual({ session: "ses_secret", deviceId: widget.deviceId() });
+  });
+
+  it("shows a pre-chat form for required info and posts it", async () => {
+    widget = await boot({ required_info: ["name", "email"] });
+    widget.open();
+    await flush();
+    const form = shadow().querySelector("form")!;
+    expect(form.querySelectorAll("input[required]").length).toBe(2);
+    (form.querySelector('[name="name"]') as HTMLInputElement).value = "Vic";
+    (form.querySelector('[name="email"]') as HTMLInputElement).value = "vic@example.test";
+    form.dispatchEvent(new Event("submit", { cancelable: true }));
+    await flush(); await flush(); await flush();
+    expect(calls.find((c) => c.path === "/public/sessions")!.body).toEqual({ name: "Vic", email: "vic@example.test" });
+    expect(shadow().querySelector(".msgs")).not.toBeNull();
+  });
+
+  it("renders message text safely (no HTML injection), linkifies URLs and tags AI messages", async () => {
+    replies["GET /public/rooms/room_1/messages"] = () => ({ json: { data: [
+      mkMsg({ id: "m1", seq: 1, content_text: "<img src=x onerror=alert(1)> see https://example.test/a" }),
+      mkMsg({ id: "m2", seq: 2, sender: { type: "bot", name: "AI Assistant" }, content_text: "bot", meta: { ai: true } }),
+    ] } });
+    widget = await boot();
+    widget.open();
+    await flush(); await flush(); await flush();
+    const list = shadow().querySelector(".msgs")!;
+    expect(list.querySelector("img")).toBeNull();
+    expect(list.querySelector("a")!.getAttribute("href")).toBe("https://example.test/a");
+    expect(list.querySelector("a")!.getAttribute("rel")).toContain("noopener");
+    expect(list.querySelector(".tag")!.textContent).toBe("AI");
+  });
+});
+
+describe("widget messaging", () => {
+  async function ready() {
+    widget = await boot();
+    widget.open();
+    await flush(); await flush(); await flush();
+    sockets[0]!.connect();
+    await flush(); await flush();
+    return sockets[0]!;
+  }
+
+  it("sends optimistically over the socket with a client_msg_id and replaces the bubble on ack", async () => {
+    const s = await ready();
+    const input = shadow().querySelector("textarea") as HTMLTextAreaElement;
+    input.value = "Hello there";
+    void widget.send("Hello there");
+    await flush();
+    const sent = s.emitted.find((e) => e.event === "message:send")!;
+    expect(sent.payload).toMatchObject({ room_id: "room_1", kind: "text", source: "dm", content: "Hello there" });
+    expect(sent.payload.client_msg_id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(shadow().querySelector(".m.out")!.textContent).toContain("Sending");
+    sent.ack!({ ok: true, message: mkMsg({ id: "msg_srv", seq: 5, client_msg_id: sent.payload.client_msg_id, sender: { type: "contact" }, content_text: "Hello there" }) });
+    expect(shadow().querySelectorAll(".m.out").length).toBe(1);
+    expect(shadow().querySelector(".m.out")!.textContent).toContain("Sent");
+    // the broadcast of the same message must not create a duplicate bubble
+    s.fire("message:new", { message: mkMsg({ id: "msg_srv", seq: 5, client_msg_id: sent.payload.client_msg_id, sender: { type: "contact" }, content_text: "Hello there" }) });
+    expect(shadow().querySelectorAll(".m.out").length).toBe(1);
+  });
+
+  it("marks a failed send and retries with the SAME client_msg_id", async () => {
+    const s = await ready();
+    void widget.send("flaky");
+    await flush();
+    const first = s.emitted.find((e) => e.event === "message:send")!;
+    first.ack!({ ok: false, error: { code: "INTERNAL" } });
+    const retry = shadow().querySelector("button[data-retry]") as HTMLButtonElement;
+    expect(retry).not.toBeNull();
+    retry.click();
+    const again = s.emitted.filter((e) => e.event === "message:send")[1]!;
+    expect(again.payload.client_msg_id).toBe(first.payload.client_msg_id);
+  });
+
+  it("falls back to REST while disconnected and resends pending messages after reconnecting", async () => {
+    const s = await ready();
+    s.connected = false;
+    s.fire("disconnect");
+    expect((shadow().querySelector(".status") as HTMLElement).hidden).toBe(false);
+    replies["POST /public/rooms/room_1/messages"] = () => ({ status: 500, json: { error: { code: "X", message: "down" } } });
+    void widget.send("offline msg");
+    await flush();
+    const attempt = calls.find((c) => c.path === "/public/rooms/room_1/messages" && c.method === "POST")!;
+    expect(attempt.body.client_msg_id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(shadow().querySelector(".m.failed")).not.toBeNull();
+    // reconnect: the failed one is re-sent through the socket with the same id
+    const pending = widget.getState().messages.find((m: any) => m.local);
+    s.connect();
+    await flush(); await flush(); await flush();
+    const resent = s.emitted.filter((e) => e.event === "message:send").pop()!;
+    expect(resent.payload.client_msg_id).toBe(pending.client_msg_id);
+    expect((shadow().querySelector(".status") as HTMLElement).hidden).toBe(true);
+  });
+
+  it("shows incoming agent messages, typing indicator, unread badge while closed and read receipts", async () => {
+    const s = await ready();
+    widget.close();
+    s.fire("message:new", { message: mkMsg({ id: "m_new", seq: 9, content_text: "Anyone here?" }) });
+    const badge = shadow().querySelector(".badge") as HTMLElement;
+    expect(badge.hidden).toBe(false);
+    expect(badge.textContent).toBe("1");
+    widget.open();
+    expect(badge.hidden).toBe(true);
+    s.fire("typing", { room_id: "room_1", typing: true, who: { type: "agent", name: "Olivia" } });
+    expect(shadow().querySelector(".typing")!.textContent).toBe("Olivia is typing…");
+    s.fire("typing", { room_id: "room_1", typing: false, who: { type: "agent" } });
+    expect(shadow().querySelector(".typing")!.textContent).toBe("");
+    await new Promise((r) => setTimeout(r, 350));
+    expect(s.emitted.some((e) => e.event === "message:read" && e.payload.message_id === "m_new")).toBe(true);
+  });
+
+  it("removes deleted messages and marks own messages read from agent receipts", async () => {
+    const s = await ready();
+    void widget.send("question");
+    await flush();
+    const e = s.emitted.find((x) => x.event === "message:send")!;
+    e.ack!({ ok: true, message: mkMsg({ id: "mine", seq: 3, client_msg_id: e.payload.client_msg_id, sender: { type: "contact" }, content_text: "question" }) });
+    s.fire("message:receipt", { reader: { type: "agent" }, up_to_seq: 3 });
+    expect(shadow().querySelector(".m.out")!.textContent).toContain("Read");
+    s.fire("message:deleted", { message_id: "mine" });
+    expect(shadow().querySelector(".m.out")).toBeNull();
+  });
+
+  it("restores a stored session on load without showing the form", async () => {
+    localStorage.setItem(`cv_${"cvt_testtoken1234".slice(-8)}_session`, JSON.stringify(session));
+    widget = await boot({ required_info: ["email"] });
+    await flush(); await flush(); await flush();
+    expect(calls.some((c) => c.path === "/public/sessions")).toBe(false);
+    expect(sockets).toHaveLength(1);
+  });
+
+  it("walks the OTP flow when the server demands verification", async () => {
+    replies["GET /public/rooms"] = () => ({ status: 409, json: { error: { code: "VERIFICATION_REQUIRED", message: "verify" } } });
+    replies["POST /public/sessions"] = () => ({ status: 201, json: { ...session, verified: false, requires_verification: true } });
+    replies["POST /public/otp/send"] = () => ({ json: { channel: "email" } });
+    replies["POST /public/otp/verify"] = (b) => (b.code === "12345" ? { json: { verified: true } } : { status: 422, json: { error: { code: "OTP_INVALID", message: "That code is not correct" } } });
+    widget = await boot();
+    widget.open();
+    await flush(); await flush(); await flush();
+    expect(shadow().querySelector('input[name="code"]')).not.toBeNull();
+    (shadow().querySelector("[data-send-code]") as HTMLButtonElement).click();
+    await flush(); await flush();
+    expect(shadow().textContent).toContain("5-digit code by email");
+    const form = shadow().querySelector("form")!;
+    (form.querySelector('[name="code"]') as HTMLInputElement).value = "00000";
+    form.dispatchEvent(new Event("submit", { cancelable: true }));
+    await flush(); await flush();
+    expect(shadow().textContent).toContain("That code is not correct");
+    replies["GET /public/rooms"] = () => ({ json: { data: [{ id: "room_1" }] } });
+    (shadow().querySelector('[name="code"]') as HTMLInputElement).value = "12345";
+    shadow().querySelector("form")!.dispatchEvent(new Event("submit", { cancelable: true }));
+    await flush(); await flush(); await flush(); await flush();
+    expect(shadow().querySelector(".msgs")).not.toBeNull();
+    expect(JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => k.endsWith("_session"))!)!).verified).toBe(true);
+  });
+
+  it("polls over REST when the socket cannot connect", async () => {
+    const s = await ready();
+    let n = 0;
+    replies["GET /public/rooms/room_1/messages"] = () => (n++, { json: { data: [mkMsg({ id: "p1", seq: 2, content_text: "via polling" })] } });
+    s.fire("connect_error", new Error("nope"));
+    await new Promise((r) => setTimeout(r, 160));
+    expect(n).toBeGreaterThan(0);
+    expect(shadow().querySelector(".msgs")!.textContent).toContain("via polling");
+  });
+});
+
+describe("widget bootstrap", () => {
+  it("requires a token and exposes the public API", () => {
+    expect(() => (window as any).ConversationsWidget.init({})).toThrow(/missing token/);
+    expect(typeof (window as any).ConversationsWidget.version).toBe("string");
+    vi.restoreAllMocks();
+  });
+});

@@ -7,6 +7,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    // the widget test reads ../server/public/widget.js
+    fs: { allow: [".."] },
     proxy: {
       "/api": target,
       "/public": target,
