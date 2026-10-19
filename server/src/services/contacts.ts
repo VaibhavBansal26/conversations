@@ -3,6 +3,7 @@ import { nowIso } from "../context.js";
 import { isUniqueViolation } from "../db/index.js";
 import type { Actor } from "../domain/types.js";
 import { AppError, notFound, unprocessable } from "../errors.js";
+import { decodeCursor, encodeCursor } from "../util/cursor.js";
 import { parseCsv } from "../util/csv.js";
 import { newId } from "../util/ids.js";
 import { parseJson } from "../util/json.js";
@@ -73,7 +74,7 @@ export async function getContact(ctx: AppContext, workspaceId: string, id: strin
 }
 
 export const findByEmail = (ctx: AppContext, ws: string, email: string) =>
-  ctx.db.get<ContactRow>("SELECT * FROM contacts WHERE workspace_id = ? AND lower(email) = ? AND deleted_at IS NULL", ws, email.toLowerCase());
+  ctx.db.get<ContactRow>("SELECT * FROM contacts WHERE workspace_id = ? AND email IS NOT NULL AND lower(email) = ? AND deleted_at IS NULL", ws, email.toLowerCase());
 export const findByPhone = (ctx: AppContext, ws: string, phone: string) =>
   ctx.db.get<ContactRow>("SELECT * FROM contacts WHERE workspace_id = ? AND phone = ? AND deleted_at IS NULL", ws, phone);
 
@@ -206,7 +207,7 @@ export async function deleteContact(ctx: AppContext, actor: Actor, id: string): 
 
 const like = (q: string) => `%${q.replace(/[\\%_]/g, (m) => "\\" + m)}%`;
 
-export async function listContacts(ctx: AppContext, ws: string, q: { search?: string; tag?: string; page: number; limit: number }) {
+export async function listContacts(ctx: AppContext, ws: string, q: { search?: string; tag?: string; cursor?: string; limit: number }) {
   const where = ["c.workspace_id = ?", "c.deleted_at IS NULL"];
   const params: (string | number)[] = [ws];
   if (q.search?.trim()) {
@@ -220,14 +221,20 @@ export async function listContacts(ctx: AppContext, ws: string, q: { search?: st
     params.push(q.tag.toLowerCase());
   }
   const w = where.join(" AND ");
-  const total = (await ctx.db.get<{ n: number }>(`SELECT COUNT(*) n FROM contacts c WHERE ${w}`, ...params))!.n;
+  // the total is only computed for the first page: counting on every page would make deep paging linear again
+  const total = q.cursor ? null : (await ctx.db.get<{ n: number }>(`SELECT COUNT(*) n FROM contacts c WHERE ${w}`, ...params))!.n;
+  const cur = decodeCursor(q.cursor, 2);
+  const keyset = cur ? " AND (c.created_at, c.id) < (?, ?)" : "";
   const rows = await ctx.db.all<ContactRow>(
-    `SELECT c.* FROM contacts c WHERE ${w} ORDER BY c.created_at DESC, c.id LIMIT ? OFFSET ?`,
+    `SELECT c.* FROM contacts c WHERE ${w}${keyset} ORDER BY c.created_at DESC, c.id DESC LIMIT ?`,
     ...params,
-    q.limit,
-    (q.page - 1) * q.limit,
+    ...(cur ?? []),
+    q.limit + 1,
   );
-  return { data: await contactDtos(ctx, rows), pagination: { page: q.page, limit: q.limit, total } };
+  const more = rows.length > q.limit;
+  const page = rows.slice(0, q.limit);
+  const last = page[page.length - 1];
+  return { data: await contactDtos(ctx, page), pagination: { limit: q.limit, total, has_more: more, next_cursor: more && last ? encodeCursor([last.created_at, last.id]) : null } };
 }
 
 export async function addFollower(ctx: AppContext, contactId: string, memberId: string): Promise<void> {

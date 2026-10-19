@@ -77,6 +77,7 @@ export const RoomQuery = Pagination.extend({
   contact_id: id.optional(),
   search: z.string().max(200).optional(),
   sort: z.enum(["newest", "oldest", "waiting_longest", "priority_first"]).default("newest"),
+  cursor: z.string().max(300).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(30),
   unassigned: bool.optional(),
   mentions: bool.optional(),

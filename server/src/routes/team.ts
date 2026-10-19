@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { AppContext } from "../context.js";
 import { forbidden } from "../errors.js";
 import { parseBody, parseQuery, requireLiveSeat, requireManager, type Env } from "../http.js";
-import { CreditGrant, ContactBody, ContactPatch, InboxBody, InboxPatch, MemberCreate, MemberPatch, Pagination, WorkspacePatch } from "../schemas.js";
+import { CreditGrant, ContactBody, ContactPatch, InboxBody, InboxPatch, MemberCreate, MemberPatch, WorkspacePatch } from "../schemas.js";
 import {
   addNote,
   contactDto,
@@ -76,7 +76,7 @@ export function teamRoutes(ctx: AppContext) {
   );
 
   /* contacts */
-  const ContactList = Pagination.extend({ search: z.string().max(200).optional(), tag: z.string().max(50).optional() });
+  const ContactList = z.object({ limit: z.coerce.number().int().min(1).max(100).default(25), cursor: z.string().max(300).optional(), search: z.string().max(200).optional(), tag: z.string().max(50).optional() });
   r.get("/contacts", async (c) => c.json(await listContacts(ctx, c.get("actor").workspaceId, parseQuery(c, ContactList))));
   r.post("/contacts", async (c) => {
     const b = await parseBody(c, ContactBody);

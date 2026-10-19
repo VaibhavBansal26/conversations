@@ -3,6 +3,7 @@ import { nowIso } from "../context.js";
 import { isUniqueViolation, type Param } from "../db/index.js";
 import { seesAll, type Actor } from "../domain/types.js";
 import { AppError, forbidden, notFound, unprocessable } from "../errors.js";
+import { decodeCursor, encodeCursor } from "../util/cursor.js";
 import { enqueueJob } from "../jobs/queue.js";
 import { newId } from "../util/ids.js";
 import { parseJson } from "../util/json.js";
@@ -26,6 +27,9 @@ export interface RoomFilters {
   contact_id?: string;
   search?: string;
   sort?: RoomSort;
+  /** keyset cursor from a previous page (newest / oldest / priority_first); preferred over `page` */
+  cursor?: string;
+  /** offset paging: only for waiting_longest (a computed sort) and legacy callers */
   page: number;
   limit: number;
 }
@@ -40,7 +44,7 @@ const unreadSql = `(SELECT COUNT(*) FROM messages um WHERE um.room_id = r.id AND
 const waitingSql = `(SELECT MIN(wm.created_at) FROM messages wm WHERE wm.room_id = r.id AND wm.sender_type = 'contact' AND wm.deleted_at IS NULL
     AND wm.seq > COALESCE((SELECT MAX(wa.seq) FROM messages wa WHERE wa.room_id = r.id AND wa.sender_type = 'agent' AND wa.kind != 'note' AND wa.deleted_at IS NULL), 0))`;
 
-const activity = "COALESCE(r.last_message_at, r.created_at)";
+const activity = "r.last_message_at";
 
 type ListRow = RoomRow & { unread_count: number; favorite: number; waiting_since: string | null };
 
@@ -113,7 +117,7 @@ export async function roomBaseDto(ctx: AppContext, room: RoomRow): Promise<RoomD
   return (await hydrate(ctx, [room]))[0]!;
 }
 
-const WAITING_ORDER = "(t.waiting_since IS NULL) ASC, t.waiting_since ASC, COALESCE(t.last_message_at, t.created_at) DESC, t.id DESC";
+const WAITING_ORDER = "(t.waiting_since IS NULL) ASC, t.waiting_since ASC, t.last_message_at DESC, t.id DESC";
 
 async function selectRooms(ctx: AppContext, actor: Actor, where: string[], params: Param[], sort: RoomSort | "id", limit: number, offset: number): Promise<ListRow[]> {
   const vis = roomVisibility(actor);
@@ -180,9 +184,29 @@ export async function listRooms(ctx: AppContext, actor: Actor, f: RoomFilters) {
     where.push(`(c.name ${op} ? ESCAPE '\\' OR c.email ${op} ? ESCAPE '\\' OR c.phone ${op} ? ESCAPE '\\' OR r.subject ${op} ? ESCAPE '\\')`);
     params.push(l, l, l, l);
   }
-  const rows = await selectRooms(ctx, actor, where, params, f.sort ?? "newest", f.limit + 1, (f.page - 1) * f.limit);
+  const sort = f.sort ?? "newest";
+  const keyset = sort !== "waiting_longest";
+  let offset = (f.page - 1) * f.limit;
+  if (keyset && f.cursor) {
+    // (activity, id) compared as a row value: the database seeks straight to the next page in the list index
+    const op = sort === "oldest" ? ">" : "<";
+    if (sort === "priority_first") {
+      const c = decodeCursor(f.cursor, 3);
+      where.push(`(r.priority, r.last_message_at, r.id) ${op} (?, ?, ?)`);
+      params.push(...(c as [number, string, string]));
+    } else {
+      const c = decodeCursor(f.cursor, 2);
+      where.push(`(r.last_message_at, r.id) ${op} (?, ?)`);
+      params.push(...(c as [string, string]));
+    }
+    offset = 0;
+  }
+  const rows = await selectRooms(ctx, actor, where, params, sort, f.limit + 1, offset);
   const hasMore = rows.length > f.limit;
-  return { data: await hydrate(ctx, rows.slice(0, f.limit)), pagination: { page: f.page, limit: f.limit, has_more: hasMore } };
+  const pageRows = rows.slice(0, f.limit);
+  const last = pageRows[pageRows.length - 1];
+  const next_cursor = keyset && hasMore && last ? encodeCursor(sort === "priority_first" ? [last.priority, last.last_message_at!, last.id] : [last.last_message_at!, last.id]) : null;
+  return { data: await hydrate(ctx, pageRows), pagination: { page: f.page, limit: f.limit, has_more: hasMore, next_cursor } };
 }
 
 export async function getRoomDto(ctx: AppContext, actor: Actor, roomId: string): Promise<RoomDto> {
@@ -229,7 +253,7 @@ export async function findOrCreateRoom(ctx: AppContext, ws: string, input: Creat
   try {
     await ctx.db.tx(async () => {
       await ctx.db.run(
-        "INSERT INTO rooms(id, workspace_id, contact_id, inbox_id, session_id, room_type, subject, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO rooms(id, workspace_id, contact_id, inbox_id, session_id, room_type, subject, last_message_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
         id,
         ws,
         input.contactId,
@@ -237,6 +261,7 @@ export async function findOrCreateRoom(ctx: AppContext, ws: string, input: Creat
         input.sessionId ?? null,
         input.roomType ?? "inbound",
         input.subject ?? null,
+        now,
         now,
         now,
       );

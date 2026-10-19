@@ -48,7 +48,7 @@ export function roomVisibility(actor: Pick<Actor, "role" | "memberId" | "inboxVi
   const assigned = `EXISTS (SELECT 1 FROM room_assignees ra WHERE ra.room_id = ${alias}.id AND ra.member_id = ?)`;
   if (actor.inboxVisibility === "assigned_inbox") {
     return {
-      sql: `(${assigned} OR ${alias}.inbox_id IN (SELECT inbox_id FROM inbox_members WHERE member_id = ?))`,
+      sql: `(${assigned} OR EXISTS (SELECT 1 FROM inbox_members vim WHERE vim.inbox_id = ${alias}.inbox_id AND vim.member_id = ?))`,
       params: [actor.memberId, actor.memberId],
     };
   }

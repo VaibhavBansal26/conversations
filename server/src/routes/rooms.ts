@@ -49,6 +49,7 @@ export function roomRoutes(ctx: AppContext) {
       contact_id: q.contact_id,
       search: q.search,
       sort: q.sort,
+      cursor: q.cursor,
       page: q.page,
       limit: q.limit,
       assigned_to_me: q.assigned_to_me ?? q.filter === "assigned_to_me",

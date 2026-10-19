@@ -28,7 +28,7 @@ export async function collectDigests(ctx: AppContext): Promise<{ rooms: number; 
   const minAge = addMinutes(now, -ctx.config.DIGEST_MIN_AGE_MINUTES).toISOString();
   const maxAge = addMinutes(now, -ctx.config.DIGEST_MAX_AGE_MINUTES).toISOString();
   const rooms = await ctx.db.all<RoomRow>(
-    `SELECT r.* FROM rooms r WHERE r.archived = 0 AND r.status = 'open' AND EXISTS (
+    `SELECT r.* FROM rooms r WHERE r.digest_due = 1 AND r.archived = 0 AND r.status = 'open' AND EXISTS (
        SELECT 1 FROM messages m WHERE m.room_id = r.id AND m.seq > r.digest_seq AND m.sender_type = 'contact' AND m.deleted_at IS NULL AND m.created_at <= ?)`,
     minAge,
   );
@@ -44,7 +44,12 @@ export async function collectDigests(ctx: AppContext): Promise<{ rooms: number; 
     const maxSeq = pending[pending.length - 1]!.seq;
     const newest = pending[pending.length - 1]!;
     // advance first: even if nobody qualifies, these messages are never reconsidered
-    await ctx.db.run("UPDATE rooms SET digest_seq = ? WHERE id = ?", maxSeq, room.id);
+    await ctx.db.run(
+      `UPDATE rooms SET digest_seq = ?, digest_due = CASE WHEN EXISTS (SELECT 1 FROM messages m WHERE m.room_id = rooms.id AND m.seq > ? AND m.sender_type = 'contact' AND m.deleted_at IS NULL) THEN 1 ELSE 0 END WHERE id = ?`,
+      maxSeq,
+      maxSeq,
+      room.id,
+    );
     if (newest.created_at < maxAge) continue;
     const contact = await ctx.db.get<{ name: string; email: string | null; phone: string | null }>(
       "SELECT name, email, phone FROM contacts WHERE id = ?",

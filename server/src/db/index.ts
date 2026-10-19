@@ -23,6 +23,10 @@ export interface Db {
   jsonArrayHas(col: string): string;
   /** number of statements executed so far (used by tests asserting bounded work) */
   readonly statements: number;
+  /** test/diagnostic hook called with every statement before it runs */
+  trace: ((sql: string, params: Param[]) => void) | null;
+  /** The query plan for a statement (SQLite: EXPLAIN QUERY PLAN; PostgreSQL: EXPLAIN with sequential scans disabled so index availability is what is checked). */
+  explain(sql: string, ...params: Param[]): Promise<string>;
   get<T = Record<string, unknown>>(sql: string, ...params: Param[]): Promise<T | undefined>;
   all<T = Record<string, unknown>>(sql: string, ...params: Param[]): Promise<T[]>;
   run(sql: string, ...params: Param[]): Promise<{ changes: number }>;
@@ -53,6 +57,7 @@ class SqliteDb implements Db {
   readonly ilike = "LIKE";
   readonly forUpdate = "";
   statements = 0;
+  trace: ((sql: string, params: Param[]) => void) | null = null;
   private readonly raw: DatabaseSync;
   private readonly cache = new Map<string, StatementSync>();
   private readonly als = new AsyncLocalStorage<TxStore>();
@@ -85,14 +90,20 @@ class SqliteDb implements Db {
     if (!(st && st.active)) while (this.open) await this.open;
   }
 
+  async explain(sql: string, ...p: Param[]) {
+    return (this.raw.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...p.map(norm)) as { detail: string }[]).map((r) => r.detail).join("\n");
+  }
+
   async get<T>(sql: string, ...p: Param[]) {
     await this.gate();
     this.statements++;
+    this.trace?.(sql, p);
     return clean<T>(this.stmt(sql).get(...p.map(norm)));
   }
   async all<T>(sql: string, ...p: Param[]) {
     await this.gate();
     this.statements++;
+    this.trace?.(sql, p);
     return this.stmt(sql)
       .all(...p.map(norm))
       .map((r) => ({ ...r })) as T[];
@@ -100,6 +111,7 @@ class SqliteDb implements Db {
   async run(sql: string, ...p: Param[]) {
     await this.gate();
     this.statements++;
+    this.trace?.(sql, p);
     return { changes: Number(this.stmt(sql).run(...p.map(norm)).changes) };
   }
   async exec(sql: string) {
@@ -157,6 +169,12 @@ class SqliteDb implements Db {
 
 /* --------------------------------------------------------------- PostgreSQL */
 
+const hash = (s: string) => {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+};
+
 const cvt = new Map<string, string>();
 /** `?` -> `$n` (outside string literals) and `INSERT OR IGNORE` -> `ON CONFLICT DO NOTHING`. */
 export function toPg(sql: string): string {
@@ -179,7 +197,9 @@ class PgDb implements Db {
   readonly ilike = "ILIKE";
   readonly forUpdate = " FOR NO KEY UPDATE"; // self-conflicting, but compatible with the FOR KEY SHARE locks foreign-key inserts take on the same row
   statements = 0;
+  trace: ((sql: string, params: Param[]) => void) | null = null;
   private readonly pool: pg.Pool;
+  private readonly seen = new Map<string, number>();
   private readonly als = new AsyncLocalStorage<TxStore>();
 
   constructor(url: string, max: number) {
@@ -201,12 +221,32 @@ class PgDb implements Db {
     return st?.active && st.client ? st.client : this.pool;
   }
 
+  /**
+   * Statements that keep recurring become named prepared statements (parsed and planned once per connection). Dynamic SQL with
+   * variable-length IN lists is never named, since every list length would otherwise create a new prepared statement.
+   */
   private async query(sql: string, p: Param[]) {
     this.statements++;
-    return this.target().query(
-      toPg(sql),
-      p.map((v) => (v === undefined ? null : typeof v === "boolean" ? (v ? 1 : 0) : (v as never))),
-    );
+    this.trace?.(sql, p);
+    const values = p.map((v) => (v === undefined ? null : typeof v === "boolean" ? (v ? 1 : 0) : (v as never)));
+    const n = (this.seen.get(sql) ?? 0) + 1;
+    if (this.seen.size < 2000) this.seen.set(sql, n);
+    const text = toPg(sql);
+    if (n >= 5 && !/IN \(\$/.test(text)) return this.target().query({ name: `s${hash(sql)}`, text, values });
+    return this.target().query(text, values);
+  }
+
+  async explain(sql: string, ...p: Param[]) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SET LOCAL enable_seqscan = off");
+      const r = await client.query(`EXPLAIN ${toPg(sql)}`, p.map((v) => (v === undefined ? null : typeof v === "boolean" ? (v ? 1 : 0) : (v as never))));
+      await client.query("ROLLBACK");
+      return (r.rows as { "QUERY PLAN": string }[]).map((x) => x["QUERY PLAN"]).join("\n");
+    } finally {
+      client.release();
+    }
   }
 
   async get<T>(sql: string, ...p: Param[]) {

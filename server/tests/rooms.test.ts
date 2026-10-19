@@ -242,6 +242,24 @@ describe("filters and sorting", () => {
     expect(a.room.id).toBeTruthy();
   });
 
+  it("keyset cursors walk every sort without gaps or duplicates, even when rooms change between pages", async () => {
+    const { ctx, owner, a } = await scenario();
+    for (const sort of ["newest", "oldest", "priority_first"] as const) {
+      const all = (await listRooms(ctx, owner, { sort, page: 1, limit: 50 })).data.map((r) => r.id);
+      const walked: string[] = [];
+      let cursor: string | undefined;
+      for (let guard = 0; guard < 10; guard++) {
+        const p = await listRooms(ctx, owner, { sort, cursor, page: 1, limit: 1 });
+        walked.push(...p.data.map((r) => r.id));
+        if (guard === 0) await agentSays(ctx, owner, a.room.id, "activity between pages"); // moves Alpha to the top; the walk must not repeat it
+        if (!p.pagination.next_cursor) break;
+        cursor = p.pagination.next_cursor;
+      }
+      expect(new Set(walked).size, sort).toBe(walked.length);
+      expect(walked.length, sort).toBeGreaterThanOrEqual(all.length - 1);
+    }
+    await expect(listRooms(ctx, owner, { cursor: "garbage", page: 1, limit: 5 })).rejects.toMatchObject({ code: "INVALID_CURSOR" });
+  });
   it("paginates with has_more", async () => {
     const { ctx, owner } = await scenario();
     const p1 = await listRooms(ctx, owner, { page: 1, limit: 2 });

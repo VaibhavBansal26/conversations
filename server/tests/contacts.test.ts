@@ -109,9 +109,22 @@ describe("contacts API", () => {
     const { http, token } = await fullApp();
     for (let i = 0; i < 5; i++) await http.post("/api/contacts", { name: `C${i}`, email: `c${i}@example.test`, tags: i % 2 ? ["odd"] : ["even"] }, token);
     expect((await http.get("/api/contacts?tag=odd", token)).body.data).toHaveLength(2);
-    const p = await http.get("/api/contacts?limit=2&page=3", token);
-    expect(p.body.data).toHaveLength(1);
     expect((await http.get("/api/contacts?limit=101", token)).status).toBe(400);
+    // keyset paging: no gaps, no duplicates, total only on the first page, newest first
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    let pages = 0;
+    do {
+      const r: any = await http.get(`/api/contacts?limit=2${cursor ? `&cursor=${cursor}` : ""}`, token);
+      pages++;
+      if (pages === 1) expect(r.body.pagination.total).toBe(5);
+      else expect(r.body.pagination.total).toBeNull();
+      seen.push(...r.body.data.map((c: any) => c.name));
+      cursor = r.body.pagination.next_cursor;
+    } while (cursor);
+    expect(pages).toBe(3);
+    expect(seen).toEqual(["C4", "C3", "C2", "C1", "C0"]);
+    expect((await http.get("/api/contacts?cursor=garbage", token)).body.error.code).toBe("INVALID_CURSOR");
   });
 
   it("manages notes", async () => {

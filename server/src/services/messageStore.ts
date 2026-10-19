@@ -152,6 +152,7 @@ export async function insertMessage(ctx: AppContext, m: NewMessage): Promise<Ins
       `UPDATE rooms SET last_message_id = CASE WHEN ? = 1 THEN last_message_id ELSE ? END, last_message_at = CASE WHEN ? = 1 THEN last_message_at ELSE ? END,
          last_message_seq = CASE WHEN ? = 1 THEN last_message_seq ELSE ? END, updated_at = ?,
          last_contact_message_at = CASE WHEN ? = 'contact' THEN ? ELSE last_contact_message_at END,
+         digest_due = CASE WHEN ? = 'contact' THEN 1 ELSE digest_due END,
          status = CASE WHEN ? = 1 THEN 'open' ELSE status END,
          snooze_until = CASE WHEN ? = 1 THEN NULL ELSE snooze_until END,
          snoozed_by = CASE WHEN ? = 1 THEN NULL ELSE snoozed_by END
@@ -165,6 +166,7 @@ export async function insertMessage(ctx: AppContext, m: NewMessage): Promise<Ins
       now,
       m.senderType,
       now,
+      m.senderType,
       reopens,
       unsnoozed,
       unsnoozed,
@@ -302,7 +304,7 @@ export async function postSystemMessage(ctx: AppContext, roomId: string, workspa
 export async function refreshLastMessage(ctx: AppContext, roomId: string): Promise<void> {
   const last = await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE room_id = ? AND deleted_at IS NULL AND kind != 'system' ORDER BY seq DESC LIMIT 1", roomId);
   await ctx.db.run(
-    "UPDATE rooms SET last_message_id = ?, last_message_at = ?, last_message_seq = ? WHERE id = ?",
+    "UPDATE rooms SET last_message_id = ?, last_message_at = COALESCE(?, created_at), last_message_seq = ? WHERE id = ?",
     last?.id ?? null,
     last?.created_at ?? null,
     last?.seq ?? 0,
