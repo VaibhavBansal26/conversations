@@ -1,0 +1,14 @@
+{
+  "name": "conversations-loadtest",
+  "private": true,
+  "type": "module",
+  "description": "Multi-process load and scale harness. See docs/PERFORMANCE.md",
+  "scripts": {
+    "scenario": "node run.mjs",
+    "proxy": "node proxy.mjs"
+  },
+  "dependencies": {
+    "autocannon": "^8.0.0",
+    "socket.io-client": "^4.8.4"
+  }
+}

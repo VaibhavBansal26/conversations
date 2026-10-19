@@ -10,3 +10,5 @@ data/
 coverage/
 *.log
 .DS_Store
+loadtest/results/*.log
+loadtest/results/tmp*

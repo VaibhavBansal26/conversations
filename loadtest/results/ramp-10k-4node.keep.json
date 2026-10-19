@@ -1,0 +1,220 @@
+{
+  "scenario": "ramp",
+  "date": "2026-10-19T21:12:36.806Z",
+  "machine": "Apple M1 x8, 8 GB RAM, darwin 24.3.0, node v24.11.1",
+  "config": {
+    "nodes": 4,
+    "conns": 10000,
+    "agents": 5,
+    "workers": 6,
+    "rate": 50,
+    "duration": 30,
+    "connectRate": 700,
+    "bytes": 64
+  },
+  "settle": {
+    "open_at_end_of_ramp": 10000,
+    "open_after_settle": 10000,
+    "settle_secs": 0,
+    "kern_num_files_with_all_open": 30492,
+    "kern_maxfiles": 30720
+  },
+  "bootstrap_failures": 0,
+  "steps": [
+    {
+      "target": 1000,
+      "open": 1000,
+      "errors": 0,
+      "connect_p50_ms": 267,
+      "connect_p99_ms": 577,
+      "step_secs": 3,
+      "loop_lag_p99_ms": 119
+    },
+    {
+      "target": 2000,
+      "open": 2000,
+      "errors": 0,
+      "connect_p50_ms": 83,
+      "connect_p99_ms": 553,
+      "step_secs": 3,
+      "loop_lag_p99_ms": 37
+    },
+    {
+      "target": 3000,
+      "open": 3000,
+      "errors": 0,
+      "connect_p50_ms": 21,
+      "connect_p99_ms": 536,
+      "step_secs": 3,
+      "loop_lag_p99_ms": 17
+    },
+    {
+      "target": 4000,
+      "open": 4000,
+      "errors": 0,
+      "connect_p50_ms": 46,
+      "connect_p99_ms": 866,
+      "step_secs": 3,
+      "loop_lag_p99_ms": 110
+    },
+    {
+      "target": 5000,
+      "open": 5000,
+      "errors": 0,
+      "connect_p50_ms": 33,
+      "connect_p99_ms": 842,
+      "step_secs": 3,
+      "loop_lag_p99_ms": 25
+    },
+    {
+      "target": 6000,
+      "open": 6000,
+      "errors": 0,
+      "connect_p50_ms": 47,
+      "connect_p99_ms": 829,
+      "step_secs": 3,
+      "loop_lag_p99_ms": 79
+    },
+    {
+      "target": 7000,
+      "open": 7000,
+      "errors": 0,
+      "connect_p50_ms": 53,
+      "connect_p99_ms": 815,
+      "step_secs": 3,
+      "loop_lag_p99_ms": 65
+    },
+    {
+      "target": 8000,
+      "open": 8000,
+      "errors": 0,
+      "connect_p50_ms": 85,
+      "connect_p99_ms": 799,
+      "step_secs": 3,
+      "loop_lag_p99_ms": 107
+    },
+    {
+      "target": 9000,
+      "open": 9000,
+      "errors": 0,
+      "connect_p50_ms": 80,
+      "connect_p99_ms": 782,
+      "step_secs": 3,
+      "loop_lag_p99_ms": 82
+    },
+    {
+      "target": 10000,
+      "open": 10000,
+      "errors": 0,
+      "connect_p50_ms": 99,
+      "connect_p99_ms": 768,
+      "step_secs": 3,
+      "loop_lag_p99_ms": 106
+    }
+  ],
+  "final": {
+    "open": 10000,
+    "target": 10000,
+    "connect_errors": 0,
+    "error_kinds": {},
+    "connect": {
+      "n": 10000,
+      "p50": 99,
+      "p90": 436,
+      "p99": 768,
+      "max": 1028
+    }
+  },
+  "server": {
+    "node0": {
+      "wsVisitors": 2500,
+      "wsTeam": null,
+      "slowDisconnects": 0,
+      "loopLagP99Ms": 33.849343,
+      "rateLimited": 0,
+      "writeBufMax": 0
+    },
+    "node1": {
+      "wsVisitors": 2500,
+      "wsTeam": null,
+      "slowDisconnects": 0,
+      "loopLagP99Ms": 11.902975,
+      "rateLimited": 0,
+      "writeBufMax": 0
+    },
+    "node2": {
+      "wsVisitors": 2500,
+      "wsTeam": null,
+      "slowDisconnects": 0,
+      "loopLagP99Ms": 10.993663000000002,
+      "rateLimited": 0,
+      "writeBufMax": 0
+    },
+    "node3": {
+      "wsVisitors": 2500,
+      "wsTeam": null,
+      "slowDisconnects": 0,
+      "loopLagP99Ms": 11.034623,
+      "rateLimited": 0,
+      "writeBufMax": 0
+    }
+  },
+  "resources": {
+    "node0": {
+      "rss_peak_mb": 190,
+      "cpu_avg_pct": 23,
+      "cpu_peak_pct": 37
+    },
+    "node1": {
+      "rss_peak_mb": 178,
+      "cpu_avg_pct": 23,
+      "cpu_peak_pct": 39
+    },
+    "node2": {
+      "rss_peak_mb": 135,
+      "cpu_avg_pct": 22,
+      "cpu_peak_pct": 42
+    },
+    "node3": {
+      "rss_peak_mb": 165,
+      "cpu_avg_pct": 23,
+      "cpu_peak_pct": 40
+    },
+    "redis": {
+      "rss_peak_mb": 8,
+      "cpu_avg_pct": 12,
+      "cpu_peak_pct": 55
+    },
+    "gen0": {
+      "rss_peak_mb": 89,
+      "cpu_avg_pct": 7,
+      "cpu_peak_pct": 19
+    },
+    "gen1": {
+      "rss_peak_mb": 83,
+      "cpu_avg_pct": 7,
+      "cpu_peak_pct": 21
+    },
+    "gen2": {
+      "rss_peak_mb": 87,
+      "cpu_avg_pct": 7,
+      "cpu_peak_pct": 21
+    },
+    "gen3": {
+      "rss_peak_mb": 72,
+      "cpu_avg_pct": 7,
+      "cpu_peak_pct": 23
+    },
+    "gen4": {
+      "rss_peak_mb": 89,
+      "cpu_avg_pct": 7,
+      "cpu_peak_pct": 24
+    },
+    "gen5": {
+      "rss_peak_mb": 89,
+      "cpu_avg_pct": 7,
+      "cpu_peak_pct": 24
+    }
+  },
+  "ramp_total_secs": 30
+}
