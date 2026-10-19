@@ -37,10 +37,13 @@ const nspName = (ws: string) => `/ws/${ws}`;
 export class SocketBus implements RealtimeBus {
   io: Server | null = null;
   private ctx: AppContext | null = null;
+  /** Only adapters with peers (redis) need access refreshes fanned out to other nodes. */
+  private clustered = false;
 
   bind(ctx: AppContext, io: Server) {
     this.ctx = ctx;
     this.io = io;
+    this.clustered = ctx.config.SOCKET_ADAPTER === "redis";
   }
 
   private nsp(ws: string): Namespace | null {
@@ -83,6 +86,7 @@ export class SocketBus implements RealtimeBus {
   }
 
   private peers(ws: string, msg: { t: string; id: string }) {
+    if (!this.clustered) return;
     try {
       this.nsp(ws)?.serverSideEmit("access:refresh", msg);
     } catch {

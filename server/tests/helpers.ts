@@ -36,9 +36,11 @@ export interface TestCtx extends AppContext {
 }
 
 export function testConfig(env: Record<string, string> = {}): Config {
+  const dir = mkdtempSync(join(tmpdir(), "conv-test-"));
   return loadConfig(
     {
-      NODE_ENV: "test", JWT_SECRET: "test-secret-test-secret-test-secret", DATABASE_PATH: ":memory:", DATA_DIR: mkdtempSync(join(tmpdir(), "conv-test-")),
+      // WEB_DIST points nowhere so tests never depend on whether the web app happens to be built
+      NODE_ENV: "test", JWT_SECRET: "test-secret-test-secret-test-secret", DATABASE_PATH: ":memory:", DATA_DIR: dir, WEB_DIST: join(dir, "no-web-build"),
       LOG_LEVEL: "silent", PUBLIC_URL: "http://localhost:3000", SEND_RETRY_BASE_SECONDS: "10", SEND_RETRY_CAP_SECONDS: "100", SEND_RETRY_MAX_ATTEMPTS: "4", ...env,
     },
     () => {},

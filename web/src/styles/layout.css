@@ -430,11 +430,13 @@
     z-index: 70;
     width: min(290px, 86vw);
     transform: translateX(-102%);
-    transition: transform 0.2s ease;
+    visibility: hidden;
+    transition: transform 0.2s ease, visibility 0.2s;
     box-shadow: var(--shadow-md);
   }
   .sidebar.open {
     transform: none;
+    visibility: visible;
   }
   .scrim {
     display: block;

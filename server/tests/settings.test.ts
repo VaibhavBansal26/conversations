@@ -87,6 +87,20 @@ describe("SMS numbers, senders and inbound addresses", () => {
   });
 });
 
+describe("live seats", () => {
+  it("gate the inbox only: a manager without a live seat can still administer the workspace", async () => {
+    const { ctx, http, wsId } = await fullApp();
+    const mgr = await addMemberRaw(ctx, wsId, { name: "Admin Only", role: "manager", live_seat: false });
+    const t = await tokenFor(ctx, mgr);
+    for (const path of ["/api/rooms", "/api/notifications", "/api/inboxes/counts", "/api/dashboard/counts"]) {
+      expect((await http.get(path, t)).body.error.code, path).toBe("NO_LIVE_SEAT");
+    }
+    for (const path of ["/api/workspace", "/api/sms-numbers", "/api/members", "/api/templates", "/api/kb", "/api/inboxes", "/api/tokens"]) {
+      expect((await http.get(path, t)).status, path).toBe(200);
+    }
+  });
+});
+
 describe("knowledge base", () => {
   it("CRUDs FAQ entries per workspace", async () => {
     const { ctx, http, token } = await fullApp();

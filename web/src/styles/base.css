@@ -379,10 +379,13 @@ button:disabled {
   color: var(--warn);
   font-size: 13px;
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 60;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(92vw, 560px);
+  border-radius: 999px;
+  box-shadow: var(--shadow-md);
+  z-index: 90;
 }
 .badge {
   display: inline-flex;

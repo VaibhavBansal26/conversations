@@ -1,0 +1,18 @@
+{
+  "name": "conversations",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Unified customer inbox: live chat, SMS and email",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "setup": "npm ci --prefix server && npm ci --prefix web",
+    "dev": "node scripts/dev.mjs",
+    "build": "npm run build --prefix server && npm run build --prefix web",
+    "test": "npm test --prefix server && npm test --prefix web",
+    "typecheck": "npm run typecheck --prefix server && npm run typecheck --prefix web",
+    "start": "node server/dist/index.js",
+    "seed": "npm run seed --prefix server",
+    "e2e": "npm run e2e --prefix server",
+    "package": "docker build -t conversations ."
+  }
+}

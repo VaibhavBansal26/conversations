@@ -16,7 +16,8 @@ import { z } from "zod";
 
 export function roomRoutes(ctx: AppContext) {
   const r = new Hono<Env>();
-  r.use("*", requireLiveSeat);
+  // scoped by path: a manager without a live seat must still reach the settings routes mounted after this router
+  for (const path of ["/rooms", "/rooms/*", "/messages/*", "/attachments", "/notifications", "/notifications/*"]) r.use(path, requireLiveSeat);
 
   r.get("/rooms", (c) => {
     const q = parseQuery(c, RoomQuery);
