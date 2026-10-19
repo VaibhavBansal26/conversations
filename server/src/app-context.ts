@@ -12,6 +12,7 @@ import { MemoryPresenceService, RedisPresenceService, type PresenceService } fro
 import { RedisHub } from "./infra/redis.js";
 import { BullJobQueue, DbJobQueue } from "./jobs/queue.js";
 import { Metrics } from "./metrics.js";
+import { WorkerPool } from "./workers/pool.js";
 import { createLogger, type Logger } from "./logger.js";
 import { ConsoleEmailProvider, ConsoleSmsProvider } from "./providers/fake.js";
 import { LocalDiskStorage } from "./providers/storage.js";
@@ -73,6 +74,7 @@ export async function createContext(config: Config, o: ContextOverrides = {}): P
     locks: hub ? new RedisLocks(hub) : new MemoryLocks(),
     queue: undefined as never,
     metrics: new Metrics(config.NODE_ENV !== "test"),
+    workers: config.WORKER_POOL_SIZE > 0 && config.NODE_ENV !== "test" ? new WorkerPool(config.WORKER_POOL_SIZE) : null,
     redis: hub,
     nodeId,
     state: { draining: false },
@@ -112,6 +114,7 @@ export async function closeContext(ctx: AppContext): Promise<void> {
   await ctx.background.settle();
   await ctx.queue.close();
   ctx.metrics.close();
+  await ctx.workers?.close();
   await ctx.presence.close();
   await ctx.redis?.close();
   await ctx.db.close();

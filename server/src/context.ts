@@ -9,6 +9,7 @@ import type { Locks } from "./infra/locks.js";
 import type { RedisHub } from "./infra/redis.js";
 import type { JobQueue } from "./jobs/queue.js";
 import type { Metrics } from "./metrics.js";
+import type { WorkerPool } from "./workers/pool.js";
 import type { EmailProvider, SmsProvider, Storage } from "./providers/types.js";
 import type { AiProvider } from "./ai/provider.js";
 
@@ -30,6 +31,8 @@ export interface AppContext {
   locks: Locks;
   queue: JobQueue;
   metrics: Metrics;
+  /** CPU-heavy tasks (large HTML bodies) run here instead of blocking the event loop; null = inline */
+  workers: WorkerPool | null;
   /** present only when REDIS_URL is configured */
   redis: RedisHub | null;
   /** mutable process state shared by the HTTP and socket layers */

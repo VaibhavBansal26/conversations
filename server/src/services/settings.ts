@@ -179,6 +179,7 @@ export async function createKb(ctx: AppContext, actor: Actor, i: { question: str
     now,
     now,
   );
+  await ctx.cache.invalidate(`kb-index:${actor.workspaceId}`);
   return (await ctx.db.get<KbRow>("SELECT * FROM kb_entries WHERE id = ?", id))!;
 }
 
@@ -197,10 +198,12 @@ export async function updateKb(ctx: AppContext, actor: Actor, id: string, i: { q
     ).changes
   )
     throw notFound("Knowledge entry");
+  await ctx.cache.invalidate(`kb-index:${actor.workspaceId}`);
   return (await ctx.db.get<KbRow>("SELECT * FROM kb_entries WHERE id = ?", id))!;
 }
 
 export async function deleteKb(ctx: AppContext, actor: Actor, id: string): Promise<void> {
   manager(actor);
   if (!(await ctx.db.run("DELETE FROM kb_entries WHERE id = ? AND workspace_id = ?", id, actor.workspaceId)).changes) throw notFound("Knowledge entry");
+  await ctx.cache.invalidate(`kb-index:${actor.workspaceId}`);
 }

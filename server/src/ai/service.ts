@@ -11,7 +11,7 @@ import { getRoomRow, getVisibleRoom, type RoomRow } from "../services/roomStore.
 import { publishRoomUpdated } from "../services/rooms.js";
 import { getSettings } from "../services/workspaces.js";
 import { AiOutputError, AiUnavailableError, type AiRequest } from "./provider.js";
-import { searchKb, type KbDoc, type KbHit } from "./retrieval.js";
+import { Bm25Index, type KbDoc, type KbHit } from "./retrieval.js";
 import { buildTranscript, parseModelJson, redactPii, SAFETY_RULES, unsupportedCommitment, untrusted, type TranscriptLine } from "./text.js";
 
 const TOKEN_BUDGET = 3000;
@@ -66,6 +66,9 @@ async function loadLines(ctx: AppContext, roomId: string, opts: { notes: boolean
   }));
 }
 
+/** The per-workspace BM25 index is built once and shared by suggestions and the auto-responder; KB edits invalidate it on every node. */
+export const kbIndex = (ctx: AppContext, ws: string): Promise<Bm25Index> => ctx.cache.wrap(`kb-index:${ws}`, async () => new Bm25Index(await kbDocs(ctx, ws)));
+
 const kbDocs = async (ctx: AppContext, ws: string): Promise<KbDoc[]> => ctx.db.all<KbDoc>("SELECT id, question, answer FROM kb_entries WHERE workspace_id = ?", ws);
 
 async function groundingText(ctx: AppContext, ws: string, roomId: string, kb: KbHit[]): Promise<string> {
@@ -86,7 +89,7 @@ export async function suggestReplies(ctx: AppContext, actor: Actor, roomId: stri
   const contact = await getContact(ctx, actor.workspaceId, room.contact_id);
   const lines = await loadLines(ctx, roomId, { notes: false });
   const last = lastCustomerText(lines);
-  const kbHits = searchKb(last, await kbDocs(ctx, actor.workspaceId), { limit: 3 }).filter((h) => h.coverage >= 0.4);
+  const kbHits = (await kbIndex(ctx, actor.workspaceId)).search(last, 3).filter((h) => h.coverage >= 0.4);
   const t = buildTranscript(lines, TOKEN_BUDGET, { redact: s.ai_redact_pii });
   const mask = (v: string) => (s.ai_redact_pii ? redactPii(v) : v);
   const knowledge = kbHits.map((k) => `Q: ${mask(k.doc.question)}\nA: ${mask(k.doc.answer)}`).join("\n---\n") || "(none)";
@@ -240,7 +243,7 @@ export async function maybeAutoRespond(ctx: AppContext, room: RoomRow, message: 
   const text = message.content_text;
   if (asksForHuman(text)) return await handoff("customer_requested_human");
   if (isSensitive(text)) return await handoff("sensitive_topic");
-  const hits = searchKb(text, await kbDocs(ctx, room.workspace_id), { limit: 3 });
+  const hits = (await kbIndex(ctx, room.workspace_id)).search(text, 3);
   if (!hits.length || hits[0]!.coverage < 0.5) return await handoff("low_confidence");
 
   const mask = (v: string) => (s.ai_redact_pii ? redactPii(v) : v);

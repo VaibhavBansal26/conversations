@@ -24,33 +24,52 @@ export interface KbHit {
   coverage: number;
 }
 
-/** Okapi BM25 over the (small) per-workspace FAQ list. The question counts double: it is the better signal. */
+/**
+ * Okapi BM25 over a FAQ list. The question counts double: it is the better signal. Building the index (tokenising every entry,
+ * document frequencies) is the expensive part, so it is built once and reused for many queries (see `kbIndex` in ai/service.ts).
+ */
+export class Bm25Index {
+  private readonly tokens: string[][];
+  private readonly tf: Map<string, number>[];
+  private readonly df = new Map<string, number>();
+  private readonly avg: number;
+
+  constructor(
+    private readonly docs: KbDoc[],
+    private readonly k1 = 1.5,
+    private readonly b = 0.75,
+  ) {
+    this.tokens = docs.map((d) => [...tokenize(d.question), ...tokenize(d.question), ...tokenize(d.answer)]);
+    this.avg = this.tokens.reduce((s, t) => s + t.length, 0) / (docs.length || 1) || 1;
+    this.tf = this.tokens.map((t) => {
+      const m = new Map<string, number>();
+      for (const w of t) m.set(w, (m.get(w) ?? 0) + 1);
+      for (const w of m.keys()) this.df.set(w, (this.df.get(w) ?? 0) + 1);
+      return m;
+    });
+  }
+
+  search(query: string, limit = 3): KbHit[] {
+    const q = [...new Set(tokenize(query))];
+    if (!q.length || !this.docs.length) return [];
+    const hits: KbHit[] = [];
+    this.docs.forEach((doc, i) => {
+      let score = 0;
+      let matched = 0;
+      for (const term of q) {
+        const f = this.tf[i]!.get(term) ?? 0;
+        if (!f) continue;
+        matched++;
+        const n = this.df.get(term) ?? 0;
+        const idf = Math.log(1 + (this.docs.length - n + 0.5) / (n + 0.5));
+        score += idf * ((f * (this.k1 + 1)) / (f + this.k1 * (1 - this.b + (this.b * this.tokens[i]!.length) / this.avg)));
+      }
+      if (score > 0) hits.push({ doc, score, coverage: matched / q.length });
+    });
+    return hits.sort((a, b2) => b2.score - a.score || a.doc.id.localeCompare(b2.doc.id)).slice(0, limit);
+  }
+}
+
 export function searchKb(query: string, docs: KbDoc[], opts: { k1?: number; b?: number; limit?: number } = {}): KbHit[] {
-  const k1 = opts.k1 ?? 1.5;
-  const b = opts.b ?? 0.75;
-  const q = [...new Set(tokenize(query))];
-  if (!q.length || !docs.length) return [];
-  const tokens = docs.map((d) => [...tokenize(d.question), ...tokenize(d.question), ...tokenize(d.answer)]);
-  const avg = tokens.reduce((s, t) => s + t.length, 0) / docs.length || 1;
-  const df = new Map<string, number>();
-  for (const t of tokens) for (const w of new Set(t)) df.set(w, (df.get(w) ?? 0) + 1);
-  const hits: KbHit[] = docs.map((doc, i) => {
-    const tf = new Map<string, number>();
-    for (const w of tokens[i]!) tf.set(w, (tf.get(w) ?? 0) + 1);
-    let score = 0;
-    let matched = 0;
-    for (const term of q) {
-      const f = tf.get(term) ?? 0;
-      if (!f) continue;
-      matched++;
-      const n = df.get(term) ?? 0;
-      const idf = Math.log(1 + (docs.length - n + 0.5) / (n + 0.5));
-      score += idf * ((f * (k1 + 1)) / (f + k1 * (1 - b + (b * tokens[i]!.length) / avg)));
-    }
-    return { doc, score, coverage: matched / q.length };
-  });
-  return hits
-    .filter((h) => h.score > 0)
-    .sort((a, b2) => b2.score - a.score || a.doc.id.localeCompare(b2.doc.id))
-    .slice(0, opts.limit ?? 3);
+  return new Bm25Index(docs, opts.k1, opts.b).search(query, opts.limit ?? 3);
 }

@@ -40,6 +40,13 @@ export interface SendInput {
 
 export const MAX_CONTENT_CHARS = 20000;
 
+/** Large HTML bodies are sanitised on a worker thread (see docs/PERFORMANCE.md for the measured threshold). */
+export async function sanitizeBody(ctx: AppContext, html: string): Promise<{ html: string; text: string }> {
+  if (ctx.workers && html.length >= ctx.config.WORKER_THRESHOLD_BYTES) return ctx.workers.run("sanitizeEmail", { html });
+  const clean = sanitizeHtml(html).trim();
+  return { html: clean, text: htmlToText(clean) };
+}
+
 const SMS_KINDS: MessageKind[] = ["text", "ref"];
 const EMAIL_KINDS: MessageKind[] = ["text", "ref", "image", "attachment", "gif", "voice"];
 const ATTACH_KINDS: MessageKind[] = ["image", "attachment", "voice"];
@@ -68,6 +75,14 @@ export function processContent(source: MessageSource, raw: string, format: "text
   }
   const clean = cleanPlainText(raw).trim();
   return { content: textToHtml(clean), text: clean };
+}
+
+async function processContentFor(ctx: AppContext, source: MessageSource, raw: string, format: "text" | "html" = "text") {
+  if (source !== "sms" && format === "html" && raw.length >= ctx.config.WORKER_THRESHOLD_BYTES && raw.length <= MAX_CONTENT_CHARS) {
+    const r = await sanitizeBody(ctx, raw);
+    return { content: r.html, text: r.text };
+  }
+  return processContent(source, raw, format);
 }
 
 /** `@[Name](mem_xxx)` tokens plus bare `@localpart` of a member's email. Only seats that can see the room are kept. */
@@ -117,7 +132,7 @@ export async function sendAgentMessage(ctx: AppContext, actor: Actor, roomId: st
   checkMatrix(input);
   await validateRef(ctx, room, input.ref_message_id);
   const attachments = input.attachment_ids?.length ? await resolveAttachments(ctx, actor.workspaceId, input.attachment_ids) : [];
-  const { content, text } = processContent(input.source, input.content ?? "", input.format);
+  const { content, text } = await processContentFor(ctx, input.source, input.content ?? "", input.format);
   if (!text && !attachments.length && input.kind !== "gif") throw unprocessable("EMPTY_MESSAGE", "Message is empty");
   if (input.kind === "gif" && !/^https:\/\/\S+$/i.test(text)) throw unprocessable("INVALID_GIF", "A gif message needs an https URL as its content");
 
@@ -295,7 +310,7 @@ export async function editMessage(ctx: AppContext, actor: Actor, id: string, inp
   if (windowSec <= 0) throw new AppError(403, "EDIT_DISABLED", "Editing messages is disabled for this workspace");
   if (ctx.clock().getTime() - Date.parse(msg.created_at) > windowSec * 1000)
     throw new AppError(403, "EDIT_WINDOW_EXPIRED", "The edit window for this message has passed");
-  const { content, text } = processContent("dm", input.content, input.format);
+  const { content, text } = await processContentFor(ctx, "dm", input.content, input.format);
   if (!text) throw unprocessable("EMPTY_MESSAGE", "Message is empty");
   await ctx.db.run("UPDATE messages SET content = ?, content_text = ?, edited_at = ? WHERE id = ?", content, text, nowIso(ctx), id);
   const fresh = (await findMessageRow(ctx, actor.workspaceId, id))!;

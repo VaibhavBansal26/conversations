@@ -3,8 +3,9 @@ import { nowIso } from "../context.js";
 
 import { AppError } from "../errors.js";
 import { classifySmsKeyword, lockChannel } from "../channels/rules.js";
+import { sanitizeBody } from "./messages.js";
 import { claimEvent } from "../webhooks/signatures.js";
-import { cleanPlainText, htmlToText, sanitizeHtml, textToHtml } from "../util/html.js";
+import { cleanPlainText, htmlToText, textToHtml } from "../util/html.js";
 import { sha256 } from "../util/crypto.js";
 import { normalizeEmail, normalizePhone } from "../util/phone.js";
 import { findByEmail, findOrCreateContact, setSmsOptOut, type ContactRow } from "./contacts.js";
@@ -183,8 +184,16 @@ export async function handleInboundEmail(ctx: AppContext, p: InboundEmail): Prom
       })
     ).room;
   }
-  const html = p.html?.trim() ? sanitizeHtml(p.html) : textToHtml(cleanPlainText(p.text ?? ""));
-  const text = p.text?.trim() ? cleanPlainText(p.text).trim() : htmlToText(html);
+  let html: string;
+  let text: string;
+  if (p.html?.trim()) {
+    const body = await sanitizeBody(ctx, p.html);
+    html = body.html;
+    text = p.text?.trim() ? cleanPlainText(p.text).trim() : body.text;
+  } else {
+    html = textToHtml(cleanPlainText(p.text ?? ""));
+    text = p.text?.trim() ? cleanPlainText(p.text).trim() : htmlToText(html);
+  }
   if (!text && !html) return { status: "ignored", room_id: room.id };
   if (!room.subject && p.subject?.trim()) await ctx.db.run("UPDATE rooms SET subject = ? WHERE id = ?", p.subject.trim(), room.id);
 
