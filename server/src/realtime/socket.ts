@@ -295,7 +295,7 @@ const decodeExp = (token: string): number => {
 async function useRedisAdapter(io: Server, ctx: AppContext): Promise<boolean> {
   if (!ctx.redis) return false;
   const { createAdapter } = await import("@socket.io/redis-adapter");
-  io.adapter(createAdapter(ctx.redis.duplicate(), ctx.redis.duplicate()) as never);
+  io.adapter(createAdapter(ctx.redis.duplicate(), ctx.redis.duplicate(), { key: ctx.redis.k("socket.io") }) as never);
   ctx.log.info("socket.io redis adapter enabled", { node: ctx.nodeId });
   return true;
 }

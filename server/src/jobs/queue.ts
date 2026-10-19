@@ -135,6 +135,7 @@ export class BullJobQueue implements JobQueue {
   ) {
     this.queue = new Queue(QUEUE_NAME, {
       connection: hub.duplicate(),
+      prefix: hub.k("bull"),
       defaultJobOptions: { removeOnComplete: { age: 3600, count: 5000 }, removeOnFail: { age: 7 * 86400 } },
     });
   }
@@ -156,7 +157,7 @@ export class BullJobQueue implements JobQueue {
         if (!h) throw new Error(`no handler for job type ${job.name}`);
         await this.ctx.db.detached(() => h(this.ctx, job.data));
       },
-      { connection: this.hub.duplicate(), concurrency: this.concurrency },
+      { connection: this.hub.duplicate(), prefix: this.hub.k("bull"), concurrency: this.concurrency },
     );
     this.worker.on("failed", (job, err) => {
       if (job && job.attemptsMade >= (job.opts.attempts ?? 1)) this.ctx.log.error("job failed permanently", { job: job.id, type: job.name, error: err.message });

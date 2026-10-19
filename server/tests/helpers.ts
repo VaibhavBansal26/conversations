@@ -92,6 +92,8 @@ export function testConfig(env: Record<string, string> = {}): Config {
       WEB_DIST: join(dir, "no-web-build"),
       LOG_LEVEL: "silent",
       CACHE_TTL_MS: "0",
+      // with TEST_REDIS the whole suite also runs on the Redis paths (limiter, presence, locks, cache invalidation); each context gets its own key prefix
+      ...(process.env.TEST_REDIS_URL ? { REDIS_URL: process.env.TEST_REDIS_URL, REDIS_PREFIX: `t${randomBytes(4).toString("hex")}`, JOB_QUEUE: "db" } : {}),
       PUBLIC_URL: "http://localhost:3000",
       SEND_RETRY_BASE_SECONDS: "10",
       SEND_RETRY_CAP_SECONDS: "100",

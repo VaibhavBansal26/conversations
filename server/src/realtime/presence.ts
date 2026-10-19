@@ -59,6 +59,16 @@ export class Presence {
     this.timers.set(key, t);
   }
 
+  /** Forget a key entirely (no grace period, no callback). */
+  reset(scope: string, id: string): void {
+    const key = this.k(scope, id);
+    const t = this.timers.get(key);
+    if (t) this.clearTimer(t);
+    this.timers.delete(key);
+    this.sockets.delete(key);
+    this.online.delete(key);
+  }
+
   isOnline(scope: string, id: string): boolean {
     return this.online.has(this.k(scope, id));
   }

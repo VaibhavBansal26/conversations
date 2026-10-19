@@ -62,7 +62,7 @@ export class RedisLimiterFactory implements LimiterFactory {
         take: async (key, cost = 1) => {
           try {
             const r = await (this.hub.client as unknown as { tokenBucket(k: string, a: number, b: number, c: number): Promise<number> }).tokenBucket(
-              `rl:${name}:${key}`,
+              this.hub.k(`rl:${name}:${key}`),
               capacity,
               perSecond,
               cost,

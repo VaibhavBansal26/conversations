@@ -124,7 +124,7 @@ describe("offline notification emails", () => {
     expect(w.ctx.email.sent).toHaveLength(0);
     await w.ctx.presence.disconnect(memberScope(w.wsId), w.ann.memberId, `sock-${w.ann.memberId}`);
     w.ctx.clockCtl.advance(10_000); // presence grace is real-timer based; force offline for the rest of this test
-    (w.ctx.presence as any).engine.online.clear();
+    await w.ctx.presence.forceOffline(memberScope(w.wsId), w.ann.memberId);
     await updateMember(w.ctx, w.owner, w.ann.memberId, { dnd_until: new Date(w.ctx.clock().getTime() + 3600_000).toISOString() });
     await w.fire();
     expect(w.ctx.email.sent).toHaveLength(0);
@@ -148,8 +148,7 @@ describe("offline notification emails", () => {
     await w.goOnline(w.ann);
     await tick(w.ctx, { jobs: true });
     expect(w.ctx.email.sent).toHaveLength(0);
-    (w.ctx.presence as any).engine.online.clear();
-    (w.ctx.presence as any).engine.sockets.clear();
+    await w.ctx.presence.forceOffline(memberScope(w.wsId), w.ann.memberId);
     await notifyContactMessage(w.ctx, await roomRow(w.ctx, w.room.id), await w.msg("two"));
     await snoozeRoom(w.ctx, w.owner, w.room.id, new Date(w.ctx.clock().getTime() + 3600_000).toISOString());
     await tick(w.ctx, { jobs: true });

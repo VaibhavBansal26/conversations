@@ -2,7 +2,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { spawn } from "node:child_process";
 import EmbeddedPostgres from "embedded-postgres";
+import { Redis } from "ioredis";
 
 const freePort = () =>
   new Promise<number>((resolve) => {
@@ -12,11 +14,41 @@ const freePort = () =>
     });
   });
 
+async function startRedis(): Promise<(() => Promise<void>) | undefined> {
+  if (!process.env.TEST_REDIS || process.env.TEST_REDIS_URL) return;
+  const port = await freePort();
+  const proc = spawn("redis-server", ["--port", String(port), "--bind", "127.0.0.1", "--save", "", "--appendonly", "no"], { stdio: "ignore" });
+  const url = `redis://127.0.0.1:${port}`;
+  for (let i = 0; i < 100; i++) {
+    const r = new Redis(url, { lazyConnect: true, maxRetriesPerRequest: 0, retryStrategy: () => null });
+    r.on("error", () => {});
+    try {
+      await r.connect();
+      await r.ping();
+      r.disconnect();
+      break;
+    } catch {
+      r.disconnect();
+      await new Promise((res) => setTimeout(res, 50));
+    }
+  }
+  process.env.TEST_REDIS_URL = url;
+  return async () => void proc.kill("SIGTERM");
+}
+
 /**
- * `TEST_DB=postgres npm test` runs the whole suite against PostgreSQL. Point TEST_DATABASE_URL at a server (CI service container,
- * `docker run postgres:17`) or leave it unset to boot a throwaway embedded PostgreSQL for the duration of the run.
+ * Optional real backends for the suite (all in-process/local, no Docker needed):
+ *   TEST_DB=postgres  -> PostgreSQL (TEST_DATABASE_URL, e.g. a CI service container; otherwise a throwaway embedded PostgreSQL)
+ *   TEST_REDIS=1      -> redis-server on a random port (TEST_REDIS_URL, e.g. a CI service container, otherwise a spawned local redis-server)
  */
 export default async function setup() {
+  const stops = [await startPostgres(), await startRedis()].filter(Boolean) as (() => Promise<void>)[];
+  return async () => {
+    for (const s of stops) await s();
+  };
+}
+
+async function startPostgres(): Promise<(() => Promise<void>) | undefined> {
   if (process.env.TEST_DB !== "postgres" || process.env.TEST_DATABASE_URL) return;
   const dir = mkdtempSync(join(tmpdir(), "conv-pg-"));
   const port = await freePort();

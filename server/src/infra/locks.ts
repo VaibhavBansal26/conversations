@@ -28,7 +28,7 @@ export class RedisLocks implements Locks {
   }
   async withLock<T>(name: string, ttlMs: number, fn: () => Promise<T>) {
     const token = randomUUID();
-    const key = `lock:${name}`;
+    const key = this.hub.k(`lock:${name}`);
     const ok = await this.hub.client.set(key, token, "PX", ttlMs, "NX");
     if (ok !== "OK") return undefined;
     try {

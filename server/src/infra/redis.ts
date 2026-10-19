@@ -14,10 +14,16 @@ export class RedisHub {
   constructor(
     readonly url: string,
     private readonly log: Logger,
+    readonly prefix = "conv",
   ) {
     this.client = this.make();
     this.subscriber = this.make();
     this.subscriber.on("message", (channel: string, msg: string) => this.handlers.get(channel)?.forEach((h) => h(msg)));
+  }
+
+  /** every key and channel this app touches goes through here */
+  k(name: string): string {
+    return `${this.prefix}:${name}`;
   }
 
   private make(opts: RedisOptions = {}): Redis {
@@ -34,6 +40,7 @@ export class RedisHub {
   }
 
   async subscribe(channel: string, handler: (msg: string) => void): Promise<void> {
+    channel = this.k(channel);
     let set = this.handlers.get(channel);
     if (!set) {
       set = new Set();
@@ -44,7 +51,7 @@ export class RedisHub {
   }
 
   publish(channel: string, msg: string): Promise<number> {
-    return this.client.publish(channel, msg);
+    return this.client.publish(this.k(channel), msg);
   }
 
   async ping(): Promise<boolean> {

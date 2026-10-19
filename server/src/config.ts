@@ -31,6 +31,8 @@ const schema = z.object({
   /** "auto" = Redis adapter when REDIS_URL is set, in-memory otherwise */
   SOCKET_ADAPTER: z.enum(["auto", "memory", "redis"]).default("auto"),
   REDIS_URL: z.string().optional(),
+  /** namespaces every Redis key and channel (several environments can share one Redis) */
+  REDIS_PREFIX: z.string().default("conv"),
   JOB_QUEUE: z.enum(["auto", "db", "bullmq"]).default("auto"),
   CACHE_TTL_MS: z.coerce.number().int().min(0).default(3000),
   NODE_ID: z.string().optional(),

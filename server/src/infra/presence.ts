@@ -9,6 +9,8 @@ export interface PresenceService {
   disconnect(scope: string, id: string, socketId: string): Promise<void>;
   isOnline(scope: string, id: string): Promise<boolean>;
   onlineIds(scope: string): Promise<string[]>;
+  /** Drop a seat from presence immediately, skipping the grace period (tests, admin tooling). */
+  forceOffline(scope: string, id: string): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -25,6 +27,9 @@ export class MemoryPresenceService implements PresenceService {
   }
   async onlineIds(scope: string) {
     return this.engine.onlineIds(scope);
+  }
+  async forceOffline(scope: string, id: string) {
+    this.engine.reset(scope, id);
   }
   async close() {}
 }
@@ -76,9 +81,9 @@ export class RedisPresenceService implements PresenceService {
 
   private ttl = () => this.opts.ttlMs ?? 30_000;
   private k = (scope: string, id: string) => `${scope}${SEP}${id}`;
-  private zk = (key: string) => `pres:z:${key}`;
-  private gk = (key: string) => `pres:g:${key}`;
-  private fk = () => `pres:flag`;
+  private zk = (key: string) => this.hub.k(`pres:z:${key}`);
+  private gk = (key: string) => this.hub.k(`pres:g:${key}`);
+  private fk = () => this.hub.k("pres:flag");
   private cmd = () => this.hub.client as unknown as { presConnect(...a: unknown[]): Promise<number>; presSweep(...a: unknown[]): Promise<number> };
 
   async connect(scope: string, id: string, socketId: string) {
@@ -133,6 +138,13 @@ export class RedisPresenceService implements PresenceService {
   async onlineIds(scope: string) {
     const flagged = await this.hub.client.hkeys(this.fk());
     return flagged.filter((k) => k.startsWith(`${scope}${SEP}`)).map((k) => k.slice(scope.length + 1));
+  }
+
+  async forceOffline(scope: string, id: string) {
+    const key = this.k(scope, id);
+    this.local.delete(key);
+    await this.hub.client.del(this.zk(key), this.gk(key));
+    await this.hub.client.hdel(this.fk(), key);
   }
 
   async close() {

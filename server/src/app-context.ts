@@ -47,7 +47,7 @@ export async function createContext(config: Config, o: ContextOverrides = {}): P
   await migrate(db);
   const bus = o.bus ?? new RecordingBus();
   const nodeId = config.NODE_ID ?? `${hostname()}-${randomBytes(3).toString("hex")}`;
-  const hub = config.REDIS_URL && !o.noRedis ? new RedisHub(config.REDIS_URL, log) : null;
+  const hub = config.REDIS_URL && !o.noRedis ? new RedisHub(config.REDIS_URL, log, config.REDIS_PREFIX) : null;
   const clock = o.clock ?? (() => new Date());
 
   const cache = new LocalCache(config.CACHE_TTL_MS, () => ctxRef.clock().getTime());
