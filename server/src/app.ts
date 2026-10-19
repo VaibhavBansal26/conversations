@@ -6,6 +6,7 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { timeout } from "hono/timeout";
 import { bodyLimit } from "hono/body-limit";
+import { compress } from "hono/compress";
 import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import { ZodError } from "zod";
@@ -20,7 +21,7 @@ import { roomRoutes } from "./routes/rooms.js";
 import { settingsRoutes } from "./routes/settings.js";
 import { teamRoutes } from "./routes/team.js";
 import { webhookRoutes } from "./routes/webhooks.js";
-import { readPublicFile, serveSpa } from "./static.js";
+import { compressed, readPublicFile, serveSpa } from "./static.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 // `src/` and `dist/` both sit next to `public/`
@@ -45,6 +46,7 @@ export function createApp(ctx: AppContext): Hono {
       ctx.log.info("request", { request_id: rid, node: ctx.nodeId, method: c.req.method, path, status: c.res.status, ms: Math.round(sec * 1000) });
     }
   });
+  app.use("/api/*", compress({ threshold: 1024 }));
   app.use("/api/*", timeout(ctx.config.REQUEST_TIMEOUT_MS, () => new HTTPException(504, { message: "Request timed out" })));
   app.use("/public/*", timeout(ctx.config.REQUEST_TIMEOUT_MS, () => new HTTPException(504, { message: "Request timed out" })));
   app.use("*", secureHeaders({ crossOriginResourcePolicy: false, contentSecurityPolicy: undefined }));
@@ -124,12 +126,13 @@ export function createApp(ctx: AppContext): Hono {
   app.get("/widget.js", (c) => {
     const f = readPublicFile(PUBLIC_DIR, "widget.js");
     if (!f) return c.notFound();
-    return c.body(new Uint8Array(f), 200, {
+    // short max-age plus revalidation: an embed on a customer's site picks up a widget fix within minutes, and a 304 costs ~nothing
+    return compressed(c.req.header("accept-encoding"), c.req.header("if-none-match"), f, {
       "Content-Type": "application/javascript; charset=utf-8",
-      "Cache-Control": "public, max-age=300",
+      "Cache-Control": "public, max-age=300, stale-while-revalidate=86400",
       "Access-Control-Allow-Origin": "*",
       "Cross-Origin-Resource-Policy": "cross-origin",
-    });
+    }, "widget.js");
   });
   app.get("/widget-demo.html", (c) => {
     const f = readPublicFile(PUBLIC_DIR, "widget-demo.html");

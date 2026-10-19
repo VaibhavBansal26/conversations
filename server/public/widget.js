@@ -353,14 +353,23 @@
       if (state.socket || !state.session) return;
       var io = ioFactory();
       if (!io) { loadSocketScript().then(connectSocket).catch(startPolling); return; }
-      var socket = io(base + "/ws/" + state.session.workspace_id, { auth: { session: state.session.session_token, deviceId: deviceId }, transports: ["websocket", "polling"], reconnection: true });
+      var socket = io(base + "/ws/" + state.session.workspace_id, { auth: { session: state.session.session_token, deviceId: deviceId }, transports: ["websocket", "polling"], reconnection: true, reconnectionDelay: 1000, reconnectionDelayMax: 30000, randomizationFactor: 0.8 });
       state.socket = socket;
       socket.on("connect", function () {
         state.connected = true; stopPolling();
         if (els.banner) els.banner.hidden = true;
         loadMessages().then(function () { renderMessages(); flushPending(); });
       });
-      socket.on("disconnect", function () { state.connected = false; if (els.banner) els.banner.hidden = false; });
+      socket.on("disconnect", function (reason) {
+        state.connected = false; if (els.banner) els.banner.hidden = false;
+        // the server closed us on purpose (drain / limit): wait a random time so a whole fleet does not return in the same second
+        if (reason === "io server disconnect") {
+          var wait = state.drainWait != null ? state.drainWait : 500 + Math.random() * 4500;
+          state.drainWait = null;
+          setTimeout(function () { if (!state.destroyed && state.socket === socket) socket.connect(); }, wait);
+        }
+      });
+      socket.on("server:draining", function (p) { state.drainWait = Math.max(500, (p && p.reconnect_in_ms) || 0) + Math.random() * 1000; });
       socket.on("connect_error", function () { state.connected = false; if (els.banner) els.banner.hidden = false; startPolling(); });
       socket.on("message:new", function (p) { onIncoming(p.message); });
       socket.on("message:updated", function (p) { upsert(p.message); renderMessages(); });

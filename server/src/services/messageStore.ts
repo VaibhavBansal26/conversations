@@ -107,8 +107,13 @@ async function rawInsert(ctx: AppContext, m: NewMessage, now: string): Promise<M
     m.toAddr ?? null,
     now,
   );
-  for (const member of new Set(m.mentions ?? [])) {
-    await ctx.db.run("INSERT OR IGNORE INTO message_mentions(message_id, room_id, workspace_id, member_id) VALUES (?,?,?,?)", id, m.roomId, m.workspaceId, member);
+  const mentioned = [...new Set(m.mentions ?? [])];
+  if (mentioned.length) {
+    // one statement however many people are mentioned
+    await ctx.db.run(
+      `INSERT OR IGNORE INTO message_mentions(message_id, room_id, workspace_id, member_id) VALUES ${mentioned.map(() => "(?,?,?,?)").join(",")}`,
+      ...mentioned.flatMap((member) => [id, m.roomId, m.workspaceId, member]),
+    );
   }
   return (await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE id = ?", id))!;
 }

@@ -4,10 +4,12 @@ import { closeContext, createContext } from "./app-context.js";
 import { loadConfig } from "./config.js";
 import { startScheduler } from "./jobs/scheduler.js";
 import { createLogger } from "./logger.js";
+import { startTelemetry } from "./telemetry.js";
 import { SocketBus, attachSocketServer } from "./realtime/socket.js";
 
 const config = loadConfig();
 const log = createLogger(config.LOG_LEVEL);
+const stopTelemetry = await startTelemetry(log);
 const bus = new SocketBus();
 const ctx = await createContext(config, { log, bus });
 const app = createApp(ctx);
@@ -46,6 +48,7 @@ async function shutdown(signal: string) {
   await new Promise<void>((resolve) => (server as import("node:http").Server).close(() => resolve()));
   await sockets.close();
   await closeContext(ctx);
+  await stopTelemetry().catch(() => {});
   log.info("shutdown complete", { node: ctx.nodeId });
   process.exit(0);
 }
