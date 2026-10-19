@@ -63,7 +63,8 @@ export class RedisHub {
   }
 
   async close(): Promise<void> {
-    await Promise.allSettled([this.client.quit(), this.subscriber.quit(), ...this.extras.map((r) => r.quit())]);
+    // QUIT waits for the server; with Redis down it would hang shutdown, so give it a moment and then cut the connections
+    await Promise.race([Promise.allSettled([this.client.quit(), this.subscriber.quit(), ...this.extras.map((r) => r.quit())]), new Promise((r) => setTimeout(r, 1500).unref())]);
     for (const r of [this.client, this.subscriber, ...this.extras]) r.disconnect();
   }
 }

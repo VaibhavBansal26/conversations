@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { RateLimitedError, overloaded } from "../ratelimit/http.js";
 import type { AppContext } from "../context.js";
 import { forbidden } from "../errors.js";
 import { parseBody, parseQuery, requireLiveSeat, requireManager, type Env } from "../http.js";
@@ -89,7 +90,12 @@ export function teamRoutes(ctx: AppContext) {
       const f = (await c.req.parseBody())["file"];
       csv = typeof f === "string" ? f : f ? await f.text() : "";
     } else csv = await c.req.text();
-    return c.json(await importContactsCsv(ctx, c.get("actor").workspaceId, csv));
+    const ws = c.get("actor").workspaceId;
+    return c.json(
+      await ctx.ratelimit.withLease("heavy.concurrency", ws, ws, () => importContactsCsv(ctx, ws, csv), (r) => {
+        throw new RateLimitedError(overloaded("heavy.concurrency", r.max));
+      }),
+    );
   });
   r.get("/contacts/:id", async (c) => c.json(await contactDto(ctx, await getContact(ctx, c.get("actor").workspaceId, c.req.param("id")))));
   r.patch("/contacts/:id", async (c) => {

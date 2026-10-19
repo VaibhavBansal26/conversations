@@ -4,7 +4,8 @@ import type { z } from "zod";
 import type { AppContext } from "./context.js";
 import type { Actor } from "./domain/types.js";
 import { resolveClientIp } from "./util/clientIp.js";
-import { AppError, badRequest, forbidden, tooMany, unauthorized } from "./errors.js";
+import { AppError, badRequest, forbidden, unauthorized } from "./errors.js";
+import { applyPrincipalLimits } from "./ratelimit/http.js";
 import { actorFromToken } from "./services/auth.js";
 
 export interface Env {
@@ -20,7 +21,7 @@ export function clientIp(ctx: AppContext, c: Context): string {
   }
   const headers: Record<string, string | undefined> = {};
   for (const n of ["x-edge-secret", "cf-connecting-ip", "x-forwarded-for"]) headers[n] = c.req.header(n);
-  return resolveClientIp({ trustProxy: ctx.config.TRUST_PROXY, edgeSecret: ctx.config.CF_SHARED_SECRET }, headers, remote) ?? "unknown";
+  return resolveClientIp({ trustProxy: ctx.config.TRUST_PROXY, edgeSecret: ctx.config.CF_SHARED_SECRET, proxyHops: ctx.config.TRUSTED_PROXY_HOPS }, headers, remote) ?? "unknown";
 }
 
 /** The caller's address, or null when it cannot be determined (never a shared placeholder that could "match"). */
@@ -52,24 +53,15 @@ export function validate<S extends z.ZodType>(schema: S, raw: unknown): z.infer<
 export const parseQuery = <S extends z.ZodType>(c: Context, schema: S): z.infer<S> => validate(schema, c.req.query());
 
 /** Token-bucket limiter middleware. `key` defaults to the client IP. */
-export function rateLimit(ctx: AppContext, name: string, capacity: number, perSecond: number, key?: (c: Context) => string): MiddlewareHandler {
-  const l = ctx.limiters.get(name, capacity, perSecond);
-  return async (c, next) => {
-    if (!(await l.take(key ? key(c) : clientIp(ctx, c)))) {
-      c.header("Retry-After", String(Math.ceil(1 / perSecond)));
-      throw tooMany();
-    }
-    await next();
-  };
-}
-
 /** Bearer JWT -> live seat. The seat (role, flags) is always read from the database. */
 export function requireAuth(ctx: AppContext): MiddlewareHandler<Env> {
   return async (c, next) => {
     const h = c.req.header("authorization");
     const token = h?.startsWith("Bearer ") ? h.slice(7).trim() : undefined;
     if (!token) throw unauthorized();
-    c.set("actor", await actorFromToken(ctx, token));
+    const actor = await actorFromToken(ctx, token);
+    c.set("actor", actor);
+    await applyPrincipalLimits(ctx, c, { userId: actor.memberId, workspaceId: actor.workspaceId });
     await next();
   };
 }

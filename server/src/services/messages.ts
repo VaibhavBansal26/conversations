@@ -1,3 +1,4 @@
+import { enforceSendLimits } from "../ratelimit/enforce.js";
 import type { AppContext } from "../context.js";
 import { nowIso } from "../context.js";
 import { isUniqueViolation } from "../db/index.js";
@@ -130,6 +131,7 @@ export async function sendAgentMessage(ctx: AppContext, actor: Actor, roomId: st
   const dup = await existingByQid(ctx, roomId, input.client_msg_id);
   if (dup) return { message: dup, created: false };
   checkMatrix(input);
+  await enforceSendLimits(ctx, { workspaceId: actor.workspaceId, roomId, contactId: room.contact_id, clientMsgId: input.client_msg_id, external: input.kind !== "note" && input.source !== "dm" ? (input.source as "sms" | "email") : null });
   await validateRef(ctx, room, input.ref_message_id);
   const attachments = input.attachment_ids?.length ? await resolveAttachments(ctx, actor.workspaceId, input.attachment_ids) : [];
   const { content, text } = await processContentFor(ctx, input.source, input.content ?? "", input.format);

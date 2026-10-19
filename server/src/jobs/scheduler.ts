@@ -1,7 +1,7 @@
 import type { AppContext } from "../context.js";
 import { addMinutes } from "../util/time.js";
 import { collectDigests, sendDigestEmail } from "../services/digest.js";
-import { retryDelivery } from "../services/delivery.js";
+import { retryDelivery, deliverMessage } from "../services/delivery.js";
 import { applyDelivery } from "../services/inbound.js";
 import type { MessageRow } from "../services/messageStore.js";
 import type { RoomRow } from "../services/roomStore.js";
@@ -12,6 +12,7 @@ import { enqueueJob, runDueJobs, type JobHandler } from "./queue.js";
 
 export const jobHandlers: Record<string, JobHandler> = {
   send_retry: async (ctx, p: { message_id: string }) => void (await retryDelivery(ctx, p.message_id)),
+  paced_send: async (ctx, p: { message_id: string }) => void (await deliverMessage(ctx, p.message_id, { paced: true })),
   notify_email: (ctx, p) => sendNotificationEmail(ctx, p),
   digest_email: (ctx, p) => sendDigestEmail(ctx, p),
   wake_room: async (ctx, p: { room_id: string; until: string }) => {

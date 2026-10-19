@@ -3,7 +3,7 @@ import type { Db } from "./db/index.js";
 import type { Logger } from "./logger.js";
 import type { RealtimeBus } from "./realtime/bus.js";
 import type { PresenceService } from "./infra/presence.js";
-import type { LimiterFactory } from "./infra/limiter.js";
+import type { RateLimiter } from "./ratelimit/limiter.js";
 import type { Cache } from "./infra/cache.js";
 import type { Locks } from "./infra/locks.js";
 import type { RedisHub } from "./infra/redis.js";
@@ -26,7 +26,7 @@ export interface AppContext {
   email: EmailProvider;
   storage: Storage;
   ai: AiProvider;
-  limiters: LimiterFactory;
+  ratelimit: RateLimiter;
   cache: Cache;
   locks: Locks;
   queue: JobQueue;

@@ -1,9 +1,11 @@
 import { Hono } from "hono";
 import type { AppContext } from "../context.js";
-import { rateLimit, parseBody, requireLiveSeat, requireManager, type Env } from "../http.js";
+import { parseBody, requireLiveSeat, requireManager, type Env } from "../http.js";
 import { AiRoomBody, InboundAddressBody, KbBody, RephraseBody, SenderBody, SmsNumberBody, TemplateBody, TemplateRender, TokenBody } from "../schemas.js";
 import { suggestReplies, summarizeThread, rephraseDraft } from "../ai/service.js";
 import { AiOutputError, AiUnavailableError } from "../ai/provider.js";
+import type { MiddlewareHandler } from "hono";
+import { RateLimitedError, enforce, overloaded } from "../ratelimit/http.js";
 import { AppError } from "../errors.js";
 import {
   addInboundAddress,
@@ -103,7 +105,14 @@ export function settingsRoutes(ctx: AppContext) {
     return c.body(null, 204);
   });
 
-  const aiLimit = rateLimit(ctx, "ai", 20, 0.5, (c) => c.get("actor").memberId);
+  // per-user bucket and the generic API layers come from routePolicies.ts; here the per-workspace daily budget and the concurrency cap
+  const aiLimit: MiddlewareHandler<Env> = async (c, next) => {
+    const a = c.get("actor");
+    await enforce(ctx, "ai.workspace", { key: a.workspaceId, workspaceId: a.workspaceId });
+    await ctx.ratelimit.withLease("ai.concurrency", a.workspaceId, a.workspaceId, next, (r) => {
+      throw new RateLimitedError(overloaded("ai.concurrency", r.max));
+    });
+  };
   r.get("/ai/status", (c) => c.json({ provider: ctx.ai.name, offline_heuristics: ctx.ai.name === "heuristic" }));
   r.post("/ai/suggest-replies", requireLiveSeat, aiLimit, async (c) => {
     const b = await parseBody(c, AiRoomBody);

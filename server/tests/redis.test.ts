@@ -1,7 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { LocalCache } from "../src/infra/cache.js";
-import { MemoryLimiterFactory, RedisLimiterFactory } from "../src/infra/limiter.js";
 import { MemoryLocks, RedisLocks } from "../src/infra/locks.js";
 import { MemoryPresenceService, RedisPresenceService } from "../src/infra/presence.js";
 import { RedisHub } from "../src/infra/redis.js";
@@ -33,44 +32,7 @@ afterAll(async () => {
   for (const h of hubs.splice(0)) await h.close();
 });
 
-redis("distributed rate limiting (Lua token bucket)", () => {
-  it("admits exactly `capacity` requests across nodes under a concurrent burst", async () => {
-    const p = prefix();
-    const nodes = [new RedisLimiterFactory(hub(p)), new RedisLimiterFactory(hub(p)), new RedisLimiterFactory(hub(p))];
-    const results = await Promise.all(Array.from({ length: 120 }, (_, i) => nodes[i % 3]!.get("burst", 20, 0.001).take("client-1")));
-    expect(results.filter(Boolean)).toHaveLength(20);
-  });
-  it("refills over time, isolates keys and names, and supports cost", async () => {
-    const f = new RedisLimiterFactory(hub(prefix()));
-    const l = f.get("refill", 3, 20); // 20 tokens/second
-    expect([await l.take("a"), await l.take("a"), await l.take("a"), await l.take("a")]).toEqual([true, true, true, false]);
-    expect(await l.take("b")).toBe(true);
-    await sleepMs(180);
-    expect(await l.take("a")).toBe(true);
-    expect(await f.get("other", 3, 20).take("a")).toBe(true);
-    expect(await f.get("cost", 5, 0.001).take("k", 5)).toBe(true);
-    expect(await f.get("cost", 5, 0.001).take("k", 1)).toBe(false);
-  });
-  it("matches the in-memory limiter's behaviour for a simple sequence", async () => {
-    const mem = new MemoryLimiterFactory(() => Date.now()).get("same", 4, 0.001);
-    const red = new RedisLimiterFactory(hub(prefix())).get("same", 4, 0.001);
-    const a: boolean[] = [];
-    const b: boolean[] = [];
-    for (let i = 0; i < 6; i++) {
-      a.push(await mem.take("k"));
-      b.push(await red.take("k"));
-    }
-    expect(b).toEqual(a);
-  });
-  it("fails open (and reports) when Redis is unreachable", async () => {
-    const h = hub(prefix());
-    const errors: unknown[] = [];
-    const l = new RedisLimiterFactory(h, (e) => errors.push(e)).get("x", 1, 1);
-    await h.client.quit();
-    h.client.disconnect();
-    expect(await l.take("k")).toBe(true);
-    expect(errors.length).toBeGreaterThan(0);
-  });
+redis("distributed rate limiting across app nodes", () => {
   it("rate limits REST traffic across two app nodes", async () => {
     const p = prefix();
     const a = await makeCtx({ REDIS_URL: url!, REDIS_PREFIX: p });
@@ -78,10 +40,10 @@ redis("distributed rate limiting (Lua token bucket)", () => {
     const apps = [createApp(a), createApp(b)];
     let ok = 0;
     for (let i = 0; i < 24; i++) {
-      const res = await apps[i % 2]!.request("/api/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "x@example.test", password: "wrong-wrong" }) });
+      const res = await apps[i % 2]!.request("/api/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: `x${i}@example.test`, password: "wrong-wrong" }) });
       if (res.status === 401) ok++;
     }
-    expect(ok).toBe(10); // the login bucket is 10, shared by both nodes
+    expect(ok).toBe(10); // the per-IP login bucket is 10, shared by both nodes (distinct emails, so the per-account lockout is not what stops it)
   });
 });
 

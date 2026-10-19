@@ -13,6 +13,7 @@ const stopTelemetry = await startTelemetry(log);
 const bus = new SocketBus();
 const ctx = await createContext(config, { log, bus });
 const app = createApp(ctx);
+if (config.RATE_LIMIT_SCALE !== 1) log.warn("RATE_LIMIT_SCALE is not 1: every rate limit is multiplied. Load testing only.", { scale: config.RATE_LIMIT_SCALE });
 
 const server = serve({ fetch: app.fetch, port: config.PORT, hostname: config.HOST }, (info) => {
   log.info("conversations server listening", {

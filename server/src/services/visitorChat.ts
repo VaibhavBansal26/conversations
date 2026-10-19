@@ -1,3 +1,4 @@
+import { enforceSendLimits } from "../ratelimit/enforce.js";
 import type { AppContext } from "../context.js";
 import { isUniqueViolation } from "../db/index.js";
 import { AppError, notFound, unprocessable } from "../errors.js";
@@ -20,8 +21,9 @@ function roomScope(s: SessionRow): { sql: string; params: string[] } {
 
 const fresh = async (ctx: AppContext, s: SessionRow) => (await ctx.db.get<SessionRow>("SELECT * FROM visitor_sessions WHERE id = ?", s.id)) ?? s;
 
-export async function visitorRooms(ctx: AppContext, session: SessionRow): Promise<RoomRow[]> {
-  const s = await fresh(ctx, session);
+/** `reload: false` trusts the row the caller just read (socket connect path), saving a query per connection. */
+export async function visitorRooms(ctx: AppContext, session: SessionRow, opts: { reload?: boolean } = {}): Promise<RoomRow[]> {
+  const s = opts.reload === false ? session : await fresh(ctx, session);
   const sc = roomScope(s);
   return await ctx.db.all<RoomRow>(
     `SELECT r.* FROM rooms r WHERE r.workspace_id = ? AND r.archived = 0 AND ${sc.sql} ORDER BY r.created_at`,
@@ -94,6 +96,7 @@ export async function visitorSend(
     input.client_msg_id ? await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE room_id = ? AND client_msg_id = ?", roomId, input.client_msg_id) : undefined;
   const dup = await findDup();
   if (dup) return { message: dup, created: false, room };
+  await enforceSendLimits(ctx, { workspaceId: room.workspace_id, roomId, contactId: room.contact_id, clientMsgId: input.client_msg_id });
   const raw = input.content ?? "";
   if (raw.length > VISITOR_MAX_CHARS) throw unprocessable("CONTENT_TOO_LONG", `Messages are limited to ${VISITOR_MAX_CHARS} characters`);
   const { content, text } = processContent("dm", raw, "text");

@@ -3,7 +3,9 @@ import type { Context } from "hono";
 import type { AppContext } from "../context.js";
 import { publicWidgetConfig } from "../domain/settings.js";
 import { badRequest, forbidden } from "../errors.js";
-import { knownIp, parseBody, parseQuery, rateLimit } from "../http.js";
+import { knownIp, parseBody, parseQuery } from "../http.js";
+import { applyPrincipalLimits, enforce } from "../ratelimit/http.js";
+import { ipKey } from "../util/clientIp.js";
 import { MessageListQuery, OtpVerify, ReadBody, SessionBody, VisitorSend } from "../schemas.js";
 import { listMemberRows } from "../services/members.js";
 import { loadRefs, visitorMessageDto } from "../services/messageStore.js";
@@ -33,7 +35,7 @@ export function publicRoutes(ctx: AppContext) {
 
   const tokenAuth = (c: Context) => authenticateToken(ctx, c.req.header("x-api-key"), c.req.header("origin"));
 
-  r.get("/widget/config", rateLimit(ctx, "public-config", 60, 1), async (c) => {
+  r.get("/widget/config", async (c) => {
     const token = await tokenAuth(c);
     const ws = await getWorkspace(ctx, token.workspace_id);
     const widget = (await getSettings(ctx, ws.id)).widget;
@@ -56,7 +58,7 @@ export function publicRoutes(ctx: AppContext) {
     });
   });
 
-  r.post("/sessions", rateLimit(ctx, "public-session", 20, 20 / 60), async (c) => {
+  r.post("/sessions", async (c) => {
     const token = await tokenAuth(c);
     const device = c.req.header("x-device-id") ?? "";
     if (!DEVICE_RE.test(device)) throw badRequest("DEVICE_ID_REQUIRED", "x-device-id header (8-64 chars of A-Z a-z 0-9 _ -) is required");
@@ -76,33 +78,39 @@ export function publicRoutes(ctx: AppContext) {
       if (!t || t.status !== "active" || !originMatches(origin, t.domain)) throw forbidden("This origin is not allowed", "ORIGIN_NOT_ALLOWED");
     }
     c.set("session", s);
+    await applyPrincipalLimits(ctx, c, { visitorId: s.id, workspaceId: s.workspace_id });
     await next();
   });
-  const perSession = (name: string, cap: number, perSec: number) => rateLimit(ctx, name, cap, perSec, (c) => (c.get("session" as never) as SessionRow).id);
 
   r.get("/session", async (c) => {
     const s = c.get("session");
     return c.json(sessionDto(s, await getContact(ctx, s.workspace_id, s.contact_id)));
   });
   r.get("/rooms", async (c) => c.json({ data: await visitorRoomDtos(ctx, await visitorRooms(ctx, c.get("session"))) }));
-  r.post("/rooms", perSession("public-room", 10, 0.2), async (c) => {
+  r.post("/rooms", async (c) => {
     const body = await c.req.json().catch(() => ({}));
     const res = await visitorStartRoom(ctx, c.get("session"), { inbox_id: typeof body?.inbox_id === "string" ? body.inbox_id : undefined });
     return c.json({ room: await visitorRoomDto(ctx, res.room), created: res.created }, res.created ? 201 : 200);
   });
   r.get("/rooms/:id/messages", async (c) => c.json(await visitorListMessages(ctx, c.get("session"), c.req.param("id"), parseQuery(c, MessageListQuery))));
-  r.post("/rooms/:id/messages", perSession("public-send", 30, 1), async (c) => {
+  r.post("/rooms/:id/messages", async (c) => {
     const s = c.get("session");
     const res = await visitorSend(ctx, s, c.req.param("id"), await parseBody(c, VisitorSend));
     const room = await getVisitorRoom(ctx, s, c.req.param("id"));
     return c.json(visitorMessageDto(ctx, res.message, room.visitor_read_seq, await loadRefs(ctx, [res.message])), res.created ? 201 : 200);
   });
-  r.post("/rooms/:id/read", perSession("public-read", 60, 2), async (c) =>
+  r.post("/rooms/:id/read", async (c) =>
     c.json(await visitorMarkRead(ctx, c.get("session"), c.req.param("id"), (await parseBody(c, ReadBody)).message_id)),
   );
 
-  r.post("/otp/send", perSession("public-otp", 5, 5 / 600), async (c) => c.json(await sendOtp(ctx, c.get("session"))));
-  r.post("/otp/verify", perSession("public-otp-verify", 10, 10 / 300), async (c) => c.json(await verifyOtp(ctx, c.get("session"), (await parseBody(c, OtpVerify)).code)));
+  r.post("/otp/send", async (c) => {
+    const s = c.get("session");
+    // caps that stop SMS pumping: per contact per day and per IP per hour (the per-session cap already ran)
+    await enforce(ctx, "public.otp.contact", { key: `${s.workspace_id}|${s.contact_id}` });
+    await enforce(ctx, "public.otp.ip", { key: ipKey(knownIp(ctx, c) ?? "unknown") });
+    return c.json(await sendOtp(ctx, s));
+  });
+  r.post("/otp/verify", async (c) => c.json(await verifyOtp(ctx, c.get("session"), (await parseBody(c, OtpVerify)).code)));
 
   return r;
 }

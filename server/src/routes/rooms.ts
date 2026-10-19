@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { AppContext } from "../context.js";
 import { unprocessable } from "../errors.js";
-import { parseBody, parseQuery, rateLimit, requireLiveSeat, type Env } from "../http.js";
+import { parseBody, parseQuery, requireLiveSeat, type Env } from "../http.js";
 import {
   AssignBody,
   BulkBody,
@@ -107,14 +107,10 @@ export function roomRoutes(ctx: AppContext) {
   r.post("/rooms/:id/read", async (c) => c.json(await markRead(ctx, c.get("actor"), c.req.param("id"), (await parseBody(c, ReadBody)).message_id)));
 
   r.get("/rooms/:id/messages", async (c) => c.json(await listMessagesForAgent(ctx, c.get("actor"), c.req.param("id"), parseQuery(c, MessageListQuery))));
-  r.post(
-    "/rooms/:id/messages",
-    rateLimit(ctx, "send", 60, 2, (c) => (c.get("actor" as never) as { memberId: string }).memberId),
-    async (c) => {
-      const res = await sendAgentMessage(ctx, c.get("actor"), c.req.param("id"), await parseBody(c, SendMessageBody));
-      return c.json(await viewMessage(ctx, res.message), res.created ? 201 : 200);
-    },
-  );
+  r.post("/rooms/:id/messages", async (c) => {
+    const res = await sendAgentMessage(ctx, c.get("actor"), c.req.param("id"), await parseBody(c, SendMessageBody));
+    return c.json(await viewMessage(ctx, res.message), res.created ? 201 : 200);
+  });
   r.get("/messages/search", async (c) => c.json({ data: await searchMessages(ctx, c.get("actor"), parseQuery(c, SearchQuery)) }));
   r.patch("/messages/:id", async (c) => c.json(await viewMessage(ctx, await editMessage(ctx, c.get("actor"), c.req.param("id"), await parseBody(c, EditMessageBody)))));
   r.delete("/messages/:id", async (c) => {
@@ -123,10 +119,7 @@ export function roomRoutes(ctx: AppContext) {
   });
   r.post("/messages/:id/retry", async (c) => c.json(await viewMessage(ctx, await retryMessage(ctx, c.get("actor"), c.req.param("id")))));
 
-  r.post(
-    "/attachments",
-    rateLimit(ctx, "upload", 30, 0.5, (c) => c.req.header("authorization") ?? "anon"),
-    async (c) => {
+  r.post("/attachments", async (c) => {
       const form = await c.req.parseBody();
       const f = form["file"];
       if (!f || typeof f === "string") throw unprocessable("FILE_REQUIRED", "Send the file as multipart field 'file'");
@@ -135,8 +128,7 @@ export function roomRoutes(ctx: AppContext) {
         { ...att, url: ctx.storage.signedUrl(att.key, { fileName: att.file_name, contentType: att.content_type, ttlSeconds: ctx.config.SIGNED_URL_TTL_SECONDS }) },
         201,
       );
-    },
-  );
+  });
 
   /* notifications feed (any live seat) */
   r.get("/notifications", async (c) =>

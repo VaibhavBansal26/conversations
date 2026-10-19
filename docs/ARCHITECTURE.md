@@ -31,43 +31,76 @@ flowchart LR
 
 ## 2. Containers and deployment
 
+Two topologies, same code. `DATABASE_URL` and `REDIS_URL` are the only switches (both auto-detected):
+
+**Single node** (default; no external services): SQLite (WAL) file, in-process socket adapter, presence, limiter and cache, DB-backed job queue.
+
 ```mermaid
 flowchart TB
-  subgraph host["One container / process  (node server/dist/index.js)"]
+  subgraph host["One process  (node server/dist/index.js)"]
     direction TB
     http["Hono HTTP app<br/>/api  /public  /webhooks  /files  /widget.js  SPA"]
     sio["Socket.IO 4<br/>namespace per workspace: /ws/&lt;workspaceId&gt;"]
     svc["Services (plain functions over AppContext)<br/>rooms, messages, channels, visitors, notifications, ai"]
-    jobs["Scheduler<br/>snooze wake, job queue, digest, delivery reconciliation"]
+    jobs["Scheduler + job queue<br/>snooze wake, retries, digest, reconciliation"]
+    pool["worker_threads pool<br/>large HTML bodies"]
     http --> svc
     sio --> svc
     jobs --> svc
+    svc -.-> pool
     svc --> db[("SQLite (WAL)<br/>/data/conversations.db")]
-    svc --> files[("Local disk storage<br/>/data/uploads/&lt;workspaceId&gt;/")]
+    svc --> files[("Local disk storage<br/>/data/uploads/")]
   end
   web["web/dist (static, served by the same process)"] --- http
-  redis[("Redis (optional)<br/>Socket.IO adapter")] -. "SOCKET_ADAPTER=redis" .- sio
-  s3[("S3-compatible storage (optional)<br/>Storage interface")] -. "plug-in" .- files
-  svc --> twilio["TwilioSmsProvider / ConsoleSmsProvider"]
-  svc --> sg["SendGridEmailProvider / ConsoleEmailProvider"]
-  svc --> llm["AnthropicProvider / HeuristicProvider"]
+  svc --> twilio["Twilio / console SMS"]
+  svc --> sg["SendGrid / console email"]
+  svc --> llm["Anthropic / heuristic AI"]
 ```
 
-Development runs the same thing with `npm run dev` (API on :3000, Vite on :5173 proxying `/api`, `/public`, `/files`, `/socket.io`). Production is a single container (see `Dockerfile`): it needs one writable volume (`/data`) and `JWT_SECRET`. SQLite is a single-writer database, so run **one replica**; see section 9 for scaling out.
+**Scaled out** (`docker-compose.yml`, `deploy/k8s`): N identical stateless app nodes behind a load balancer, PostgreSQL as the system of record and Redis for everything that must be shared between nodes.
+
+```mermaid
+flowchart LR
+  c["Browsers, widgets<br/>(HTTP + WebSocket)"] --> lb["nginx / HAProxy / ingress<br/>(optionally Cloudflare + edge Worker)"]
+  lb --> n1["app node 1"]
+  lb --> n2["app node 2"]
+  lb --> nn["app node N"]
+  n1 & n2 & nn --> pg[("PostgreSQL<br/>rooms, messages, jobs, ...")]
+  n1 & n2 & nn <--> rd[("Redis<br/>socket.io adapter, presence,<br/>rate limits, locks, cache invalidation,<br/>BullMQ delayed jobs")]
+  n1 & n2 & nn --> obj[("Object storage<br/>(Storage interface)")]
+```
+
+What Redis carries, and what happens without it:
+
+| Concern | With `REDIS_URL` | Without (one node) |
+| --- | --- | --- |
+| Socket fan-out between nodes | `@socket.io/redis-adapter` (sharded pub/sub not required) | in-process |
+| Presence (online/offline, multi-tab refcount) | ZSET per seat with per-socket TTL heartbeat; exactly-once "came online" announcement via `HSETNX` | in-memory refcount |
+| Rate limits | Lua token bucket using Redis `TIME`, so every node agrees | in-memory bucket |
+| Cache (settings, member rows, counts, workspace existence) | TTL cache plus pub/sub invalidation so a write on node A is visible on node B immediately | in-memory TTL |
+| Delayed jobs (snooze wake, SMS reconcile, retries) | BullMQ delayed jobs; periodic sweep under a distributed lock as the safety net | `jobs` table polled by the scheduler |
+| Locks | `SET NX PX` with token | in-process mutex |
+
+A Redis outage degrades rather than stops the app: limiters fail open (and log), cached values simply expire after `CACHE_TTL_MS` (default 3 s) instead of being invalidated instantly, and sockets keep working on their own node. Cross-node fan-out and cross-node presence pause until Redis returns. (Limiters failing open and the cache TTL bound are tested; a full mid-run Redis kill is not part of the automated suite.)
+
+Development runs the same thing with `npm run dev` (API on :3000, Vite on :5173 proxying `/api`, `/public`, `/files`, `/socket.io`). The `Dockerfile` builds one image used for both topologies.
 
 ### Code layout (`server/src`)
 
 | Path | Responsibility |
 | --- | --- |
 | `config.ts`, `logger.ts`, `errors.ts` | zod-validated env, JSON logs, `AppError` (`{error:{code,message}}`) |
-| `db/` | `openDb` (WAL, FK, savepoint-aware `tx`), SQL migrations applied at boot (`db/migrations/*.sql`) |
-| `context.ts`, `app-context.ts` | `AppContext` (db, clock, bus, presence, providers, storage, ai) and its wiring; tests inject fakes here |
+| `db/` | async `Db` interface with `SqliteDb` and `PgDb`; `tx` is async-context aware (AsyncLocalStorage); one migration set applied at boot under an advisory lock (`db/migrations/*.sql`) |
+| `context.ts`, `app-context.ts` | `AppContext` (db, clock, bus, presence, limiters, cache, locks, queue, metrics, workers, providers, storage, ai) and its wiring; tests inject fakes here |
+| `infra/` | Redis hub, presence, limiter, cache, locks: each with an in-memory and a Redis implementation behind one interface |
+| `workers/` | `worker_threads` pool (HTML sanitising of large bodies); see `docs/PERFORMANCE.md` for when it pays off |
+| `metrics.ts`, `telemetry.ts` | Prometheus `/metrics`; optional OpenTelemetry (loaded only if installed and configured) |
 | `services/*` | all business rules; every query is workspace-scoped; `roomStore.roomVisibility` is the single definition of scope |
 | `channels/rules.ts` | SMS/email rules: keyword classification, number choice and locking, subject derivation, threading |
 | `providers/` | `SmsProvider`/`EmailProvider`/`Storage` interfaces, Fake/Console providers, Twilio/SendGrid `fetch` adapters, `LocalDiskStorage` |
-| `realtime/` | `RealtimeBus` interface, `SocketBus` (Socket.IO), refcounted `Presence` |
+| `realtime/` | `RealtimeBus` interface, `SocketBus` (Socket.IO: admission control, limits, backpressure, drain, event coalescing) |
 | `webhooks/signatures.ts` | Twilio HMAC-SHA1, SendGrid ECDSA / shared secret, replay + idempotency table |
-| `jobs/` | table-backed queue with backoff, scheduler passes |
+| `jobs/` | `JobQueue` (`DbJobQueue` / `BullJobQueue`) with backoff, scheduler passes |
 | `ai/` | `AiProvider`, Anthropic + heuristic providers, BM25 retrieval, prompt safety, features |
 | `routes/` | thin Hono routers: validate, call a service, serialise |
 | `server/public/widget.js` | the embeddable widget (framework-free, Shadow DOM) |
@@ -368,24 +401,35 @@ Auth: `Authorization: Bearer <JWT>` on `/api/*`; lists return `{ data, paginatio
 
 ## 8. Background work
 
-A single in-process scheduler (`jobs/scheduler.ts`, started only by `index.ts`; every pass is also callable directly by tests with an injected clock):
+Work is a set of idempotent jobs plus a periodic sweep. On one node the scheduler polls the `jobs` table; with Redis, BullMQ delayed jobs fire at the right moment and the sweep is the safety net. Either way the **sweep runs under a distributed lock**, so every node can run the scheduler (`SCHEDULER_ENABLED` stays true everywhere) and exactly one does each pass. Every pass is also callable directly by tests with an injected clock.
 
-| Pass | Interval | What |
+| Pass | Trigger | What |
 | --- | --- | --- |
-| snooze wake | 10 s | `wakeDueRooms`: conditional `UPDATE ... WHERE snooze_until = <seen>` so each room wakes exactly once, system message, event, in-app notification |
-| job queue | 10 s | `jobs` table: `send_retry`, `notify_email`, `digest_email`; claim by conditional update; failure -> exponential backoff (2^n s, max 15 min) up to `max_attempts` then `failed` |
-| digest | 60 s | `collectDigests` (see 5.5) |
-| delivery reconciliation | 60 s | asks the SMS provider for the state of messages still `sent` after 2 minutes (replaces legacy 5 s polling) |
+| snooze wake | delayed job `wake_room` at `snooze_until` (+ 10 s sweep) | `wakeRoom`: conditional `UPDATE ... WHERE snooze_until = <seen>` so each room wakes exactly once, system message, event, in-app notification |
+| job queue | immediate or delayed | `send_retry`, `notify_email`, `digest_email`, `reconcile_sms`; claim is atomic (conditional update or BullMQ); failure -> exponential backoff (2^n s, max 15 min) up to `max_attempts` then `failed` |
+| digest | 60 s sweep | `collectDigests` (see 5.5); candidates come from the `digest_due` outbox flag set when a message is stored, not from scanning all rooms |
+| delivery reconciliation | delayed job 2 min after send (+ 60 s sweep) | asks the SMS provider for the state of messages still `sent` (replaces legacy 5 s polling) |
 
 Message send retries use their own backoff (`SEND_RETRY_BASE_SECONDS * 2^(n-1)`, capped at `SEND_RETRY_CAP_SECONDS`, `SEND_RETRY_MAX_ATTEMPTS` total attempts); permanent provider errors (4xx) are not retried automatically but can be retried by hand (`POST /api/messages/:id/retry`).
 
 ## 9. Scaling, limits and plug-in points
 
-- **SQLite**: one writer. All multi-step writes are single transactions (`BEGIN IMMEDIATE`, savepoints when nested), which is what makes round-robin, one-room-per-contact and idempotency race-safe. To scale beyond one process, replace `db/` with a server database; the services only use `get/all/run/tx`.
-- **Redis adapter**: enables multiple Socket.IO nodes; presence and rate limits are still per node and the scheduler must run on exactly one node (`SCHEDULER_ENABLED=false` elsewhere).
-- **Storage**: implement `Storage` (`put/read/remove/signedUrl`) for S3 (presigned GET) and select it in `createContext`; see the note at the end of `providers/storage.ts`.
+Capacity numbers, the sizing model and what to change when you outgrow a topology live in [SCALING.md](SCALING.md); measurements and how they were taken in [PERFORMANCE.md](PERFORMANCE.md). The design rules that make scale-out safe:
+
+- **The database is the arbiter.** Nothing relies on in-process state for correctness: per-room `seq` comes from an `UPDATE ... RETURNING`, idempotency from a unique `(room_id, client_msg_id)` index, round robin from a row lock (`FOR NO KEY UPDATE` on PostgreSQL), one-room-per-contact from a unique index. Concurrent requests on different nodes are therefore as safe as concurrent requests on one (`tests/concurrency.test.ts`, run on SQLite and PostgreSQL; `loadtest` idempotency scenario across nodes).
+- **Nodes are stateless.** Anything a second node needs to see goes through Postgres or Redis. The only per-node state is the sockets themselves and caches that are invalidated over pub/sub.
+- **WebSocket hardening** (`realtime/socket.ts`, config `WS_*`): admission control before any DB work (draining, global cap, per-IP cap, per-IP connect rate), 256 KiB inbound frame limit, per-socket and per-actor event rate limits, slow-consumer detection (a socket whose outbound queue exceeds `WS_MAX_WRITE_BUFFER` packets is dropped and re-syncs over REST), token-expiry notice (`auth:expired`) for team sockets, and graceful drain on SIGTERM (`server:draining` with a random reconnect delay, readiness flips to 503 first). Clients (web app and widget) reconnect with exponential backoff and 80% jitter.
+- **Event coalescing**: bursty idempotent events (presence flips, read receipts) are collected for a short window and only the newest state per key is sent. Message events are never coalesced.
+- **Pagination** is keyset everywhere a list can be large (rooms, contacts, notifications, messages); the web inbox virtualises its list above 100 rows.
+- **Storage**: implement `Storage` (`put/read/remove/signedUrl`) for S3 (presigned GET) and select it in `createContext`; `LocalDiskStorage` is per node, so multi-node deployments need an object store or a shared volume (see Limits).
 - **Providers**: `SmsProvider`/`EmailProvider` are tiny interfaces; real adapters are selected only by env (`SMS_PROVIDER=twilio`, `EMAIL_PROVIDER=sendgrid`).
 - **AI**: `AiProvider.complete(request)`; Anthropic when `ANTHROPIC_API_KEY` is set, otherwise the deterministic heuristic provider.
+
+### Limits (known, measured where possible)
+
+- A team socket joins one channel per visible room, so memory and connect time grow with *rooms x team sockets*. Fine for dozens of agents and tens of thousands of rooms; see SCALING.md for the measured cost and the mitigation if you outgrow it.
+- `LocalDiskStorage` is not shared between nodes. Use an object-store `Storage` or a shared volume when running more than one node.
+- SQLite remains single-node by design. The topology that scales is PostgreSQL + Redis.
 
 ## 10. Security summary
 

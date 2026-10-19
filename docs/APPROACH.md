@@ -25,7 +25,7 @@ Services are plain functions taking an explicit `AppContext` (db, clock, bus, pr
 
 ## 3. Design principles
 
-1. **The database is the arbiter of invariants.** One live room per contact, message idempotency, per-room ordering, number locks, token-per-domain and webhook idempotency are unique indexes; code handles the constraint violation by returning the winner. Multi-step changes are single `BEGIN IMMEDIATE` transactions. Because the SQLite driver is synchronous, the "check then insert" windows that caused legacy races do not exist inside a transaction.
+1. **The database is the arbiter of invariants.** One live room per contact, message idempotency, per-room ordering, number locks, token-per-domain and webhook idempotency are unique indexes; code handles the constraint violation by returning the winner. Multi-step changes are single transactions (`BEGIN IMMEDIATE` on SQLite, row locks such as `FOR NO KEY UPDATE` on PostgreSQL); the data layer is async, and the "check then insert" windows that caused legacy races are closed by the unique indexes and `INSERT ... ON CONFLICT` / `UPDATE ... RETURNING`, not by being single-threaded. `tests/concurrency.test.ts` proves this on both databases.
 2. **One definition of scope.** `roomVisibility()` builds the SQL predicate used by list, get, messages, search, counts, socket joins and AI; `canSeeRoom()` reuses it. Out of scope means 404.
 3. **Computed, not stored, counters.** Unread is `COUNT(messages after my read cursor)`; marking read is one `UPSERT` of the cursor that only moves forward.
 4. **Interfaces at every external edge** (`SmsProvider`, `EmailProvider`, `Storage`, `AiProvider`, `RealtimeBus`) with deterministic fakes so tests never touch a network.
@@ -83,10 +83,10 @@ See `MIGRATION-NOTES.md` for the full table. In short: server-side message idemp
 
 ## 7. Known limitations (honest list)
 
-- SQLite is single-writer: run one replica. Presence and socket rate limits are per node even with the Redis adapter.
+- SQLite is the zero-dependency default and is single-node. Horizontal scale uses PostgreSQL + Redis (presence, rate limits, cache, locks and delayed jobs are shared across nodes; see `docs/SCALING.md`). Uploads on `LocalDiskStorage` are per node.
 - Inbound email attachments are not ingested (text/HTML only); outbound email supports attachments.
 - No MMS (SMS is text/quote only, per the brief).
 - The widget collects text messages only (no file upload from visitors).
 - Contact-facing email digests (the legacy "you have an unread reply" email to the visitor) are not implemented; only team digests are.
-- The Redis adapter path is implemented but not exercised in CI (no Redis in the test environment).
+- The Redis and PostgreSQL paths run in CI against real services (`postgres:17`, `redis:7` service containers) and locally against an embedded PostgreSQL and a local `redis-server`; managed-service quirks (PgBouncer in transaction mode, Redis Cluster) are untested.
 - Real Twilio/SendGrid behaviour is covered by mocked-`fetch` tests; no live provider calls are made by the test suite.

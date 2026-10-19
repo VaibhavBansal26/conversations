@@ -12,6 +12,7 @@ import { secureHeaders } from "hono/secure-headers";
 import { ZodError } from "zod";
 import type { AppContext } from "./context.js";
 import { AppError } from "./errors.js";
+import { RateLimitedError, rateLimitBody, rateLimitHeaders, rateLimitMiddleware } from "./ratelimit/http.js";
 import { LocalDiskStorage } from "./providers/storage.js";
 import { requireAuth, type Env } from "./http.js";
 import { attachmentByKey } from "./services/attachments.js";
@@ -46,6 +47,7 @@ export function createApp(ctx: AppContext): Hono {
       ctx.log.info("request", { request_id: rid, node: ctx.nodeId, method: c.req.method, path, status: c.res.status, ms: Math.round(sec * 1000) });
     }
   });
+  app.use("*", rateLimitMiddleware(ctx));
   app.use("/api/*", compress({ threshold: 1024 }));
   app.use("/api/*", timeout(ctx.config.REQUEST_TIMEOUT_MS, () => new HTTPException(504, { message: "Request timed out" })));
   app.use("/public/*", timeout(ctx.config.REQUEST_TIMEOUT_MS, () => new HTTPException(504, { message: "Request timed out" })));
@@ -151,6 +153,10 @@ export function createApp(ctx: AppContext): Hono {
   app.notFound((c) => c.json({ error: { code: "NOT_FOUND", message: "Route not found" } }, 404));
   app.onError((err, c) => {
     if (err instanceof HTTPException) return c.json({ error: { code: err.status === 504 ? "REQUEST_TIMEOUT" : "HTTP_ERROR", message: err.message } }, err.status);
+    if (err instanceof RateLimitedError) {
+      ctx.metrics.rateLimited.inc({ scope: "http" });
+      return c.json(rateLimitBody(err.decision), err.status as never, rateLimitHeaders(err.decision));
+    }
     if (err instanceof AppError) {
       return c.json({ error: { code: err.code, message: err.message, ...(err.details !== undefined ? { details: err.details } : {}) } }, err.status as never);
     }

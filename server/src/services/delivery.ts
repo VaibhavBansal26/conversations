@@ -3,7 +3,7 @@ import type { Attachment } from "../domain/types.js";
 import { ProviderError } from "../providers/types.js";
 import { parseJson } from "../util/json.js";
 import { addMinutes, addSeconds } from "../util/time.js";
-import { enqueueJob } from "../jobs/queue.js";
+import { enqueueJob, runDueJobs } from "../jobs/queue.js";
 import { emitMessage, findMessageRow, type MessageRow } from "./messageStore.js";
 import { getRoomRow } from "./roomStore.js";
 import { creditCost, recordUsage } from "./workspaces.js";
@@ -42,13 +42,29 @@ async function attachmentBuffers(ctx: AppContext, atts: Attachment[]) {
  * Never throws: failures keep the message (delivery=failed + reason) and, when transient, schedule an
  * exponential-backoff retry job (capped). The caller broadcasts the resulting state.
  */
-export async function deliverMessage(ctx: AppContext, messageId: string): Promise<MessageRow> {
+export async function deliverMessage(ctx: AppContext, messageId: string, opts: { paced?: boolean } = {}): Promise<MessageRow> {
   const msg = (await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE id = ?", messageId))!;
   if (msg.delivery === "sent" || msg.delivery === "delivered") return msg;
   const room = await getRoomRow(ctx, msg.workspace_id, msg.room_id);
   const kind = msg.source === "sms" ? "sms" : "email";
   let failure: { reason: string; retryable: boolean } | null = null;
+  if (ctx.config.SEND_PACING && !opts.paced && msg.from_addr) {
+    // carrier/provider-friendly pacing: reserve the next slot for this number or sender; when it is not now, park the message (it stays
+    // `pending`) and let a delayed job send it, instead of rejecting. A full queue falls through to the normal retry-with-backoff path.
+    const r = await ctx.ratelimit.pace(kind === "sms" ? "sms.number" : "email.sender", msg.from_addr, { queueMax: ctx.config.SEND_QUEUE_MAX });
+    if (r.full) failure = { reason: "Sending queue for this number is full, will retry", retryable: true };
+    else if (r.waitMs > 0) {
+      await enqueueJob(ctx, "paced_send", { message_id: msg.id }, { runAt: new Date(ctx.clock().getTime() + r.waitMs), dedupeKey: `paced:${msg.id}` });
+      if (r.waitMs <= 60_000 && ctx.queue.kind === "db") {
+        // single-node/DB queue: nudge the poller just after the slot opens so pacing does not wait for the next 10 s sweep
+        const t = setTimeout(() => void import("../jobs/scheduler.js").then((m) => runDueJobs(ctx, m.jobHandlers)).catch(() => {}), r.waitMs + 25);
+        t.unref();
+      }
+      return msg;
+    }
+  }
   try {
+    if (failure) throw new ProviderError(failure.reason, true, 429);
     const contact = await getContact(ctx, msg.workspace_id, room.contact_id);
     if (msg.source === "sms") {
       if (contact.sms_opt_out) failure = { reason: "Contact has opted out of SMS", retryable: false };

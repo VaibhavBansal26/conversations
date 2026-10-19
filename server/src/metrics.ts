@@ -24,6 +24,13 @@ export class Metrics {
   readonly dbStatements = new Gauge({ name: "conv_db_statements_total", help: "SQL statements executed by this node", registers: [this.registry] });
   readonly background = new Gauge({ name: "conv_background_tasks", help: "Fire-and-forget tasks in flight", registers: [this.registry] });
   readonly rateLimited = new Counter({ name: "conv_rate_limited_total", help: "Requests/events rejected by a rate limit", labelNames: ["scope"], registers: [this.registry] });
+  readonly rlDecisions = new Counter({ name: "conv_ratelimit_decisions_total", help: "Rate-limit decisions by policy and outcome", labelNames: ["policy", "outcome"], registers: [this.registry] });
+  readonly rlRedis = new Histogram({ name: "conv_ratelimit_redis_duration_seconds", help: "Latency of rate-limit Redis calls", labelNames: ["ok"], buckets: [0.0002, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.03], registers: [this.registry] });
+  readonly rlLease = new Counter({ name: "conv_ratelimit_lease_total", help: "Local lease tier results (hit = served without Redis)", labelNames: ["result"], registers: [this.registry] });
+  readonly rlBreaker = new Gauge({ name: "conv_ratelimit_breaker_open", help: "1 while the rate-limit Redis circuit breaker is open", registers: [this.registry] });
+  readonly rlPenaltyBox = new Gauge({ name: "conv_ratelimit_penalty_box_size", help: "Keys currently blocked by an escalating penalty", registers: [this.registry] });
+  readonly wsShed = new Counter({ name: "conv_ws_shed_total", help: "Handshakes refused by admission control", labelNames: ["reason"], registers: [this.registry] });
+  readonly wsStrikes = new Counter({ name: "conv_ws_strikes_total", help: "Socket events dropped for rate and strikes issued", labelNames: ["result"], registers: [this.registry] });
   private readonly loop = monitorEventLoopDelay({ resolution: 10 });
 
   constructor(defaults = true) {
@@ -37,6 +44,7 @@ export class Metrics {
     this.loop.reset();
     this.dbStatements.set(ctx.db.statements);
     this.background.set(ctx.background.size);
+    if (ctx.config.NODE_ENV !== "test") void ctx.ratelimit.shared.penaltyBoxSize().then((n) => this.rlPenaltyBox.set(n), () => {});
     const d = await ctx.queue.depth().catch(() => null);
     if (d) for (const [k, v] of Object.entries(d)) this.queueDepth.set({ state: k }, v);
   }

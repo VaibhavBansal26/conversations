@@ -16,14 +16,18 @@ import type { RoomRow } from "../services/roomStore.js";
 import { assignRoom, markRead, roomBaseDto, setPriority, setStatus, setSubject, snoozeRoom, startConversation, unsnoozeRoom } from "../services/rooms.js";
 import { visitorMarkRead, visitorRoomDto, visitorRooms, visitorSend, visitorStartRoom } from "../services/visitorChat.js";
 import { authenticateSession, originMatches, verifyOtp, type SessionRow } from "../services/visitors.js";
-import { resolveClientIp } from "../util/clientIp.js";
+import { monitorEventLoopDelay } from "node:perf_hooks";
+import { gcra, type GcraState } from "../ratelimit/algorithms.js";
+import { EVENT_LIMITS } from "../ratelimit/routePolicies.js";
+import { ipKey, resolveClientIp } from "../util/clientIp.js";
 import { isWorkspaceId } from "../util/ids.js";
-import { RateLimiter } from "../util/ratelimit.js";
 import type { RealtimeBus } from "./bus.js";
 
 type TeamData = { kind: "team"; memberId: string; userId: string; workspaceId: string; exp: number; ip: string | null };
 type VisitorData = { kind: "visitor"; sessionId: string; contactId: string; workspaceId: string; ip: string | null };
 type SockData = TeamData | VisitorData;
+/** the session row read during the handshake, so joining rooms does not read it again */
+const handshakeSession = new WeakMap<object, SessionRow>();
 type Ack = (r: unknown) => void;
 interface Who {
   actor?: Actor;
@@ -270,7 +274,10 @@ async function joinTeamRooms(ctx: AppContext, s: Socket, a: Actor) {
 }
 
 function errorAck(e: unknown) {
-  if (e instanceof AppError) return { ok: false, error: { code: e.code, message: e.message, details: e.details } };
+  if (e instanceof AppError) {
+    const retry = (e.details as { retry_after_ms?: number } | undefined)?.retry_after_ms;
+    return { ok: false, error: { code: e.code, message: e.message, details: e.details, ...(retry !== undefined ? { retry_after_ms: retry } : {}) }, ...(retry !== undefined ? { retry_after_ms: retry } : {}) };
+  }
   return { ok: false, error: { code: "INTERNAL", message: "Unexpected error" } };
 }
 
@@ -320,10 +327,43 @@ export async function attachSocketServer(httpServer: HttpServer, ctx: AppContext
   const parent = io.of(/^\/ws\/ws_[0-9a-f]{24}$/);
   const perIp = new Map<string, number>();
   let total = 0;
-  const connectLimiter = ctx.limiters.get("ws-connect", Math.max(5, cfg.WS_CONNECT_RATE_PER_IP * 2), cfg.WS_CONNECT_RATE_PER_IP);
-  const actorLimiter = ctx.limiters.get("ws-actor", cfg.SOCKET_RATE_BURST * 4, cfg.SOCKET_RATE_PER_SEC * 4);
-  const socketLimiter = new RateLimiter(cfg.SOCKET_RATE_BURST, cfg.SOCKET_RATE_PER_SEC, () => ctx.clock().getTime());
-  const ipOf = (s: Socket) => resolveClientIp({ trustProxy: cfg.TRUST_PROXY, edgeSecret: cfg.CF_SHARED_SECRET }, s.handshake.headers, s.handshake.address);
+  // admission control inputs: event-loop lag over the last second and handshakes admitted but not yet authenticated
+  const lagMon = monitorEventLoopDelay({ resolution: 20 });
+  lagMon.enable();
+  let lagMs = 0;
+  const lagTimer = setInterval(() => {
+    lagMs = lagMon.percentile(99) / 1e6;
+    lagMon.reset();
+  }, 1000);
+  lagTimer.unref();
+  let handshakes = 0;
+  const inflight = new WeakSet<Socket>();
+  const leases = new WeakMap<Socket, { policy: string; key: string }[]>();
+  // connection leases (per seat / visitor / workspace / IP) live in the shared store with a TTL; every node renews the leases of its own live sockets
+  const held = new Map<string, { policy: string; key: string; ids: Set<string> }>();
+  const hold = (policy: string, key: string, id: string) => {
+    const k = `${policy}|${key}`;
+    let h = held.get(k);
+    if (!h) held.set(k, (h = { policy, key, ids: new Set() }));
+    h.ids.add(id);
+  };
+  const unhold = (policy: string, key: string, id: string) => {
+    const k = `${policy}|${key}`;
+    const h = held.get(k);
+    if (!h) return;
+    h.ids.delete(id);
+    if (!h.ids.size) held.delete(k);
+  };
+  const renewTimer = setInterval(() => {
+    for (const h of held.values()) void ctx.ratelimit.renew(h.policy, h.key, [...h.ids]);
+  }, 100_000);
+  renewTimer.unref();
+  const shed = (next: (e?: Error) => void, reason: string, extra: Record<string, unknown> = {}) => {
+    ctx.metrics.wsShed.inc({ reason });
+    ctx.metrics.wsConnects.inc({ kind: "unknown", result: reason });
+    reject(next, "OVERLOADED", "Server is busy, retry shortly", { retry_after_ms: 1500 + Math.floor(Math.random() * 6000), ...extra });
+  };
+  const ipOf = (s: Socket) => resolveClientIp({ trustProxy: cfg.TRUST_PROXY, edgeSecret: cfg.CF_SHARED_SECRET, proxyHops: cfg.TRUSTED_PROXY_HOPS }, s.handshake.headers, s.handshake.address);
 
   const reject = (next: (e?: Error) => void, code: string, message: string, extra: Record<string, unknown> = {}) => {
     const err = new Error(message) as Error & { data?: unknown };
@@ -338,6 +378,9 @@ export async function attachSocketServer(httpServer: HttpServer, ctx: AppContext
       ctx.metrics.wsConnects.inc({ kind: "unknown", result: "draining" });
       return reject(next, "DRAINING", "Server is restarting", { retry_after_ms: 1000 + Math.floor(Math.random() * 4000) });
     }
+    // load shedding: refuse new handshakes (cheap) before doing database work for them, with a jittered hint so the herd spreads out
+    if (cfg.SHED_LOOP_LAG_MS && lagMs > cfg.SHED_LOOP_LAG_MS) return shed(next, "loop_lag");
+    if (handshakes >= cfg.WS_MAX_HANDSHAKES) return shed(next, "handshakes");
     if (cfg.WS_MAX_CONNECTIONS && total >= cfg.WS_MAX_CONNECTIONS) {
       ctx.metrics.wsConnects.inc({ kind: "unknown", result: "busy" });
       return reject(next, "BUSY", "Server is at capacity", { retry_after_ms: 2000 + Math.floor(Math.random() * 8000) });
@@ -346,10 +389,13 @@ export async function attachSocketServer(httpServer: HttpServer, ctx: AppContext
       ctx.metrics.wsConnects.inc({ kind: "unknown", result: "ip_cap" });
       return reject(next, "TOO_MANY_CONNECTIONS", "Too many connections from your address", { retry_after_ms: 5000 });
     }
-    if (!(await connectLimiter.take(ip))) {
+    const d = await ctx.ratelimit.check("ws.connect.ip", { key: ipKey(ip) }, { entities: [`ip:${ipKey(ip)}`] });
+    if (!d.allowed) {
       ctx.metrics.wsConnects.inc({ kind: "unknown", result: "rate_limited" });
-      return reject(next, "RATE_LIMITED", "Reconnecting too fast", { retry_after_ms: 1000 + Math.floor(Math.random() * 2000) });
+      return reject(next, d.outcome === "denylisted" ? "BLOCKED" : "RATE_LIMITED", "Reconnecting too fast", { retry_after_ms: d.retryAfterMs + Math.floor(Math.random() * 2000) });
     }
+    handshakes++;
+    inflight.add(socket);
     next();
   });
 
@@ -369,12 +415,35 @@ export async function attachSocketServer(httpServer: HttpServer, ctx: AppContext
         const token = session.token_id ? await ctx.db.get<{ domain: string; status: string }>("SELECT domain, status FROM tokens WHERE id = ?", session.token_id) : undefined;
         const origin = socket.handshake.headers.origin;
         if (token && (token.status !== "active" || (origin !== undefined && !originMatches(origin, token.domain)))) throw unauthorized("Origin not allowed", "ORIGIN_NOT_ALLOWED");
+        handshakeSession.set(socket, session);
         socket.data = { kind: "visitor", sessionId: session.id, contactId: session.contact_id, workspaceId: ws, ip } satisfies VisitorData;
       } else throw unauthorized("Missing credentials", "UNAUTHORIZED");
+
+      // concurrent-connection caps (shared across nodes): per seat or visitor session, per workspace (plan tier), per IP
+      const d = socket.data as SockData;
+      const wanted: { policy: string; key: string; max?: number }[] =
+        d.kind === "team" ? [{ policy: "ws.conn.user", key: d.memberId }] : [{ policy: "ws.conn.visitor", key: d.sessionId }];
+      if (cfg.WS_MAX_CONNECTIONS_PER_WORKSPACE > 0) wanted.push({ policy: "ws.conn.workspace", key: ws, max: cfg.WS_MAX_CONNECTIONS_PER_WORKSPACE });
+      else if (cfg.PLAN_ENFORCEMENT) wanted.push({ policy: "ws.conn.workspace", key: ws });
+      if (cfg.WS_MAX_CONNECTIONS_PER_IP > 0 && ip) wanted.push({ policy: "ws.conn.ip", key: ipKey(ip), max: cfg.WS_MAX_CONNECTIONS_PER_IP });
+      const got: { policy: string; key: string }[] = [];
+      for (const w of wanted) {
+        const r = await ctx.ratelimit.acquire(w.policy, w.key, socket.id, ws, w.max);
+        if (!r.ok) {
+          for (const g of got) await ctx.ratelimit.release(g.policy, g.key, socket.id);
+          ctx.metrics.wsConnects.inc({ kind: d.kind, result: "conn_cap" });
+          return reject(next, "TOO_MANY_CONNECTIONS", "Too many open connections for this account", { retry_after_ms: 3000 + Math.floor(Math.random() * 4000), policy: w.policy });
+        }
+        got.push({ policy: w.policy, key: w.key });
+        hold(w.policy, w.key, socket.id);
+      }
+      leases.set(socket, got);
       next();
     } catch (e) {
       ctx.metrics.wsConnects.inc({ kind: "unknown", result: "auth_failed" });
       reject(next, e instanceof AppError ? e.code : "UNAUTHORIZED", e instanceof AppError ? e.message : "unauthorized");
+    } finally {
+      if (inflight.delete(socket)) handshakes--;
     }
   });
 
@@ -400,9 +469,9 @@ export async function attachSocketServer(httpServer: HttpServer, ctx: AppContext
         await joinTeamRooms(ctx, socket, actorFromRow(row));
         await ctx.presence.connect(memberScope(ws), data.memberId, socket.id);
       } else {
-        const sess = await ctx.db.get<SessionRow>("SELECT * FROM visitor_sessions WHERE id = ?", data.sessionId);
+        const sess = handshakeSession.get(socket) ?? (await ctx.db.get<SessionRow>("SELECT * FROM visitor_sessions WHERE id = ?", data.sessionId));
         if (!sess) throw new Error("session gone");
-        socket.join([`session:${sess.id}`, ...(await visitorRooms(ctx, sess)).map((r) => `vroom:${r.id}`)]);
+        socket.join([`session:${sess.id}`, ...(await visitorRooms(ctx, sess, { reload: false })).map((r) => `vroom:${r.id}`)]);
         await ctx.presence.connect(visitorScope(ws), data.contactId, socket.id);
       }
     })();
@@ -421,6 +490,10 @@ export async function attachSocketServer(httpServer: HttpServer, ctx: AppContext
 
     socket.on("disconnect", () => {
       clearTimeout(expiry);
+      for (const l of leases.get(socket) ?? []) {
+        unhold(l.policy, l.key, socket.id);
+        void ctx.ratelimit.release(l.policy, l.key, socket.id);
+      }
       total--;
       const n = (perIp.get(ip) ?? 1) - 1;
       if (n <= 0) perIp.delete(ip);
@@ -430,7 +503,7 @@ export async function attachSocketServer(httpServer: HttpServer, ctx: AppContext
         .then(() => (data.kind === "team" ? ctx.presence.disconnect(memberScope(ws), data.memberId, socket.id) : ctx.presence.disconnect(visitorScope(ws), data.contactId, socket.id)))
         .catch(() => {});
     });
-    registerHandlers(ctx, socket, ready, socketLimiter, actorLimiter);
+    registerHandlers(ctx, socket, ready);
   });
 
   // slow consumers: a socket whose outbound queue keeps growing would pin memory for everyone, so it is dropped (clients reconnect and re-sync over REST)
@@ -466,16 +539,37 @@ export async function attachSocketServer(httpServer: HttpServer, ctx: AppContext
     },
     close: async () => {
       clearInterval(sweep);
+      clearInterval(lagTimer);
+      clearInterval(renewTimer);
+      lagMon.disable();
       bus.flush();
       await new Promise<void>((resolve) => void io.close(() => resolve()));
     },
   };
 }
 
-function registerHandlers(ctx: AppContext, socket: Socket, ready: Promise<void>, socketLimiter: RateLimiter, actorLimiter: ReturnType<AppContext["limiters"]["get"]>) {
+function registerHandlers(ctx: AppContext, socket: Socket, ready: Promise<void>) {
   const data = socket.data as SockData;
   const ws = data.workspaceId;
   const lastTyping = new Map<string, number>();
+  // per-socket event bucket (exact, node-local: a socket lives on one node) with cost weights per event, plus strikes: drops first, disconnect after repeated violations
+  const cfg = ctx.config;
+  let bucket: GcraState | undefined;
+  let strikes = 0;
+  let lastStrikeAt = 0;
+  const limited = (retryAfterMs: number, scope: string): never => {
+    const nowMs = Date.now();
+    if (nowMs - lastStrikeAt > 60_000) strikes = 0;
+    lastStrikeAt = nowMs;
+    strikes++;
+    ctx.metrics.wsStrikes.inc({ result: "dropped" });
+    if (strikes >= cfg.WS_STRIKE_LIMIT) {
+      ctx.metrics.wsStrikes.inc({ result: "disconnected" });
+      socket.emit("rate:limited", { reason: "too_many_violations", retry_after_ms: 5000 + Math.floor(Math.random() * 10_000) });
+      socket.disconnect(true);
+    }
+    throw new AppError(429, "RATE_LIMITED", "Too many events, slow down", { retry_after_ms: Math.ceil(retryAfterMs), scope, strikes });
+  };
 
   const visitorSession = async (): Promise<SessionRow> => {
     const d = data as VisitorData;
@@ -493,13 +587,20 @@ function registerHandlers(ctx: AppContext, socket: Socket, ready: Promise<void>,
    * Failures become `{ ok: false, error: { code, message } }` acks; success is `{ ok: true, ...result }`.
    */
   function on<S extends z.ZodType>(event: string, schema: S | null, only: "team" | "visitor" | undefined, handler: (payload: z.infer<S>, who: Who) => unknown | Promise<unknown>) {
+    // the declaration in ratelimit/routePolicies.ts must know every event (a test enumerates both sides)
+    if (!EVENT_LIMITS[event]) throw new Error(`socket event "${event}" has no entry in EVENT_LIMITS`);
     socket.on(event, async (raw: unknown, ack?: Ack) => {
       const reply = typeof ack === "function" ? ack : () => {};
       const end = ctx.metrics.wsAck.startTimer({ event });
       let result = "ok";
       try {
         await ready;
-        if (!socketLimiter.take(socket.id)) throw new AppError(429, "RATE_LIMITED", "Too many events, slow down");
+        const w = EVENT_LIMITS[event]!;
+        {
+          const r = gcra(bucket, Date.now(), { emissionMs: 1000 / cfg.SOCKET_RATE_PER_SEC, burst: cfg.SOCKET_RATE_BURST, cost: w.cost });
+          if (!r.verdict.allowed) limited(r.verdict.retryAfterMs, "socket");
+          bucket = r.next;
+        }
         if (only && data.kind !== only) throw new AppError(403, "FORBIDDEN", "Not available for this connection");
         const who: Who = {};
         if (data.kind === "team") {
@@ -514,7 +615,10 @@ function registerHandlers(ctx: AppContext, socket: Socket, ready: Promise<void>,
           }
           who.actor = actorFromRow(row);
         } else who.session = await visitorSession();
-        if (!(await actorLimiter.take(`${ws}:${data.kind === "team" ? data.memberId : data.contactId}`))) throw new AppError(429, "RATE_LIMITED", "Too many events, slow down");
+        {
+          const d = await ctx.ratelimit.check("ws.actor", { key: `${ws}:${data.kind === "team" ? data.memberId : data.contactId}` }, { cost: w.cost });
+          if (!d.allowed) limited(d.retryAfterMs, "actor");
+        }
         const parsed = schema ? schema.safeParse(raw ?? {}) : { success: true as const, data: undefined };
         if (!parsed.success) throw new AppError(400, "VALIDATION_ERROR", parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "));
         const out = await handler(parsed.data as z.infer<S>, who);

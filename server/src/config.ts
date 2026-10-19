@@ -22,6 +22,8 @@ const schema = z.object({
   PUBLIC_URL: z.string().url().default("http://localhost:3000"),
   CORS_ORIGINS: z.string().default("http://localhost:5173"),
   TRUST_PROXY: bool.default(false),
+  /** proxies of ours that append to X-Forwarded-For; the client address is the entry this many from the right */
+  TRUSTED_PROXY_HOPS: z.coerce.number().int().min(1).max(10).default(1),
   BODY_LIMIT_BYTES: z.coerce
     .number()
     .int()
@@ -56,6 +58,23 @@ const schema = z.object({
   WS_TRANSPORTS: z.enum(["websocket", "polling,websocket", "websocket,polling"]).default("polling,websocket"),
   /** shared secret a CDN adds as `x-edge-secret`; only then is CF-Connecting-IP believed */
   CF_SHARED_SECRET: z.string().optional(),
+  /** multiplies every rate limit; for load tests only (logged loudly at startup when != 1) */
+  /** per-plan limits (free/pro/business) are always evaluated; connection caps per plan only when this is on (needs billing to set plans) */
+  PLAN_ENFORCEMENT: bool.default(false),
+  RATELIMIT_REDIS_TIMEOUT_MS: z.coerce.number().int().positive().default(30),
+  RATELIMIT_BREAKER_FAILURES: z.coerce.number().int().positive().default(5),
+  RATELIMIT_BREAKER_OPEN_MS: z.coerce.number().int().positive().default(3000),
+  /** share of a hot policy's burst leased from Redis in one call and spent locally (0 disables the lease tier) */
+  RATELIMIT_LEASE_FRACTION: z.coerce.number().min(0).max(0.5).default(0.1),
+  RATELIMIT_LEASE_TTL_MS: z.coerce.number().int().positive().default(1000),
+  /** log 1 in N limited decisions (policy id only, never raw keys) */
+  RATELIMIT_LOG_SAMPLE: z.coerce.number().int().positive().default(100),
+  /** socket admission control */
+  WS_MAX_HANDSHAKES: z.coerce.number().int().positive().default(500),
+  SHED_LOOP_LAG_MS: z.coerce.number().int().min(0).default(250),
+  WS_STRIKE_LIMIT: z.coerce.number().int().positive().default(25),
+  WS_MAX_CONNECTIONS_PER_WORKSPACE: z.coerce.number().int().min(0).default(0),
+  RATE_LIMIT_SCALE: z.coerce.number().positive().default(1),
   REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
   /** Bearer token required for /metrics (unset = open, intended for a private network only) */
   METRICS_TOKEN: z.string().optional(),
@@ -94,6 +113,9 @@ const schema = z.object({
   SIGNED_URL_TTL_SECONDS: z.coerce.number().int().positive().default(900),
 
   SCHEDULER_ENABLED: bool.default(true),
+  /** pace provider sends per number/sender (queue with a delay instead of rejecting); off only in tests that assert immediate sends */
+  SEND_PACING: bool.default(true),
+  SEND_QUEUE_MAX: z.coerce.number().int().positive().default(500),
   SEND_RETRY_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
   SEND_RETRY_BASE_SECONDS: z.coerce.number().positive().default(30),
   SEND_RETRY_CAP_SECONDS: z.coerce.number().positive().default(3600),

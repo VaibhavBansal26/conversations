@@ -2,7 +2,9 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import type { AppContext } from "../context.js";
 import { badRequest } from "../errors.js";
-import { rateLimit } from "../http.js";
+import { clientIp } from "../http.js";
+import { guardStrikes } from "../ratelimit/http.js";
+import { ipKey } from "../util/clientIp.js";
 import { handleInboundEmail, handleInboundSms, handleSendgridEvents, handleTwilioStatus, type SendgridEvent } from "../services/inbound.js";
 import { requireSendgridEvents, requireSharedSecret, requireTwilio } from "../webhooks/signatures.js";
 
@@ -16,7 +18,14 @@ async function formParams(c: Context): Promise<Record<string, string>> {
 /** Provider webhooks. Authenticated by signature/secret (not by session), rate limited, idempotent on provider ids. */
 export function webhookRoutes(ctx: AppContext) {
   const r = new Hono();
-  r.use("*", rateLimit(ctx, "webhooks", 300, 5));
+  // rate limit and ip guard are applied globally (routePolicies.ts: webhook.provider); here: signature failures escalate into an IP block
+  r.use("*", async (c, next) => {
+    const key = { policy: "webhook.badsig", key: ipKey(clientIp(ctx, c)) };
+    await guardStrikes(ctx, [key]);
+    await next();
+    // Hono turns a thrown AppError into a response before control returns here, so look at the status
+    if (c.res.status === 401 || c.res.status === 403) await ctx.ratelimit.strike(key.policy, key.key);
+  });
 
   r.post("/twilio/sms", async (c) => {
     const p = await formParams(c);

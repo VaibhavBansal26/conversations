@@ -57,9 +57,9 @@ export async function startServer(env: Record<string, string> = {}) {
   return { ctx, url, connect, team, visitor, close, clockCtl, seedWorkspace, addMemberRaw, sockets };
 }
 
-export const ack = <T = any>(s: Socket, event: string, payload?: unknown): Promise<T> =>
+export const ack = <T = any>(s: Socket, event: string, payload?: unknown, timeoutMs = 2000): Promise<T> =>
   new Promise((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error(`ack timeout for ${event}`)), 2000);
+    const t = setTimeout(() => reject(new Error(`ack timeout for ${event}`)), timeoutMs);
     s.emit(event, payload, (r: T) => {
       clearTimeout(t);
       resolve(r);

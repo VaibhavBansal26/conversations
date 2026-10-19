@@ -6,7 +6,10 @@ import type { Config } from "./config.js";
 import { BackgroundTracker, type AppContext } from "./context.js";
 import { migrate, openDb } from "./db/index.js";
 import { LocalCache } from "./infra/cache.js";
-import { MemoryLimiterFactory, RedisLimiterFactory, type LimiterFactory } from "./infra/limiter.js";
+import { MemoryStore } from "./ratelimit/memoryStore.js";
+import { RedisStore } from "./ratelimit/redisStore.js";
+import { RateLimiter } from "./ratelimit/limiter.js";
+import type { Store, Tier } from "./ratelimit/types.js";
 import { MemoryLocks, RedisLocks } from "./infra/locks.js";
 import { MemoryPresenceService, RedisPresenceService, type PresenceService } from "./infra/presence.js";
 import { RedisHub } from "./infra/redis.js";
@@ -32,7 +35,8 @@ export interface ContextOverrides {
   ai?: AiProvider;
   clock?: () => Date;
   presence?: PresenceService;
-  limiters?: LimiterFactory;
+  /** inject a rate-limit store (tests); defaults to Redis when REDIS_URL is set, memory otherwise */
+  rateStore?: Store;
   /** force-disable Redis even when REDIS_URL is set (tests of the in-memory path) */
   noRedis?: boolean;
 }
@@ -65,11 +69,7 @@ export async function createContext(config: Config, o: ContextOverrides = {}): P
     email: o.email ?? (config.EMAIL_PROVIDER === "sendgrid" ? new SendGridEmailProvider(config.SENDGRID_API_KEY!) : new ConsoleEmailProvider(log)),
     storage: o.storage ?? new LocalDiskStorage(resolve(config.DATA_DIR, "uploads"), config.PUBLIC_URL, config.JWT_SECRET, () => ctxRef.clock().getTime()),
     ai: o.ai ?? createAiProvider(config),
-    limiters:
-      o.limiters ??
-      (hub
-        ? new RedisLimiterFactory(hub, (e) => log.warn("redis limiter failed open", { error: e instanceof Error ? e.message : String(e) }))
-        : new MemoryLimiterFactory(() => ctxRef.clock().getTime())),
+    ratelimit: undefined as never,
     cache,
     locks: hub ? new RedisLocks(hub) : new MemoryLocks(),
     queue: undefined as never,
@@ -96,6 +96,44 @@ export async function createContext(config: Config, o: ContextOverrides = {}): P
       for (const r of rooms) ctxRef.bus.toRoom(ws, r.id, "visitor:presence", { room_id: r.id, contact_id: idv, online });
     });
   };
+  const clockNow = () => ctxRef.clock().getTime();
+  let redisStore: RedisStore | null = null;
+  if (!o.rateStore && hub) {
+    redisStore = new RedisStore(hub, { timeoutMs: config.RATELIMIT_REDIS_TIMEOUT_MS, breakerThreshold: config.RATELIMIT_BREAKER_FAILURES, breakerOpenMs: config.RATELIMIT_BREAKER_OPEN_MS });
+    redisStore.onCall = (sec, ok) => ctxRef.metrics.rlRedis.observe({ ok: String(ok) }, sec);
+    redisStore.onBreaker = (open) => {
+      ctxRef.metrics.rlBreaker.set(open ? 1 : 0);
+      log.warn(open ? "rate-limit redis circuit opened; failing per policy" : "rate-limit redis circuit closed");
+    };
+  }
+  ctxRef.ratelimit = new RateLimiter({
+    store: o.rateStore ?? redisStore ?? new MemoryStore(clockNow),
+    fallback: new MemoryStore(clockNow),
+    now: clockNow,
+    scale: config.RATE_LIMIT_SCALE,
+    log,
+    leaseFraction: config.RATELIMIT_LEASE_FRACTION,
+    leaseTtlMs: config.RATELIMIT_LEASE_TTL_MS,
+    logSample: config.RATELIMIT_LOG_SAMPLE,
+    overrides: {
+      "ws.connect.ip": { limit: config.WS_CONNECT_RATE_PER_IP, burst: Math.max(5, config.WS_CONNECT_RATE_PER_IP * 2) },
+      "ws.actor": { limit: config.SOCKET_RATE_PER_SEC * 4, burst: config.SOCKET_RATE_BURST * 4 },
+    },
+    metrics: {
+      decision: (policy, outcome) => ctxRef.metrics.rlDecisions.inc({ policy, outcome }),
+      lease: (result) => ctxRef.metrics.rlLease.inc({ result }),
+      redis: () => {},
+      breaker: () => {},
+    },
+    tierOf: (ws) =>
+      ctxRef.cache.wrap(`tier:${ws}`, async () => {
+        const o2 = await ctxRef.db.get<{ tier: string }>("SELECT tier FROM rate_limit_overrides WHERE workspace_id = ?", ws);
+        const t = o2?.tier ?? (await ctxRef.db.get<{ plan: string }>("SELECT plan FROM workspaces WHERE id = ?", ws))?.plan ?? "free";
+        return (["free", "pro", "business"].includes(t) ? t : "free") as Tier;
+      }),
+  });
+  if (!o.rateStore) ctxRef.ratelimit.startLists();
+
   ctxRef.presence =
     o.presence ??
     (hub
@@ -113,6 +151,8 @@ export async function closeContext(ctx: AppContext): Promise<void> {
   (ctx as { closed?: boolean }).closed = true;
   await ctx.background.settle();
   await ctx.queue.close();
+  ctx.ratelimit.stop();
+  await ctx.ratelimit.shared.close();
   ctx.metrics.close();
   await ctx.workers?.close();
   await ctx.presence.close();
