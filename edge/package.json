@@ -1,0 +1,1 @@
+{"name":"conversations-edge","private":true,"type":"module","scripts":{"test":"node --test worker.test.js"}}

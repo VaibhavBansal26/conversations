@@ -1,0 +1,21 @@
+# ingress-nginx. The annotations are the websocket-relevant ones: long read/send timeouts (default 60s is fine for ping 25s+20s but
+# leave headroom), no buffering, and cookie affinity ONLY for the polling fallback.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: conversations
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-body-size: 12m
+    nginx.ingress.kubernetes.io/affinity: cookie
+    nginx.ingress.kubernetes.io/session-cookie-name: conv-node
+    nginx.ingress.kubernetes.io/session-cookie-max-age: "3600"
+spec:
+  ingressClassName: nginx
+  tls: [{ hosts: [chat.example.com], secretName: conversations-tls }]
+  rules:
+    - host: chat.example.com
+      http:
+        paths: [{ path: /, pathType: Prefix, backend: { service: { name: conversations, port: { name: http } } } }]

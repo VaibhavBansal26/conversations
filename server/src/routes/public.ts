@@ -42,6 +42,9 @@ export function publicRoutes(ctx: AppContext) {
       ws.id,
     );
     const agents = (await listMemberRows(ctx, ws.id)).filter((m) => m.live_seat && m.availability === "active").map((m) => ({ id: m.id, name: m.name.split(" ")[0] }));
+    // an edge cache may hold this for 30s; the key MUST include the api key and Origin (the domain allow-list is evaluated per origin)
+    c.header("Cache-Control", "public, max-age=0, s-maxage=30");
+    c.header("Vary", "Origin, X-API-Key");
     return c.json({
       workspace_id: ws.id,
       workspace_name: ws.name,

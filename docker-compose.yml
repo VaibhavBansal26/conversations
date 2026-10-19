@@ -1,0 +1,44 @@
+# Two app nodes + nginx + Redis + PostgreSQL: the smallest topology that exercises everything that makes the app horizontally scalable.
+#   docker compose up --build        ->  http://localhost:8080
+# Replace the secrets below before exposing this anywhere. `docker compose up` here is a demo, not a production recipe.
+x-app: &app
+  build: .
+  restart: unless-stopped
+  depends_on:
+    postgres: { condition: service_healthy }
+    redis: { condition: service_healthy }
+  environment: &env
+    NODE_ENV: production
+    JWT_SECRET: ${JWT_SECRET:-change-me-change-me-change-me}
+    PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
+    CORS_ORIGINS: ${PUBLIC_URL:-http://localhost:8080}
+    DATABASE_URL: postgres://conversations:conversations@postgres:5432/conversations
+    REDIS_URL: redis://redis:6379
+    TRUST_PROXY: "true"
+    WS_TRANSPORTS: polling,websocket
+    METRICS_TOKEN: ${METRICS_TOKEN:-}
+  stop_grace_period: 30s
+
+services:
+  app1:
+    <<: *app
+    environment: { <<: *env, NODE_ID: app1 }
+  app2:
+    <<: *app
+    environment: { <<: *env, NODE_ID: app2 }
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on: [app1, app2]
+    ports: ["8080:80"]
+    volumes: ["./deploy/nginx.conf:/etc/nginx/nginx.conf:ro"]
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction"]
+    healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 5s, timeout: 3s, retries: 10 }
+  postgres:
+    image: postgres:17-alpine
+    environment: { POSTGRES_USER: conversations, POSTGRES_PASSWORD: conversations, POSTGRES_DB: conversations }
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U conversations"], interval: 5s, timeout: 3s, retries: 10 }
+volumes:
+  pgdata: {}

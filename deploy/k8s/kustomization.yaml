@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: conversations
+resources: [namespace.yaml, configmap.yaml, deployment.yaml, service.yaml, hpa.yaml, pdb.yaml, ingress.yaml]
+# Secrets are NOT in this repo. Create them out of band:
+#   kubectl -n conversations create secret generic conversations-secrets \
+#     --from-literal=JWT_SECRET=... --from-literal=DATABASE_URL=postgres://... --from-literal=REDIS_URL=redis://... --from-literal=METRICS_TOKEN=...

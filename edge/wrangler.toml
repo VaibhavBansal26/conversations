@@ -1,0 +1,7 @@
+name = "conversations-edge"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+[vars]
+ORIGIN = "https://chat.example.com"
+# EDGE_SECRET is a secret, not a var:  wrangler secret put EDGE_SECRET   (same value as CF_SHARED_SECRET on the app)

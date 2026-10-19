@@ -29,9 +29,57 @@ jobs:
       - name: End-to-end smoke (built server, real sockets)
         run: npm run e2e
 
+  # the whole server suite against real PostgreSQL 17 and real Redis 7 (service containers), not just SQLite
+  backends:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env: { POSTGRES_PASSWORD: postgres }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      TEST_DB: postgres
+      TEST_REDIS: "1"
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+      TEST_REDIS_URL: redis://localhost:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci --prefix server
+      - name: Server suite on PostgreSQL + Redis
+        run: npm test --prefix server
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm audit --omit=dev --audit-level=high --prefix server
+      - run: npm audit --omit=dev --audit-level=high --prefix web
+
+  edge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm test --prefix edge
+
   docker:
     runs-on: ubuntu-latest
-    needs: verify
+    needs: [verify, backends]
     steps:
       - uses: actions/checkout@v4
       - name: Build image

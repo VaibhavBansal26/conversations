@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: conversations-config }
+data:
+  NODE_ENV: production
+  PUBLIC_URL: https://chat.example.com
+  CORS_ORIGINS: https://chat.example.com
+  TRUST_PROXY: "true"
+  WS_DRAIN_MS: "10000"
+  WS_MAX_CONNECTIONS: "12000"
+  DATABASE_POOL_MAX: "10"
