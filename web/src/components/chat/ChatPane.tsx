@@ -14,6 +14,7 @@ import { Composer } from "../composer/Composer";
 import { ErrorNotice } from "../ui/ErrorNotice";
 import { LoadingBlock } from "../ui/Spinner";
 import { MessageList } from "./MessageList";
+import { ThreadSearch } from "./ThreadSearch";
 import { RoomHeader } from "./RoomHeader";
 
 interface Props {
@@ -111,6 +112,7 @@ export function ChatPane({ roomId, backTo, panelOpen, onTogglePanel }: Props) {
       {actionError !== null && <ErrorNotice error={actionError} compact />}
       {actions.patch.error && <ErrorNotice error={actions.patch.error} compact />}
       {actions.assign.error && <ErrorNotice error={actions.assign.error} compact />}
+      <ThreadSearch key={`search-${roomId}`} messages={thread.data.messages} hasOlder={!!thread.data.beforeCursor} onLoadOlder={() => older.mutate()} />
       <MessageList
         key={`messages-${roomId}`}
         thread={thread.data}

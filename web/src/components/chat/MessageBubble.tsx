@@ -4,6 +4,7 @@ import { formatClock } from "../../lib/time";
 import { Icon } from "../ui/Icon";
 import { Attachments } from "./Attachments";
 import { DeliveryStatus } from "./DeliveryStatus";
+import { COLLAPSE_FROM, EmailBody } from "./EmailBody";
 import { RichText } from "./RichText";
 
 export interface BubbleProps {
@@ -84,9 +85,7 @@ export function MessageBubble({ message: m, selfMemberId, contactName, first, la
           </div>
         ) : (
           text && (
-            <p className="body">
-              <RichText text={text} />
-            </p>
+            <p className="body">{m.source === "email" && m.sender.type === "contact" && text.length >= COLLAPSE_FROM ? <EmailBody text={text} /> : <RichText text={text} />}</p>
           )
         )}
         <Attachments items={m.attachments} />

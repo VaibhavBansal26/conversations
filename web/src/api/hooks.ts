@@ -24,13 +24,28 @@ export const useContactNotes = (id: string | undefined) =>
 export const useContactRooms = (id: string | undefined) =>
   useQuery({ queryKey: keys.contactRooms(id ?? ""), queryFn: async () => (await api.get<RoomPage>(`/contacts/${id}/rooms`)).data, enabled: !!id });
 
+export interface RoomPageParam {
+  cursor?: string;
+  page: number;
+}
+
+/** Keyset cursors where the server offers them (stable under live inserts); page numbers only for the computed waiting_longest sort. */
+export function nextRoomPageParam(last: RoomPage): RoomPageParam | undefined {
+  if (!last.pagination.has_more) return undefined;
+  if (last.pagination.next_cursor) return { cursor: last.pagination.next_cursor, page: 1 };
+  return { page: last.pagination.page + 1 };
+}
+
 export function useRoomList(filters: RoomListFilters) {
   return useInfiniteQuery({
     queryKey: keys.roomList(filters),
-    initialPageParam: 1,
+    initialPageParam: { page: 1 } as RoomPageParam,
     queryFn: ({ pageParam }) =>
-      api.get<RoomPage>("/rooms", { status: filters.status, filter: filters.filter, inbox_id: filters.inbox_id, search: filters.search, sort: filters.sort, page: pageParam, limit: PAGE }),
-    getNextPageParam: (last) => (last.pagination.has_more ? last.pagination.page + 1 : undefined),
+      api.get<RoomPage>("/rooms", {
+        status: filters.status, filter: filters.filter, inbox_id: filters.inbox_id, search: filters.search, sort: filters.sort,
+        cursor: pageParam.cursor, page: pageParam.cursor ? undefined : pageParam.page, limit: PAGE,
+      }),
+    getNextPageParam: nextRoomPageParam,
   });
 }
 

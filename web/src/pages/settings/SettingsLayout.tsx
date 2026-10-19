@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Link, NavLink, Navigate, Outlet, useLocation } from "react-router";
 import { useIsManager } from "../../auth/AuthContext";
 import { Icon } from "../../components/ui/Icon";
@@ -10,6 +11,7 @@ export const SETTINGS_PAGES = [
   { path: "tokens", label: "Embed tokens", managerOnly: true },
   { path: "channels", label: "Numbers & senders", managerOnly: true },
   { path: "templates", label: "Templates", managerOnly: true },
+  { path: "contacts", label: "Import contacts", managerOnly: false },
   { path: "knowledge-base", label: "Knowledge base", managerOnly: true },
   { path: "ai", label: "AI assistant", managerOnly: true },
   { path: "notifications", label: "Notifications & availability", managerOnly: false },
@@ -41,7 +43,9 @@ export function SettingsLayout() {
         </ul>
       </nav>
       <main className="settings-main" id="main">
-        <Outlet />
+        <Suspense fallback={<p role="status" className="muted">Loading…</p>}>
+          <Outlet />
+        </Suspense>
       </main>
     </div>
   );

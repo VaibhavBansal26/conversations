@@ -578,3 +578,80 @@
     justify-content: flex-start;
   }
 }
+
+/* thread search, quoted email text, search jump highlight */
+.thread-search {
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.thread-search.closed {
+  padding-block: 2px;
+}
+.thread-search .row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.thread-search .hint {
+  margin: 6px 0 2px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.thread-search .hits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.thread-search .hits button {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.thread-search .hits button:hover,
+.thread-search .hits button:focus-visible {
+  background: var(--surface-2);
+}
+.thread-search .who {
+  font-weight: 600;
+  margin-right: 6px;
+}
+.thread-search .snip {
+  display: block;
+  color: var(--text-2);
+}
+.thread-search mark {
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  color: inherit;
+  border-radius: 2px;
+}
+.msg.found .bubble {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.quoted-block {
+  margin-top: 6px;
+}
+.quoted-text {
+  margin-top: 6px;
+  padding-left: 10px;
+  border-left: 3px solid var(--border);
+  color: var(--text-2);
+}
+.link-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+}

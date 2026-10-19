@@ -24,6 +24,8 @@ jobs:
         run: npm test
       - name: Build
         run: npm run build
+      - name: Bundle budget (initial JS gzip)
+        run: npm run check:bundle --prefix web
       - name: End-to-end smoke (built server, real sockets)
         run: npm run e2e
 

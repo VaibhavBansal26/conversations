@@ -44,7 +44,16 @@ export function SocketProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!token || !workspaceId) return;
-    const socket = io(`/ws/${workspaceId}`, { auth: { token }, reconnectionDelayMax: 8000 });
+    // websocket first (no long-polling round trips on every emit), polling only as a fallback; jittered exponential backoff so a
+    // server restart does not make every client reconnect in the same instant
+    const socket = io(`/ws/${workspaceId}`, {
+      auth: { token }, transports: ["websocket", "polling"], reconnectionDelay: 1000, reconnectionDelayMax: 15_000, randomizationFactor: 0.8,
+    });
+    let manualTimer: ReturnType<typeof setTimeout> | undefined;
+    const reconnectLater = (ms: number) => {
+      clearTimeout(manualTimer);
+      manualTimer = setTimeout(() => socket.connect(), ms + Math.random() * 1500);
+    };
     socketRef.current = socket;
     const ctx: BridgeContext = {
       selfMemberId: memberId,
@@ -64,10 +73,24 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       }
       hasConnected = true;
     });
-    socket.on("disconnect", () => setStatus("disconnected"));
+    socket.on("disconnect", (reason: string) => {
+      setStatus("disconnected");
+      // when the SERVER closes the socket (restart drain, slow-consumer drop) socket.io does not retry by itself: do it with jitter
+      if (reason === "io server disconnect") reconnectLater(500);
+    });
+    socket.on("server:draining", (p: { reconnect_in_ms?: number }) => {
+      socket.disconnect();
+      reconnectLater(p.reconnect_in_ms ?? 2000);
+    });
+    socket.on("auth:expired", () => logout());
     socket.on("connect_error", (err: Error & { data?: { code?: string } }) => {
       setStatus("disconnected");
       if (err.data?.code && AUTH_CODES.has(err.data.code)) logout();
+      // the server asked us to back off (capacity, drain, rate limit): honour its hint on top of the built-in backoff
+      const wait = (err as { data?: { retry_after_ms?: number } }).data?.retry_after_ms;
+      if (wait) {
+        socket.io.opts.reconnectionDelay = Math.max(socket.io.opts.reconnectionDelay ?? 1000, wait);
+      }
     });
     socket.io.on("reconnect_attempt", () => setStatus("connecting"));
 
@@ -107,6 +130,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
 
     return () => {
       for (const t of timers.values()) clearTimeout(t);
+      clearTimeout(manualTimer);
       socket.removeAllListeners();
       socket.disconnect();
       socketRef.current = null;

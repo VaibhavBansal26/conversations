@@ -157,7 +157,9 @@ export interface Pagination {
   page: number;
   limit: number;
   has_more: boolean;
-  total?: number;
+  total?: number | null;
+  /** keyset cursor for the next page (null/absent when there is none or the sort is offset-paged) */
+  next_cursor?: string | null;
 }
 
 export interface RoomPage {

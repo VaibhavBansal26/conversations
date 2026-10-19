@@ -201,6 +201,27 @@
   margin: 0;
   padding: 0;
 }
+.rooms.virtual > li {
+  height: 76px; /* = ROW_HEIGHT in RoomListPane.tsx */
+  overflow: hidden;
+}
+.rooms.virtual .room-item {
+  height: 100%;
+  box-sizing: border-box;
+}
+.room-item.flash {
+  animation: room-flash 1.5s ease-out;
+}
+@keyframes room-flash {
+  from {
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .room-item.flash {
+    animation: none;
+  }
+}
 .room-item {
   display: flex;
   gap: 10px;

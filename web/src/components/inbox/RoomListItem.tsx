@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Link } from "react-router";
 import type { Member, Room } from "../../api/types";
 import { formatBadge } from "../../lib/unread";
@@ -11,6 +12,8 @@ interface Props {
   to: string;
   members: Map<string, Member>;
   now?: Date;
+  /** briefly highlight a room that changed since the last resync */
+  flash?: boolean;
 }
 
 const CHANNEL_ICON = { dm: "chat", sms: "sms", email: "mail" } as const;
@@ -24,14 +27,14 @@ function preview(room: Room): string {
   return who ? `${who}: ${text}` : text;
 }
 
-export function RoomListItem({ room, selected, to, members, now }: Props) {
+function RoomListItemImpl({ room, selected, to, members, now, flash }: Props) {
   const name = room.contact?.name || room.contact?.email || room.contact?.phone || "Unknown contact";
   const channel = room.last_message?.source ?? "dm";
   const assignees = room.assignee_ids.map((id) => members.get(id)).filter((m): m is Member => !!m);
   const unread = room.unread_count > 0;
   return (
     <li>
-      <Link to={to} className={`room-item${selected ? " selected" : ""}${unread ? " unread" : ""}`} aria-current={selected ? "true" : undefined}>
+      <Link to={to} className={`room-item${selected ? " selected" : ""}${unread ? " unread" : ""}${flash ? " flash" : ""}`} aria-current={selected ? "true" : undefined}>
         <Avatar name={name} seed={room.contact_id} />
         <div className="room-main">
           <div className="room-line">
@@ -75,3 +78,6 @@ export function RoomListItem({ room, selected, to, members, now }: Props) {
     </li>
   );
 }
+
+/** Re-rendering thousands of rows on every socket event is what makes big inboxes sluggish: rows only update when their own room changes. */
+export const RoomListItem = memo(RoomListItemImpl);
