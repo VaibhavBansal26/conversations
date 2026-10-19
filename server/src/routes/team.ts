@@ -94,7 +94,7 @@ export function teamRoutes(ctx: AppContext) {
   r.get("/contacts/:id/rooms", requireLiveSeat, (c) => {
     const a = c.get("actor");
     getContact(ctx, a.workspaceId, c.req.param("id"));
-    return c.json(listRooms(ctx, a, { status: "all", contact_id: c.req.param("id"), page: 1, limit: 20 }));
+    return c.json({ data: listRooms(ctx, a, { status: "all", contact_id: c.req.param("id"), page: 1, limit: 20 }).data });
   });
   return r;
 }

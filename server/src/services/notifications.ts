@@ -50,6 +50,22 @@ export function selectRecipients(ctx: AppContext, room: RoomRow, opts: { exclude
 export const canEmail = (ctx: AppContext, m: MemberRow): boolean =>
   prefsOf(m).email && !isDnd(ctx, m) && !ctx.presence.isOnline(memberScope(m.workspace_id), m.id);
 
+interface NotificationRow {
+  id: string;
+  type: string;
+  room_id: string | null;
+  message_id: string | null;
+  title: string;
+  body: string;
+  read_at: string | null;
+  created_at: string;
+}
+
+/** Only what the client needs: no workspace/seat ids, no email bookkeeping. */
+export const notificationDto = (n: NotificationRow) => ({
+  id: n.id, type: n.type, room_id: n.room_id, message_id: n.message_id, title: n.title, body: n.body, read_at: n.read_at, created_at: n.created_at,
+});
+
 function create(ctx: AppContext, m: MemberRow, n: { type: string; room: RoomRow; message: MessageRow; title: string; body: string }): string | null {
   const id = newId("ntf");
   const res = ctx.db.run(
@@ -58,7 +74,7 @@ function create(ctx: AppContext, m: MemberRow, n: { type: string; room: RoomRow;
   );
   if (!res.changes) return null;
   ctx.bus.toMember(m.workspace_id, m.id, "notification:new", {
-    notification: ctx.db.get("SELECT * FROM notifications WHERE id = ?", id),
+    notification: notificationDto(ctx.db.get<NotificationRow>("SELECT * FROM notifications WHERE id = ?", id)!),
     unread_count: unreadNotificationCount(ctx, m.id),
   });
   return id;
@@ -123,11 +139,11 @@ export const unreadNotificationCount = (ctx: AppContext, memberId: string): numb
   ctx.db.get<{ n: number }>("SELECT COUNT(*) n FROM notifications WHERE member_id = ? AND read_at IS NULL", memberId)!.n;
 
 export function listNotifications(ctx: AppContext, actor: Actor, q: { unread_only?: boolean; limit: number; before?: string }) {
-  const rows = ctx.db.all(
+  const rows = ctx.db.all<NotificationRow>(
     `SELECT * FROM notifications WHERE member_id = ? ${q.unread_only ? "AND read_at IS NULL" : ""} ${q.before ? "AND created_at < ?" : ""} ORDER BY created_at DESC, rowid DESC LIMIT ?`,
     actor.memberId, ...(q.before ? [q.before] : []), q.limit,
   );
-  return { data: rows, unread_count: unreadNotificationCount(ctx, actor.memberId) };
+  return { data: rows.map(notificationDto), unread_count: unreadNotificationCount(ctx, actor.memberId) };
 }
 
 export function markNotificationRead(ctx: AppContext, actor: Actor, id: string) {
