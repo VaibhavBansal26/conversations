@@ -165,12 +165,12 @@
 .msg.out.first .bubble {
   border-top-right-radius: 4px;
 }
-.bubble.note {
+.msg .bubble.note {
   background: var(--note-bg);
   color: var(--note-text);
   border: 1px dashed var(--note-border);
 }
-.bubble.failed {
+.msg .bubble.failed {
   border-color: var(--danger);
 }
 .bubble-meta {

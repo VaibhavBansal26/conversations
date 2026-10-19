@@ -9,6 +9,7 @@ import { RichText } from "./RichText";
 export interface BubbleProps {
   message: Message;
   selfMemberId: string;
+  contactName?: string;
   first: boolean;
   last: boolean;
   editWindowOpen?: boolean;
@@ -20,7 +21,7 @@ export interface BubbleProps {
 
 const CHANNEL_LABEL = { dm: "Chat", sms: "SMS", email: "Email" } as const;
 
-export function MessageBubble({ message: m, selfMemberId, first, last, editWindowOpen = true, onReply, onRetry, onEdit, onDelete }: BubbleProps) {
+export function MessageBubble({ message: m, selfMemberId, contactName, first, last, editWindowOpen = true, onReply, onRetry, onEdit, onDelete }: BubbleProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
 
@@ -57,7 +58,7 @@ export function MessageBubble({ message: m, selfMemberId, first, last, editWindo
                 <Icon name="lock" size={12} /> Internal note
               </span>
             )}
-            <span className="sender">{m.sender.name || (outgoing ? "Team" : "Contact")}</span>
+            <span className="sender">{outgoing ? m.sender.name || "Team" : contactName || m.sender.name || "Contact"}</span>
             {!isNote && m.source !== "dm" && <span className="tag">{CHANNEL_LABEL[m.source]}</span>}
             {m.sender.type === "bot" && <span className="tag">Bot</span>}
           </div>

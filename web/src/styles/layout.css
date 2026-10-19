@@ -188,7 +188,7 @@
   transform: translateY(-50%);
   color: var(--text-3);
 }
-.search input {
+.search input[type="search"] {
   padding-left: 32px;
 }
 .list-scroll {

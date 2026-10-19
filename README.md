@@ -1,0 +1,68 @@
+# Conversations
+
+A unified customer inbox: **live chat** (embeddable widget), **SMS** and **email** in one place, with inboxes and round-robin routing, notes and mentions, snooze, templates, notifications and optional AI assistance (suggested replies, summaries, triage, rewriting, a widget auto-responder).
+
+Standalone and self-contained: Node + SQLite, no external services required to run (SMS/email/AI fall back to console/offline providers).
+
+## Quick start
+
+Requires Node >= 22.13 (developed on 24) and npm.
+
+```bash
+npm run setup          # install server/ and web/ dependencies
+npm run seed           # optional: demo workspace (demo@example.test / demo-password-123), dev only
+npm run dev            # API on http://localhost:3000, web app on http://localhost:5173
+```
+
+Open http://localhost:5173 and sign in with the demo user (or register a new workspace). Try the widget: create an embed token for `localhost:3000` in *Settings -> Tokens*, then open http://localhost:3000/widget-demo.html and paste the token (the seed already creates tokens for `localhost:5173` and `localhost:3000`).
+
+### Production-style run
+
+```bash
+npm run build
+JWT_SECRET=$(openssl rand -hex 32) npm start     # serves API, sockets, widget and the built web app on :3000
+# or
+npm run package && docker run -p 3000:3000 -v conv-data:/data -e JWT_SECRET=... conversations
+```
+
+### Verify everything
+
+```bash
+npm run typecheck && npm test && npm run build && npm run e2e
+```
+
+`npm run e2e` boots the built server and drives it with real HTTP and Socket.IO clients (visitor -> agent -> visitor round trip with receipts, plus a signed inbound-SMS webhook).
+
+## Configuration
+
+Everything is environment driven and validated at boot (`server/src/config.ts`); see `.env.example` for the full list. Defaults make `npm run dev` work with no env at all.
+
+| Concern | Variables |
+| --- | --- |
+| Secrets | `JWT_SECRET` (required in production) |
+| Public URL / CORS | `PUBLIC_URL`, `CORS_ORIGINS`, `TRUST_PROXY` |
+| SMS | `SMS_PROVIDER=twilio`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` (also verifies inbound webhooks) |
+| Email | `EMAIL_PROVIDER=sendgrid`, `SENDGRID_API_KEY`, `SENDGRID_WEBHOOK_PUBLIC_KEY` or `WEBHOOK_SHARED_SECRET` |
+| AI | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` (default `claude-sonnet-5-5`); offline heuristics without a key |
+| Realtime scale-out | `SOCKET_ADAPTER=redis`, `REDIS_URL` (optional packages `@socket.io/redis-adapter`, `redis`) |
+
+Wiring real providers: point Twilio's inbound and status webhooks at `PUBLIC_URL/webhooks/twilio/sms` and `/webhooks/twilio/status`; point SendGrid inbound parse at `PUBLIC_URL/webhooks/sendgrid/inbound?secret=<WEBHOOK_SHARED_SECRET>` and the event webhook at `/webhooks/sendgrid/events`. Register your numbers, verified senders and inbound addresses in *Settings*.
+
+## Embedding the widget
+
+```html
+<script src="https://YOUR-HOST/widget.js" data-token="cvt_..." async></script>
+```
+
+The token is bound to a domain (`example.com`, `*.example.com`, `localhost:3000`) in *Settings -> Tokens*. Appearance, required info, office hours, welcome/away messages and chat type are edited in *Settings -> Widget* with a live preview.
+
+## Repository layout
+
+```
+server/   Hono + Socket.IO API, SQLite, jobs, AI           (see docs/ARCHITECTURE.md)
+web/      React agent app (inbox, settings)
+docs/     ARCHITECTURE, APPROACH, AI, TESTING, MIGRATION-NOTES
+Dockerfile  .github/workflows/ci.yml  .env.example
+```
+
+Documentation: [Architecture](docs/ARCHITECTURE.md) | [Approach](docs/APPROACH.md) | [AI](docs/AI.md) | [Testing](docs/TESTING.md) | [Migration notes](docs/MIGRATION-NOTES.md)

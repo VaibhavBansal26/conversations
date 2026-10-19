@@ -30,7 +30,8 @@ export function InboxPage() {
   const members = useMembers().data;
   const memberMap = useMemo(() => new Map((members ?? []).map((m) => [m.id, m])), [members]);
   const [drawer, setDrawer] = useState(false);
-  const [panel, setPanel] = useState(true);
+  // the contact panel is an overlay on narrower screens, so it only starts open where it fits beside the chat
+  const [panel, setPanel] = useState(() => window.matchMedia?.("(min-width: 1280px)").matches ?? true);
   const [help, setHelp] = useState(false);
   const [creating, setCreating] = useState(false);
 

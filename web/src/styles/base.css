@@ -379,7 +379,7 @@ button:disabled {
   color: var(--warn);
   font-size: 13px;
   position: fixed;
-  bottom: 16px;
+  top: 12px;
   left: 50%;
   transform: translateX(-50%);
   max-width: min(92vw, 560px);

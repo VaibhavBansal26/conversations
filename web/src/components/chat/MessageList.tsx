@@ -12,6 +12,7 @@ interface Props {
   loadingOlder: boolean;
   onLoadOlder: () => void;
   selfMemberId: string;
+  contactName?: string;
   editWindowSeconds: number;
   typing?: TypingEvent["who"];
   handlers: Pick<BubbleProps, "onReply" | "onRetry" | "onEdit" | "onDelete">;
@@ -20,7 +21,7 @@ interface Props {
 const NEAR_BOTTOM_PX = 96;
 const LOAD_OLDER_PX = 120;
 
-export function MessageList({ thread, loadingOlder, onLoadOlder, selfMemberId, editWindowSeconds, typing, handlers }: Props) {
+export function MessageList({ thread, loadingOlder, onLoadOlder, selfMemberId, contactName, editWindowSeconds, typing, handlers }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
   const prevHeight = useRef<number | null>(null);
@@ -103,6 +104,7 @@ export function MessageList({ thread, loadingOlder, onLoadOlder, selfMemberId, e
               key={item.key}
               message={item.message}
               selfMemberId={selfMemberId}
+              contactName={contactName}
               first={item.first}
               last={item.last}
               editWindowOpen={Date.now() - new Date(item.message.created_at).getTime() < editWindowSeconds * 1000}

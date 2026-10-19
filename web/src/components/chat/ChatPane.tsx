@@ -112,16 +112,17 @@ export function ChatPane({ roomId, backTo, panelOpen, onTogglePanel }: Props) {
       {actions.patch.error && <ErrorNotice error={actions.patch.error} compact />}
       {actions.assign.error && <ErrorNotice error={actions.assign.error} compact />}
       <MessageList
-        key={roomId}
+        key={`messages-${roomId}`}
         thread={thread.data}
         loadingOlder={older.isPending}
         onLoadOlder={() => older.mutate()}
         selfMemberId={member.id}
+        contactName={room.data.contact?.name}
         editWindowSeconds={workspace.settings.edit_window_seconds}
         typing={socket.typing[roomId]}
         handlers={handlers}
       />
-      <Composer key={roomId} room={room.data} messages={thread.data.messages} replyTo={replyTo} onClearReply={() => setReplyTo(null)} textareaRef={composerRef} />
+      <Composer key={`composer-${roomId}`} room={room.data} messages={thread.data.messages} replyTo={replyTo} onClearReply={() => setReplyTo(null)} textareaRef={composerRef} />
     </section>
   );
 }
