@@ -15,13 +15,25 @@ export class Fleet {
   }
   async start() {
     await Promise.all(
-      Array.from({ length: this.count }, () => {
-        const proc = fork(join(here, "conn-worker.mjs"), [], { execArgv: ["--max-old-space-size=3072"] });
-        this.workers.push(proc);
-        proc.on("message", (m) => {
-          if (m.id != null) this.pending.get(m.id)?.(m);
-        });
-        return new Promise((res) => proc.once("message", (m) => m.ready && res()));
+      Array.from({ length: this.count }, async () => {
+        // the machine's file table is shared with everything else running on it; a spawn can fail transiently with ENFILE
+        for (let attempt = 0; ; attempt++) {
+          try {
+            const proc = fork(join(here, "conn-worker.mjs"), [], { execArgv: ["--max-old-space-size=3072"] });
+            await new Promise((res, rej) => {
+              proc.once("error", rej);
+              proc.once("message", (m) => m.ready && res());
+            });
+            this.workers.push(proc);
+            proc.on("message", (m) => {
+              if (m.id != null) this.pending.get(m.id)?.(m);
+            });
+            return;
+          } catch (e) {
+            if (attempt >= 8) throw e;
+            await sleep(1500);
+          }
+        }
       }),
     );
   }
@@ -52,7 +64,7 @@ export class Fleet {
   async stats(reset = false) {
     const all = (await this.all({ cmd: "stats", reset })).map((r) => r.stats);
     const sum = (k) => all.reduce((a, s) => a + (s[k] ?? 0), 0);
-    const keys = ["connected", "connectErrors", "disconnects", "reconnects", "recv", "recvTeam", "recvVisitor", "dup", "gap", "gapMsgs", "recovered", "resyncRequests", "resyncFailed", "sendOk", "sendErr", "sendCreatedFalse", "acksTimeout", "drained", "slowKicked", "auditMissing", "open", "total"];
+    const keys = ["connected", "connectErrors", "disconnects", "reconnects", "recv", "recvTeam", "recvVisitor", "dup", "gap", "gapMsgs", "recovered", "resyncRequests", "resyncFailed", "sendUnique", "resent", "failovers", "sendOk", "sendErr", "sendCreatedFalse", "acksTimeout", "drained", "slowKicked", "auditMissing", "open", "total"];
     const out = Object.fromEntries(keys.map((k) => [k, sum(k)]));
     out.connectErrorSamples = {};
     for (const s of all) for (const [k, v] of Object.entries(s.connectErrorSamples)) out.connectErrorSamples[k] = (out.connectErrorSamples[k] ?? 0) + v;

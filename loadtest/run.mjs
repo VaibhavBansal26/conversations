@@ -44,9 +44,9 @@ function makeItems({ stack, ws, visitors, agents, agentNode = 0 }) {
   const urls = stack.urls;
   const items = [];
   const rooms = visitors.map((v) => v.roomId);
-  for (let i = 0; i < agents; i++) items.push({ kind: "team", url: urls[agentNode % urls.length], wsId: ws.wsId, token: ws.ownerToken, rooms });
+  for (let i = 0; i < agents; i++) items.push({ kind: "team", urls: urls.length > 1 ? urls : undefined, url: urls[agentNode % urls.length], wsId: ws.wsId, token: ws.ownerToken, rooms });
   const visitorUrls = urls.length > 1 && agents > 0 ? urls.filter((_, i) => i !== agentNode % urls.length) : urls;
-  visitors.forEach((v, i) => items.push({ kind: "visitor", url: visitorUrls[i % visitorUrls.length], wsId: ws.wsId, session: v.session, device: v.device, rooms: [v.roomId] }));
+  visitors.forEach((v, i) => items.push({ kind: "visitor", urls: urls.length > 1 ? urls : undefined, url: visitorUrls[i % visitorUrls.length], wsId: ws.wsId, session: v.session, device: v.device, rooms: [v.roomId] }));
   return items;
 }
 
@@ -82,7 +82,7 @@ let cleanup = [];
 
 async function main() {
   await waitQuiet();
-  const fns = { ramp, fanout, storm, slow, multinode, soak, idempotency, rest, drain };
+  const fns = { ramp, fanout, storm, slow, multinode, soak, idempotency, rest, drain, fault, roomsize };
   if (!fns[scenario]) throw new Error(`unknown scenario "${scenario}". one of: ${Object.keys(fns).join(", ")}`);
   await fns[scenario]();
 }
@@ -363,6 +363,110 @@ async function drain() {
   await ctx.fleet.all({ cmd: "stopSend" });
   await finish(ctx);
   results.drain = { open_before: before, open_after_node0_exit: mid.open, node0_exit_ms: exitMs, drain_events_received_by_clients: mid.drained, note: "node0 clients were told server:draining with a jittered reconnect delay; in this harness they have no balancer to fail over to, so they keep retrying node0" };
+}
+
+/** Fault under load with end-to-end verification: nothing lost, nothing stored twice, nothing out of order. --fault node-kill|redis-restart|pg-freeze */
+async function fault() {
+  const kind = opt.fault ?? "node-kill";
+  if (cfg.nodes < 3) cfg.nodes = 3;
+  const ctx = await steady({ tag: "fault", agentNode: 0, env: {} });
+  const total0 = (await ctx.fleet.stats()).open;
+  await ctx.fleet.all({ cmd: "send", ratePerSec: cfg.rate / cfg.workers, bytes: cfg.bytes, kindFilter: "visitor", track: true });
+  await sleep(8000);
+  const t0 = Date.now();
+  if (kind === "node-kill") {
+    ctx.stack.nodes[1].proc.kill("SIGKILL");
+    log("SIGKILLed node1 under load");
+  } else if (kind === "redis-restart") {
+    await ctx.stack.redis.restart();
+    log("restarted redis (state lost)");
+  } else if (kind === "pg-freeze") {
+    log("freezing postgres for 6 s");
+    await ctx.stack.postgres.freeze(6000);
+  }
+  await sleep(20000);
+  await ctx.fleet.all({ cmd: "stopSend" });
+  // everything unacknowledged is retried by the clients (same client ids); wait until the pending sets drain
+  let s;
+  for (let i = 0; i < 40; i++) {
+    await sleep(2000);
+    s = await ctx.fleet.stats();
+    if (s.sendOk >= s.sendUnique) break;
+  }
+  await ctx.fleet.all({ cmd: "audit" });
+  const fin = await ctx.fleet.stats();
+  // ground truth from the database
+  const { createRequire } = await import("node:module");
+  const { default: pgmod } = await import(createRequire(new URL("../server/package.json", import.meta.url)).resolve("pg"));
+  const c = new pgmod.Client({ connectionString: ctx.stack.postgres.url });
+  await c.connect();
+  const stored = Number((await c.query("SELECT COUNT(*) n FROM messages WHERE sender_type = 'contact' AND client_msg_id LIKE 'c%-%'")).rows[0].n);
+  const distinct = Number((await c.query("SELECT COUNT(*) n FROM message_qids WHERE client_msg_id LIKE 'c%-%'")).rows[0].n);
+  const gaps = Number((await c.query("SELECT COUNT(*) n FROM (SELECT room_id FROM messages GROUP BY room_id HAVING MAX(seq) - MIN(seq) + 1 <> COUNT(*)) t")).rows[0].n);
+  await c.end();
+  await finish(ctx);
+  results.fault = {
+    kind,
+    secs_run_after_fault: Math.round((Date.now() - t0) / 1000),
+    sockets_before: total0,
+    sockets_after: fin.open,
+    failovers_by_clients: fin.failovers,
+    unique_messages_sent: fin.sendUnique,
+    acked: fin.sendOk,
+    resent_after_reconnect: fin.resent,
+    stored_in_db: stored,
+    distinct_client_ids_in_db: distinct,
+    LOST: fin.sendUnique - stored,
+    DUPLICATED_IN_DB: stored - distinct,
+    per_room_seq_gaps_in_db: gaps,
+    client_seq_gaps: fin.gap,
+    client_duplicates_received: fin.dup,
+    client_missing_after_resync_audit: fin.auditMissing,
+  };
+}
+
+/** Fan-out throughput against the number of subscribers of ONE event stream (team sockets all receive every message). */
+async function roomsize() {
+  const sizes = String(opt.sizes ?? "1,10,100,1000").split(",").map(Number);
+  const { stack, ws } = await setup();
+  cleanup.push(() => stack.stop());
+  const { visitors } = await bootstrapVisitors(stack, ws, 50, "rs");
+  const fleet = new Fleet(cfg.workers);
+  await fleet.start();
+  cleanup.push(() => fleet.close());
+  const out = [];
+  let connectedAgents = 0;
+  let prevRecv = 0;
+  let prevSent = 0;
+  const sampler = await sampleNodes(stack, fleet);
+  const vitems = makeItems({ stack, ws, visitors, agents: 0 });
+  await fleet.connect(vitems, 500);
+  for (const size of sizes) {
+    const add = size - connectedAgents;
+    if (add > 0) {
+      const rooms = visitors.map((v) => v.roomId);
+      await fleet.connect(Array.from({ length: add }, () => ({ kind: "team", url: stack.urls[0], wsId: ws.wsId, token: ws.ownerToken, rooms })), 400);
+      connectedAgents = size;
+      await sleep(2000);
+    }
+    await fleet.stats(true);
+    sampler.reset();
+    const t0 = Date.now();
+    await fleet.all({ cmd: "send", ratePerSec: cfg.rate / cfg.workers, bytes: cfg.bytes, kindFilter: "visitor" });
+    await sleep(cfg.duration * 1000);
+    await fleet.all({ cmd: "stopSend" });
+    await sleep(2500);
+    const s = await fleet.stats();
+    const secs = (Date.now() - t0) / 1000;
+    const dRecv = s.recvTeam - prevRecv;
+    const dSent = s.sendOk - prevSent;
+    prevRecv = s.recvTeam;
+    prevSent = s.sendOk;
+    out.push({ subscribers: size, sent_per_s: Math.round(dSent / cfg.duration), deliveries_per_s: Math.round(dRecv / secs), delivery_p50_ms: s.delivery.p50, delivery_p99_ms: s.delivery.p99, gaps: s.gap, dups: s.dup, node_cpu_pct: sampler.report().node0?.cpu_avg_pct, node_rss_mb: sampler.report().node0?.rss_peak_mb });
+    log(JSON.stringify(out.at(-1)));
+  }
+  sampler.stop();
+  results.roomsize = out;
 }
 
 try {

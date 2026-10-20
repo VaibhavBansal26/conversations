@@ -7,7 +7,7 @@ const sockets = []; // {s, kind, rooms, last: Map<room, {seq,id}>, item}
 const ctr = {
   connected: 0, connectErrors: 0, connectErrorSamples: {}, disconnects: 0, reconnects: 0,
   recv: 0, recvTeam: 0, recvVisitor: 0, auditMissing: 0, dup: 0, gap: 0, gapMsgs: 0, recovered: 0, resyncRequests: 0, resyncFailed: 0,
-  sendOk: 0, sendErr: 0, sendCreatedFalse: 0, acksTimeout: 0, drained: 0, slowKicked: 0,
+  sendUnique: 0, resent: 0, failovers: 0, sendOk: 0, sendErr: 0, sendCreatedFalse: 0, acksTimeout: 0, drained: 0, slowKicked: 0,
 };
 let deliveryLat = [];
 let ackLat = [];
@@ -73,9 +73,20 @@ function connectOne(item) {
     randomizationFactor: 0.8,
     extraHeaders: item.kind === "visitor" ? { origin: "http://shop.example.com" } : {},
   });
-  const rec = { s, kind: item.kind, last: new Map(), item, everConnected: false };
+  const rec = { s, kind: item.kind, last: new Map(), item, everConnected: false, pending: new Map(), fails: 0, urlIdx: Math.max(0, (item.urls ?? []).indexOf(item.url)) };
+  const failover = () => {
+    // after two failures in a row against one node, try the next one (a balancer does this in production; the harness has none)
+    if (!item.urls || ++rec.fails < 2) return;
+    rec.fails = 0;
+    rec.urlIdx = (rec.urlIdx + 1) % item.urls.length;
+    s.io.uri = item.urls[rec.urlIdx];
+    ctr.failovers++;
+  };
   s.on("connect", () => {
+    rec.fails = 0;
     ctr.connected++;
+    // anything sent but never acknowledged is sent again with the SAME client id: the server's idempotency makes that safe
+    for (const [cid, p] of rec.pending) { ctr.resent++; emitSend(rec, p.room, p.body, cid); }
     if (!rec.everConnected) keep(connectLat, Date.now() - t0);
     else {
       ctr.reconnects++;
@@ -86,9 +97,11 @@ function connectOne(item) {
   s.on("disconnect", (reason) => {
     ctr.connected--;
     ctr.disconnects++;
+    failover();
     if (reason === "io server disconnect") ctr.slowKicked++;
   });
   s.on("connect_error", (e) => {
+    failover();
     ctr.connectErrors++;
     const k = String(e.data?.code ?? e.message).slice(0, 60);
     ctr.connectErrorSamples[k] = (ctr.connectErrorSamples[k] ?? 0) + 1;
@@ -117,7 +130,19 @@ async function connectAll({ items, ratePerSec }) {
   });
 }
 
-function startSending({ ratePerSec, bytes = 64, kindFilter = "visitor", roomsOf = null }) {
+function emitSend(rec, roomId, body, cid) {
+  if (!rec.s.connected) return;
+  const at = Date.now();
+  rec.s.emit("message:send", { room_id: roomId, content: body, client_msg_id: cid }, (ack) => {
+    if (ack?.ok === false || ack?.error) { ctr.sendErr++; return; }
+    rec.pending.delete(cid);
+    ctr.sendOk++;
+    if (ack && ack.created === false) ctr.sendCreatedFalse++;
+    keep(ackLat, Date.now() - at);
+  });
+}
+
+function startSending({ ratePerSec, bytes = 64, kindFilter = "visitor", track = false }) {
   stopSending();
   const pool = sockets.filter((r) => r.kind === kindFilter);
   if (!pool.length || ratePerSec <= 0) return;
@@ -130,21 +155,12 @@ function startSending({ ratePerSec, bytes = 64, kindFilter = "visitor", roomsOf 
     while (n < due) {
       const rec = pool[Math.floor(Math.random() * pool.length)];
       n++;
-      if (!rec.s.connected) continue;
+      if (!track && !rec.s.connected) continue;
       const roomId = rec.kind === "visitor" ? rec.item.rooms[0] : rec.item.rooms[Math.floor(Math.random() * rec.item.rooms.length)];
-      const at = Date.now();
-      let done = false;
-      const timer = setTimeout(() => { if (!done) ctr.acksTimeout++; }, 10000);
-      rec.s.emit("message:send", { room_id: roomId, content: body, client_msg_id: `c${process.pid}-${sentSeq++}` }, (ack) => {
-        done = true;
-        clearTimeout(timer);
-        if (ack?.ok === false || ack?.error) ctr.sendErr++;
-        else {
-          ctr.sendOk++;
-          if (ack && ack.created === false) ctr.sendCreatedFalse++;
-          keep(ackLat, Date.now() - at);
-        }
-      });
+      const cid = `c${process.pid}-${sentSeq++}`;
+      ctr.sendUnique++;
+      if (track) rec.pending.set(cid, { room: roomId, body });
+      emitSend(rec, roomId, body, cid);
     }
   }, 5);
 }

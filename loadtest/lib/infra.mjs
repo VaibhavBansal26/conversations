@@ -51,7 +51,21 @@ export async function startRedis() {
       await sleep(50);
     }
   }
-  return { url, pid: proc.pid, stop: async () => void proc.kill("SIGTERM") };
+  const handle = {
+    url,
+    port,
+    pid: proc.pid,
+    proc,
+    stop: async () => void handle.proc.kill("SIGTERM"),
+    /** kill and start again on the same port with empty state, like a cache failover */
+    async restart() {
+      handle.proc.kill("SIGKILL");
+      await sleep(300);
+      handle.proc = spawn("redis-server", ["--port", String(port), "--bind", "127.0.0.1", "--save", "", "--appendonly", "no", "--maxclients", "20000"], { stdio: "ignore" });
+      handle.pid = handle.proc.pid;
+    },
+  };
+  return handle;
 }
 
 export async function startPostgres() {
@@ -72,6 +86,16 @@ export async function startPostgres() {
   await pg.start();
   return {
     url: `postgres://postgres:postgres@127.0.0.1:${port}/postgres`,
+    dir,
+    port,
+    /** freeze every postgres process for `ms` (SIGSTOP/SIGCONT): a primary that stops answering, then comes back */
+    async freeze(ms) {
+      const { execFileSync } = await import("node:child_process");
+      const pids = execFileSync("pgrep", ["-f", dir]).toString().trim().split("\n").filter(Boolean);
+      for (const p of pids) process.kill(Number(p), "SIGSTOP");
+      await sleep(ms);
+      for (const p of pids) process.kill(Number(p), "SIGCONT");
+    },
     stop: async () => {
       await pg.stop();
       rmSync(dir, { recursive: true, force: true });
