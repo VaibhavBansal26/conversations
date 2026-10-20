@@ -5,8 +5,8 @@ import { parseBody, parseQuery, type Env } from "../http.js";
 import { getPepper, overview, parseRange, rotatePepper, timeseries, type TimeseriesMetric } from "../services/analytics.js";
 import { createApiKey, listApiKeys, revokeApiKey } from "../services/apiKeys.js";
 
-const Range = z.object({ from: z.string().optional(), to: z.string().optional(), tz: z.string().max(64).optional(), interval: z.string().optional() });
-const KeyBody = z.object({
+export const Range = z.object({ from: z.string().optional(), to: z.string().optional(), tz: z.string().max(64).optional(), interval: z.string().optional() });
+export const KeyBody = z.object({
   name: z.string().trim().min(1).max(80),
   scopes: z.array(z.string()).min(1).max(5),
   ip_allowlist: z.array(z.string().max(64)).max(50).optional(),

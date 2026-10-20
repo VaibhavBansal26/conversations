@@ -12,9 +12,9 @@ import { ipKey } from "../util/clientIp.js";
 
 type KeyEnv = { Variables: { apiKey: AuthenticatedKey } };
 
-const Range = z.object({ from: z.string().optional(), to: z.string().optional(), tz: z.string().max(64).optional(), interval: z.string().optional() });
-const ExportQ = Range.extend({ limit: z.coerce.number().int().min(1).max(EXPORT_MAX_LIMIT).default(1000), cursor: z.string().max(500).optional() });
-const TsQ = Range.extend({ metric: z.string() });
+export const Range = z.object({ from: z.string().optional(), to: z.string().optional(), tz: z.string().max(64).optional(), interval: z.string().optional() });
+export const ExportQ = Range.extend({ limit: z.coerce.number().int().min(1).max(EXPORT_MAX_LIMIT).default(1000), cursor: z.string().max(500).optional() });
+export const TsQ = Range.extend({ metric: z.string() });
 
 /** Which scope each route needs. A test requires every route registered below to be listed. */
 export const KEY_SCOPES: Record<string, string> = {

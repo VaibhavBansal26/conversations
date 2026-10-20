@@ -4,7 +4,7 @@ import type { AppContext } from "../context.js";
 import { parseBody, type Env } from "../http.js";
 import { inviteMember, listInvitations, revokeInvitation } from "../services/accounts.js";
 
-const Invite = z.object({ email: z.string().email().max(254), name: z.string().trim().max(100).optional(), role_id: z.string().min(1).max(64) });
+export const Invite = z.object({ email: z.string().email().max(254), name: z.string().trim().max(100).optional(), role_id: z.string().min(1).max(64) });
 
 export function invitationRoutes(ctx: AppContext) {
   const r = new Hono<Env>();

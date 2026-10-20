@@ -86,11 +86,22 @@ Generated from `policies.ts` and `routePolicies.ts` (`npm run docs:ratelimit`; `
 | `auth.register.ip` | ip | gcra | 10 per 1 min, burst 10 | - | fail-closed + penalty box | Workspace registrations per IP (POST /api/auth/register) |
 | `auth.fail.account` | composite | strike | 5 failures / 15 min | - | fail-closed | Failed logins per account (hashed email): 5 failures in 15 min lock the account, escalating 1 min -> 5 min -> 30 min -> 24 h (POST /api/auth/login) |
 | `auth.fail.ip` | ip | strike | 20 failures / 15 min | - | fail-closed | Failed logins per IP: 20 failures in 15 min block the IP, escalating (POST /api/auth/login) |
+| `auth.refresh.ip` | ip | gcra | 60 per 1 min, burst 60 | - | fail-open | Refresh-token exchanges per IP (POST /api/auth/refresh, POST /api/auth/logout) |
+| `auth.mfa.ip` | ip | gcra | 10 per 1 min, burst 10 | - | fail-closed + penalty box | Second-factor submissions per IP (POST /api/auth/mfa/verify) |
+| `auth.fail.mfa` | composite | strike | 5 failures / 15 min | - | fail-closed | Wrong second-factor codes per user: 5 in 15 min lock the second step, escalating (POST /api/auth/mfa/verify) |
+| `auth.forgot.ip` | ip | window | 10 per 1 h | - | fail-closed | Password-reset requests per IP per hour (POST /api/auth/password/forgot) |
+| `auth.forgot.email` | composite | window | 3 per 1 h | - | fail-closed | Password-reset requests per address per hour (stops mail bombing) (POST /api/auth/password/forgot) |
+| `auth.reset.ip` | ip | gcra | 10 per 10 min, burst 10 | - | fail-closed + penalty box | Password-reset and invitation token submissions per IP (POST /api/auth/password/reset, GET /api/auth/invitations/:token, POST /api/auth/invitations/accept) |
+| `admin.login.ip` | ip | gcra | 5 per 1 min, burst 5 | - | fail-closed + penalty box | Platform admin sign-in steps per IP (5 per minute) (4 entry points) |
+| `admin.fail.account` | composite | strike | 5 failures / 15 min | - | fail-closed | Failed platform admin logins per account: 5 in 15 min lock it, escalating (4 entry points) |
+| `admin.fail.ip` | ip | strike | 10 failures / 15 min | - | fail-closed | Failed platform admin logins per IP: 10 in 15 min block the IP, escalating (4 entry points) |
+| `admin.fail.mfa` | composite | strike | 5 failures / 15 min | - | fail-closed | Wrong platform admin second-factor codes per admin: 5 in 15 min lock the second step, escalating (4 entry points) |
+| `admin.api` | user | gcra | 10 per 1 s, burst 40 | - | fail-closed | Platform admin API calls, per admin (17 entry points) |
 | `public.config` | ip | gcra | 60 per 1 min, burst 60 | - | fail-open | Widget config fetch, per IP (GET /public/widget/config) |
 | `public.session` | composite | gcra | 20 per 1 min, burst 20 | - | fail-closed + penalty box | Visitor session creation, per IP + Origin + embed token (POST /public/sessions) |
 | `public.room` | visitor | gcra | 10 per 50 s, burst 10 | - | fail-open | Visitor starts a conversation (POST /public/rooms) |
 | `public.send` | visitor | gcra | 30 per 30 s, burst 30 | - | fail-open | Visitor sends a message (POST /public/rooms/:id/messages) |
-| `public.read` | visitor | gcra | 60 per 30 s, burst 60 | - | fail-open | Visitor read receipts (POST /public/rooms/:id/read) |
+| `public.read` | visitor | gcra | 60 per 30 s, burst 60 | - | fail-open | Visitor read receipts (POST /public/rooms/:id/read, POST /public/rooms/:id/csat) |
 | `public.query` | visitor | gcra | 10 per 1 s, burst 40 | - | fail-open + lease | Visitor reads (session, rooms, messages) (GET /public/session, GET /public/rooms, GET /public/rooms/:id/messages) |
 | `public.otp.send` | visitor | gcra | 5 per 10 min, burst 5 | - | fail-closed + penalty box | OTP sends per visitor session (5 per 10 min) (POST /public/otp/send) |
 | `public.otp.contact` | composite | window | 10 per 1 d | - | fail-closed | OTP sends per contact per day (caps cost of SMS pumping) (POST /public/otp/send) |
@@ -98,9 +109,9 @@ Generated from `policies.ts` and `routePolicies.ts` (`npm run docs:ratelimit`; `
 | `public.otp.verify` | visitor | gcra | 10 per 5 min, burst 10 | - | fail-closed + penalty box | OTP verification attempts per visitor session (POST /public/otp/verify) |
 | `msg.room` | composite | window | 300 per 1 min | - | fail-open | Messages per room (visitor + agents together): stops a runaway client or loop (POST /api/rooms/:id/messages, POST /public/rooms/:id/messages, socket message:send) |
 | `msg.workspace` | workspace | window | 5000 per 1 h | free 5000, pro 50000, business 500000 | fail-open | Messages per workspace per hour, by plan (POST /api/rooms/:id/messages, POST /public/rooms/:id/messages, socket message:send) |
-| `api.read` | user | gcra | 20 per 1 s, burst 100 | - | fail-open + lease | Authenticated reads, per user (26 entry points) |
-| `api.write` | user | gcra | 10 per 1 s, burst 50 | - | fail-open + lease | Authenticated writes, per user (49 entry points) |
-| `api.workspace` | workspace | window | 1200 per 1 min | free 1200, pro 6000, business 30000 | fail-open | All API calls per workspace per minute, by plan (81 entry points) |
+| `api.read` | user | gcra | 20 per 1 s, burst 100 | - | fail-open + lease | Authenticated reads, per user (36 entry points) |
+| `api.write` | user | gcra | 10 per 1 s, burst 50 | - | fail-open + lease | Authenticated writes, per user (66 entry points) |
+| `api.workspace` | workspace | window | 1200 per 1 min | free 1200, pro 6000, business 30000 | fail-open | All API calls per workspace per minute, by plan (113 entry points) |
 | `api.send` | user | gcra | 120 per 1 min, burst 60 | - | fail-open | Agent message sends, per user (POST /api/rooms/:id/messages) |
 | `api.upload` | user | gcra | 30 per 1 min, burst 30 | - | fail-open | Uploads, per user (POST /api/attachments) |
 | `api.import` | workspace | gcra | 10 per 10 min, burst 10 | - | fail-open | CSV imports (cost 5 of a small bucket), per workspace (POST /api/contacts/import) |
@@ -108,8 +119,15 @@ Generated from `policies.ts` and `routePolicies.ts` (`npm run docs:ratelimit`; `
 | `ai.minute` | user | gcra | 30 per 1 min, burst 20 | - | fail-open | AI calls, per user (POST /api/ai/suggest-replies, POST /api/ai/summary, POST /api/ai/rephrase) |
 | `ai.workspace` | workspace | window | 200 per 1 d | free 200, pro 5000, business 50000 | fail-open | AI calls per workspace per day, by plan (POST /api/ai/suggest-replies, POST /api/ai/summary, POST /api/ai/rephrase) |
 | `ai.concurrency` | workspace | concurrency | 4 concurrent | - | fail-open | Concurrent AI calls per workspace (POST /api/ai/suggest-replies, POST /api/ai/summary, POST /api/ai/rephrase) |
+| `analytics.read` | apiKey | gcra | 60 per 1 min, burst 60 | - | fail-open | Analytics API reads, per API key (60 per minute) (4 entry points) |
+| `analytics.export` | apiKey | gcra | 10 per 1 min, burst 10 | - | fail-open | Analytics exports, per API key (10 per minute) (GET /api/v1/analytics/export/rooms, GET /api/v1/analytics/export/messages-meta) |
+| `analytics.workspace` | workspace | window | 120 per 1 min | free 120, pro 600, business 3000 | fail-open | Analytics API calls per workspace per minute, by plan (6 entry points) |
+| `analytics.concurrency` | apiKey | concurrency | 2 concurrent | - | fail-open | Concurrent exports per API key (GET /api/v1/analytics/export/rooms, GET /api/v1/analytics/export/messages-meta) |
+| `billing.checkout` | user | gcra | 10 per 1 min, burst 10 | - | fail-open | Creating Stripe checkout/portal/onboarding sessions, per user (each is a paid API call to Stripe) (5 entry points) |
+| `payments.workspace` | workspace | window | 20 per 1 h | free 20, pro 300, business 3000 | fail-open | Customer payment requests per workspace per hour, by plan (POST /api/rooms/:id/payment-requests) |
 | `webhook.provider` | ip | gcra | 300 per 1 min, burst 300 | - | fail-closed | Provider webhooks (Twilio, SendGrid), per IP (4 entry points) |
-| `webhook.badsig` | ip | strike | 10 failures / 10 min | - | fail-closed | Webhook signature failures per IP: 10 in 10 min block the IP, escalating (4 entry points) |
+| `webhook.stripe` | ip | gcra | 600 per 1 min, burst 600 | - | fail-open | Stripe webhooks (platform and Connect), per IP. Signature-verified; Stripe retries what is delayed (POST /webhooks/stripe, POST /webhooks/stripe/connect) |
+| `webhook.badsig` | ip | strike | 10 failures / 10 min | - | fail-closed | Webhook signature failures per IP: 10 in 10 min block the IP, escalating (6 entry points) |
 | `sms.number` | composite | gcra | 1 per 1 s, burst 1 | - | fail-open | SMS pacing per sending number (carrier-friendly: 1 message/s, queue instead of reject) (POST /api/rooms/:id/messages, socket message:send) |
 | `email.sender` | composite | gcra | 10 per 1 s, burst 10 | - | fail-open | Email pacing per sender address (10/s, queue instead of reject) (POST /api/rooms/:id/messages, socket message:send) |
 | `sms.workspace` | workspace | window | 100 per 1 d | free 100, pro 2000, business 20000 | fail-open | SMS sends per workspace per day, by plan (rejected with 429 once exceeded) (POST /api/rooms/:id/messages, socket message:send) |

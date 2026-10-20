@@ -1,0 +1,86 @@
+{
+  "scenario": "rest",
+  "date": "2026-10-20T14:33:05.213Z",
+  "machine": "Apple M1 x8, 8 GB RAM, darwin 24.3.0, node v24.11.1",
+  "config": {
+    "nodes": 1,
+    "conns": 500,
+    "agents": 5,
+    "workers": 4,
+    "rate": 50,
+    "duration": 10,
+    "connectRate": 400,
+    "bytes": 64,
+    "db": "postgres",
+    "redis": false
+  },
+  "load_avg_at_start": [
+    9.4,
+    12.7,
+    13.8
+  ],
+  "rest": [
+    {
+      "title": "GET /api/rooms?limit=30 (inbox list, keyset)",
+      "req_per_sec": 64,
+      "p50_ms": 449,
+      "p99_ms": 871,
+      "non2xx": 0,
+      "errors": 0,
+      "timeouts": 0
+    },
+    {
+      "title": "GET /api/dashboard/counts (cached)",
+      "req_per_sec": 4973,
+      "p50_ms": 5,
+      "p99_ms": 15,
+      "non2xx": 0,
+      "errors": 0,
+      "timeouts": 0
+    },
+    {
+      "title": "GET /api/rooms/:id/messages (thread)",
+      "req_per_sec": 2788,
+      "p50_ms": 11,
+      "p99_ms": 16,
+      "non2xx": 0,
+      "errors": 0,
+      "timeouts": 0
+    },
+    {
+      "title": "GET /api/contacts?limit=30",
+      "req_per_sec": 2042,
+      "p50_ms": 14,
+      "p99_ms": 31,
+      "non2xx": 0,
+      "errors": 0,
+      "timeouts": 0
+    },
+    {
+      "title": "POST visitor message (write path: insert + seq + fan-out)",
+      "req_per_sec": 380,
+      "p50_ms": 80.6,
+      "p99_ms": 138.9,
+      "non2xx": 0,
+      "statuses": {
+        "201": 3801
+      }
+    }
+  ],
+  "resources": {
+    "node0": {
+      "rss_peak_mb": 384,
+      "cpu_avg_pct": 88,
+      "cpu_peak_pct": 132
+    }
+  },
+  "dataset": {
+    "rooms": 500,
+    "db": "postgres"
+  },
+  "load_avg_at_end": [
+    6.9,
+    11.5,
+    13.3
+  ]
+}

@@ -13,3 +13,8 @@ Short records of decisions that shaped the system. Add one when you make a decis
 * [0009](./0009-permessage-deflate-off.md) WebSocket compression off by default
 * [0010](./0010-worker-threads-only-where-measured.md) Worker threads only for large HTML bodies
 * [0011](./0011-resync-over-rest.md) Clients repair gaps over REST, not with replayed streams
+* [0012](./0012-stripe-behind-an-interface.md) Stripe behind an interface, with an event journal and idempotent ledger
+* [0013](./0013-platform-operators-are-separate.md) Platform operators are separate from workspace members
+* [0014](./0014-permissions-deny-by-default.md) Permission-based access control, declared in one table, deny by default
+* [0015](./0015-soft-delete-and-append-only-audit.md) Soft delete for messages and append-only audit
+* [0016](./0016-analytics-pseudonymous-keys.md) Analytics exports are pseudonymous: HMAC keys from a per-workspace pepper

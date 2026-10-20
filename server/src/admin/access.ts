@@ -19,7 +19,7 @@ const GROUPS: [AdminAccess, string[]][] = [
   [
     "superadmin",
     [
-      "POST /admin/api/workspaces/:id/suspend", "POST /admin/api/workspaces/:id/unsuspend", "POST /admin/api/workspaces/:id/credits", "PUT /admin/api/workspaces/:id/tier",
+      "POST /admin/api/workspaces/:id/suspend", "POST /admin/api/workspaces/:id/unsuspend", "POST /admin/api/workspaces/:id/credits", "PUT /admin/api/workspaces/:id/tier", "PUT /admin/api/workspaces/:id/region",
       "POST /admin/api/ratelimit/:kind", "DELETE /admin/api/ratelimit/:kind/:entity", "POST /admin/api/admins/:id/disable", "POST /admin/api/admins/:id/enable",
     ],
   ],

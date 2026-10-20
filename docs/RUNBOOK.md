@@ -80,6 +80,36 @@ Conventions: `conv_*` are Prometheus metrics from the app; "node" is one app pro
 
 Messages are the bulk. Check partition sizes (`listMessagePartitions` in `db/partitions.ts`, or `pg_total_relation_size` per leaf). Remedies in order: set `retention_days` for large tenants (archives to object storage, restorable with `restoreArchive`), detach and dump old monthly partitions (`detachOldMessagePartitions`, an O(1) metadata change), add disk. Detached partitions can be re-attached with `restoreMessagePartition`.
 
+### 10. Stripe webhooks failing or not arriving
+
+*You see:* customers say a payment went through but credits or plan did not change; `stripe_events` rows with `status = 'failed'` or `processing` for a long time; the Stripe dashboard shows failing deliveries (5xx) for `/webhooks/stripe` or `/webhooks/stripe/connect`; a burst of `401 WEBHOOK_SIGNATURE` (wrong signing secret after a rotation, or an attacker).
+*Confirm:* `SELECT id, type, status, error, received_at FROM stripe_events WHERE status <> 'processed' AND status <> 'ignored' ORDER BY received_at DESC LIMIT 50;`. Signature failures also feed the `webhook.badsig` strike limit, so one bad secret can block Stripe's own IP: check `GET /admin/api/ratelimit`.
+*Do:* (1) signature errors: the endpoint's signing secret in the Stripe dashboard must equal `STRIPE_WEBHOOK_SECRET` (platform) or `STRIPE_CONNECT_WEBHOOK_SECRET` (Connect); fix and redeploy, then unblock the IP in the console. (2) `failed` rows: fix the cause (the `error` column) and use **Resend** in the Stripe dashboard for those events: `failed` events are claimed and re-run, processed ones are acknowledged as duplicates, so resending is always safe. (3) nothing arriving: check the endpoint URL (`PUBLIC_URL`), TLS and that the Cloudflare/WAF rules allow Stripe.
+*Verify:* the rows turn `processed`; the workspace shows the plan or credits; the ledger has exactly one row per Stripe object (`idem_key`).
+*Never:* edit `credit_balance` by hand to compensate; use a platform credit adjustment (audited) if a manual fix is unavoidable.
+
+### 11. A workspace is locked, or says it was charged
+
+*You see:* `402 ACCOUNT_LOCKED` on SMS/email, a "billing is overdue" banner for members.
+*Meaning:* a subscription payment failed and `BILLING_GRACE_DAYS` passed (only when `PLAN_ENFORCEMENT=true`). Chat, reading and billing pages keep working. Paying (`invoice.paid`) unlocks it immediately.
+*Do:* in the console open the workspace (billing status, grace date). If Stripe shows the invoice paid but the workspace is locked, the webhook was missed: see playbook 10. To give a customer time, there is no "extend grace" button on purpose; add credits or contact them and have them update the card in the portal.
+
+### 12. Suspending a workspace, and looking at one
+
+Suspend (abuse, fraud, non-payment you will not tolerate): console > workspace > reason > *Suspend*. Effect: all sessions end, API, login, refresh, widget and socket events answer `WORKSPACE_SUSPENDED`; inbound SMS/email is still stored. Unsuspend restores everything. To look at an account without its credentials use the read-only support view; the customer sees that in their own audit log. All of it is in [ADMIN.md](ADMIN.md).
+
+### 13. An operator lost their authenticator
+
+Another superadmin cannot reset it from the console on purpose. On a host with database access: `npm run admin -- reset-mfa --email <address>` (audited as `admin.mfa_reset`); the operator enrols again at next sign-in. If the only superadmin is locked out, create a new one with `npm run admin -- create`.
+
+## Dashboards, alerts and SLOs
+
+Dashboards (Prometheus/Grafana on `/metrics`): connections and handshakes (`conv_ws_connections`, `conv_ws_connect_total`, `conv_ws_shed_total`), latency (`conv_ws_ack_duration_seconds`, `conv_ws_fanout_duration_seconds`, `conv_http_request_duration_seconds`), saturation (`conv_event_loop_lag_p99_seconds`, `conv_ws_write_buffer_max`, process RSS), queues (`conv_queue_depth`, outbox lag), limiter health (`conv_ratelimit_decisions_total`, `conv_ratelimit_breaker_open`, `conv_ratelimit_redis_duration_seconds`, `conv_rate_limited_total`), database (`conv_db_statements_total`, pool wait, replica lag, partition sizes).
+
+Suggested SLOs (targets from the scale design, **not yet demonstrated in production**): message acknowledgement p99 below 400 ms and server-side fan-out p99 below 150 ms at the stated load; zero lost or duplicated messages (page on any `message_qids` anomaly, gap or outbox backlog above 60 s); availability 99.9% of `/readyz` per node-minute.
+
+Alerts to set: event-loop lag p99 above 0.1 s for 5 min; `conv_ws_shed_total` rate above baseline for 10 min; outbox oldest unpublished row above 60 s; `conv_queue_depth` growing for 15 min; `conv_ratelimit_breaker_open == 1` for 5 min; replica lag above `DATABASE_REPLICA_MAX_LAG_MS` for 5 min; free disk below 20%; `stripe_events` rows in `failed` for more than 10 minutes; any `5xx` rate above 1% for 5 min.
+
 ## Routine operations
 
 ### Deploy (zero lost messages)
@@ -89,10 +119,10 @@ Rolling update with `maxUnavailable: 0`. On SIGTERM a node flips `/readyz` to 50
 Migration 008 copies in one transaction: fine up to a few million rows. Beyond that: (1) deploy the code with migration 008 moved out of the migrations folder on a canary, (2) create the partitioned table as 008 does under another name, (3) backfill in batches by `created_at` range with `INSERT ... SELECT`, (4) in a short maintenance window copy the tail, swap names, drop the old table, (5) put the migration back (it is recorded as applied). Test the sequence on a restored copy first; it has not been rehearsed on a multi-million-row production table.
 
 ### Rotating secrets
-`JWT_SECRET`: all sessions end. `CF_SHARED_SECRET`: set the new value on the app first, then in the Cloudflare rule (the app accepts exactly one value). Provider keys: set and restart (rolling).
+`JWT_SECRET`: all sessions end, enrolled authenticators (TOTP secrets are encrypted with a key derived from it) stop verifying until re-enrolled, and platform-admin tokens end; plan a maintenance window and use the same value on every node. Stripe: create a new signing secret in the dashboard, set it on the app and deploy (during the overlap Stripe retries failed deliveries). `STRIPE_SECRET_KEY`: roll the key in Stripe, set it, restart. `CF_SHARED_SECRET`: set the new value on the app first, then in the Cloudflare rule (the app accepts exactly one value). Provider keys: set and restart (rolling).
 
 ### Backup and restore
 Postgres point-in-time recovery is the backup. Archived message batches live in object storage (`archive_manifest` lists them). Redis holds no durable state.
 
 ### Blocking abuse
-`ratelimit/admin.ts` (via the platform console when it exists, or a one-off script): add a deny entry (`ip:`, `ws:`, `user:`, `visitor:`) with a TTL; effective on the node that made it immediately and elsewhere within 5 s; audited in `audit_log`.
+The platform console (Rate limits page, or `POST /admin/api/ratelimit/deny`; see [ADMIN.md](ADMIN.md)) wraps `ratelimit/admin.ts`: add a deny entry (`ip:`, `ws:`, `user:`, `visitor:`) with a TTL; effective on the node that made it immediately and elsewhere within 5 s; audited in `audit_log`.

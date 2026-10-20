@@ -6,15 +6,15 @@ import { memberDto } from "../services/members.js";
 import { listAudit } from "../services/audit.js";
 import { createRole, deleteRole, listRoles, setMemberRole, updateRole } from "../services/roles.js";
 
-const RoleBody = z.object({
+export const RoleBody = z.object({
   name: z.string().trim().min(1).max(60),
   description: z.string().max(300).optional(),
   base_role: z.enum(["manager", "agent"]),
   permissions: z.array(z.string()).max(60),
 });
-const RolePatch = RoleBody.partial();
-const MemberRoleBody = z.object({ role_id: z.string().min(1).max(64) });
-const AuditQuery = z.object({ limit: z.coerce.number().int().min(1).max(200).default(50), cursor: z.string().optional(), action: z.string().max(60).optional() });
+export const RolePatch = RoleBody.partial();
+export const MemberRoleBody = z.object({ role_id: z.string().min(1).max(64) });
+export const AuditQuery = z.object({ limit: z.coerce.number().int().min(1).max(200).default(50), cursor: z.string().optional(), action: z.string().max(60).optional() });
 
 export function roleRoutes(ctx: AppContext) {
   const r = new Hono<Env>();

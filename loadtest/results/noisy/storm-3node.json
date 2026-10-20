@@ -1,0 +1,332 @@
+{
+  "scenario": "storm",
+  "date": "2026-10-20T13:42:01.393Z",
+  "machine": "Apple M1 x8, 8 GB RAM, darwin 24.3.0, node v24.11.1",
+  "config": {
+    "nodes": 3,
+    "conns": 3000,
+    "agents": 2,
+    "workers": 4,
+    "rate": 150,
+    "duration": 30,
+    "connectRate": 500,
+    "bytes": 64
+  },
+  "load_avg_at_start": [
+    22.3,
+    30.3,
+    27.8
+  ],
+  "final": {
+    "connected": 2698,
+    "connectErrors": 3065,
+    "disconnects": 1363,
+    "reconnects": 1322,
+    "recv": 35351,
+    "recvTeam": 23650,
+    "recvVisitor": 11701,
+    "dup": 23,
+    "gap": 656,
+    "gapMsgs": 668,
+    "recovered": 39,
+    "resyncRequests": 2621,
+    "resyncFailed": 2231,
+    "resyncSignals": 0,
+    "sendUnique": 18260,
+    "resent": 0,
+    "failovers": 1203,
+    "sendOk": 12639,
+    "sendErr": 5002,
+    "sendCreatedFalse": 0,
+    "acksTimeout": 0,
+    "drained": 0,
+    "slowKicked": 0,
+    "auditMissing": 336,
+    "open": 2698,
+    "total": 2739,
+    "sendErrorKinds": {
+      "INTERNAL": 5002
+    },
+    "connectErrorSamples": {
+      "websocket error": 3024,
+      "OVERLOADED": 41
+    },
+    "delivery": {
+      "n": 34724,
+      "p50": 5142,
+      "p90": 15001,
+      "p99": 19456,
+      "max": 36408
+    },
+    "ack": {
+      "n": 12370,
+      "p50": 24804,
+      "p90": 46428,
+      "p99": 64971,
+      "max": 70408
+    },
+    "connect": {
+      "n": 2739,
+      "p50": 11620,
+      "p90": 16333,
+      "p99": 19466,
+      "max": 27087
+    },
+    "dropped": 1363,
+    "secs_to_99pct_reconnected": null
+  },
+  "server": {
+    "node0": {
+      "wsVisitors": 695,
+      "wsTeam": 2,
+      "slowDisconnects": 0,
+      "loopLagP99Ms": 110.231551,
+      "rateLimited": 457,
+      "writeBufMax": 0
+    },
+    "node1": {
+      "wsVisitors": 902,
+      "wsTeam": null,
+      "slowDisconnects": 0,
+      "loopLagP99Ms": 111.738879,
+      "rateLimited": 498,
+      "writeBufMax": 0
+    },
+    "node2": {
+      "wsVisitors": 1099,
+      "wsTeam": null,
+      "slowDisconnects": 0,
+      "loopLagP99Ms": 124.387327,
+      "rateLimited": 308,
+      "writeBufMax": 0
+    }
+  },
+  "resources": {
+    "node0": {
+      "rss_peak_mb": 226,
+      "cpu_avg_pct": 40,
+      "cpu_peak_pct": 68
+    },
+    "node1": {
+      "rss_peak_mb": 246,
+      "cpu_avg_pct": 41,
+      "cpu_peak_pct": 73
+    },
+    "node2": {
+      "rss_peak_mb": 346,
+      "cpu_avg_pct": 42,
+      "cpu_peak_pct": 82
+    },
+    "redis": {
+      "rss_peak_mb": 9,
+      "cpu_avg_pct": 16,
+      "cpu_peak_pct": 32
+    },
+    "gen0": {
+      "rss_peak_mb": 137,
+      "cpu_avg_pct": 8,
+      "cpu_peak_pct": 30
+    },
+    "gen1": {
+      "rss_peak_mb": 127,
+      "cpu_avg_pct": 8,
+      "cpu_peak_pct": 29
+    },
+    "gen2": {
+      "rss_peak_mb": 134,
+      "cpu_avg_pct": 6,
+      "cpu_peak_pct": 42
+    },
+    "gen3": {
+      "rss_peak_mb": 121,
+      "cpu_avg_pct": 6,
+      "cpu_peak_pct": 30
+    }
+  },
+  "delivery_check": {
+    "sent_acked": 12639,
+    "send_errors": 5002,
+    "agent_sockets": 2,
+    "expected_agent_deliveries": 25278,
+    "actual_agent_deliveries": 23650,
+    "agent_delivery_ratio": 0.9356,
+    "seq_gaps": 656,
+    "seq_missing_msgs": 668,
+    "duplicates": 23
+  },
+  "recovery_curve": [
+    {
+      "t": 1,
+      "open": 1375
+    },
+    {
+      "t": 4,
+      "open": 1487
+    },
+    {
+      "t": 7,
+      "open": 1816
+    },
+    {
+      "t": 10,
+      "open": 2220
+    },
+    {
+      "t": 13,
+      "open": 2694
+    },
+    {
+      "t": 16,
+      "open": 2698
+    },
+    {
+      "t": 19,
+      "open": 2698
+    },
+    {
+      "t": 22,
+      "open": 2698
+    },
+    {
+      "t": 25,
+      "open": 2698
+    },
+    {
+      "t": 28,
+      "open": 2698
+    },
+    {
+      "t": 31,
+      "open": 2698
+    },
+    {
+      "t": 34,
+      "open": 2698
+    },
+    {
+      "t": 37,
+      "open": 2698
+    },
+    {
+      "t": 40,
+      "open": 2698
+    },
+    {
+      "t": 43,
+      "open": 2698
+    },
+    {
+      "t": 46,
+      "open": 2698
+    },
+    {
+      "t": 49,
+      "open": 2698
+    },
+    {
+      "t": 52,
+      "open": 2698
+    },
+    {
+      "t": 55,
+      "open": 2698
+    },
+    {
+      "t": 58,
+      "open": 2698
+    },
+    {
+      "t": 61,
+      "open": 2698
+    },
+    {
+      "t": 64,
+      "open": 2698
+    },
+    {
+      "t": 67,
+      "open": 2698
+    },
+    {
+      "t": 70,
+      "open": 2698
+    },
+    {
+      "t": 73,
+      "open": 2698
+    },
+    {
+      "t": 76,
+      "open": 2698
+    },
+    {
+      "t": 79,
+      "open": 2698
+    },
+    {
+      "t": 82,
+      "open": 2698
+    },
+    {
+      "t": 85,
+      "open": 2698
+    },
+    {
+      "t": 88,
+      "open": 2698
+    },
+    {
+      "t": 91,
+      "open": 2698
+    },
+    {
+      "t": 94,
+      "open": 2698
+    },
+    {
+      "t": 97,
+      "open": 2698
+    },
+    {
+      "t": 100,
+      "open": 2698
+    },
+    {
+      "t": 103,
+      "open": 2698
+    },
+    {
+      "t": 106,
+      "open": 2698
+    },
+    {
+      "t": 109,
+      "open": 2698
+    },
+    {
+      "t": 112,
+      "open": 2698
+    },
+    {
+      "t": 115,
+      "open": 2698
+    },
+    {
+      "t": 118,
+      "open": 2698
+    }
+  ],
+  "storm": {
+    "dropped": 1363,
+    "secs_to_99pct_reconnected": null,
+    "messages_missed_while_down_then_recovered_via_resync": 39,
+    "still_missing_after_resync_audit": 336,
+    "resync_requests": 2621,
+    "resync_failed": 2231
+  },
+  "load_avg_at_end": [
+    25.4,
+    28,
+    27.4
+  ]
+}

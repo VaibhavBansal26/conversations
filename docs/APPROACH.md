@@ -81,6 +81,18 @@ See `MIGRATION-NOTES.md` for the full table. In short: server-side message idemp
 - Visitor-supplied content is only ever rendered as text by the widget; agent HTML goes through the allow-list sanitiser; AI prompts treat conversation text as untrusted data and AI output is schema-validated and guarded against ungrounded money commitments.
 - Uploads: magic-byte sniffing, extension must match content, SVG is never treated as an image, server-generated storage keys (no user input in paths), signed expiring URLs, `nosniff` and sandbox CSP.
 
+## 6a. Judgement calls in the scale, access, money and operator work
+
+- **Measured versus extrapolated.** One laptop cannot prove a million connections. The kit measures per-node limits, the absence of super-linear costs and correctness under faults, and the capacity model labels every figure as measured or extrapolated ([SCALING.md](SCALING.md)). Where a measurement was disturbed (shared machine, kernel file-table limits) it says so.
+- **Outbox over dual writes.** A message and its event are one transaction; the relay publishes after commit; consumers are idempotent on the event id ([ADR 0006](adr/0006-transactional-outbox-event-bus.md)). A found bug (takeover ordering on the Redis Streams consumer) was fixed with a test that fails without the fix.
+- **Partition by room, not by workspace.** A huge tenant must not become one huge partition; hash(room_id) spreads it and keeps room queries on one partition ([ADR 0004](adr/0004-hash-partition-messages-by-room.md)). Lookups that do not know the room use a locator table.
+- **Computed audiences** instead of one socket channel per room ([ADR 0005](adr/0005-computed-room-audiences.md)).
+- **Rate limits are declared, not scattered.** Every route and event states its policies in one table, and tests fail when an entry point has no decision; security-relevant policies fail closed, everything else fails open ([ADR 0007](adr/0007-rate-limit-algorithms-and-leases.md)).
+- **Permissions, deny by default.** Roles are data; the check is one function; a route with no declaration is refused. Built-in roles are immutable at the database level.
+- **Stripe behind an interface, three ways.** Subscriptions and credits (platform money), and payment requests (the customer's money, via Connect Standard) have different owners and different webhook endpoints. Webhooks are journalled by event id and every credit movement carries an idempotency key, so at-least-once delivery has an exactly-once effect ([ADR 0012](adr/0012-stripe-behind-an-interface.md)). Nothing was run against Stripe itself.
+- **Platform operators are not members of any workspace.** Separate accounts, tokens, routes and mandatory TOTP; read-only support access that is shown to the customer ([ADR 0013](adr/0013-platform-operators-are-separate.md)).
+- **Docs are generated where they can drift**: configuration, API, realtime events, rate-limit table and analytics schemas are generated or verified, and the check runs in `npm test`.
+
 ## 7. Known limitations (honest list)
 
 - SQLite is the zero-dependency default and is single-node. Horizontal scale uses PostgreSQL + Redis (presence, rate limits, cache, locks and delayed jobs are shared across nodes; see `docs/SCALING.md`). Uploads on `LocalDiskStorage` are per node.
@@ -89,4 +101,5 @@ See `MIGRATION-NOTES.md` for the full table. In short: server-side message idemp
 - The widget collects text messages only (no file upload from visitors).
 - Contact-facing email digests (the legacy "you have an unread reply" email to the visitor) are not implemented; only team digests are.
 - The Redis and PostgreSQL paths run in CI against real services (`postgres:17`, `redis:7` service containers) and locally against an embedded PostgreSQL and a local `redis-server`; managed-service quirks (PgBouncer in transaction mode, Redis Cluster) are untested.
-- Real Twilio/SendGrid behaviour is covered by mocked-`fetch` tests; no live provider calls are made by the test suite.
+- Real Twilio/SendGrid/Stripe behaviour is covered by mocked-`fetch` / stub tests; no live provider calls are made by the test suite.
+- No test has run at 1,000,000 connections or 10,000 messages/s; see SCALING.md for what was measured and what is a model.

@@ -12,14 +12,14 @@ import { ipKey } from "../util/clientIp.js";
 import { sha256 } from "../util/crypto.js";
 import type { Context } from "hono";
 
-const Refresh = z.object({ refresh_token: z.string().min(20).max(200) });
-const MfaVerify = z.object({ mfa_token: z.string().min(20).max(2000), code: z.string().min(6).max(20) });
-const MfaEnable = z.object({ code: z.string().regex(/^\d{6}$/) });
-const MfaDisable = z.object({ password: z.string().min(1).max(200), code: z.string().min(6).max(20) });
-const Forgot = z.object({ email: z.string().email().max(254) });
-const Reset = z.object({ token: z.string().min(20).max(200), password: z.string().min(8).max(200) });
-const Change = z.object({ current_password: z.string().min(1).max(200), new_password: z.string().min(8).max(200) });
-const Accept = z.object({ token: z.string().min(20).max(200), name: z.string().trim().min(1).max(100).optional(), password: z.string().min(8).max(200) });
+export const Refresh = z.object({ refresh_token: z.string().min(20).max(200) });
+export const MfaVerify = z.object({ mfa_token: z.string().min(20).max(2000), code: z.string().min(6).max(20) });
+export const MfaEnable = z.object({ code: z.string().regex(/^\d{6}$/) });
+export const MfaDisable = z.object({ password: z.string().min(1).max(200), code: z.string().min(6).max(20) });
+export const Forgot = z.object({ email: z.string().email().max(254) });
+export const Reset = z.object({ token: z.string().min(20).max(200), password: z.string().min(8).max(200) });
+export const Change = z.object({ current_password: z.string().min(1).max(200), new_password: z.string().min(8).max(200) });
+export const Accept = z.object({ token: z.string().min(20).max(200), name: z.string().trim().min(1).max(100).optional(), password: z.string().min(8).max(200) });
 
 export function authRoutes(ctx: AppContext) {
   const r = new Hono<Env>();

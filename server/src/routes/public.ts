@@ -33,7 +33,7 @@ interface PEnv {
 
 const DEVICE_RE = /^[A-Za-z0-9_-]{8,64}$/;
 
-const Csat = z.object({ score: z.number().int().min(1).max(5), comment: z.string().max(500).optional() });
+export const Csat = z.object({ score: z.number().int().min(1).max(5), comment: z.string().max(500).optional() });
 
 export function publicRoutes(ctx: AppContext) {
   const r = new Hono<PEnv>();

@@ -1,0 +1,40 @@
+{
+  "scenario": "idempotency",
+  "date": "2026-10-20T13:47:25.806Z",
+  "machine": "Apple M1 x8, 8 GB RAM, darwin 24.3.0, node v24.11.1",
+  "config": {
+    "nodes": 3,
+    "conns": 2000,
+    "agents": 5,
+    "workers": 4,
+    "rate": 50,
+    "duration": 30,
+    "connectRate": 400,
+    "bytes": 64
+  },
+  "load_avg_at_start": [
+    13.2,
+    24,
+    26
+  ],
+  "idempotency": {
+    "rooms": 20,
+    "unique_messages_per_room": 50,
+    "duplicate_sends_each": 10,
+    "requests": 10000,
+    "nodes": 3,
+    "http_status": {
+      "200": 9000,
+      "201": 1000
+    },
+    "stored_messages": 1000,
+    "expected_messages": 1000,
+    "exactly_once": true,
+    "per_room_seq_contiguous": true
+  },
+  "load_avg_at_end": [
+    15.9,
+    23.5,
+    25.7
+  ]
+}

@@ -1,0 +1,174 @@
+{
+  "scenario": "storm",
+  "date": "2026-10-20T14:28:42.071Z",
+  "machine": "Apple M1 x8, 8 GB RAM, darwin 24.3.0, node v24.11.1",
+  "config": {
+    "nodes": 3,
+    "conns": 2000,
+    "agents": 2,
+    "workers": 3,
+    "rate": 100,
+    "duration": 30,
+    "connectRate": 400,
+    "bytes": 64
+  },
+  "load_avg_at_start": [
+    8.8,
+    13.1,
+    14
+  ],
+  "final": {
+    "connected": 2002,
+    "connectErrors": 0,
+    "disconnects": 950,
+    "reconnects": 950,
+    "recv": 3444,
+    "recvTeam": 2296,
+    "recvVisitor": 1148,
+    "dup": 0,
+    "gap": 0,
+    "gapMsgs": 0,
+    "recovered": 0,
+    "resyncRequests": 1089,
+    "resyncFailed": 492,
+    "resyncSignals": 0,
+    "sendUnique": 1148,
+    "resent": 0,
+    "failovers": 0,
+    "sendOk": 1148,
+    "sendErr": 0,
+    "sendCreatedFalse": 0,
+    "acksTimeout": 0,
+    "drained": 0,
+    "slowKicked": 0,
+    "auditMissing": 0,
+    "open": 2002,
+    "total": 2002,
+    "sendErrorKinds": {},
+    "connectErrorSamples": {},
+    "delivery": {
+      "n": 1950,
+      "p50": 5,
+      "p90": 23,
+      "p99": 94,
+      "max": 107
+    },
+    "ack": {
+      "n": 650,
+      "p50": 9,
+      "p90": 67,
+      "p99": 172,
+      "max": 228
+    },
+    "connect": {
+      "n": 2002,
+      "p50": 2,
+      "p90": 4,
+      "p99": 22,
+      "max": 55
+    },
+    "dropped": 950,
+    "secs_to_99pct_reconnected": 2.037
+  },
+  "server": {
+    "node0": {
+      "wsVisitors": null,
+      "wsTeam": 2,
+      "slowDisconnects": 0,
+      "loopLagP99Ms": 20.463615,
+      "rateLimited": 2,
+      "writeBufMax": 0
+    },
+    "node1": {
+      "wsVisitors": 1000,
+      "wsTeam": null,
+      "slowDisconnects": 0,
+      "loopLagP99Ms": 20.332543,
+      "rateLimited": 0,
+      "writeBufMax": 0
+    },
+    "node2": {
+      "wsVisitors": 1000,
+      "wsTeam": null,
+      "slowDisconnects": 0,
+      "loopLagP99Ms": 24.969215,
+      "rateLimited": 1,
+      "writeBufMax": 0
+    }
+  },
+  "resources": {
+    "node0": {
+      "rss_peak_mb": 120,
+      "cpu_avg_pct": 6,
+      "cpu_peak_pct": 24
+    },
+    "node1": {
+      "rss_peak_mb": 283,
+      "cpu_avg_pct": 24,
+      "cpu_peak_pct": 89
+    },
+    "node2": {
+      "rss_peak_mb": 261,
+      "cpu_avg_pct": 25,
+      "cpu_peak_pct": 71
+    },
+    "redis": {
+      "rss_peak_mb": 9,
+      "cpu_avg_pct": 9,
+      "cpu_peak_pct": 27
+    },
+    "gen0": {
+      "rss_peak_mb": 117,
+      "cpu_avg_pct": 6,
+      "cpu_peak_pct": 32
+    },
+    "gen1": {
+      "rss_peak_mb": 116,
+      "cpu_avg_pct": 6,
+      "cpu_peak_pct": 34
+    },
+    "gen2": {
+      "rss_peak_mb": 113,
+      "cpu_avg_pct": 6,
+      "cpu_peak_pct": 32
+    }
+  },
+  "delivery_check": {
+    "sent_acked": 1148,
+    "send_errors": 0,
+    "agent_sockets": 2,
+    "expected_agent_deliveries": 2296,
+    "actual_agent_deliveries": 2296,
+    "agent_delivery_ratio": 1,
+    "seq_gaps": 0,
+    "seq_missing_msgs": 0,
+    "duplicates": 0
+  },
+  "recovery_curve": [
+    {
+      "t": 1,
+      "open": 1501
+    },
+    {
+      "t": 4,
+      "open": 2002
+    },
+    {
+      "t": 7,
+      "open": 2002
+    }
+  ],
+  "storm": {
+    "dropped": 950,
+    "secs_to_99pct_reconnected": 2.037,
+    "messages_missed_while_down_then_recovered_via_resync": 0,
+    "still_missing_after_resync_audit": 0,
+    "resync_requests": 1089,
+    "resync_failed": 492
+  },
+  "load_avg_at_end": [
+    9.2,
+    12.8,
+    13.8
+  ]
+}

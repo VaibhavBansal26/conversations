@@ -3,7 +3,7 @@ import { z } from "zod";
 
 const bool = z.enum(["true", "false", "1", "0"]).transform((v) => v === "true" || v === "1");
 
-const schema = z.object({
+export const configSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().min(0).max(65535).default(3000),
   HOST: z.string().default("0.0.0.0"),
@@ -48,6 +48,8 @@ const schema = z.object({
   JOB_QUEUE: z.enum(["auto", "db", "bullmq"]).default("auto"),
   CACHE_TTL_MS: z.coerce.number().int().min(0).default(3000),
   NODE_ID: z.string().optional(),
+  /** the region this installation serves; a workspace whose `home_region` is set to another region is refused here (421) so a global edge can route it home */
+  REGION: z.string().max(32).optional(),
   PRESENCE_TTL_MS: z.coerce.number().int().positive().default(30000),
 
   WS_PING_INTERVAL_MS: z.coerce.number().int().positive().default(25000),
@@ -153,13 +155,13 @@ const schema = z.object({
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error", "silent"]).default("info"),
 });
 
-export type Config = Omit<z.infer<typeof schema>, "JWT_SECRET"> & {
+export type Config = Omit<z.infer<typeof configSchema>, "JWT_SECRET"> & {
   JWT_SECRET: string;
   corsOrigins: string[];
 };
 
 export function loadConfig(env: Record<string, string | undefined> = process.env, warn: (m: string) => void = console.warn): Config {
-  const parsed = schema.safeParse(env);
+  const parsed = configSchema.safeParse(env);
   if (!parsed.success) {
     const detail = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
     throw new Error(`Invalid environment configuration: ${detail}`);

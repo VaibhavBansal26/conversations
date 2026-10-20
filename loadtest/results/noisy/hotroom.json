@@ -1,0 +1,68 @@
+{
+  "date": "2026-10-20T13:50:47.623Z",
+  "machine": "Apple M1 x8, 8 GB RAM, node v24.11.1",
+  "pool": 40,
+  "seconds_per_point": 8,
+  "points": [
+    {
+      "writers": 1,
+      "one_room": {
+        "msgs_per_s": 319,
+        "p50_ms": 3.2,
+        "p99_ms": 5.6,
+        "errors": 0
+      },
+      "many_rooms": {
+        "msgs_per_s": 161,
+        "p50_ms": 6,
+        "p99_ms": 10.1,
+        "errors": 0
+      }
+    },
+    {
+      "writers": 10,
+      "one_room": {
+        "msgs_per_s": 260,
+        "p50_ms": 28.8,
+        "p99_ms": 161.9,
+        "errors": 0
+      },
+      "many_rooms": {
+        "msgs_per_s": 200,
+        "p50_ms": 49.8,
+        "p99_ms": 87.5,
+        "errors": 0
+      }
+    },
+    {
+      "writers": 100,
+      "one_room": {
+        "msgs_per_s": 130,
+        "p50_ms": 641,
+        "p99_ms": 2313.5,
+        "errors": 0
+      },
+      "many_rooms": {
+        "msgs_per_s": 255,
+        "p50_ms": 407.1,
+        "p99_ms": 575.6,
+        "errors": 0
+      }
+    },
+    {
+      "writers": 1000,
+      "one_room": {
+        "msgs_per_s": 249,
+        "p50_ms": 5489.1,
+        "p99_ms": 6217.1,
+        "errors": 0
+      },
+      "many_rooms": {
+        "msgs_per_s": 304,
+        "p50_ms": 4335.4,
+        "p99_ms": 5700.6,
+        "errors": 25
+      }
+    }
+  ]
+}

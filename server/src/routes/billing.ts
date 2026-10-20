@@ -6,15 +6,15 @@ import { cancelPaymentRequest, createPaymentRequest, listPaymentRequests, refres
 import { updateAutomation } from "../billing/credits.js";
 import { billingSummary, openPortal, startSubscription, startTopUp } from "../billing/service.js";
 
-const Subscribe = z.object({ plan: z.string().min(1).max(20) });
-const TopUp = z.object({ pack: z.string().max(40).optional(), credits: z.number().int().optional() }).refine((v) => v.pack || v.credits, "Choose a pack or a number of credits");
-const Automation = z.object({
+export const Subscribe = z.object({ plan: z.string().min(1).max(20) });
+export const TopUp = z.object({ pack: z.string().max(40).optional(), credits: z.number().int().optional() }).refine((v) => v.pack || v.credits, "Choose a pack or a number of credits");
+export const Automation = z.object({
   auto_recharge_enabled: z.boolean().optional(),
   auto_recharge_threshold: z.number().int().min(0).max(1_000_000).optional(),
   auto_recharge_credits: z.number().int().optional(),
   low_balance_threshold: z.number().int().min(0).max(1_000_000).optional(),
 });
-const PaymentRequest = z.object({
+export const PaymentRequest = z.object({
   amount: z.number().int(),
   currency: z.string().length(3).optional(),
   description: z.string().min(1).max(200),

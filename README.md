@@ -4,6 +4,15 @@ A unified customer inbox: **live chat** (embeddable widget), **SMS** and **email
 
 Standalone and self-contained: Node + SQLite, no external services required to run (SMS/email/AI fall back to console/offline providers). Scales out with PostgreSQL + Redis behind any load balancer (see [docs/SCALING.md](docs/SCALING.md)): partitioned messages, shared presence and rate limits, an outbox feeding an event bus, graceful drain, load-tested harness included.
 
+## What is in it
+
+- **Inbox**: live chat widget, SMS (Twilio) and email (SendGrid) in one place; inboxes with round-robin routing, notes and @mentions, snooze, templates, notifications, CSAT, optional AI assistance.
+- **Access**: 26 permissions, four built-in roles plus custom roles, two-factor, invitations, audit log ([docs/RBAC.md](docs/RBAC.md)).
+- **Money**: plans, prepaid credits with auto-recharge, and payment requests customers pay into the workspace's own Stripe account ([docs/STRIPE.md](docs/STRIPE.md); off unless `STRIPE_SECRET_KEY` is set).
+- **Analytics**: dashboard and a versioned API with pseudonymous exports ([docs/ANALYTICS.md](docs/ANALYTICS.md)).
+- **Operators**: a separate platform console at `/admin` ([docs/ADMIN.md](docs/ADMIN.md)); create the first operator with `npm run admin --prefix server -- create`.
+- **Scale-out**: PostgreSQL (partitioned) + Redis behind any load balancer; load-test kit and capacity model included ([docs/SCALING.md](docs/SCALING.md)). Not run at 1,000,000 connections: see what was measured and what is extrapolated.
+
 ## Quick start
 
 Requires Node >= 22.13 (developed on 24) and npm.
@@ -37,13 +46,14 @@ Without Docker: `loadtest/` starts PostgreSQL (embedded binary), Redis (`redis-s
 
 ```bash
 npm run typecheck && npm test && npm run build && npm run e2e
+npm run docs:check          # links, index, generated docs (also part of npm test)
 ```
 
 `npm run e2e` boots the built server and drives it with real HTTP and Socket.IO clients (visitor -> agent -> visitor round trip with receipts, plus a signed inbound-SMS webhook).
 
 ## Configuration
 
-Everything is environment driven and validated at boot (`server/src/config.ts`); see `.env.example` for the full list. Defaults make `npm run dev` work with no env at all.
+Everything is environment driven and validated at boot (`server/src/config.ts`); every variable is documented in [docs/CONFIGURATION.md](docs/CONFIGURATION.md) (generated) and `.env.example` is a starting point. Defaults make `npm run dev` work with no env at all.
 
 | Concern | Variables |
 | --- | --- |
@@ -53,6 +63,7 @@ Everything is environment driven and validated at boot (`server/src/config.ts`);
 | Email | `EMAIL_PROVIDER=sendgrid`, `SENDGRID_API_KEY`, `SENDGRID_WEBHOOK_PUBLIC_KEY` or `WEBHOOK_SHARED_SECRET` |
 | AI | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` (default `claude-sonnet-5-5`); offline heuristics without a key |
 | Scale-out | `DATABASE_URL` (PostgreSQL), `REDIS_URL`; both auto-detected. `DATABASE_REPLICA_URL`, `DATABASE_PGBOUNCER`, `NODE_ID` |
+| Billing | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_CONNECT_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_BUSINESS`, `PLAN_ENFORCEMENT` |
 | Limits and edge | `WS_*` limits, `CF_SHARED_SECRET`, `TRUSTED_PROXY_HOPS`, `RATE_LIMIT_SCALE` (load tests only), `METRICS_TOKEN` |
 
 Wiring real providers: point Twilio's inbound and status webhooks at `PUBLIC_URL/webhooks/twilio/sms` and `/webhooks/twilio/status`; point SendGrid inbound parse at `PUBLIC_URL/webhooks/sendgrid/inbound?secret=<WEBHOOK_SHARED_SECRET>` and the event webhook at `/webhooks/sendgrid/events`. Register your numbers, verified senders and inbound addresses in *Settings*.
@@ -76,4 +87,4 @@ deploy/    nginx, HAProxy, Kubernetes (kustomize, KEDA)    docker-compose.yml
 docs/      ARCHITECTURE, SCALING, PERFORMANCE, RATE-LIMITING, RUNBOOK, CLOUDFLARE, ADRs, ...
 ```
 
-Documentation: [Architecture](docs/ARCHITECTURE.md) | [Scaling](docs/SCALING.md) | [Performance](docs/PERFORMANCE.md) | [Rate limiting](docs/RATE-LIMITING.md) | [Cloudflare](docs/CLOUDFLARE.md) | [Runbook](docs/RUNBOOK.md) | [Cloud load test](docs/CLOUD-LOADTEST.md) | [Approach](docs/APPROACH.md) | [AI](docs/AI.md) | [Testing](docs/TESTING.md) | [Migration notes](docs/MIGRATION-NOTES.md) | [ADRs](docs/adr/README.md)
+Documentation index: [docs/README.md](docs/README.md). Quick links: [API](docs/API.md) | [Realtime](docs/REALTIME.md) | [Configuration](docs/CONFIGURATION.md) | [RBAC](docs/RBAC.md) | [Stripe](docs/STRIPE.md) | [Admin](docs/ADMIN.md) | [Analytics](docs/ANALYTICS.md) | [Security](docs/SECURITY.md) | [Changelog](CHANGELOG.md) | [Contributing](CONTRIBUTING.md) | [Architecture](docs/ARCHITECTURE.md) | [Scaling](docs/SCALING.md) | [Performance](docs/PERFORMANCE.md) | [Rate limiting](docs/RATE-LIMITING.md) | [Cloudflare](docs/CLOUDFLARE.md) | [Runbook](docs/RUNBOOK.md) | [Cloud load test](docs/CLOUD-LOADTEST.md) | [Approach](docs/APPROACH.md) | [AI](docs/AI.md) | [Testing](docs/TESTING.md) | [Migration notes](docs/MIGRATION-NOTES.md) | [ADRs](docs/adr/README.md)

@@ -77,7 +77,7 @@ export async function platformStats(ctx: AppContext) {
 
 /** Everything the detail page shows. No card data, no message content, no contact details: support sees the shape of an account, not its conversations. */
 export async function workspaceDetail(ctx: AppContext, id: string) {
-  const w = await ctx.db.get<{ id: string; name: string; plan: string; credit_balance: number; created_at: string; suspended_at: string | null; suspended_reason: string | null; settings: string }>("SELECT * FROM workspaces WHERE id = ?", id);
+  const w = await ctx.db.get<{ id: string; name: string; plan: string; credit_balance: number; created_at: string; suspended_at: string | null; suspended_reason: string | null; settings: string; home_region: string | null }>("SELECT * FROM workspaces WHERE id = ?", id);
   if (!w) throw notFound("Workspace");
   const b = await getBilling(ctx, id);
   const members = await ctx.db.all<{ id: string; name: string; email: string; role: string; live_seat: number; created_at: string }>(
@@ -101,6 +101,7 @@ export async function workspaceDetail(ctx: AppContext, id: string) {
     suspended: !!w.suspended_at,
     suspended_at: w.suspended_at,
     suspended_reason: w.suspended_reason,
+    home_region: w.home_region,
     credit_balance: w.credit_balance,
     seats: { used: members.filter((m) => m.live_seat).length, limit: plan.seats },
     billing: b
@@ -155,6 +156,15 @@ export async function adjustCredits(ctx: AppContext, admin: PlatformAdmin, id: s
   const r = await applyLedger(ctx, id, input.amount > 0 ? "admin_grant" : "admin_deduct", input.amount, { ref: `${admin.email}: ${note}`.slice(0, 200), idemKey: input.idempotencyKey ? `admin:${input.idempotencyKey}` : undefined });
   if (r.applied) await recordAudit(ctx, { workspaceId: id, actor: actorOf(admin), action: "admin.credits_adjusted", target: id, detail: { amount: input.amount, note, balance: r.balance } });
   return r;
+}
+
+/** Set (or clear with null) the region a workspace lives in. Takes effect on every node within the cache TTL. */
+export async function setHomeRegion(ctx: AppContext, admin: PlatformAdmin, id: string, region: string | null) {
+  await must(ctx, id);
+  if (region !== null && !/^[a-z0-9-]{2,32}$/.test(region)) throw badRequest("INVALID_REGION", "Region must be 2 to 32 lowercase letters, digits or dashes");
+  await ctx.db.run("UPDATE workspaces SET home_region = ? WHERE id = ?", region, id);
+  await ctx.cache.invalidate(`suspended:${id}`);
+  await recordAudit(ctx, { workspaceId: id, actor: actorOf(admin), action: "admin.home_region_set", target: id, detail: { region } });
 }
 
 export async function overrideTier(ctx: AppContext, admin: PlatformAdmin, id: string, tier: Tier | null, note?: string) {

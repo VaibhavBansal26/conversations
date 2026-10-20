@@ -2,7 +2,7 @@ import { Hono, type Context } from "hono";
 import { z } from "zod";
 import { adminLogin, adminMfaEnable, adminMfaSetup, adminMfaVerify, adminFromToken, requireSuperadmin, type PlatformAdmin } from "../admin/auth.js";
 import { ADMIN_ACCESS } from "../admin/access.js";
-import { adjustCredits, listAdmins, listWorkspaces, overrideTier, platformAudit, platformStats, rateLimitAdd, rateLimitOverview, rateLimitRemove, setAdminDisabled, startImpersonation, suspendWorkspace, unsuspendWorkspace, workspaceDetail } from "../admin/service.js";
+import { adjustCredits, listAdmins, listWorkspaces, overrideTier, setHomeRegion, platformAudit, platformStats, rateLimitAdd, rateLimitOverview, rateLimitRemove, setAdminDisabled, startImpersonation, suspendWorkspace, unsuspendWorkspace, workspaceDetail } from "../admin/service.js";
 import type { AppContext } from "../context.js";
 import { AppError, unauthorized } from "../errors.js";
 import { clientIp, parseBody, parseQuery } from "../http.js";
@@ -13,16 +13,17 @@ import { TIERS } from "../ratelimit/types.js";
 
 type AdminEnv = { Variables: { admin: PlatformAdmin } };
 
-const Login = z.object({ email: z.string().email().max(254), password: z.string().min(1).max(200) });
-const Step = z.object({ mfa_token: z.string().min(20).max(2000) });
-const StepCode = Step.extend({ code: z.string().min(6).max(20) });
-const Reason = z.object({ reason: z.string().max(500).optional() });
-const Credits = z.object({ amount: z.number().int(), note: z.string().max(500).optional() });
-const Tier = z.object({ tier: z.enum(TIERS as [string, ...string[]]).nullable(), note: z.string().max(200).optional() });
-const Impersonate = Reason.extend({ member_id: z.string().max(80).optional() });
-const ListEntry = z.object({ entity: z.string().min(3).max(100), ttl_seconds: z.number().int().min(1).max(30 * 86400), note: z.string().max(200).optional() });
-const WsQuery = z.object({ search: z.string().max(100).optional(), plan: z.string().max(20).optional(), suspended: z.enum(["true", "false"]).optional(), limit: z.coerce.number().int().min(1).max(100).default(25), cursor: z.string().max(300).optional() });
-const AuditQuery = z.object({ workspace_id: z.string().max(80).optional(), action: z.string().max(60).optional(), actor_type: z.string().max(30).optional(), limit: z.coerce.number().int().min(1).max(200).default(50), cursor: z.string().max(300).optional() });
+export const Login = z.object({ email: z.string().email().max(254), password: z.string().min(1).max(200) });
+export const Step = z.object({ mfa_token: z.string().min(20).max(2000) });
+export const StepCode = Step.extend({ code: z.string().min(6).max(20) });
+export const Reason = z.object({ reason: z.string().max(500).optional() });
+export const Credits = z.object({ amount: z.number().int(), note: z.string().max(500).optional() });
+export const Tier = z.object({ tier: z.enum(TIERS as [string, ...string[]]).nullable(), note: z.string().max(200).optional() });
+export const Region = z.object({ region: z.string().min(2).max(32).nullable() });
+export const Impersonate = Reason.extend({ member_id: z.string().max(80).optional() });
+export const ListEntry = z.object({ entity: z.string().min(3).max(100), ttl_seconds: z.number().int().min(1).max(30 * 86400), note: z.string().max(200).optional() });
+export const WsQuery = z.object({ search: z.string().max(100).optional(), plan: z.string().max(20).optional(), suspended: z.enum(["true", "false"]).optional(), limit: z.coerce.number().int().min(1).max(100).default(25), cursor: z.string().max(300).optional() });
+export const AuditQuery = z.object({ workspace_id: z.string().max(80).optional(), action: z.string().max(60).optional(), actor_type: z.string().max(30).optional(), limit: z.coerce.number().int().min(1).max(200).default(50), cursor: z.string().max(300).optional() });
 
 /**
  * The platform console API. Everything here authenticates with a PLATFORM admin token (own issuer/audience, mandatory TOTP), never with a
@@ -112,6 +113,7 @@ export function adminRoutes(ctx: AppContext) {
     await overrideTier(ctx, c.get("admin"), c.req.param("id"), b.tier as never, b.note);
     return c.body(null, 204);
   });
+  r.put("/workspaces/:id/region", async (c) => (await setHomeRegion(ctx, c.get("admin"), c.req.param("id"), (await parseBody(c, Region)).region), c.body(null, 204)));
   r.post("/workspaces/:id/impersonate", async (c) => c.json(await startImpersonation(ctx, c.get("admin"), c.req.param("id"), await parseBody(c, Impersonate))));
   const kindOf = (c: Context) => {
     const k = c.req.param("kind");

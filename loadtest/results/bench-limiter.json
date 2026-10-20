@@ -1,0 +1,40 @@
+{
+  "date": "2026-10-20T14:24:05.219Z",
+  "n": 200000,
+  "memory_gcra_api.read_1_caller": {
+    "decisions_per_s": 472766,
+    "mean_us": 2,
+    "p50_us": 1,
+    "p99_us": 8,
+    "concurrency": 1,
+    "keys": 10000,
+    "policy": "api.read"
+  },
+  "memory_window_msg.room_1_caller": {
+    "decisions_per_s": 534836,
+    "mean_us": 2,
+    "p50_us": 1,
+    "p99_us": 5,
+    "concurrency": 1,
+    "keys": 10000,
+    "policy": "msg.room"
+  },
+  "redis_gcra_auth.login.ip_no_lease_conc_16": {
+    "decisions_per_s": 17178,
+    "mean_us": 58,
+    "p50_us": 756,
+    "p99_us": 3441,
+    "concurrency": 16,
+    "keys": 10000,
+    "policy": "auth.login.ip"
+  },
+  "redis_gcra_api.read_leased_conc_16": {
+    "decisions_per_s": 345054,
+    "mean_us": 3,
+    "p50_us": 31,
+    "p99_us": 150,
+    "concurrency": 16,
+    "keys": 100,
+    "policy": "api.read"
+  }
+}

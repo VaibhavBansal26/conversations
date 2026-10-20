@@ -1,0 +1,157 @@
+{
+  "scenario": "slow",
+  "date": "2026-10-20T13:46:25.145Z",
+  "machine": "Apple M1 x8, 8 GB RAM, darwin 24.3.0, node v24.11.1",
+  "config": {
+    "nodes": 2,
+    "conns": 800,
+    "agents": 6,
+    "workers": 2,
+    "rate": 120,
+    "duration": 25,
+    "connectRate": 400,
+    "bytes": 1024
+  },
+  "load_avg_at_start": [
+    21.7,
+    27,
+    27.1
+  ],
+  "final": {
+    "connected": 806,
+    "connectErrors": 208,
+    "disconnects": 0,
+    "reconnects": 0,
+    "recv": 2999,
+    "recvTeam": 0,
+    "recvVisitor": 2999,
+    "dup": 0,
+    "gap": 0,
+    "gapMsgs": 0,
+    "recovered": 0,
+    "resyncRequests": 0,
+    "resyncFailed": 0,
+    "resyncSignals": 0,
+    "sendUnique": 2999,
+    "resent": 0,
+    "failovers": 14,
+    "sendOk": 2999,
+    "sendErr": 0,
+    "sendCreatedFalse": 0,
+    "acksTimeout": 0,
+    "drained": 0,
+    "slowKicked": 0,
+    "auditMissing": 0,
+    "open": 806,
+    "total": 806,
+    "sendErrorKinds": {},
+    "connectErrorSamples": {
+      "websocket error": 208
+    },
+    "delivery": {
+      "n": 2999,
+      "p50": 4,
+      "p90": 11,
+      "p99": 79,
+      "max": 149
+    },
+    "ack": {
+      "n": 2999,
+      "p50": 9,
+      "p90": 27,
+      "p99": 207,
+      "max": 239
+    },
+    "connect": {
+      "n": 806,
+      "p50": 635,
+      "p90": 1674,
+      "p99": 2522,
+      "max": 4361
+    }
+  },
+  "server": {
+    "node0": {
+      "wsVisitors": 14,
+      "wsTeam": 0,
+      "slowDisconnects": 6,
+      "loopLagP99Ms": 12.255231,
+      "rateLimited": 0,
+      "writeBufMax": 0
+    },
+    "node1": {
+      "wsVisitors": 786,
+      "wsTeam": null,
+      "slowDisconnects": 0,
+      "loopLagP99Ms": 12.353535,
+      "rateLimited": 0,
+      "writeBufMax": 0
+    }
+  },
+  "resources": {
+    "node0": {
+      "rss_peak_mb": 160,
+      "cpu_avg_pct": 9,
+      "cpu_peak_pct": 26
+    },
+    "node1": {
+      "rss_peak_mb": 263,
+      "cpu_avg_pct": 51,
+      "cpu_peak_pct": 102
+    },
+    "redis": {
+      "rss_peak_mb": 9,
+      "cpu_avg_pct": 10,
+      "cpu_peak_pct": 20
+    },
+    "gen0": {
+      "rss_peak_mb": 95,
+      "cpu_avg_pct": 3,
+      "cpu_peak_pct": 15
+    },
+    "gen1": {
+      "rss_peak_mb": 95,
+      "cpu_avg_pct": 3,
+      "cpu_peak_pct": 13
+    }
+  },
+  "delivery_check": {
+    "sent_acked": 2999,
+    "send_errors": 0,
+    "agent_sockets": 6,
+    "expected_agent_deliveries": 17994,
+    "actual_agent_deliveries": 0,
+    "agent_delivery_ratio": 0,
+    "seq_gaps": 0,
+    "seq_missing_msgs": 0,
+    "duplicates": 0
+  },
+  "slow": {
+    "paused_sockets": 6,
+    "server_before": {
+      "node0": {
+        "wsVisitors": 11,
+        "wsTeam": 6,
+        "slowDisconnects": 0,
+        "loopLagP99Ms": 25.001983,
+        "rateLimited": 0,
+        "writeBufMax": 0
+      },
+      "node1": {
+        "wsVisitors": 786,
+        "wsTeam": null,
+        "slowDisconnects": 0,
+        "loopLagP99Ms": 28.180479000000002,
+        "rateLimited": 0,
+        "writeBufMax": 0
+      }
+    },
+    "slow_consumer_disconnects": 6
+  },
+  "note": "delivery ratio is expected to be < 1 here: the paused sockets are the ones that are dropped. delivery latency p99 of the healthy sockets is the signal that matters",
+  "load_avg_at_end": [
+    14.1,
+    24.4,
+    26.1
+  ]
+}

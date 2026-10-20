@@ -1,0 +1,136 @@
+/**
+ * Human-facing documentation of every environment variable in the config schema (config.ts). `npm run docs:config` renders this plus the
+ * schema's own types and defaults into docs/CONFIGURATION.md; a test fails when a variable has no entry here (or an entry has no variable),
+ * so a new setting cannot ship undocumented.
+ */
+export interface VarMeta {
+  desc: string;
+  example?: string;
+  /** a secret: never log it, never commit it, rotate as described */
+  secret?: boolean;
+  /** extra security or operational note */
+  note?: string;
+  group: string;
+}
+
+const G = {
+  core: "Core",
+  db: "Database",
+  redis: "Redis and scale-out",
+  ws: "WebSocket and realtime",
+  rl: "Rate limiting and overload",
+  workers: "Workers, jobs and sends",
+  providers: "SMS, email and webhooks",
+  billing: "Billing (Stripe)",
+  ai: "AI",
+  storage: "Storage and uploads",
+  ops: "Operations",
+} as const;
+
+export const CONFIG_META: Record<string, VarMeta> = {
+  NODE_ENV: { group: G.core, desc: "Runtime mode. `production` requires `JWT_SECRET`; `test` is used by the test suite.", example: "production" },
+  PORT: { group: G.core, desc: "TCP port the HTTP and Socket.IO server listens on (0 = random free port).", example: "3000" },
+  HOST: { group: G.core, desc: "Interface to bind.", example: "0.0.0.0" },
+  PUBLIC_URL: { group: G.core, desc: "Public base URL of this installation. Used in emailed links (invitations, password reset, notifications), signed file URLs, Stripe return URLs and the widget.", example: "https://chat.example.com" },
+  CORS_ORIGINS: { group: G.core, desc: "Comma-separated origins allowed to call the team API from a browser. The widget endpoints (`/public/*`) accept any origin and are protected by the embed token's domain binding instead.", example: "https://app.example.com" },
+  JWT_SECRET: { group: G.core, secret: true, desc: "Signing secret for access tokens (and the key from which MFA secrets are encrypted and platform-admin tokens are derived). At least 16 characters. Required in production; in development an ephemeral secret is generated and tokens die on restart.", example: "openssl rand -hex 32", note: "Rotating it signs everyone out, invalidates MFA enrolments stored encrypted with it and ends platform-admin tokens. Use the same value on every node." },
+  ACCESS_TOKEN_TTL_SECONDS: { group: G.core, desc: "Lifetime of an access token. Clients renew it with the refresh token (30 days, single use, rotated).", example: "900" },
+  BODY_LIMIT_BYTES: { group: G.core, desc: "Maximum JSON request body." },
+  REQUEST_TIMEOUT_MS: { group: G.core, desc: "Per-request timeout for `/api` and `/public` (504 after it)." },
+  TRUST_PROXY: { group: G.core, desc: "Believe `X-Forwarded-For` / `CF-Connecting-IP` for the client address. Turn on only behind a proxy you control.", note: "With it off, every client appears to come from the proxy and per-IP limits would hit everyone at once; with it on and no proxy, clients can spoof their address." },
+  TRUSTED_PROXY_HOPS: { group: G.core, desc: "Number of proxies of ours that append to `X-Forwarded-For`; the client address is the entry this many from the right (so a client-supplied prefix is ignored).", example: "2" },
+  CF_SHARED_SECRET: { group: G.core, secret: true, desc: "Secret that the Cloudflare Worker adds as `x-edge-secret`; only requests carrying it have `CF-Connecting-IP` believed. See docs/CLOUDFLARE.md." },
+  REGION: { group: G.core, desc: "Region this installation serves (for example `eu-west`). A workspace whose home region (set by an operator) differs is refused with `421 WRONG_REGION` and the right region in `details.region`, so a global edge or load balancer can route it home. Unset = single region, no check.", example: "eu-west" },
+  NODE_ID: { group: G.ops, desc: "Identifier of this process in logs, metrics and Redis keys. Default: hostname plus random suffix." },
+  LOG_LEVEL: { group: G.ops, desc: "Minimum log level. Logs are JSON lines; message content and secrets are never logged." },
+  METRICS_TOKEN: { group: G.ops, secret: true, desc: "Bearer token required for `GET /metrics`. Unset = open (private network only)." },
+
+  DATABASE_PATH: { group: G.db, desc: "SQLite file used when `DATABASE_URL` is unset (`:memory:` for tests).", example: "./data/conversations.db" },
+  DATABASE_URL: { group: G.db, secret: true, desc: "`postgres://` URL. Setting it switches to PostgreSQL (multi-node). Contains credentials.", example: "postgres://app:***@db:5432/conversations" },
+  MESSAGE_HASH_PARTITIONS: { group: G.db, desc: "Hash partitions of the `messages` table (by room). Read once, when the partitioning migration first runs on PostgreSQL; cannot be changed afterwards without a rebuild.", example: "16" },
+  MESSAGE_PARTITION_MONTHS_AHEAD: { group: G.db, desc: "Monthly partitions created ahead of time by the daily job." },
+  DATABASE_PGBOUNCER: { group: G.db, desc: "Set when a transaction-mode PgBouncer sits between the app and PostgreSQL: disables named prepared statements. The app uses no other session state." },
+  DATABASE_REPLICA_URL: { group: G.db, secret: true, desc: "Optional read replica for history, list, search and analytics reads (`Db.read()`), with a lag guard and read-your-writes fallback to the primary." },
+  DATABASE_REPLICA_MAX_LAG_MS: { group: G.db, desc: "Reads fall back to the primary when the replica lags more than this." },
+  DATABASE_READ_AFTER_WRITE_MS: { group: G.db, desc: "After a write, reads for the same workspace/room go to the primary for this long." },
+  DATABASE_POOL_MAX: { group: G.db, desc: "PostgreSQL pool size per node. Sizing formula in docs/SCALING.md." },
+  DATA_DIR: { group: G.storage, desc: "Directory for uploads and local data.", example: "/data" },
+  WEB_DIST: { group: G.core, desc: "Directory of the built web app to serve (default `../web/dist`)." },
+
+  SOCKET_ADAPTER: { group: G.redis, desc: "Socket.IO adapter: `auto` = Redis when `REDIS_URL` is set, else in-memory." },
+  REDIS_URL: { group: G.redis, secret: true, desc: "Redis URL. Setting it enables the shared rate limiter, presence, cache invalidation, locks, the Socket.IO adapter, the event bus and the job queue.", example: "redis://redis:6379" },
+  REDIS_PREFIX: { group: G.redis, desc: "Namespace for every Redis key and channel, so several environments can share one Redis." },
+  JOB_QUEUE: { group: G.redis, desc: "`db` = jobs table polled by the scheduler, `bullmq` = BullMQ on Redis, `auto` = BullMQ when Redis is configured." },
+  CACHE_TTL_MS: { group: G.redis, desc: "Lifetime of the small in-process caches (seat, settings, counts). Changes are invalidated across nodes through Redis; this is the staleness bound when Redis is down." },
+  PRESENCE_TTL_MS: { group: G.redis, desc: "Presence entries expire after this long without a heartbeat (shared presence on Redis)." },
+  PRESENCE_GRACE_MS: { group: G.redis, desc: "A socket that disconnects is shown offline only after this grace period (page reloads do not flap)." },
+
+  WS_PING_INTERVAL_MS: { group: G.ws, desc: "Socket.IO ping interval." },
+  WS_PING_TIMEOUT_MS: { group: G.ws, desc: "Socket.IO ping timeout." },
+  WS_MAX_BUFFER_BYTES: { group: G.ws, desc: "Largest single socket message." },
+  WS_MAX_CONNECTIONS: { group: G.ws, desc: "Concurrent sockets per node (0 = unlimited). New connections beyond it are shed with 503 and a jittered retry hint." },
+  WS_MAX_CONNECTIONS_PER_IP: { group: G.ws, desc: "Concurrent sockets per client IP, cluster-wide (0 = unlimited)." },
+  WS_MAX_CONNECTIONS_PER_WORKSPACE: { group: G.ws, desc: "Concurrent sockets per workspace, cluster-wide (0 = unlimited; with `PLAN_ENFORCEMENT` the plan tier applies)." },
+  WS_CONNECT_RATE_PER_IP: { group: G.ws, desc: "Socket handshakes per second per IP (reconnect storms)." },
+  WS_MAX_WRITE_BUFFER: { group: G.ws, desc: "A socket whose outbound queue exceeds this many packets is a slow consumer and is disconnected." },
+  WS_DRAIN_MS: { group: G.ws, desc: "On shutdown, how long clients get to reconnect elsewhere (staggered) before the node closes." },
+  WS_PERMESSAGE_DEFLATE: { group: G.ws, desc: "Compress socket frames. Off by default: measured to cost more CPU and memory than it saves (docs/adr/0009-permessage-deflate-off.md)." },
+  WS_TRANSPORTS: { group: G.ws, desc: "Allowed Socket.IO transports." },
+  WS_MAX_HANDSHAKES: { group: G.ws, desc: "Concurrent in-flight handshakes per node before new ones are shed." },
+  WS_STRIKE_LIMIT: { group: G.ws, desc: "Rate-limited socket events tolerated before the socket is disconnected." },
+  SOCKET_RATE_PER_SEC: { group: G.ws, desc: "Per-socket event budget refill (events/second); events have costs (typing is cheap, sending is dear)." },
+  SOCKET_RATE_BURST: { group: G.ws, desc: "Per-socket event burst." },
+
+  PLAN_ENFORCEMENT: { group: G.rl, desc: "Enforce plan limits that need billing to be meaningful: socket caps per plan, seat limits, and the soft lock after a failed payment. Plan-scaled request limits are always on." },
+  RATE_LIMIT_SCALE: { group: G.rl, desc: "Multiplies every rate limit. For load tests only; logged loudly at start-up when not 1.", note: "Never set this above 1 in production: it removes the protection." },
+  RATELIMIT_REDIS_TIMEOUT_MS: { group: G.rl, desc: "Budget for one limiter call to Redis; on timeout the policy's fail-open/closed rule applies." },
+  RATELIMIT_BREAKER_FAILURES: { group: G.rl, desc: "Consecutive Redis failures that open the limiter's circuit breaker." },
+  RATELIMIT_BREAKER_OPEN_MS: { group: G.rl, desc: "How long the breaker stays open before probing Redis again." },
+  RATELIMIT_LEASE_FRACTION: { group: G.rl, desc: "Share of a hot policy's burst leased from Redis in one call and spent locally (0 disables the lease tier). The local tier never admits more than the global limit." },
+  RATELIMIT_LEASE_TTL_MS: { group: G.rl, desc: "Lifetime of a local lease." },
+  RATELIMIT_LOG_SAMPLE: { group: G.rl, desc: "Log 1 in N limited decisions (policy id only, never raw keys)." },
+  SHED_LOOP_LAG_MS: { group: G.rl, desc: "Event-loop lag at which new connections and low-priority work are shed (0 disables)." },
+
+  WORKER_POOL_SIZE: { group: G.workers, desc: "Worker threads for CPU-heavy tasks (large HTML sanitising). 0 = inline." },
+  WORKER_THRESHOLD_BYTES: { group: G.workers, desc: "Bodies larger than this go to a worker thread (measured threshold, docs/PERFORMANCE.md)." },
+  SCHEDULER_ENABLED: { group: G.workers, desc: "Run the background scheduler (jobs, snooze wake, digests, outbox relay) in this process. Turn off on web-only nodes." },
+  SEND_PACING: { group: G.workers, desc: "Pace provider sends per number/sender (queue with a delay instead of rejecting)." },
+  SEND_QUEUE_WORKSPACE_MAX: { group: G.workers, desc: "A workspace with more than this many sends waiting gets 429 on new external sends; other tenants are unaffected." },
+  SEND_QUEUE_MAX: { group: G.workers, desc: "Global cap on queued sends per pass." },
+  SEND_RETRY_JITTER: { group: G.workers, desc: "Randomise retry delays." },
+  SEND_RETRY_MAX_ATTEMPTS: { group: G.workers, desc: "Delivery attempts before a message is marked failed." },
+  SEND_RETRY_BASE_SECONDS: { group: G.workers, desc: "First retry delay; doubles each attempt." },
+  SEND_RETRY_CAP_SECONDS: { group: G.workers, desc: "Largest retry delay." },
+  DIGEST_MIN_AGE_MINUTES: { group: G.workers, desc: "Unanswered contact messages younger than this are not yet in the email digest." },
+  DIGEST_MAX_AGE_MINUTES: { group: G.workers, desc: "Messages older than this are not in the digest." },
+
+  SMS_PROVIDER: { group: G.providers, desc: "`console` logs messages; `twilio` sends them." },
+  TWILIO_ACCOUNT_SID: { group: G.providers, secret: true, desc: "Twilio account SID (required with `SMS_PROVIDER=twilio`)." },
+  TWILIO_AUTH_TOKEN: { group: G.providers, secret: true, desc: "Twilio auth token: sends SMS and verifies inbound webhook signatures.", note: "Rotate in the Twilio console and redeploy." },
+  EMAIL_PROVIDER: { group: G.providers, desc: "`console` logs messages; `sendgrid` sends them." },
+  SENDGRID_API_KEY: { group: G.providers, secret: true, desc: "SendGrid API key (required with `EMAIL_PROVIDER=sendgrid`)." },
+  SENDGRID_WEBHOOK_PUBLIC_KEY: { group: G.providers, secret: true, desc: "Public key for verifying SendGrid event webhook signatures." },
+  WEBHOOK_SHARED_SECRET: { group: G.providers, secret: true, desc: "Shared secret for SendGrid inbound parse (query `secret=` or `x-webhook-secret`) when signatures are unavailable." },
+  WEBHOOK_TOLERANCE_SECONDS: { group: G.providers, desc: "Replay window for signed webhooks (Stripe, SendGrid)." },
+  SYSTEM_EMAIL_FROM: { group: G.providers, desc: "From address of system email (invitations, reset, notifications, billing alerts)." },
+  CREDIT_COST_SMS: { group: G.providers, desc: "Credits one outbound SMS costs." },
+  CREDIT_COST_EMAIL: { group: G.providers, desc: "Credits one outbound email costs." },
+
+  STRIPE_SECRET_KEY: { group: G.billing, secret: true, desc: "Stripe secret (or restricted) key. Unset = billing off.", note: "Requires `STRIPE_WEBHOOK_SECRET`. Use a restricted key where possible." },
+  STRIPE_WEBHOOK_SECRET: { group: G.billing, secret: true, desc: "Signing secret of the platform webhook endpoint `/webhooks/stripe`." },
+  STRIPE_CONNECT_WEBHOOK_SECRET: { group: G.billing, secret: true, desc: "Signing secret of the Connect webhook endpoint `/webhooks/stripe/connect`." },
+  STRIPE_PRICE_PRO: { group: G.billing, desc: "Stripe Price id of the Pro plan.", example: "price_123" },
+  STRIPE_PRICE_BUSINESS: { group: G.billing, desc: "Stripe Price id of the Business plan.", example: "price_456" },
+  BILLING_GRACE_DAYS: { group: G.billing, desc: "Days a workspace keeps working after a failed subscription payment before the soft lock (needs `PLAN_ENFORCEMENT`)." },
+  CREDIT_PRICE_CENTS: { group: G.billing, desc: "Price of one credit in the smallest currency unit; packs and auto-recharge are priced from it." },
+  BILLING_CURRENCY: { group: G.billing, desc: "Three-letter currency for credit purchases and the default for payment requests." },
+  CONNECT_APPLICATION_FEE_BPS: { group: G.billing, desc: "Platform fee on customer payments made through Connect, in basis points (100 = 1%)." },
+
+  ANTHROPIC_API_KEY: { group: G.ai, secret: true, desc: "Enables the Claude-backed AI features. Without it, deterministic offline heuristics are used." },
+  ANTHROPIC_MODEL: { group: G.ai, desc: "Model id used for AI features." },
+  AI_TIMEOUT_MS: { group: G.ai, desc: "Timeout of one AI call; the feature degrades to heuristics on timeout." },
+
+  STORAGE_DRIVER: { group: G.storage, desc: "Attachment storage driver (only `local` is implemented; the interface allows object storage)." },
+  UPLOAD_MAX_BYTES: { group: G.storage, desc: "Largest attachment." },
+  SIGNED_URL_TTL_SECONDS: { group: G.storage, desc: "Lifetime of signed attachment links." },
+};

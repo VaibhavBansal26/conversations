@@ -1,0 +1,11 @@
+{
+  "date": "2026-10-20T14:24:22.038Z",
+  "events": 1000000,
+  "sqlite_memory": {
+    "events_per_s": 112198,
+    "secs": 9,
+    "rollup_total": 1000000,
+    "correct": true,
+    "ctx_us_per_event": 9
+  }
+}

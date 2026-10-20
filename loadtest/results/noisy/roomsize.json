@@ -1,0 +1,73 @@
+{
+  "scenario": "roomsize",
+  "date": "2026-10-20T13:52:01.751Z",
+  "machine": "Apple M1 x8, 8 GB RAM, darwin 24.3.0, node v24.11.1",
+  "config": {
+    "nodes": 1,
+    "conns": 50,
+    "agents": 5,
+    "workers": 3,
+    "rate": 40,
+    "duration": 15,
+    "connectRate": 400,
+    "bytes": 64,
+    "db": "postgres",
+    "redis": false
+  },
+  "load_avg_at_start": [
+    8.6,
+    15.5,
+    21.7
+  ],
+  "roomsize": [
+    {
+      "subscribers": 1,
+      "sent_per_s": 20,
+      "deliveries_per_s": 17,
+      "delivery_p50_ms": 4,
+      "delivery_p99_ms": 15,
+      "gaps": 0,
+      "dups": 0,
+      "node_cpu_pct": 12,
+      "node_rss_mb": 169
+    },
+    {
+      "subscribers": 10,
+      "sent_per_s": 40,
+      "deliveries_per_s": 343,
+      "delivery_p50_ms": 4,
+      "delivery_p99_ms": 8,
+      "gaps": 0,
+      "dups": 0,
+      "node_cpu_pct": 14,
+      "node_rss_mb": 148
+    },
+    {
+      "subscribers": 100,
+      "sent_per_s": 40,
+      "deliveries_per_s": 684,
+      "delivery_p50_ms": 4,
+      "delivery_p99_ms": 10,
+      "gaps": 0,
+      "dups": 0,
+      "node_cpu_pct": 15,
+      "node_rss_mb": 174
+    },
+    {
+      "subscribers": 1000,
+      "sent_per_s": 40,
+      "deliveries_per_s": 682,
+      "delivery_p50_ms": 4,
+      "delivery_p99_ms": 10,
+      "gaps": 0,
+      "dups": 0,
+      "node_cpu_pct": 12,
+      "node_rss_mb": 114
+    }
+  ],
+  "load_avg_at_end": [
+    4.5,
+    12.4,
+    19.9
+  ]
+}

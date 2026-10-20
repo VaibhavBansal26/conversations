@@ -109,7 +109,11 @@ export async function createContext(config: Config, o: ContextOverrides = {}): P
   if (!o.rateStore && hub) {
     redisStore = new RedisStore(hub, { timeoutMs: config.RATELIMIT_REDIS_TIMEOUT_MS, breakerThreshold: config.RATELIMIT_BREAKER_FAILURES, breakerOpenMs: config.RATELIMIT_BREAKER_OPEN_MS });
     redisStore.onCall = (sec, ok) => ctxRef.metrics.rlRedis.observe({ ok: String(ok) }, sec);
+    // the store reports on every failure and every recovery; the log and the gauge change only on a real transition (a flapping breaker used to log hundreds of identical lines per second)
+    let breakerOpen = false;
     redisStore.onBreaker = (open) => {
+      if (open === breakerOpen) return;
+      breakerOpen = open;
       ctxRef.metrics.rlBreaker.set(open ? 1 : 0);
       log.warn(open ? "rate-limit redis circuit opened; failing per policy" : "rate-limit redis circuit closed");
     };

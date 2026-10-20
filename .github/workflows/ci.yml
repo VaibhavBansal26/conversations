@@ -20,6 +20,8 @@ jobs:
       - run: npm ci --prefix web
       - name: Typecheck
         run: npm run typecheck
+      - name: Documentation drift (links, index, generated references, mermaid, coverage)
+        run: npm run docs:check
       - name: Test
         run: npm test
       - name: Build

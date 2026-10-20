@@ -1,0 +1,134 @@
+{
+  "scenario": "drain",
+  "date": "2026-10-20T13:50:14.208Z",
+  "machine": "Apple M1 x8, 8 GB RAM, darwin 24.3.0, node v24.11.1",
+  "config": {
+    "nodes": 2,
+    "conns": 800,
+    "agents": 2,
+    "workers": 2,
+    "rate": 80,
+    "duration": 30,
+    "connectRate": 400,
+    "bytes": 64
+  },
+  "load_avg_at_start": [
+    7.9,
+    18.3,
+    23.4
+  ],
+  "final": {
+    "connected": 2,
+    "connectErrors": 69,
+    "disconnects": 800,
+    "reconnects": 0,
+    "recv": 1944,
+    "recvTeam": 1296,
+    "recvVisitor": 648,
+    "dup": 0,
+    "gap": 0,
+    "gapMsgs": 0,
+    "recovered": 0,
+    "resyncRequests": 0,
+    "resyncFailed": 0,
+    "resyncSignals": 0,
+    "sendUnique": 651,
+    "resent": 0,
+    "failovers": 0,
+    "sendOk": 648,
+    "sendErr": 0,
+    "sendCreatedFalse": 0,
+    "acksTimeout": 0,
+    "drained": 800,
+    "slowKicked": 800,
+    "auditMissing": 0,
+    "open": 2,
+    "total": 802,
+    "sendErrorKinds": {},
+    "connectErrorSamples": {
+      "websocket error": 69
+    },
+    "delivery": {
+      "n": 1944,
+      "p50": 3,
+      "p90": 4,
+      "p99": 6,
+      "max": 38
+    },
+    "ack": {
+      "n": 648,
+      "p50": 7,
+      "p90": 8,
+      "p99": 14,
+      "max": 42
+    },
+    "connect": {
+      "n": 802,
+      "p50": 422,
+      "p90": 648,
+      "p99": 1784,
+      "max": 1983
+    }
+  },
+  "server": {
+    "node0": null,
+    "node1": {
+      "wsVisitors": null,
+      "wsTeam": 2,
+      "slowDisconnects": 0,
+      "loopLagP99Ms": 18.153471,
+      "rateLimited": 0,
+      "writeBufMax": 0
+    }
+  },
+  "resources": {
+    "node0": {
+      "rss_peak_mb": 253,
+      "cpu_avg_pct": 22,
+      "cpu_peak_pct": 25
+    },
+    "node1": {
+      "rss_peak_mb": 190,
+      "cpu_avg_pct": 6,
+      "cpu_peak_pct": 9
+    },
+    "redis": {
+      "rss_peak_mb": 8,
+      "cpu_avg_pct": 4,
+      "cpu_peak_pct": 6
+    },
+    "gen0": {
+      "rss_peak_mb": 93,
+      "cpu_avg_pct": 3,
+      "cpu_peak_pct": 7
+    },
+    "gen1": {
+      "rss_peak_mb": 94,
+      "cpu_avg_pct": 3,
+      "cpu_peak_pct": 7
+    }
+  },
+  "delivery_check": {
+    "sent_acked": 648,
+    "send_errors": 0,
+    "agent_sockets": 2,
+    "expected_agent_deliveries": 1296,
+    "actual_agent_deliveries": 1296,
+    "agent_delivery_ratio": 1,
+    "seq_gaps": 0,
+    "seq_missing_msgs": 0,
+    "duplicates": 0
+  },
+  "drain": {
+    "open_before": 802,
+    "open_after_node0_exit": 2,
+    "node0_exit_ms": 5269,
+    "drain_events_received_by_clients": 800,
+    "note": "node0 clients were told server:draining with a jittered reconnect delay; in this harness they have no balancer to fail over to, so they keep retrying node0"
+  },
+  "load_avg_at_end": [
+    7.9,
+    17.6,
+    23
+  ]
+}

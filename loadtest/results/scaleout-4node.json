@@ -1,0 +1,166 @@
+{
+  "scenario": "multinode",
+  "date": "2026-10-20T14:25:55.364Z",
+  "machine": "Apple M1 x8, 8 GB RAM, darwin 24.3.0, node v24.11.1",
+  "config": {
+    "nodes": 4,
+    "conns": 2250,
+    "agents": 4,
+    "workers": 3,
+    "rate": 90,
+    "duration": 45,
+    "connectRate": 400,
+    "bytes": 64,
+    "db": "postgres",
+    "redis": true
+  },
+  "load_avg_at_start": [
+    6.6,
+    12.2,
+    14
+  ],
+  "note": "agents are connected to node0 only; visitors only to the other nodes, so every delivery crosses the Redis adapter",
+  "final": {
+    "connected": 2156,
+    "connectErrors": 0,
+    "disconnects": 0,
+    "reconnects": 0,
+    "recv": 20250,
+    "recvTeam": 16200,
+    "recvVisitor": 4050,
+    "dup": 0,
+    "gap": 0,
+    "gapMsgs": 0,
+    "recovered": 0,
+    "resyncRequests": 0,
+    "resyncFailed": 0,
+    "resyncSignals": 0,
+    "sendUnique": 4050,
+    "resent": 0,
+    "failovers": 0,
+    "sendOk": 4050,
+    "sendErr": 0,
+    "sendCreatedFalse": 0,
+    "acksTimeout": 0,
+    "drained": 0,
+    "slowKicked": 0,
+    "auditMissing": 0,
+    "open": 2156,
+    "total": 2156,
+    "sendErrorKinds": {},
+    "connectErrorSamples": {},
+    "delivery": {
+      "n": 20250,
+      "p50": 5,
+      "p90": 11,
+      "p99": 33,
+      "max": 72
+    },
+    "ack": {
+      "n": 4050,
+      "p50": 9,
+      "p90": 22,
+      "p99": 65,
+      "max": 120
+    },
+    "connect": {
+      "n": 2156,
+      "p50": 4,
+      "p90": 38,
+      "p99": 100,
+      "max": 143
+    }
+  },
+  "server": {
+    "node0": {
+      "wsVisitors": null,
+      "wsTeam": 4,
+      "slowDisconnects": 0,
+      "loopLagP99Ms": 25.722879,
+      "rateLimited": 394,
+      "writeBufMax": 0
+    },
+    "node1": {
+      "wsVisitors": 718,
+      "wsTeam": null,
+      "slowDisconnects": 0,
+      "loopLagP99Ms": 25.640959000000002,
+      "rateLimited": 6,
+      "writeBufMax": 0
+    },
+    "node2": {
+      "wsVisitors": 717,
+      "wsTeam": null,
+      "slowDisconnects": 0,
+      "loopLagP99Ms": 21.020671,
+      "rateLimited": 3,
+      "writeBufMax": 0
+    },
+    "node3": {
+      "wsVisitors": 717,
+      "wsTeam": null,
+      "slowDisconnects": 0,
+      "loopLagP99Ms": 19.611646999999998,
+      "rateLimited": 3,
+      "writeBufMax": 0
+    }
+  },
+  "resources": {
+    "node0": {
+      "rss_peak_mb": 157,
+      "cpu_avg_pct": 10,
+      "cpu_peak_pct": 27
+    },
+    "node1": {
+      "rss_peak_mb": 268,
+      "cpu_avg_pct": 19,
+      "cpu_peak_pct": 36
+    },
+    "node2": {
+      "rss_peak_mb": 223,
+      "cpu_avg_pct": 18,
+      "cpu_peak_pct": 38
+    },
+    "node3": {
+      "rss_peak_mb": 222,
+      "cpu_avg_pct": 18,
+      "cpu_peak_pct": 39
+    },
+    "redis": {
+      "rss_peak_mb": 8,
+      "cpu_avg_pct": 10,
+      "cpu_peak_pct": 35
+    },
+    "gen0": {
+      "rss_peak_mb": 98,
+      "cpu_avg_pct": 4,
+      "cpu_peak_pct": 13
+    },
+    "gen1": {
+      "rss_peak_mb": 94,
+      "cpu_avg_pct": 3,
+      "cpu_peak_pct": 12
+    },
+    "gen2": {
+      "rss_peak_mb": 94,
+      "cpu_avg_pct": 3,
+      "cpu_peak_pct": 12
+    }
+  },
+  "delivery_check": {
+    "sent_acked": 4050,
+    "send_errors": 0,
+    "agent_sockets": 4,
+    "expected_agent_deliveries": 16200,
+    "actual_agent_deliveries": 16200,
+    "agent_delivery_ratio": 1,
+    "seq_gaps": 0,
+    "seq_missing_msgs": 0,
+    "duplicates": 0
+  },
+  "load_avg_at_end": [
+    8.4,
+    11.9,
+    13.8
+  ]
+}

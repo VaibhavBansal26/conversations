@@ -15,6 +15,10 @@
     "seed": "tsx src/seed.ts",
     "e2e": "node scripts/e2e.mjs",
     "admin": "tsx scripts/platform-admin.ts",
+    "docs:config": "tsx scripts/gen-config-doc.ts",
+    "docs:api": "tsx scripts/gen-api-doc.ts",
+    "docs:realtime": "tsx scripts/gen-realtime-doc.ts",
+    "docs:check": "tsx scripts/docs-check.ts",
     "docs:ratelimit": "tsx scripts/gen-ratelimit-doc.ts",
     "docs:analytics-schemas": "tsx scripts/gen-analytics-schemas.ts"
   },
@@ -35,12 +39,15 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@types/jsdom": "^30.0.0",
     "@types/node": "^26.6.5",
     "@types/pg": "^8.23.1",
     "@types/sanitize-html": "^2.16.2",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
     "embedded-postgres": "^18.4.0-beta.17",
+    "jsdom": "^26.1.0",
+    "mermaid": "^11.17.2",
     "socket.io-client": "^4.8.4",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",

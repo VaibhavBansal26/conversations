@@ -103,6 +103,13 @@ Development runs the same thing with `npm run dev` (API on :3000, Vite on :5173 
 | `jobs/` | `JobQueue` (`DbJobQueue` / `BullJobQueue`) with backoff, scheduler passes |
 | `ai/` | `AiProvider`, Anthropic + heuristic providers, BM25 retrieval, prompt safety, features |
 | `routes/` | thin Hono routers: validate, call a service, serialise |
+| `authz/` | permission catalogue, immutable system roles, the route and socket-event access tables (deny by default) |
+| `ratelimit/` | policy registry, GCRA/window/concurrency/strike algorithms, memory and Redis (Lua) stores, route and event declarations |
+| `events/outbox.ts`, `infra/eventbus.ts` | transactional outbox, relay, idempotent consumers, `EventBus` with Redis Streams and Kafka/NATS stubs |
+| `billing/` | `BillingProvider` (Stripe, fake, null), plans, credits and auto-recharge, webhooks, payment requests (Connect), soft lock |
+| `admin/` | platform operator accounts (TOTP), workspace directory, suspension, credit adjustments, support access |
+| `analytics/`, `services/analytics.ts`, `services/roomMetrics.ts` | JSON Schemas of the analytics API, per-room metrics maintained in the write path, exports |
+| `apidoc/` | the documented route list, curated intro and generators' inputs |
 | `server/public/widget.js` | the embeddable widget (framework-free, Shadow DOM) |
 
 Services never touch Socket.IO directly: they call the `RealtimeBus` interface. Tests plug in a `RecordingBus`; the server plugs in `SocketBus`.
@@ -204,18 +211,13 @@ Notable constraints (all enforced by the database, not just by code):
 
 ## 4. Access model
 
-Roles: `owner | manager | agent`. A **seat** is a workspace member (`members.id`); it has a `live_seat` flag (needed for inbox features), availability `active|away|inactive`, `dnd_until`, notification preferences and `inbox_visibility`.
+Access is **permission based**: 26 `resource:action` permissions, four immutable built-in roles (Owner, Manager, Agent, Viewer) and custom roles; the same `can()` check guards every REST route and socket event from one declaration table, deny by default. The full model (catalogue, roles, sessions, refresh-token rotation, MFA, invitations, audit) is [RBAC.md](RBAC.md).
 
-| Capability | owner | manager | agent |
-| --- | --- | --- | --- |
-| See rooms | all | all | rooms assigned to them, plus rooms in inboxes they belong to when `inbox_visibility = assigned_inbox` |
-| Manage inboxes, tokens, numbers, senders, KB, widget settings | yes | yes | no |
-| Reassign any room / change a room's inbox | yes | yes | no (may assign themselves or unassign themselves) |
-| Create managers / change roles | yes | no (can add agents) | no |
-| Delete (archive) conversations | yes | yes | no |
-| Delete messages | any | any | own |
+A **seat** is a workspace member (`members.id`) with a role, a `live_seat` flag (needed for inbox features), availability `active|away|inactive`, `dnd_until`, notification preferences and `inbox_visibility`. Which *conversations* a seat sees is a separate, single definition (`roomStore.roomVisibility`): Owner, Manager and Viewer see every conversation of the workspace; an Agent sees the rooms assigned to them, plus rooms in inboxes they belong to when `inbox_visibility = assigned_inbox`.
 
-Rooms outside a seat's scope return **404, not 403**, on every REST route and socket event (existence is not leaked). Cross-tenant access is also 404. Unassigned rooms that have no inbox are visible to owners/managers only.
+Rooms outside a seat's scope return **404, not 403**, on every REST route and socket event (existence is not leaked). Cross-tenant access is also 404. Unassigned rooms that have no inbox are visible to managers and owners only. A workspace can be **suspended** by a platform operator ([ADMIN.md](ADMIN.md)): every entry point then answers `403 WORKSPACE_SUSPENDED`.
+
+Money is a separate concern from access: plans, credits, the failed-payment grace period and the soft lock, and customer payment requests are in [STRIPE.md](STRIPE.md); the rate-limit tier of a workspace follows its plan ([RATE-LIMITING.md](RATE-LIMITING.md)).
 
 ## 5. Key flows
 
@@ -239,7 +241,7 @@ sequenceDiagram
   A->>S: message:send {room_id, content, client_msg_id}
   S->>M: sendAgentMessage (scope re-checked from DB)
   M->>DB: tx insert, auto-assign if unassigned
-  M->>V: message:new {message}   (vroom:<id> channel; notes never go here)
+  M->>V: message:new {message}   (vroom:<id> channel, notes never go here)
   V->>S: message:read {room_id, message_id}
   S->>DB: UPDATE rooms SET visitor_read_seq = max(...)
   S->>A: message:receipt {reader: contact}
@@ -310,7 +312,7 @@ sequenceDiagram
     API-->>W: rooms of the whole contact become visible
   end
   W->>API: Socket.IO /ws/<workspaceId> with {session, deviceId}
-  API->>API: session must belong to THIS workspace; device-or-IP check; Origin vs token
+  API->>API: session must belong to THIS workspace, device-or-IP check, Origin vs token
 ```
 
 ### 5.5 Snooze, notifications and digest
@@ -327,77 +329,17 @@ flowchart LR
 
 ## 6. Realtime protocol (Socket.IO 4)
 
-**Namespace**: one per workspace, `/ws/<workspaceId>` where the id must match `^ws_[0-9a-f]{24}$` (a dynamic namespace regexp; anything else is refused before auth). The workspace must exist.
+One namespace per workspace (`/ws/<workspaceId>`), team sockets authenticate with the access token and visitor sockets with their session secret. The complete protocol (handshake, who receives what, client-to-server events generated from the registry, server-to-client events) is [REALTIME.md](REALTIME.md). The design points that matter for the architecture:
 
-**Handshake auth** (`auth` object of `io(...)`):
+- **Computed audiences.** Sockets join only a few per-workspace channels (`managers`, `inbox:<id>`, `member:<id>`, plus the room's visitor); the audience of an event is computed from visibility rules when it is published, so an agent does not hold one subscription per conversation ([ADR 0005](adr/0005-computed-room-audiences.md)). Membership is recomputed when scope changes (assignment, inbox membership, role change, removal).
+- **Per-event guarantees** (`realtime/socket.ts`): every event passes a per-socket cost-weighted budget (strikes disconnect abusers), the same permission table as REST, a fresh read of the seat (removed seats and suspended workspaces are cut off on the next event), zod validation, and then the same service functions REST uses, which re-check room scope.
+- **Correctness comes from REST, not from the socket.** Delivery over the socket is at-most-once; per-room `seq` is contiguous so clients detect gaps and repair them over REST; after a Redis outage every node sends `server:resync` ([ADR 0011](adr/0011-resync-over-rest.md)).
+- **Presence** is shared through Redis when configured (refcounted per seat across tabs and nodes, with a grace period so reloads do not flap).
+- **Admission control and drain**: connections are shed (503 with jittered retry) when a node nears its connection or event-loop-lag budget; SIGTERM flips readiness first, tells clients to reconnect with a staggered delay, then closes.
 
-| Client | `auth` | Verified against the namespace's workspace |
-| --- | --- | --- |
-| Team | `{ token: <access JWT> }` | JWT `wid` must equal the namespace workspace and the seat must still exist (role is re-read from the DB) |
-| Visitor | `{ session: <session token>, deviceId }` | session row must belong to the namespace workspace, not expired, same device **or** same IP; the browser `Origin` must match the embed token's domain; the token must still be active |
+## 7. REST API
 
-Failures are `connect_error` with `err.data.code` (`UNAUTHORIZED`, `INVALID_TOKEN`, `WRONG_WORKSPACE`, `UNKNOWN_WORKSPACE`, `INVALID_SESSION`, `SESSION_EXPIRED`, `SESSION_DEVICE_MISMATCH`, `ORIGIN_NOT_ALLOWED`).
-
-**Channels** inside a namespace (server-side only; clients never join anything): `room:<id>` (team seats that may see the room), `vroom:<id>` (visitor sockets allowed in that room), `member:<id>` (all tabs of one seat), `inbox:<id>`, `managers`, `team`. Membership is recomputed when scope changes (assignment, inbox membership, role change, OTP verification, removal) and sockets are disconnected when a seat is removed.
-
-### Server to client
-
-| Event | Audience | Payload |
-| --- | --- | --- |
-| `message:new` | room team; visitors of the room (never for notes) | `{ message, room: { id, status, priority, snooze_until, last_message_at, last_contact_message_at, updated_at, last_message } }` (visitor payload: stripped message DTO, `room: {id,status}`) |
-| `message:updated` | same | `{ message, room }` (delivery change, email open, edit, triage meta) |
-| `message:deleted` | same | `{ message_id, room_id }` |
-| `message:receipt` | room team (+ visitors for agent reads) | `{ room_id, reader: {type: agent\|contact, id?}, up_to_seq, up_to_message_id, at, channel? }` |
-| `room:new` | seats that can see the room (incl. newly assigned) | `{ room }` |
-| `room:updated` | room team; visitors get `{room:{id,status}}` | `{ room, reason? }` |
-| `room:deleted` | seats that lost access / archived | `{ room_id }` |
-| `room:unread` | the reading seat (all its tabs) | `{ room_id, unread_count }` |
-| `inbox:new`, `inbox:updated` | team | inbox DTO (`{id, deleted:true}` on delete) |
-| `presence:update` | team | `{ member_id, online, availability? }` (agents only) |
-| `visitor:presence` | room team | `{ room_id, contact_id, online }` |
-| `typing` | room team / visitors | `{ room_id, typing, who: {type, id?, name?} }` (volatile; `internal` typing never reaches visitors) |
-| `notification:new` / `notification:read` | one seat | `{ notification, unread_count }` / `{ id?, all?, unread_count }` |
-| `member:updated`, `member:removed`, `contact:updated` | team | DTOs |
-| `session:verified` | visitor | `{ verified }` after OTP |
-
-### Client to server (all take an ack `{ ok: true, ... } | { ok: false, error: { code, message } }`)
-
-| Event | Who | Payload | Ack |
-| --- | --- | --- | --- |
-| `message:send` | team, visitor | team: `{ room_id, kind, source, content, format?, subject?, from?, ref_message_id?, attachment_ids?, client_msg_id }`; visitor: `{ room_id, kind:"text", source:"dm", content, client_msg_id }` | `{ ok, message, created }` (`created:false` = idempotent replay) |
-| `message:read` | both | `{ room_id, message_id }` | `{ ok, moved, ... }` (+ `last_read_seq`, `unread_count` for seats) |
-| `room:create` | both | team: `{ contact_id \| contact, inbox_id?, subject? }`; visitor: `{ inbox_id? }` | `{ ok, room, created }` |
-| `room:update` | team | `{ room_id, status?, priority?, subject?, snooze_until? (ISO or null) }` | `{ ok, room }` |
-| `room:assign` | team | `{ room_id, member_ids?, inbox_id?, auto? }` | `{ ok, room }` |
-| `typing` | both | `{ room_id, typing, internal? }` | `{ ok }` |
-| `otp:verify` | visitor | `{ code }` (5 digits) | `{ ok, verified }` |
-| `presence:list` | team | none | `{ ok, online: [memberId] }` |
-
-**Per-event guarantees** (`realtime/socket.ts`): every event passes (1) a per-socket token bucket (`SOCKET_RATE_PER_SEC`/`SOCKET_RATE_BURST`, over limit -> `RATE_LIMITED` ack), (2) audience check (team-only / visitor-only events), (3) a fresh DB read of the seat (removed seats are disconnected; token expiry disconnects), (4) zod validation (`VALIDATION_ERROR`), then the same service functions REST uses, which re-check room scope (`NOT_FOUND` outside scope). Events without an ack callback are tolerated.
-
-**Presence** is refcounted per seat across tabs/devices (`realtime/presence.ts`): a seat is online while it has at least one socket; after the last socket closes it stays online for `PRESENCE_GRACE_MS` (default 5 s) so reloads do not flap, then `presence:update {online:false}` is emitted. Visitor presence is tracked the same way per contact.
-
-**Adapter point**: the default is Socket.IO's in-memory adapter. With `SOCKET_ADAPTER=redis` and `REDIS_URL` the server dynamically imports the optional packages `@socket.io/redis-adapter` and `redis` (declared as `optionalDependencies`, not needed to run) and switches `io.adapter(createAdapter(pub, sub))`. Access-refresh requests are fanned out to peers with `serverSideEmit("access:refresh")`. Presence is per node today (see limitations).
-
-## 7. REST API (all errors are `{ "error": { "code", "message", "details?" } }`)
-
-Auth: `Authorization: Bearer <JWT>` on `/api/*`; lists return `{ data, pagination }` (max 100 per page; messages use `before`/`after` cursors, max 50).
-
-| Area | Endpoints |
-| --- | --- |
-| Auth | `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me` |
-| Workspace | `GET/PATCH /api/workspace` (settings: widget, office hours, region, edit window, AI flags), `GET /api/credits`, `POST /api/credits/grant`, `GET /api/dashboard/counts` |
-| Seats | `GET/POST /api/members`, `PATCH/DELETE /api/members/:id`, `GET/PATCH /api/members/me` (availability, DND, notification prefs), `GET /api/presence` |
-| Contacts | `GET/POST /api/contacts`, `GET/PATCH/DELETE /api/contacts/:id`, notes `/api/contacts/:id/notes`, `GET /api/contacts/:id/rooms`, `POST /api/contacts/import` (CSV) |
-| Inboxes | `GET/POST /api/inboxes`, `GET /api/inboxes/counts`, `GET/PATCH/DELETE /api/inboxes/:id`, `POST/DELETE /api/inboxes/:id/members/:memberId` |
-| Rooms | `GET/POST /api/rooms` (filters: `status`, `filter`, `inbox_id`, `contact_id`, `search`, `sort`, `page`, `limit`), `GET/PATCH/DELETE /api/rooms/:id`, `POST /api/rooms/:id/assign`, `POST/DELETE /api/rooms/:id/snooze`, `PUT/DELETE /api/rooms/:id/favorite`, `POST /api/rooms/:id/read`, `POST /api/rooms/bulk` |
-| Messages | `GET/POST /api/rooms/:id/messages`, `GET /api/messages/search?q=`, `PATCH/DELETE /api/messages/:id`, `POST /api/messages/:id/retry`, `POST /api/attachments` (multipart), `GET /files/<key>?exp&sig` (signed) |
-| Channels & admin | `/api/sms-numbers`, `/api/email-senders`, `/api/inbound-addresses`, `/api/tokens` (+`/:id/rotate`), `/api/templates` (+`/:id/render`), `/api/kb` |
-| Notifications | `GET /api/notifications`, `POST /api/notifications/read-all`, `POST /api/notifications/:id/read` |
-| AI | `GET /api/ai/status`, `POST /api/ai/suggest-replies`, `/api/ai/summary`, `/api/ai/rephrase` (503 `AI_UNAVAILABLE` when the provider fails) |
-| Widget (public) | `GET /public/widget/config`, `POST /public/sessions`, `GET /public/session`, `GET/POST /public/rooms`, `GET/POST /public/rooms/:id/messages`, `POST /public/rooms/:id/read`, `POST /public/otp/send`, `POST /public/otp/verify`; assets `GET /widget.js`, `GET /widget-demo.html` |
-| Webhooks | `POST /webhooks/twilio/sms`, `/webhooks/twilio/status`, `/webhooks/sendgrid/inbound`, `/webhooks/sendgrid/events` |
-| Ops | `GET /healthz`, `GET /readyz` |
+Reference generated from the route declarations: [API.md](API.md) and [openapi.json](openapi.json) (conventions, errors, pagination, idempotency, rate-limit headers, curl examples). Routers in `server/src/routes/` are thin: validate with zod, call a service, serialise. Every route is declared three times, and tests keep the declarations in step with the registered routes: authorisation (`authz/routePerms.ts`), rate limiting (`ratelimit/routePolicies.ts`) and documentation (`apidoc/meta.ts`).
 
 ## 8. Background work
 
@@ -409,6 +351,11 @@ Work is a set of idempotent jobs plus a periodic sweep. On one node the schedule
 | job queue | immediate or delayed | `send_retry`, `notify_email`, `digest_email`, `reconcile_sms`; claim is atomic (conditional update or BullMQ); failure -> exponential backoff (2^n s, max 15 min) up to `max_attempts` then `failed` |
 | digest | 60 s sweep | `collectDigests` (see 5.5); candidates come from the `digest_due` outbox flag set when a message is stored, not from scanning all rooms |
 | delivery reconciliation | delayed job 2 min after send (+ 60 s sweep) | asks the SMS provider for the state of messages still `sent` (replaces legacy 5 s polling) |
+| outbox relay | every 200 ms under a distributed lock | publishes committed `outbox_events` rows to the event bus in order; consumers (rollups, analytics) are idempotent on the event id |
+| `auto_recharge` | queued by a balance change, at most one per workspace per 10 minutes | charges the saved card, credits idempotently ([STRIPE.md](STRIPE.md)) |
+| daily housekeeping | every 6 h under a lock | creates the next monthly message partitions, runs retention/archival, prunes the outbox |
+
+Job scheduling is **fair across tenants**: each pass takes at most a small quantum of jobs per workspace, round-robin, so one tenant enqueueing a million sends delays others by one rank, not by its backlog; a workspace with a huge send backlog gets `429` on new external sends while others are unaffected.
 
 Message send retries use their own backoff (`SEND_RETRY_BASE_SECONDS * 2^(n-1)`, capped at `SEND_RETRY_CAP_SECONDS`, `SEND_RETRY_MAX_ATTEMPTS` total attempts); permanent provider errors (4xx) are not retried automatically but can be retried by hand (`POST /api/messages/:id/retry`).
 
@@ -427,10 +374,11 @@ Capacity numbers, the sizing model and what to change when you outgrow a topolog
 
 ### Limits (known, measured where possible)
 
-- A team socket joins one channel per visible room, so memory and connect time grow with *rooms x team sockets*. Fine for dozens of agents and tens of thousands of rooms; see SCALING.md for the measured cost and the mitigation if you outgrow it.
+- Messages are hash-partitioned by room and monthly (PostgreSQL); lookups that do not know the room go through a locator table (`message_refs`, [ADR 0008](adr/0008-message-refs-locator.md)) because probing every partition does not scale.
+- A single very hot room serialises on its sequence counter; the measured curve is in [PERFORMANCE.md](PERFORMANCE.md).
 - `LocalDiskStorage` is not shared between nodes. Use an object-store `Storage` or a shared volume when running more than one node.
 - SQLite remains single-node by design. The topology that scales is PostgreSQL + Redis.
 
 ## 10. Security summary
 
-zod on every input; body size limits; `secureHeaders`; CORS allow-list for the team API; token-bucket limits on login, public widget, webhook, send, upload and AI endpoints; scrypt password hashes; JWT HS256 with role re-read from the DB; widget embed tokens are public identifiers protected by an Origin allow-list (exact, `*.wildcard`, port-aware, `null`/missing origins refused); visitor sessions stored hashed, bound to a workspace, device-or-IP checked, 30-day expiry; OTP stored as HMAC, constant-time compare, 5 attempts, 120 s expiry, 30 s resend cooldown, single use; webhooks verified by Twilio HMAC-SHA1 or SendGrid ECDSA / shared secret with timestamp tolerance, replay detection and idempotency; HTML allow-list sanitiser for dm/email content, plain text for SMS; uploads validated by magic bytes + extension + size, stored under server-generated keys, served through expiring HMAC-signed URLs with `nosniff` and a sandbox CSP; AI input is delimited as untrusted data, redacted on request and its output validated.
+The threat model, mitigations and evidence are [SECURITY.md](SECURITY.md). In short: zod on every input; body and upload limits; layered rate limiting with fail-closed policies on authentication, OTP and webhooks; scrypt passwords, short-lived access tokens with single-use rotating refresh tokens, optional TOTP; deny-by-default permissions; tenant scoping on every query with 404 for foreign ids; signed webhooks (Twilio, SendGrid, Stripe) with replay protection and idempotency; HTML allow-list sanitiser and sandboxed, signed attachment downloads; AI input delimited as untrusted data; append-only audit log; separate, MFA-protected operator accounts with read-only support access.

@@ -60,7 +60,8 @@ describe("declarations", () => {
 
 describe("sign-in", () => {
   it("always takes a password and an authenticator code; an admin that has not enrolled can enrol but reach nothing", async () => {
-    const t = await setup();
+    // the per-IP sign-in limit is not what this test is about (and with Redis it runs on Redis's clock, not the test clock)
+    const t = await setup({ RATE_LIMIT_SCALE: "50" });
     await createPlatformAdmin(t.ctx, { email: "new@ops.test", name: "New", password: PW });
     const l = await t.http.post("/admin/api/login", { email: "new@ops.test", password: PW });
     expect(l.body).toMatchObject({ mfa_setup_required: true });
@@ -401,3 +402,24 @@ void createContext;
 void addMemberRaw;
 void actorFromRow;
 void getMember;
+
+describe("home region", () => {
+  it("a workspace homed in another region is refused with 421 and the right region; clearing it restores access; unset REGION disables the check", async () => {
+    const t = await setup({ REGION: "eu-west" });
+    const boss = await t.admin("superadmin");
+    expect((await t.http.get("/api/workspace", t.wsToken)).status).toBe(200); // no home region yet: served anywhere
+    expect((await t.call("PUT", `/workspaces/${t.wsId}/region`, boss.token, { region: "Bad Region!" })).status).toBe(400);
+    expect((await t.call("PUT", `/workspaces/${t.wsId}/region`, boss.token, { region: "us-east" })).status).toBe(204);
+    const r = await t.http.get("/api/workspace", t.wsToken);
+    expect([r.status, r.body.error.code, r.body.error.details]).toEqual([421, "WRONG_REGION", { region: "us-east" }]);
+    expect((await t.call("GET", `/workspaces/${t.wsId}`, boss.token)).body.home_region).toBe("us-east");
+    expect((await t.call("PUT", `/workspaces/${t.wsId}/region`, boss.token, { region: "eu-west" })).status).toBe(204);
+    expect((await t.http.get("/api/workspace", t.wsToken)).status).toBe(200);
+    const single = await setup();
+    const b2 = await single.admin("superadmin");
+    await single.call("PUT", `/workspaces/${single.wsId}/region`, b2.token, { region: "us-east" });
+    expect((await single.http.get("/api/workspace", single.wsToken)).status).toBe(200); // this installation has no REGION: no check
+    const sup = await t.admin("support");
+    expect((await t.call("PUT", `/workspaces/${t.wsId}/region`, sup.token, { region: null })).status).toBe(403);
+  });
+});

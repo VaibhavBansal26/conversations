@@ -115,7 +115,19 @@ Legacy namespace `/<accountId>` with `auth.session` -> `/ws/<workspaceId>` with 
 
 ## 5. Not carried over (product decisions)
 
-Team chat, channels/prospect, reactions, message forwarding (legacy stub), help-center page, payment-request/review-request/instasite/instareport cards, GIF picker integration (a `gif` message can still carry an https URL), web/mobile push, contact-facing "unread reply" digest email, the legacy widget bot persona "Annie" (replaced by a neutral `Chatbot` and an explicit `AI Assistant`).
+Team chat, channels/prospect, reactions, message forwarding (legacy stub), help-center page, review-request/instasite/instareport cards (payment-request cards **are** now built, see section 7), GIF picker integration (a `gif` message can still carry an https URL), web/mobile push, contact-facing "unread reply" digest email, the legacy widget bot persona "Annie" (replaced by a neutral `Chatbot` and an explicit `AI Assistant`).
+
+## 6a. Added after the first rebuild (phases 2 and 3)
+
+| Legacy | Now |
+| --- | --- |
+| `User.scope[]` strings and CASL front-end rules | 26 permissions, four built-in roles plus custom roles, enforced in one place for REST and sockets ([RBAC.md](RBAC.md)); legacy `owner/manager/agent` map to Owner/Manager/Agent, and Viewer is new |
+| single non-expiring-style sessions | 15-minute access tokens, rotating single-use refresh tokens, reuse detection, TOTP, password reset, email invitations, append-only audit log |
+| `OnebalanceQueue` wallet | prepaid **credits** in `usage_ledger`, bought with Stripe Checkout, plus plans, auto-recharge and a failed-payment soft lock ([STRIPE.md](STRIPE.md)) |
+| payment-request cards (platform payments) | payment requests paid on the workspace's **own** Stripe account through Connect Standard; the card is `message.meta.card` and updates live |
+| multi-account agency / white-label hierarchy | not ported; replaced by a flat, platform-level operator console ([ADMIN.md](ADMIN.md)) |
+| (no analytics API) | per-room metrics, dashboard and the versioned analytics API for the intelligence service ([ANALYTICS.md](ANALYTICS.md)) |
+| single MongoDB instance | PostgreSQL partitioned by room and month, Redis, an outbox and event bus; the realtime and rate-limit design is in [SCALING.md](SCALING.md) and [RATE-LIMITING.md](RATE-LIMITING.md) |
 
 ## 6. Secrets hygiene
 
