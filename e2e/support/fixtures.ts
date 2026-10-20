@@ -7,6 +7,9 @@ import { totp } from "./totp";
 
 export { DEMO };
 
+/** One value per run (the config sets it once), so a worker restarted after a failure still finds the data earlier tests created. */
+export const stamp = process.env.E2E_STAMP ?? Date.now().toString(36);
+
 /** Real sign-in through the form: click, type, submit. */
 export async function signIn(page: Page, creds: { email: string; password: string } = DEMO): Promise<void> {
   await page.goto("/login");
@@ -64,13 +67,15 @@ export async function adminSignIn(page: Page): Promise<void> {
   }
   if (!secret) throw new Error("operator is enrolled but the secret is unknown for this stack");
   const console_ = page.getByRole("navigation", { name: "Platform console" });
+  const saved = page.getByRole("button", { name: /i have saved|done|continue/i });
   for (let attempt = 0; attempt < 2; attempt++) {
     await code.fill(totp(secret));
     await page.getByRole("button", { name: /enable|verify|confirm|continue|sign in/i }).last().click();
-    const saved = page.getByRole("button", { name: /i have saved|done|continue/i });
-    if (await console_.isVisible({ timeout: 6000 }).catch(() => false)) return;
+    // success is either the console itself or a recovery-codes step that has to be acknowledged first
+    await expect(console_.or(saved).or(page.getByRole("alert"))).toBeVisible({ timeout: 20_000 });
     if (await saved.isVisible().catch(() => false)) await saved.click();
-    if (await console_.isVisible({ timeout: 3000 }).catch(() => false)) return;
+    if (await console_.isVisible({ timeout: 15_000 }).catch(() => false)) return;
+    // rejected (that 30 s window was already used): wait for the next one
     await page.waitForTimeout(31_000 - (Date.now() % 30_000));
   }
 }

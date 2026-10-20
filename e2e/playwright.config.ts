@@ -2,6 +2,7 @@ import { defineConfig } from "@playwright/test";
 
 // One random port per run, shared with the workers through the environment (they re-evaluate this file).
 process.env.E2E_PORT ??= String(43000 + Math.floor(Math.random() * 5000));
+process.env.E2E_STAMP ??= Date.now().toString(36);
 const port = Number(process.env.E2E_PORT);
 export const BASE_URL = `http://127.0.0.1:${port}`;
 

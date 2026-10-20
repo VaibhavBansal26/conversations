@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { api } from "../../api/client";
 import type { Attachment, Channel, Member, Message, Room, Template } from "../../api/types";
 import { useEmailSenders, useMembers, useTemplates } from "../../api/hooks";
@@ -58,6 +58,8 @@ export function Composer({ room, messages, replyTo, onClearReply, textareaRef }:
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const lastTyping = useRef(0);
+  // a programmatic value change moves the caret to the end: put it where the insertion ended before the browser paints (a timer would race with fast typing)
+  const pendingCaret = useRef<number | null>(null);
   const subjectSeeded = useRef(false);
 
   const contact = room.contact;
@@ -134,8 +136,8 @@ export function Composer({ room, messages, replyTo, onClearReply, textareaRef }:
       return;
     }
     const next = insertMention(text, caret, { id: item.id, name: String(item.label) });
+    pendingCaret.current = next.caret;
     update(next.text, next.caret);
-    requestAnimationFrame(() => textareaRef.current?.setSelectionRange(next.caret, next.caret));
   };
 
   const upload = async (files: File[]) => {
@@ -204,6 +206,13 @@ export function Composer({ room, messages, replyTo, onClearReply, textareaRef }:
     update(text.slice(0, at) + s + text.slice(el?.selectionEnd ?? at), at + s.length);
     el?.focus();
   };
+
+  useLayoutEffect(() => {
+    const at = pendingCaret.current;
+    if (at === null) return;
+    pendingCaret.current = null;
+    textareaRef.current?.setSelectionRange(at, at);
+  }, [text, textareaRef]);
 
   // grow with the text up to a cap, then scroll
   useEffect(() => {

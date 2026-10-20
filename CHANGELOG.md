@@ -36,6 +36,7 @@ All notable user-visible changes. Format: [Keep a Changelog](https://keepachange
 - Message `meta.card` is passed through to the widget's copy of a message.
 
 ### Fixed
+- Typing straight after picking an @mention no longer drops or misplaces characters (the caret is restored before paint instead of on a timer); room-list snippets show @mentions as names instead of raw `@[Name](id)` tokens.
 - Rotating `JWT_SECRET` no longer breaks the identity pepper endpoint and the analytics exports (the pepper was encrypted under it).
 - `npm run seed` exits when done (it stayed alive until killed); regression test spawns the script.
 - `dow_created` (Sunday = 0), the `phone_key` extra field, the export page maximum (5,000) and how `Retry-After` relates to the `RateLimit` reset are now documented; the schemas say so.

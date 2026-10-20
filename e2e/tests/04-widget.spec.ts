@@ -1,7 +1,6 @@
-import { expect, openRoom, signIn, test } from "../support/fixtures";
+import { expect, signIn, stamp, test } from "../support/fixtures";
 import { startCustomerSite } from "../support/site";
 
-const stamp = Date.now().toString(36);
 
 test("a visitor chats through the embedded widget and an agent answers from the inbox in real time", async ({ browser, baseURL }) => {
   const site = await startCustomerSite(baseURL!);

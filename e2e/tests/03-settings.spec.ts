@@ -1,6 +1,5 @@
-import { expect, signIn, test } from "../support/fixtures";
+import { expect, signIn, stamp, test } from "../support/fixtures";
 
-const stamp = Date.now().toString(36);
 
 test.describe("settings", () => {
   test.beforeEach(async ({ page }) => {

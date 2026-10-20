@@ -1,6 +1,5 @@
-import { composer, expect, freshVisitor, openRoom, sendReply, signIn, test } from "../support/fixtures";
+import { composer, expect, freshVisitor, openRoom, sendReply, signIn, stamp, test } from "../support/fixtures";
 
-const stamp = Date.now().toString(36);
 const log = (page: import("@playwright/test").Page) => page.getByRole("log", { name: "Conversation messages" });
 
 test.describe("inbox: reading and replying", () => {
