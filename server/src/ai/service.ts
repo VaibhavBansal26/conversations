@@ -177,7 +177,7 @@ export async function triageMessage(ctx: AppContext, room: RoomRow, message: Mes
   }
   const triage = { ...result, at: nowIso(ctx), provider: ctx.ai.name };
   const meta = parseJson<Record<string, unknown>>(message.meta, {});
-  await ctx.db.run("UPDATE messages SET meta = ? WHERE id = ?", JSON.stringify({ ...meta, triage }), message.id);
+  await ctx.db.run("UPDATE messages SET meta = ? WHERE room_id = ? AND id = ?", JSON.stringify({ ...meta, triage }), message.room_id, message.id);
   const fresh = await getRoomRow(ctx, room.workspace_id, room.id);
   const roomMeta: Record<string, unknown> = { ...parseJson<Record<string, unknown>>(fresh.meta, {}), triage, spam: result.intent === "spam" };
   const raise = result.urgency >= 0.8 && fresh.priority === 0;
@@ -190,7 +190,7 @@ export async function triageMessage(ctx: AppContext, room: RoomRow, message: Mes
     room.id,
   );
   await publishRoomUpdated(ctx, fresh);
-  const m2 = (await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE id = ?", message.id))!;
+  const m2 = (await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE room_id = ? AND id = ?", message.room_id, message.id))!;
   await emitMessage(ctx, await getRoomRow(ctx, room.workspace_id, room.id), m2, "message:updated");
 }
 

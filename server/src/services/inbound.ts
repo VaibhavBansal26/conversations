@@ -1,3 +1,4 @@
+import { getByRef } from "./messageRefs.js";
 import type { AppContext } from "../context.js";
 import { nowIso } from "../context.js";
 
@@ -92,21 +93,21 @@ export async function handleTwilioStatus(
   p: { MessageSid: string; MessageStatus: string; ErrorCode?: string },
 ): Promise<"updated" | "ignored" | "duplicate"> {
   if (!(await claimEvent(ctx, "twilio_status", `${p.MessageSid}:${p.MessageStatus}`))) return "duplicate";
-  const m = await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE provider_message_id = ? AND source = 'sms'", p.MessageSid);
+  const m = await getByRef(ctx, "provider", p.MessageSid, { source: "sms" });
   if (!m) return "ignored";
   return await applyDelivery(ctx, m, p.MessageStatus, p.ErrorCode ? `Carrier error ${p.ErrorCode}` : undefined);
 }
 
 export async function applyDelivery(ctx: AppContext, m: MessageRow, status: string, reason?: string): Promise<"updated" | "ignored"> {
   if (status === "delivered") {
-    await ctx.db.run("UPDATE messages SET delivery = 'delivered', delivered_at = COALESCE(delivered_at, ?), failure_reason = NULL WHERE id = ?", nowIso(ctx), m.id);
+    await ctx.db.run("UPDATE messages SET delivery = 'delivered', delivered_at = COALESCE(delivered_at, ?), failure_reason = NULL WHERE room_id = ? AND id = ?", nowIso(ctx), m.room_id, m.id);
   } else if (status === "failed" || status === "undelivered" || status === "bounce" || status === "dropped") {
     if (m.delivery === "delivered") return "ignored";
-    await ctx.db.run("UPDATE messages SET delivery = 'failed', failure_reason = ? WHERE id = ?", reason ?? `Provider reported ${status}`, m.id);
+    await ctx.db.run("UPDATE messages SET delivery = 'failed', failure_reason = ? WHERE room_id = ? AND id = ?", reason ?? `Provider reported ${status}`, m.room_id, m.id);
   } else if (status === "sent" && m.delivery === "pending") {
-    await ctx.db.run("UPDATE messages SET delivery = 'sent' WHERE id = ?", m.id);
+    await ctx.db.run("UPDATE messages SET delivery = 'sent' WHERE room_id = ? AND id = ?", m.room_id, m.id);
   } else return "ignored";
-  await emitMessage(ctx, await getRoomRow(ctx, m.workspace_id, m.room_id), (await findMessageRow(ctx, m.workspace_id, m.id))!, "message:updated");
+  await emitMessage(ctx, await getRoomRow(ctx, m.workspace_id, m.room_id), (await findMessageRow(ctx, m.workspace_id, m.id, m.room_id))!, "message:updated");
   return "updated";
 }
 
@@ -161,7 +162,7 @@ export async function handleInboundEmail(ctx: AppContext, p: InboundEmail): Prom
   let room: RoomRow | undefined;
   const candidates = [...inReplyTo, ...[...refs].reverse()];
   for (const id of candidates) {
-    const m = await ctx.db.get<{ room_id: string }>("SELECT room_id FROM messages WHERE workspace_id = ? AND rfc_message_id = ? LIMIT 1", ws, id);
+    const m = await ctx.db.get<{ room_id: string }>("SELECT room_id FROM message_refs WHERE kind = 'rfc' AND ref = ? AND workspace_id = ?", id, ws);
     if (m) {
       room = await findRoomRow(ctx, ws, m.room_id);
       if (room) break;
@@ -239,8 +240,8 @@ export async function handleSendgridEvents(ctx: AppContext, events: SendgridEven
     }
     const providerId = ev.sg_message_id?.split(".")[0];
     const m =
-      (providerId && (await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE provider_message_id = ? AND source = 'email'", providerId))) ||
-      (ev["smtp-id"] && (await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE rfc_message_id = ? AND source = 'email'", ev["smtp-id"]))) ||
+      (providerId && (await getByRef(ctx, "provider", providerId, { source: "email" }))) ||
+      (ev["smtp-id"] && (await getByRef(ctx, "rfc", ev["smtp-id"], { source: "email" }))) ||
       undefined;
     if (!m) {
       ignored++;

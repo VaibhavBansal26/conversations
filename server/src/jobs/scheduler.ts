@@ -1,3 +1,4 @@
+import { getByRef } from "../services/messageRefs.js";
 import type { AppContext } from "../context.js";
 import { addMinutes } from "../util/time.js";
 import { collectDigests, sendDigestEmail } from "../services/digest.js";
@@ -22,7 +23,7 @@ export const jobHandlers: Record<string, JobHandler> = {
     if (r?.snooze_until && r.snooze_until <= nowIso(ctx)) await wakeRoom(ctx, r, (room, by) => notifySnoozeEnded(ctx, room, by));
   },
   reconcile_sms: async (ctx, p: { message_id: string; attempt: number }) => {
-    const m = await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE id = ?", p.message_id);
+    const m = await getByRef(ctx, "id", p.message_id);
     if (!m || m.delivery !== "sent" || !m.provider_message_id || !ctx.sms.fetchStatus) return;
     const s = await ctx.sms.fetchStatus(m.provider_message_id);
     if (s.state === "delivered" || s.state === "failed") {

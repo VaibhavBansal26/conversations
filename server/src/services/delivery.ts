@@ -1,3 +1,4 @@
+import { getByRef, putRef } from "./messageRefs.js";
 import type { AppContext } from "../context.js";
 import type { Attachment } from "../domain/types.js";
 import { ProviderError } from "../providers/types.js";
@@ -17,17 +18,20 @@ export const retryDelaySeconds = (ctx: AppContext, attempt: number): number => {
 
 async function mark(
   ctx: AppContext,
-  id: string,
+  msg: { id: string; room_id: string; workspace_id: string },
+  
   delivery: "sent" | "failed" | "pending",
   fields: { reason?: string | null; providerId?: string | null; retry?: number } = {},
 ) {
+  if (fields.providerId) await putRef(ctx, "provider", fields.providerId, msg);
   await ctx.db.run(
-    "UPDATE messages SET delivery = ?, failure_reason = ?, provider_message_id = COALESCE(?, provider_message_id), retry_count = COALESCE(?, retry_count) WHERE id = ?",
+    "UPDATE messages SET delivery = ?, failure_reason = ?, provider_message_id = COALESCE(?, provider_message_id), retry_count = COALESCE(?, retry_count) WHERE room_id = ? AND id = ?",
     delivery,
     fields.reason ?? null,
     fields.providerId ?? null,
     fields.retry ?? null,
-    id,
+    msg.room_id,
+    msg.id,
   );
 }
 
@@ -46,7 +50,7 @@ async function attachmentBuffers(ctx: AppContext, atts: Attachment[]) {
  * exponential-backoff retry job (capped). The caller broadcasts the resulting state.
  */
 export async function deliverMessage(ctx: AppContext, messageId: string, opts: { paced?: boolean } = {}): Promise<MessageRow> {
-  const msg = (await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE id = ?", messageId))!;
+  const msg = (await getByRef(ctx, "id", messageId))!;
   if (msg.delivery === "sent" || msg.delivery === "delivered") return msg;
   const room = await getRoomRow(ctx, msg.workspace_id, msg.room_id);
   const kind = msg.source === "sms" ? "sms" : "email";
@@ -79,7 +83,7 @@ export async function deliverMessage(ctx: AppContext, messageId: string, opts: {
           idempotencyKey: msg.id,
           statusCallbackUrl: `${ctx.config.PUBLIC_URL.replace(/\/$/, "")}/webhooks/twilio/status`,
         });
-        await mark(ctx, msg.id, "sent", { providerId: r.providerMessageId });
+        await mark(ctx, msg, "sent", { providerId: r.providerMessageId });
         // delivery receipts normally arrive by webhook; this delayed check covers the ones that never do
         await enqueueJob(ctx, "reconcile_sms", { message_id: msg.id, attempt: 0 }, { runAt: addMinutes(ctx.clock(), 2), dedupeKey: `reconcile:${msg.id}:0` });
       }
@@ -103,7 +107,7 @@ export async function deliverMessage(ctx: AppContext, messageId: string, opts: {
         replyTo: inbound?.address,
         attachments: await attachmentBuffers(ctx, parseJson<Attachment[]>(msg.attachments, [])),
       });
-      await mark(ctx, msg.id, "sent", { providerId: r.providerMessageId });
+      await mark(ctx, msg, "sent", { providerId: r.providerMessageId });
     }
     if (!failure) {
       const cost = creditCost(ctx, kind);
@@ -116,7 +120,7 @@ export async function deliverMessage(ctx: AppContext, messageId: string, opts: {
   }
   if (failure) {
     const attempts = msg.retry_count + 1;
-    await mark(ctx, msg.id, "failed", { reason: failure.reason, retry: attempts });
+    await mark(ctx, msg, "failed", { reason: failure.reason, retry: attempts });
     if (failure.retryable && attempts < ctx.config.SEND_RETRY_MAX_ATTEMPTS) {
       await enqueueJob(
         ctx,
@@ -126,15 +130,15 @@ export async function deliverMessage(ctx: AppContext, messageId: string, opts: {
       );
     }
   }
-  const fresh = (await findMessageRow(ctx, msg.workspace_id, msg.id))!;
+  const fresh = (await findMessageRow(ctx, msg.workspace_id, msg.id, msg.room_id))!;
   await emitMessage(ctx, await getRoomRow(ctx, msg.workspace_id, msg.room_id), fresh, "message:updated");
   return fresh;
 }
 
 /** Job handler + manual retry share this. */
 export async function retryDelivery(ctx: AppContext, messageId: string): Promise<MessageRow | null> {
-  const msg = await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE id = ?", messageId);
+  const msg = await getByRef(ctx, "id", messageId);
   if (!msg || msg.deleted_at || msg.delivery !== "failed") return msg ?? null;
-  await ctx.db.run("UPDATE messages SET delivery = 'pending' WHERE id = ?", messageId);
+  await ctx.db.run("UPDATE messages SET delivery = 'pending' WHERE room_id = ? AND id = ?", msg.room_id, messageId);
   return await deliverMessage(ctx, messageId);
 }

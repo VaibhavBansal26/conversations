@@ -112,12 +112,12 @@ export function roomRoutes(ctx: AppContext) {
     return c.json(await viewMessage(ctx, res.message), res.created ? 201 : 200);
   });
   r.get("/messages/search", async (c) => c.json({ data: await searchMessages(ctx, c.get("actor"), parseQuery(c, SearchQuery)) }));
-  r.patch("/messages/:id", async (c) => c.json(await viewMessage(ctx, await editMessage(ctx, c.get("actor"), c.req.param("id"), await parseBody(c, EditMessageBody)))));
+  r.patch("/messages/:id", async (c) => c.json(await viewMessage(ctx, await editMessage(ctx, c.get("actor"), c.req.param("id"), await parseBody(c, EditMessageBody), c.req.query("room_id")))));
   r.delete("/messages/:id", async (c) => {
-    await deleteMessage(ctx, c.get("actor"), c.req.param("id"));
+    await deleteMessage(ctx, c.get("actor"), c.req.param("id"), c.req.query("room_id"));
     return c.body(null, 204);
   });
-  r.post("/messages/:id/retry", async (c) => c.json(await viewMessage(ctx, await retryMessage(ctx, c.get("actor"), c.req.param("id")))));
+  r.post("/messages/:id/retry", async (c) => c.json(await viewMessage(ctx, await retryMessage(ctx, c.get("actor"), c.req.param("id"), c.req.query("room_id")))));
 
   r.post("/attachments", async (c) => {
       const form = await c.req.parseBody();

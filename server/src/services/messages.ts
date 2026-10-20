@@ -298,15 +298,16 @@ export async function searchMessages(ctx: AppContext, actor: Actor, q: { q: stri
   return dtos.map((d, i) => ({ ...d, contact_name: rows[i]!.contact_name }));
 }
 
-async function ownMessageOrThrow(ctx: AppContext, actor: Actor, id: string): Promise<{ msg: MessageRow; room: RoomRow }> {
-  const msg = await findMessageRow(ctx, actor.workspaceId, id);
+/** `roomHint` (optional `?room_id=` on the REST routes) lets the lookup stay on one partition; without it the message is found by id alone. */
+async function ownMessageOrThrow(ctx: AppContext, actor: Actor, id: string, roomHint?: string): Promise<{ msg: MessageRow; room: RoomRow }> {
+  const msg = await findMessageRow(ctx, actor.workspaceId, id, roomHint);
   if (!msg || msg.deleted_at) throw notFound("Message");
   const room = await getVisibleRoom(ctx, actor, msg.room_id);
   return { msg, room };
 }
 
-export async function editMessage(ctx: AppContext, actor: Actor, id: string, input: { content: string; format?: "text" | "html" }): Promise<MessageRow> {
-  const { msg, room } = await ownMessageOrThrow(ctx, actor, id);
+export async function editMessage(ctx: AppContext, actor: Actor, id: string, input: { content: string; format?: "text" | "html" }, roomHint?: string): Promise<MessageRow> {
+  const { msg, room } = await ownMessageOrThrow(ctx, actor, id, roomHint);
   if (msg.sender_type !== "agent" || msg.sender_id !== actor.memberId) throw forbidden("You can only edit your own messages");
   if (msg.source !== "dm" || !(msg.kind === "text" || msg.kind === "note" || msg.kind === "ref")) {
     throw unprocessable("NOT_EDITABLE", "Only chat messages and notes can be edited; sent SMS and email cannot be recalled");
@@ -317,20 +318,20 @@ export async function editMessage(ctx: AppContext, actor: Actor, id: string, inp
     throw new AppError(403, "EDIT_WINDOW_EXPIRED", "The edit window for this message has passed");
   const { content, text } = await processContentFor(ctx, "dm", input.content, input.format);
   if (!text) throw unprocessable("EMPTY_MESSAGE", "Message is empty");
-  await ctx.db.run("UPDATE messages SET content = ?, content_text = ?, edited_at = ? WHERE id = ?", content, text, nowIso(ctx), id);
-  const fresh = (await findMessageRow(ctx, actor.workspaceId, id))!;
+  await ctx.db.run("UPDATE messages SET content = ?, content_text = ?, edited_at = ? WHERE room_id = ? AND id = ?", content, text, nowIso(ctx), room.id, id);
+  const fresh = (await findMessageRow(ctx, actor.workspaceId, id, room.id))!;
   if (room.last_message_id === id) await ctx.db.run("UPDATE rooms SET last_brief = ? WHERE id = ?", JSON.stringify(lastMessageBrief(fresh)), room.id);
   await emitMessage(ctx, await getRoomRow(ctx, room.workspace_id, room.id), fresh, "message:updated");
   return fresh;
 }
 
-export async function deleteMessage(ctx: AppContext, actor: Actor, id: string): Promise<void> {
-  const { msg, room } = await ownMessageOrThrow(ctx, actor, id);
+export async function deleteMessage(ctx: AppContext, actor: Actor, id: string, roomHint?: string): Promise<void> {
+  const { msg, room } = await ownMessageOrThrow(ctx, actor, id, roomHint);
   if (msg.kind === "system") throw forbidden("System messages cannot be deleted");
   const own = msg.sender_type === "agent" && msg.sender_id === actor.memberId;
   if (!own && !seesAll(actor)) throw forbidden("You can only delete your own messages");
   await ctx.db.tx(async () => {
-    await ctx.db.run("UPDATE messages SET deleted_at = ?, deleted_by = ? WHERE id = ?", nowIso(ctx), actor.memberId, id);
+    await ctx.db.run("UPDATE messages SET deleted_at = ?, deleted_by = ? WHERE room_id = ? AND id = ?", nowIso(ctx), actor.memberId, room.id, id);
     await ctx.db.run("DELETE FROM message_mentions WHERE message_id = ?", id);
     if (room.last_message_id === id) await refreshLastMessage(ctx, room.id);
   });
@@ -338,8 +339,8 @@ export async function deleteMessage(ctx: AppContext, actor: Actor, id: string): 
   ctx.bus.toRoom(room.workspace_id, room.id, "message:deleted", payload, msg.kind === "note" ? undefined : { visitor: payload });
 }
 
-export async function retryMessage(ctx: AppContext, actor: Actor, id: string): Promise<MessageRow> {
-  const { msg } = await ownMessageOrThrow(ctx, actor, id);
+export async function retryMessage(ctx: AppContext, actor: Actor, id: string, roomHint?: string): Promise<MessageRow> {
+  const { msg } = await ownMessageOrThrow(ctx, actor, id, roomHint);
   if (msg.delivery !== "failed") throw new AppError(409, "NOT_FAILED", "Only failed messages can be retried");
   return (await retryDelivery(ctx, id))!;
 }

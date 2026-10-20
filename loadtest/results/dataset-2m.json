@@ -1,0 +1,104 @@
+{
+  "date": "2026-10-20T11:52:58.292Z",
+  "machine": "Apple M1 x8, 8 GB RAM, node v24.11.1",
+  "rows_target": 2000000,
+  "rooms": 100000,
+  "months": 12,
+  "postgres": "18.4",
+  "rooms_secs": 8.148,
+  "load_secs": 99.569,
+  "index_build_secs": 26.079,
+  "rows_loaded": 2000000,
+  "rows_per_s_load_only": 20087,
+  "rows_per_s_incl_indexes": 15917,
+  "load_series": [
+    {
+      "rows": 1000000,
+      "secs": 52,
+      "chunk_rows_per_s": 19302
+    },
+    {
+      "rows": 2000000,
+      "secs": 99,
+      "chunk_rows_per_s": 21064
+    }
+  ],
+  "disk_gb_used": 1.83,
+  "bytes_per_row_incl_indexes": 982,
+  "table_size": "884 MB",
+  "partitions": 256,
+  "queries": {
+    "history page, newest 30": {
+      "p50_ms": 2.98,
+      "p99_ms": 10.83,
+      "hash_partitions_touched": 1,
+      "leaves_touched": 16,
+      "planning_ms": 1.143,
+      "execution_ms": 0.335
+    },
+    "history page, before a cursor": {
+      "p50_ms": 2.61,
+      "p99_ms": 7.14,
+      "hash_partitions_touched": 1,
+      "leaves_touched": 16,
+      "planning_ms": 1.06,
+      "execution_ms": 0.05
+    },
+    "unread count in one room": {
+      "p50_ms": 2.72,
+      "p99_ms": 3.36,
+      "hash_partitions_touched": 1,
+      "leaves_touched": 16,
+      "planning_ms": 1.346,
+      "execution_ms": 0.059
+    },
+    "last message of a room": {
+      "p50_ms": 2.66,
+      "p99_ms": 4.03,
+      "hash_partitions_touched": 1,
+      "leaves_touched": 16,
+      "planning_ms": 1.277,
+      "execution_ms": 0.146
+    },
+    "room list, newest 30 open (rooms table only, summaries denormalised)": {
+      "p50_ms": 0.45,
+      "p99_ms": 2.03,
+      "hash_partitions_touched": 0,
+      "leaves_touched": 0,
+      "planning_ms": 0.078,
+      "execution_ms": 0.052
+    },
+    "message by id (no room known: probes every partition)": {
+      "p50_ms": 129.71,
+      "p99_ms": 250.62,
+      "hash_partitions_touched": 16,
+      "leaves_touched": 256,
+      "planning_ms": 176.615,
+      "execution_ms": 13.934
+    },
+    "message by (room, id)": {
+      "p50_ms": 9.77,
+      "p99_ms": 21.78,
+      "hash_partitions_touched": 1,
+      "leaves_touched": 16,
+      "planning_ms": 4.014,
+      "execution_ms": 0.109
+    },
+    "analytics: messages per day, workspace, last 7 days (index ws+time)": {
+      "p50_ms": 9.9,
+      "p99_ms": 12.35,
+      "hash_partitions_touched": 16,
+      "leaves_touched": 16,
+      "planning_ms": 4.208,
+      "execution_ms": 7.625
+    },
+    "in-room search (ILIKE, one room)": {
+      "p50_ms": 3.24,
+      "p99_ms": 3.81,
+      "hash_partitions_touched": 1,
+      "leaves_touched": 16,
+      "planning_ms": 2.86,
+      "execution_ms": 0.037
+    }
+  }
+}

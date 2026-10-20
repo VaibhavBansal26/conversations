@@ -555,9 +555,9 @@ export async function markVisitorRead(ctx: AppContext, workspaceId: string, room
 /** Email-open webhook: mark an outgoing message as read by the contact. */
 export async function markOpened(ctx: AppContext, workspaceId: string, message: MessageRow): Promise<void> {
   if (message.opened_at) return;
-  await ctx.db.run("UPDATE messages SET opened_at = ? WHERE id = ?", nowIso(ctx), message.id);
+  await ctx.db.run("UPDATE messages SET opened_at = ? WHERE room_id = ? AND id = ?", nowIso(ctx), message.room_id, message.id);
   const room = await getRoomRow(ctx, workspaceId, message.room_id);
-  const fresh = (await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE id = ?", message.id))!;
+  const fresh = (await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE room_id = ? AND id = ?", message.room_id, message.id))!;
   await emitMessage(ctx, room, fresh, "message:updated");
   ctx.bus.toRoom(workspaceId, room.id, "message:receipt", {
     room_id: room.id,

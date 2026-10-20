@@ -1,3 +1,4 @@
+import { putRef } from "./messageRefs.js";
 import { TOPIC_MESSAGES, writeOutbox, type MessageEvent } from "../events/outbox.js";
 import type { AppContext } from "../context.js";
 import { nowIso } from "../context.js";
@@ -118,6 +119,11 @@ async function rawInsert(ctx: AppContext, m: NewMessage, now: string): Promise<M
       ...mentioned.flatMap((member) => [id, m.roomId, m.workspaceId, member]),
     );
   }
+  // locators for lookups that do not know the room (provider callbacks, email threading, external-message jobs)
+  const loc = { id, workspace_id: m.workspaceId, room_id: m.roomId };
+  if (m.providerMessageId) await putRef(ctx, "provider", m.providerMessageId, loc);
+  if (m.rfcMessageId) await putRef(ctx, "rfc", m.rfcMessageId, loc);
+  if (m.source !== "dm") await putRef(ctx, "id", id, loc);
   // the event commits with the message (insertMessage wraps this in its transaction); a relay publishes it after commit
   await writeOutbox(ctx, TOPIC_MESSAGES, m.roomId, {
     type: "message.created",
@@ -198,8 +204,11 @@ export async function insertMessage(ctx: AppContext, m: NewMessage): Promise<Ins
   });
 }
 
-export const findMessageRow = (ctx: AppContext, workspaceId: string, id: string) =>
-  ctx.db.get<MessageRow>("SELECT * FROM messages WHERE id = ? AND workspace_id = ?", id, workspaceId);
+/** `roomId` (when the caller knows it) keeps the query on one hash partition; without it the lookup probes every partition. */
+export const findMessageRow = (ctx: AppContext, workspaceId: string, id: string, roomId?: string) =>
+  roomId
+    ? ctx.db.get<MessageRow>("SELECT * FROM messages WHERE room_id = ? AND id = ? AND workspace_id = ?", roomId, id, workspaceId)
+    : ctx.db.get<MessageRow>("SELECT * FROM messages WHERE id = ? AND workspace_id = ?", id, workspaceId);
 
 /** Quoted messages referenced by `rows`, fetched in one query (no per-message lookups). */
 export type RefMap = Map<string, MessageRow>;
@@ -207,7 +216,9 @@ export type RefMap = Map<string, MessageRow>;
 export async function loadRefs(ctx: AppContext, rows: MessageRow[]): Promise<RefMap> {
   const ids = [...new Set(rows.map((r) => r.ref_message_id).filter((v): v is string => !!v))];
   if (!ids.length) return new Map();
-  const found = await ctx.db.all<MessageRow>(`SELECT * FROM messages WHERE id IN (${ids.map(() => "?").join(",")})`, ...ids);
+  // quoted messages live in the same room as the quoting one: stay on the rooms' partitions
+  const rooms = [...new Set(rows.map((r) => r.room_id))];
+  const found = await ctx.db.all<MessageRow>(`SELECT * FROM messages WHERE room_id IN (${rooms.map(() => "?").join(",")}) AND id IN (${ids.map(() => "?").join(",")})`, ...rooms, ...ids);
   return new Map(found.map((r) => [r.id, r]));
 }
 
