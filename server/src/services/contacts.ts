@@ -222,10 +222,10 @@ export async function listContacts(ctx: AppContext, ws: string, q: { search?: st
   }
   const w = where.join(" AND ");
   // the total is only computed for the first page: counting on every page would make deep paging linear again
-  const total = q.cursor ? null : (await ctx.db.get<{ n: number }>(`SELECT COUNT(*) n FROM contacts c WHERE ${w}`, ...params))!.n;
+  const total = q.cursor ? null : (await ctx.db.read().get<{ n: number }>(`SELECT COUNT(*) n FROM contacts c WHERE ${w}`, ...params))!.n;
   const cur = decodeCursor(q.cursor, 2);
   const keyset = cur ? " AND (c.created_at, c.id) < (?, ?)" : "";
-  const rows = await ctx.db.all<ContactRow>(
+  const rows = await ctx.db.read().all<ContactRow>(
     `SELECT c.* FROM contacts c WHERE ${w}${keyset} ORDER BY c.created_at DESC, c.id DESC LIMIT ?`,
     ...params,
     ...(cur ?? []),

@@ -236,9 +236,10 @@ export interface MessagePage {
 export async function pageMessages(ctx: AppContext, roomId: string, opts: ListOptions & { hideNotes?: boolean }): Promise<MessagePage> {
   if (opts.before && opts.after) throw unprocessable("INVALID_CURSOR", "Use either before or after, not both");
   const limit = Math.min(Math.max(opts.limit, 1), 50);
+  const rdb = ctx.db.read(); // history reads may be served by a replica (never inside a write transaction)
   const base = `room_id = ? AND deleted_at IS NULL ${opts.hideNotes ? "AND kind != 'note'" : ""}`;
   const seqOf = async (id: string) => {
-    const r = await ctx.db.get<{ seq: number }>("SELECT seq FROM messages WHERE id = ? AND room_id = ?", id, roomId);
+    const r = await rdb.get<{ seq: number }>("SELECT seq FROM messages WHERE id = ? AND room_id = ?", id, roomId);
     if (!r) throw unprocessable("INVALID_CURSOR", "Cursor message not found in this conversation");
     return r.seq;
   };
@@ -247,18 +248,18 @@ export async function pageMessages(ctx: AppContext, roomId: string, opts: ListOp
   let moreNewer: boolean;
   if (opts.after) {
     const s = await seqOf(opts.after);
-    const got = await ctx.db.all<MessageRow>(`SELECT * FROM messages WHERE ${base} AND seq > ? ORDER BY seq ASC LIMIT ?`, roomId, s, limit + 1);
+    const got = await rdb.all<MessageRow>(`SELECT * FROM messages WHERE ${base} AND seq > ? ORDER BY seq ASC LIMIT ?`, roomId, s, limit + 1);
     moreNewer = got.length > limit;
     rows = got.slice(0, limit);
-    moreOlder = !!(await ctx.db.get(`SELECT 1 FROM messages WHERE ${base} AND seq <= ? LIMIT 1`, roomId, s));
+    moreOlder = !!(await rdb.get(`SELECT 1 FROM messages WHERE ${base} AND seq <= ? LIMIT 1`, roomId, s));
   } else {
     const upper = opts.before ? await seqOf(opts.before) : null;
     const got = upper === null
-      ? await ctx.db.all<MessageRow>(`SELECT * FROM messages WHERE ${base} ORDER BY seq DESC LIMIT ?`, roomId, limit + 1)
-      : await ctx.db.all<MessageRow>(`SELECT * FROM messages WHERE ${base} AND seq < ? ORDER BY seq DESC LIMIT ?`, roomId, upper, limit + 1);
+      ? await rdb.all<MessageRow>(`SELECT * FROM messages WHERE ${base} ORDER BY seq DESC LIMIT ?`, roomId, limit + 1)
+      : await rdb.all<MessageRow>(`SELECT * FROM messages WHERE ${base} AND seq < ? ORDER BY seq DESC LIMIT ?`, roomId, upper, limit + 1);
     moreOlder = got.length > limit;
     rows = got.slice(0, limit).reverse();
-    moreNewer = upper !== null ? !!(await ctx.db.get(`SELECT 1 FROM messages WHERE ${base} AND seq >= ? LIMIT 1`, roomId, upper)) : false;
+    moreNewer = upper !== null ? !!(await rdb.get(`SELECT 1 FROM messages WHERE ${base} AND seq >= ? LIMIT 1`, roomId, upper)) : false;
   }
   return {
     data: rows,

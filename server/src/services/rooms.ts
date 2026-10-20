@@ -67,14 +67,14 @@ async function hydrate(ctx: AppContext, rows: (RoomRow & Partial<ListRow>)[]) {
   const ids = rows.map((r) => r.id);
   const marks = ids.map(() => "?").join(",");
   const assignees = new Map<string, string[]>();
-  for (const a of await ctx.db.all<{ room_id: string; member_id: string }>(
+  for (const a of await ctx.db.read().all<{ room_id: string; member_id: string }>(
     `SELECT room_id, member_id FROM room_assignees WHERE room_id IN (${marks}) ORDER BY added_at, member_id`,
     ...ids,
   )) {
     assignees.set(a.room_id, [...(assignees.get(a.room_id) ?? []), a.member_id]);
   }
   const contacts = new Map(
-    (await ctx.db.all<ContactRow>(`SELECT * FROM contacts WHERE id IN (${rows.map(() => "?").join(",")})`, ...rows.map((r) => r.contact_id))).map((c) => [c.id, c]),
+    (await ctx.db.read().all<ContactRow>(`SELECT * FROM contacts WHERE id IN (${rows.map(() => "?").join(",")})`, ...rows.map((r) => r.contact_id))).map((c) => [c.id, c]),
   );
   // "last message" cards come from the denormalised column; only rooms that predate it fall back to the messages table (and are filled in)
   const briefs = new Map<string, ReturnType<typeof lastMessageBrief> | null>();
@@ -127,8 +127,8 @@ async function selectRooms(ctx: AppContext, actor: Actor, where: string[], param
      WHERE r.workspace_id = ? AND r.archived = 0 AND ${vis.sql} ${where.length ? "AND " + where.join(" AND ") : ""}`;
   const args = [actor.memberId, actor.memberId, actor.memberId, actor.memberId, actor.workspaceId, ...vis.params, ...params, limit, offset];
   // waiting_longest orders by a computed column, which needs a derived table (portable across SQLite and PostgreSQL)
-  if (sort === "waiting_longest") return await ctx.db.all<ListRow>(`SELECT t.* FROM (${inner}) t ORDER BY ${WAITING_ORDER} LIMIT ? OFFSET ?`, ...args);
-  return await ctx.db.all<ListRow>(`${inner} ORDER BY ${sort === "id" ? "r.id" : ORDER[sort]} LIMIT ? OFFSET ?`, ...args);
+  if (sort === "waiting_longest") return await ctx.db.read().all<ListRow>(`SELECT t.* FROM (${inner}) t ORDER BY ${WAITING_ORDER} LIMIT ? OFFSET ?`, ...args);
+  return await ctx.db.read().all<ListRow>(`${inner} ORDER BY ${sort === "id" ? "r.id" : ORDER[sort]} LIMIT ? OFFSET ?`, ...args);
 }
 
 const ORDER: Record<Exclude<RoomSort, "waiting_longest">, string> = {
@@ -588,7 +588,7 @@ async function computeRoomCounts(ctx: AppContext, actor: Actor) {
   const vis = roomVisibility(actor);
   const now = nowIso(ctx);
   const base = `FROM rooms r WHERE r.workspace_id = ? AND r.archived = 0 AND ${vis.sql}`;
-  const row = (await ctx.db.get<Counts>(
+  const row = (await ctx.db.read().get<Counts>(
     `SELECT
       COALESCE(SUM(CASE WHEN r.status = 'open' AND (r.snooze_until IS NULL OR r.snooze_until <= ?) THEN 1 ELSE 0 END), 0) AS open,
       COALESCE(SUM(CASE WHEN r.status = 'closed' THEN 1 ELSE 0 END), 0) AS closed,
@@ -608,7 +608,7 @@ async function computeRoomCounts(ctx: AppContext, actor: Actor) {
     actor.workspaceId,
     ...vis.params,
   ))!;
-  const perInbox = await ctx.db.all<{ inbox_id: string; open: number; priority: number; unassigned: number; assigned: number }>(
+  const perInbox = await ctx.db.read().all<{ inbox_id: string; open: number; priority: number; unassigned: number; assigned: number }>(
     `SELECT r.inbox_id AS inbox_id,
       COALESCE(SUM(CASE WHEN r.status = 'open' AND (r.snooze_until IS NULL OR r.snooze_until <= ?) THEN 1 ELSE 0 END), 0) AS open,
       COALESCE(SUM(CASE WHEN r.status = 'open' AND (r.snooze_until IS NULL OR r.snooze_until <= ?) AND r.priority = 1 THEN 1 ELSE 0 END), 0) AS priority,
@@ -623,7 +623,7 @@ async function computeRoomCounts(ctx: AppContext, actor: Actor) {
     actor.workspaceId,
     ...vis.params,
   );
-  const totalUnread = (await ctx.db.get<{ n: number }>(
+  const totalUnread = (await ctx.db.read().get<{ n: number }>(
     `SELECT COUNT(*) n FROM (SELECT r.id, ${unreadSql} AS u FROM rooms r LEFT JOIN room_reads rr ON rr.room_id = r.id AND rr.member_id = ?
       WHERE r.workspace_id = ? AND r.archived = 0 AND ${vis.sql} AND r.status = 'open') x WHERE u > 0`,
     actor.memberId,

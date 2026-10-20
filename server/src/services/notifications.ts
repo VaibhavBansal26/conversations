@@ -155,7 +155,7 @@ export const unreadNotificationCount = async (ctx: AppContext, memberId: string)
   (await ctx.db.get<{ n: number }>("SELECT COUNT(*) n FROM notifications WHERE member_id = ? AND read_at IS NULL", memberId))!.n;
 
 export async function listNotifications(ctx: AppContext, actor: Actor, q: { unread_only?: boolean; limit: number; before?: string }) {
-  const rows = await ctx.db.all<NotificationRow>(
+  const rows = await ctx.db.read().all<NotificationRow>(
     `SELECT * FROM notifications WHERE member_id = ? ${q.unread_only ? "AND read_at IS NULL" : ""} ${q.before ? "AND created_at < ?" : ""} ORDER BY created_at DESC, id DESC LIMIT ?`,
     actor.memberId,
     ...(q.before ? [q.before] : []),

@@ -50,7 +50,7 @@ export interface ContextOverrides {
  */
 export async function createContext(config: Config, o: ContextOverrides = {}): Promise<AppContext> {
   const log = o.log ?? createLogger(config.LOG_LEVEL);
-  const db = await openDb({ url: config.DATABASE_URL, path: config.DATABASE_PATH, poolMax: config.DATABASE_POOL_MAX });
+  const db = await openDb({ url: config.DATABASE_URL, path: config.DATABASE_PATH, poolMax: config.DATABASE_POOL_MAX, pgbouncer: config.DATABASE_PGBOUNCER, replicaUrl: config.DATABASE_REPLICA_URL, replicaMaxLagMs: config.DATABASE_REPLICA_MAX_LAG_MS, readAfterWriteMs: config.DATABASE_READ_AFTER_WRITE_MS });
   await migrate(db, undefined, { hashPartitions: config.MESSAGE_HASH_PARTITIONS });
   await ensureMessagePartitions(db, config.MESSAGE_PARTITION_MONTHS_AHEAD);
   const bus = o.bus ?? new RecordingBus();

@@ -13,6 +13,12 @@ const schema = z.object({
   /** hash partitions of the messages table; only read when the partitioning migration first runs (cannot be changed afterwards without a rebuild) */
   MESSAGE_HASH_PARTITIONS: z.coerce.number().int().min(1).max(256).default(16),
   MESSAGE_PARTITION_MONTHS_AHEAD: z.coerce.number().int().min(0).max(24).default(3),
+  /** transaction-mode PgBouncer between the app and PostgreSQL: disables named prepared statements (the app already uses no session state; migrations use transaction-scoped advisory locks) */
+  DATABASE_PGBOUNCER: bool.default(false),
+  /** optional read replica for history/list/search reads */
+  DATABASE_REPLICA_URL: z.string().optional(),
+  DATABASE_REPLICA_MAX_LAG_MS: z.coerce.number().int().min(0).default(1000),
+  DATABASE_READ_AFTER_WRITE_MS: z.coerce.number().int().min(0).default(1500),
   DATABASE_POOL_MAX: z.coerce.number().int().positive().default(10),
   DATA_DIR: z.string().default("./data"),
   WEB_DIST: z.string().optional(),

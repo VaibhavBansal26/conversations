@@ -36,6 +36,12 @@ export interface Db {
    * transaction's connection, so services just use `ctx.db` inside it.
    */
   tx<T>(fn: () => Promise<T> | T): Promise<T>;
+  /**
+   * A handle for queries that may be served by a read replica (history pages, lists, search, counts). Returns the primary itself when no
+   * replica is configured, when called inside a transaction, shortly after this node wrote (read-your-writes), or while the replica is
+   * lagging or unhealthy. Never use it for a read that feeds a write decision.
+   */
+  read(): Db;
   /** Run fn outside any ambient transaction (fire-and-forget background work must not inherit one). */
   detached<T>(fn: () => T): T;
   close(): Promise<void>;
@@ -158,6 +164,10 @@ class SqliteDb implements Db {
     }
   }
 
+  read(): Db {
+    return this;
+  }
+
   detached<T>(fn: () => T): T {
     return this.als.exit(fn);
   }
@@ -201,8 +211,22 @@ class PgDb implements Db {
   private readonly pool: pg.Pool;
   private readonly seen = new Map<string, number>();
   private readonly als = new AsyncLocalStorage<TxStore>();
+  private readonly pgbouncer: boolean;
+  private replica: pg.Pool | null = null;
+  private replicaView: ReplicaView | null = null;
+  private lastWriteAt = 0;
+  private replicaLagMs = 0;
+  private replicaDownUntil = 0;
+  private lagTimer?: ReturnType<typeof setInterval>;
+  private readonly readAfterWriteMs: number;
+  private readonly maxLagMs: number;
+  /** counters for metrics and tests */
+  readonly reads = { replica: 0, primary: 0 };
 
-  constructor(url: string, max: number) {
+  constructor(url: string, max: number, o: PgOptions = {}) {
+    this.pgbouncer = !!o.pgbouncer;
+    this.readAfterWriteMs = o.readAfterWriteMs ?? 1500;
+    this.maxLagMs = o.replicaMaxLagMs ?? 1000;
     // counts and sums come back as bigint/numeric strings; every number we store is far below 2^53
     pg.types.setTypeParser(20, (v) => Number(v));
     pg.types.setTypeParser(1700, (v) => Number(v));
@@ -210,6 +234,54 @@ class PgDb implements Db {
     this.pool.on("error", () => {
       /* idle client errors must not crash the process; the next query reports the problem */
     });
+    if (o.replicaUrl) {
+      this.replica = new pg.Pool({ connectionString: o.replicaUrl, max: o.replicaPoolMax ?? max, idleTimeoutMillis: 30_000, connectionTimeoutMillis: 3000 });
+      this.replica.on("error", () => {});
+      this.replicaView = new ReplicaView(this, this.replica, (sql, values) => this.prep(sql, values));
+      const probe = o.lagProbe ?? (() => this.probeLag());
+      const tick = async () => {
+        try {
+          this.replicaLagMs = await probe();
+          this.replicaDownUntil = 0;
+        } catch {
+          this.replicaDownUntil = Date.now() + 5000;
+        }
+      };
+      void tick();
+      this.lagTimer = setInterval(() => void tick(), o.lagProbeMs ?? 2000);
+      this.lagTimer.unref();
+    }
+  }
+
+  /** replica lag in ms: 0 when it has replayed everything it received, otherwise the age of the last replayed transaction */
+  private async probeLag(): Promise<number> {
+    const r = await this.replica!.query("SELECT CASE WHEN pg_last_wal_receive_lsn() = pg_last_wal_replay_lsn() THEN 0 ELSE COALESCE(EXTRACT(EPOCH FROM (now() - pg_last_xact_replay_timestamp())) * 1000, 0) END AS lag");
+    return Number(r.rows[0]?.lag ?? 0);
+  }
+
+  read(): Db {
+    const inTx = !!this.als.getStore()?.active;
+    if (!this.replicaView || inTx || Date.now() < this.replicaDownUntil || this.replicaLagMs > this.maxLagMs || Date.now() - this.lastWriteAt < this.readAfterWriteMs) {
+      this.reads.primary++;
+      return this;
+    }
+    this.reads.replica++;
+    return this.replicaView;
+  }
+
+  /** replica health and lag, for /readyz and metrics */
+  replicaStatus() {
+    return this.replica ? { lagMs: this.replicaLagMs, healthy: Date.now() >= this.replicaDownUntil } : null;
+  }
+
+  /** the statement as it will be sent (named after a few uses), shared by primary and replica paths */
+  prep(sql: string, values: unknown[]) {
+    const n = (this.seen.get(sql) ?? 0) + 1;
+    if (this.seen.size < 2000) this.seen.set(sql, n);
+    const text = toPg(sql);
+    // PgBouncer in transaction mode hands every statement to whichever server connection is free, so a connection-scoped named statement may not exist there
+    if (!this.pgbouncer && n >= 5 && !/IN \(\$/.test(text)) return { name: `s${hash(sql)}`, text, values: values as never[] };
+    return { text, values: values as never[] };
   }
 
   jsonArrayHas(col: string) {
@@ -229,11 +301,8 @@ class PgDb implements Db {
     this.statements++;
     this.trace?.(sql, p);
     const values = p.map((v) => (v === undefined ? null : typeof v === "boolean" ? (v ? 1 : 0) : (v as never)));
-    const n = (this.seen.get(sql) ?? 0) + 1;
-    if (this.seen.size < 2000) this.seen.set(sql, n);
-    const text = toPg(sql);
-    if (n >= 5 && !/IN \(\$/.test(text)) return this.target().query({ name: `s${hash(sql)}`, text, values });
-    return this.target().query(text, values);
+    if (!/^\s*(SELECT|WITH|EXPLAIN)\b/i.test(sql)) this.lastWriteAt = Date.now();
+    return this.target().query(this.prep(sql, values));
   }
 
   async explain(sql: string, ...p: Param[]) {
@@ -304,8 +373,80 @@ class PgDb implements Db {
   }
 
   async close() {
+    if (this.lagTimer) clearInterval(this.lagTimer);
+    await this.replica?.end();
     await this.pool.end();
   }
+}
+
+export interface PgOptions {
+  /** transaction-mode PgBouncer in front: no named prepared statements, no session state */
+  pgbouncer?: boolean;
+  replicaUrl?: string;
+  replicaPoolMax?: number;
+  /** after this node writes, reads stay on the primary this long */
+  readAfterWriteMs?: number;
+  /** reads go to the primary while the replica lags more than this */
+  replicaMaxLagMs?: number;
+  lagProbeMs?: number;
+  /** override the lag measurement (tests) */
+  lagProbe?: () => Promise<number>;
+}
+
+/** Read-only view served by the replica pool. Anything that is not a plain read is refused. */
+class ReplicaView implements Db {
+  readonly dialect = "postgres" as const;
+  readonly ilike = "ILIKE";
+  readonly forUpdate = "";
+  constructor(
+    private readonly primary: PgDb,
+    private readonly pool: pg.Pool,
+    private readonly prep: (sql: string, values: unknown[]) => { name?: string; text: string; values: never[] },
+  ) {}
+  get statements() {
+    return this.primary.statements;
+  }
+  trace: ((sql: string, params: Param[]) => void) | null = null;
+  jsonArrayHas(col: string) {
+    return this.primary.jsonArrayHas(col);
+  }
+  explain(sql: string, ...p: Param[]) {
+    return this.primary.explain(sql, ...p);
+  }
+  private async q(sql: string, p: Param[]): Promise<{ rows: unknown[] }> {
+    if (!/^\s*(SELECT|WITH)\b/i.test(sql)) throw new Error("the read replica view only runs SELECT statements");
+    const values = p.map((v) => (v === undefined ? null : typeof v === "boolean" ? (v ? 1 : 0) : (v as never)));
+    try {
+      return await this.pool.query(this.prep(sql, values));
+    } catch (e) {
+      // a replica that errors (restart, failover, conflict with recovery) must not fail the request: serve it from the primary
+      if (/connect|terminat|recovery|ECONN|timeout/i.test((e as Error).message)) return { rows: await this.primary.all(sql, ...p) };
+      throw e;
+    }
+  }
+  async get<T>(sql: string, ...p: Param[]) {
+    const r = await this.q(sql, p);
+    return clean<T>(r.rows[0]);
+  }
+  async all<T>(sql: string, ...p: Param[]) {
+    return (await this.q(sql, p)).rows as T[];
+  }
+  async run(): Promise<{ changes: number }> {
+    throw new Error("the read replica view is read-only");
+  }
+  async exec(): Promise<void> {
+    throw new Error("the read replica view is read-only");
+  }
+  tx<T>(fn: () => Promise<T> | T): Promise<T> {
+    return this.primary.tx(fn);
+  }
+  detached<T>(fn: () => T): T {
+    return this.primary.detached(fn);
+  }
+  read(): Db {
+    return this;
+  }
+  async close() {}
 }
 
 export interface DbOptions {
@@ -313,11 +454,15 @@ export interface DbOptions {
   url?: string;
   path?: string;
   poolMax?: number;
+  pgbouncer?: boolean;
+  replicaUrl?: string;
+  replicaMaxLagMs?: number;
+  readAfterWriteMs?: number;
 }
 
 export async function openDb(o: DbOptions | string): Promise<Db> {
   const opts: DbOptions = typeof o === "string" ? { path: o } : o;
-  if (opts.url && /^postgres(ql)?:\/\//.test(opts.url)) return new PgDb(opts.url, opts.poolMax ?? 10);
+  if (opts.url && /^postgres(ql)?:\/\//.test(opts.url)) return new PgDb(opts.url, opts.poolMax ?? 10, { pgbouncer: opts.pgbouncer, replicaUrl: opts.replicaUrl, replicaMaxLagMs: opts.replicaMaxLagMs, readAfterWriteMs: opts.readAfterWriteMs });
   return new SqliteDb(opts.path ?? ":memory:");
 }
 
