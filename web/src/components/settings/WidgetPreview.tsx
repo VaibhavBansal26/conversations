@@ -116,7 +116,7 @@ export function WidgetPreview({ settings: s, away, view = "chat", theme = "light
                 </p>
                 <p className="max-w-[82%] self-end rounded-[calc(var(--w-r)*0.9)] rounded-br-[4px] bg-[var(--w-bg)] px-3 py-2 text-[13px] leading-snug text-[var(--w-fg)]">
                   Hi! Do you ship internationally?
-                  <span className="mt-0.5 block text-right text-[10px] opacity-85">Read</span>
+                  <span className="mt-0.5 block text-right text-[10px]">Read</span>
                 </p>
                 <p className="max-w-[82%] self-start rounded-[calc(var(--w-r)*0.9)] rounded-bl-[4px] border border-[var(--w-line)] bg-[var(--w-in)] px-3 py-2 text-[13px] leading-snug">
                   <span className="block text-[11px] font-semibold text-[var(--w-muted)]">Olivia</span>

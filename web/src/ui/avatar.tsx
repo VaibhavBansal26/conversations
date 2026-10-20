@@ -37,11 +37,11 @@ export function Avatar({ name, seed, size = "md", src, online, className }: Prop
         {src && <AvatarPrimitive.Image src={src} alt="" className="size-full object-cover" />}
         <AvatarPrimitive.Fallback
           aria-hidden="true"
-          className="grid size-full place-items-center"
+          data-initials={initials(name)}
+          // initials are drawn with CSS, not as text: the avatar is decoration, and text inside a labelled button would otherwise have to be part of its accessible name (WCAG 2.5.3)
+          className="grid size-full place-items-center before:content-[attr(data-initials)]"
           style={{ background: `light-dark(hsl(${hue} 75% 90%), hsl(${hue} 38% 24%))`, color: `light-dark(hsl(${hue} 65% 27%), hsl(${hue} 85% 84%))` }}
-        >
-          {initials(name)}
-        </AvatarPrimitive.Fallback>
+        />
       </AvatarPrimitive.Root>
       {online !== undefined && (
         <span

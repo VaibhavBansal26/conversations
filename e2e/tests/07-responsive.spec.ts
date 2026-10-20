@@ -8,7 +8,7 @@ test.describe("mobile (390x844): list and chat are separate screens with bottom 
     const bottom = page.getByRole("navigation", { name: "Main" });
     await expect(bottom).toBeVisible();
     await expect(page.getByRole("complementary", { name: "Contact details" })).toHaveCount(0);
-    await expect(page.getByRole("region", { name: "Conversation" })).toBeHidden();
+    await expect(page.getByRole("region", { name: "Conversation", exact: true })).toBeHidden();
     await openRoom(page, "Alice Johnson");
     await expect(page.getByRole("region", { name: "Conversations" })).toBeHidden();
     await expect(bottom).toBeHidden();
@@ -22,7 +22,8 @@ test.describe("mobile (390x844): list and chat are separate screens with bottom 
     await expect(page.getByRole("link", { name: "Chat widget" })).toBeVisible();
     await page.getByRole("link", { name: "Chat widget" }).click();
     await expect(page.getByRole("form", { name: "Chat widget settings" })).toBeVisible();
-    await page.getByRole("link", { name: /back/i }).first().click();
+    await page.getByRole("link", { name: "Settings", exact: true }).first().click();
+    await expect(page).toHaveURL(/\/settings$/);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   });
 

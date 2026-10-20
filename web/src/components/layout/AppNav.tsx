@@ -25,7 +25,7 @@ function useItems(): Item[] {
 function Badge({ n }: { n: number }) {
   if (n <= 0) return null;
   return (
-    <span className="absolute -right-1 -top-1 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-bold leading-4 text-primary-foreground" aria-label={`${n} unread`}>
+    <span className="absolute -right-1 -top-1 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-bold leading-4 text-primary-foreground" aria-hidden="true">
       {formatBadge(n)}
     </span>
   );
@@ -37,7 +37,7 @@ function RailLink({ item: i }: { item: Item }) {
     <Tooltip content={i.label} side="right">
       <Link
         to={i.to}
-        aria-label={i.label}
+        aria-label={i.badge ? `${i.label}, ${formatBadge(i.badge)} unread` : i.label}
         aria-current={active ? "page" : undefined}
         className={cn("relative grid size-10 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground", active && "bg-primary-soft text-primary-text hover:bg-primary-soft hover:text-primary-text")}
       >
@@ -51,7 +51,7 @@ function RailLink({ item: i }: { item: Item }) {
 function TabLink({ item: i }: { item: Item }) {
   const active = !!useMatch({ path: i.to, end: false });
   return (
-    <Link to={i.to} aria-current={active ? "page" : undefined} className={cn("relative flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-muted-foreground", active && "text-primary-text")}>
+    <Link to={i.to} aria-label={i.badge ? `${i.label}, ${formatBadge(i.badge)} unread` : undefined} aria-current={active ? "page" : undefined} className={cn("relative flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-muted-foreground", active && "text-primary-text")}>
       <span className="relative">
         <i.icon className="size-5" aria-hidden="true" />
         {i.badge !== undefined && <Badge n={i.badge} />}

@@ -5,7 +5,8 @@ test("analytics: KPI cards, range switch and the accessible data table", async (
   await page.getByRole("link", { name: "Analytics" }).click();
   await expect(page.getByRole("heading", { name: "Analytics" })).toBeVisible();
   await expect(page.getByText("Conversations opened").first()).toBeVisible();
-  await page.getByRole("button", { name: "7 days" }).click().catch(async () => page.getByRole("radio", { name: "7 days" }).click());
+  await page.getByRole("tab", { name: "Last 7 days" }).click();
+  await expect(page.getByRole("tab", { name: "Last 7 days" })).toHaveAttribute("aria-selected", "true");
   await page.getByText("Show data as a table").first().click();
   await expect(page.getByRole("table").first()).toBeVisible();
 });

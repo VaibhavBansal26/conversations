@@ -99,10 +99,11 @@ for (const vp of VIEWPORTS) {
 // The embeddable widget on a host page (it follows the visitor's colour scheme).
 for (const scheme of SCHEMES) {
   test(`widget on a host page, ${scheme}`, async ({ browser, baseURL }) => {
-    const { embedToken } = await import("../support/api.mjs");
+    const { startCustomerSite } = await import("../support/site");
+    const site = await startCustomerSite(baseURL!, "<h1>Acme Shop</h1><p>Handmade ceramics, shipped worldwide. Questions about an order? Chat with us any time.</p>");
     const ctx = await browser.newContext({ viewport: { width: 1024, height: 768 }, colorScheme: scheme });
     const page = await ctx.newPage();
-    await page.goto(`/widget-demo.html?token=${encodeURIComponent(await embedToken(baseURL!))}`);
+    await page.goto(site.url);
     await page.getByRole("button", { name: "Open chat" }).click();
     await page.waitForTimeout(600);
     await shot(page, "widget", "1024x768", scheme);
@@ -110,5 +111,6 @@ for (const scheme of SCHEMES) {
     await page.waitForTimeout(400);
     await shot(page, "widget", "390x844", scheme);
     await ctx.close();
+    await site.close();
   });
 }

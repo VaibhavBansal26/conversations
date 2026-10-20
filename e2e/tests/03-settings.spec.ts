@@ -75,9 +75,9 @@ test.describe("widget customiser", () => {
     await expect(preview.getByText(`Hello from ${stamp}`)).toBeVisible();
     const header = preview.getByText(`Hello from ${stamp}`);
     const before = await header.evaluate((el) => getComputedStyle(el.closest("[data-preview-header]") ?? el.parentElement!.parentElement!).backgroundColor);
-    await page.getByLabel("Brand colour").fill("#b91c1c");
+    await page.getByRole("textbox", { name: "Brand colour", exact: true }).fill("#b91c1c");
     await expect.poll(() => header.evaluate((el) => getComputedStyle(el.closest("[data-preview-header]") ?? el.parentElement!.parentElement!).backgroundColor)).not.toBe(before);
-    await page.getByRole("radio", { name: /Pill/ }).click();
+    await page.getByText("Pill", { exact: true }).click();
     await expect(page.getByRole("radio", { name: /Pill/ })).toBeChecked();
     await page.getByRole("button", { name: "Save changes" }).click();
     await expect(page.getByText("Unsaved changes")).toHaveCount(0);
@@ -87,8 +87,8 @@ test.describe("widget customiser", () => {
   });
 
   test("a low-contrast text colour is flagged and fixed with one click", async ({ page }) => {
-    await page.getByLabel("Brand colour").fill("#ffee00");
-    await page.getByLabel("Text colour").fill("#ffffff");
+    await page.getByRole("textbox", { name: "Brand colour", exact: true }).fill("#ffee00");
+    await page.getByRole("textbox", { name: "Text colour", exact: true }).fill("#ffffff");
     await expect(page.getByText(/contrast/i).first()).toBeVisible();
     await page.getByRole("button", { name: /fix automatically/i }).click();
     await expect(page.getByText(/contrast/i)).toHaveCount(0);
@@ -96,10 +96,13 @@ test.describe("widget customiser", () => {
 
   test("preview switches between screens, colour schemes and devices", async ({ page }) => {
     const preview = page.getByRole("complementary", { name: "Preview" });
-    await preview.getByRole("radio", { name: "Dark" }).click();
-    await preview.getByRole("radio", { name: "Phone" }).click();
-    await preview.getByRole("radio", { name: "Pre-chat" }).click();
-    await expect(preview).toBeVisible();
-    await preview.getByRole("radio", { name: "Closed" }).click();
+    await preview.getByText("Dark", { exact: true }).click();
+    await expect(preview.getByRole("radio", { name: "Dark" })).toBeChecked();
+    await preview.getByText("Phone", { exact: true }).click();
+    await expect(preview.getByRole("radio", { name: "Phone" })).toBeChecked();
+    await preview.getByText("Pre-chat", { exact: true }).click();
+    await expect(preview.getByRole("radio", { name: "Pre-chat" })).toBeChecked();
+    await preview.getByText("Closed", { exact: true }).click();
+    await expect(preview.getByRole("radio", { name: "Closed" })).toBeChecked();
   });
 });
