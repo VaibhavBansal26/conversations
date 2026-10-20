@@ -5,9 +5,9 @@ import type { WidgetSettings as Widget } from "../../api/types";
 import { useSession } from "../../auth/AuthContext";
 import { SaveBar, SettingsSection } from "../../components/settings/SettingsSection";
 import { WidgetPreview } from "../../components/settings/WidgetPreview";
-import { ErrorNotice } from "../../components/ui/ErrorNotice";
-import { Field } from "../../components/ui/Field";
-import { Switch } from "../../components/ui/Switch";
+import { ErrorNotice } from "../../ui";
+import { Field } from "../../ui";
+import { Switch } from "../../ui";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const REQUIRED: Widget["required_info"] = ["name", "email", "phone"];

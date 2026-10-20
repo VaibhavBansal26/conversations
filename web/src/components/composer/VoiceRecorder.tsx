@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Icon } from "../ui/Icon";
+import { Icon } from "../../ui";
 
 interface Props {
   disabled?: boolean;

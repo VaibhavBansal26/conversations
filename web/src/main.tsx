@@ -5,10 +5,8 @@ import { BrowserRouter } from "react-router";
 import { App } from "./App";
 import { AuthProvider } from "./auth/AuthContext";
 import { ApiError } from "./lib/apiError";
-import "./styles/base.css";
-import "./styles/layout.css";
-import "./styles/chat.css";
-import "./styles/settings.css";
+import { TooltipProvider, Toaster } from "./ui";
+import "./styles/index.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -23,11 +21,14 @@ const queryClient = new QueryClient({
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
       <BrowserRouter>
         <AuthProvider>
           <App />
         </AuthProvider>
       </BrowserRouter>
+      <Toaster />
+      </TooltipProvider>
     </QueryClientProvider>
   </StrictMode>,
 );

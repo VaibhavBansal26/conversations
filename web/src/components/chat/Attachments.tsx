@@ -1,6 +1,6 @@
 import type { Attachment } from "../../api/types";
 import { formatBytes } from "../../lib/time";
-import { Icon } from "../ui/Icon";
+import { Icon } from "../../ui";
 
 /** Images preview inline, audio plays back, everything else is a download chip. */
 export function Attachments({ items }: { items: Attachment[] }) {

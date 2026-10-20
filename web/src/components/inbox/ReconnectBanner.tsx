@@ -1,5 +1,5 @@
 import { useSocket } from "../../realtime/SocketProvider";
-import { Icon } from "../ui/Icon";
+import { Icon } from "../../ui";
 
 /** Shown while the realtime socket is down; sends fall back to REST, new messages resync on reconnect. */
 export function ReconnectBanner() {

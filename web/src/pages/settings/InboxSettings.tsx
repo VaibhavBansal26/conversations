@@ -4,11 +4,11 @@ import { useInboxes, useMembers } from "../../api/hooks";
 import { useListMutation } from "../../api/settingsHooks";
 import type { Inbox } from "../../api/types";
 import { SettingsSection } from "../../components/settings/SettingsSection";
-import { EmptyState } from "../../components/ui/EmptyState";
-import { ErrorNotice } from "../../components/ui/ErrorNotice";
-import { Field } from "../../components/ui/Field";
-import { Switch } from "../../components/ui/Switch";
-import { LoadingBlock } from "../../components/ui/Spinner";
+import { EmptyState } from "../../ui";
+import { ErrorNotice } from "../../ui";
+import { Field } from "../../ui";
+import { Switch } from "../../ui";
+import { LoadingBlock } from "../../ui";
 import { keys } from "../../state/keys";
 
 interface Draft {

@@ -1,5 +1,5 @@
 import { SHORTCUT_HELP } from "../../lib/shortcuts";
-import { Dialog } from "../ui/Dialog";
+import { Dialog } from "../../ui";
 
 export function ShortcutsHelp({ onClose }: { onClose: () => void }) {
   return (

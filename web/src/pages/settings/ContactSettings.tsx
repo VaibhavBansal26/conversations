@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../api/client";
 import { SettingsSection } from "../../components/settings/SettingsSection";
-import { ErrorNotice } from "../../components/ui/ErrorNotice";
+import { ErrorNotice } from "../../ui";
 import { getWorkerClient, CancelledError } from "../../workers/client";
 import type { CsvPreview } from "../../workers/protocol";
 

@@ -2,8 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "../../api/client";
 import type { AiSuggestions } from "../../api/types";
 import { isAiUnavailable } from "../../lib/apiError";
-import { ErrorNotice } from "../ui/ErrorNotice";
-import { Icon } from "../ui/Icon";
+import { ErrorNotice } from "../../ui";
+import { Icon } from "../../ui";
 
 interface Props {
   roomId: string;

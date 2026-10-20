@@ -2,9 +2,9 @@ import { useState, type FormEvent } from "react";
 import { api } from "../../api/client";
 import type { Channel } from "../../api/types";
 import { formatMoney, parseMajorToMinor } from "../../lib/money";
-import { Dialog } from "../ui/Dialog";
-import { ErrorNotice } from "../ui/ErrorNotice";
-import { Field } from "../ui/Field";
+import { Dialog } from "../../ui";
+import { ErrorNotice } from "../../ui";
+import { Field } from "../../ui";
 
 interface Props {
   roomId: string;

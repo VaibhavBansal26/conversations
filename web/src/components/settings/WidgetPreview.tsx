@@ -1,5 +1,5 @@
 import type { WidgetSettings } from "../../api/types";
-import { Icon } from "../ui/Icon";
+import { Icon } from "../../ui";
 
 interface Props {
   settings: WidgetSettings;

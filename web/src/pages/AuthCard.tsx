@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Icon } from "../components/ui/Icon";
+import { Icon } from "../ui";
 
 export function AuthCard({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
   return (

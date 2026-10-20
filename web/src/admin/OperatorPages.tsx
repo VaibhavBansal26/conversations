@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { SettingsSection } from "../components/settings/SettingsSection";
-import { ErrorNotice } from "../components/ui/ErrorNotice";
+import { ErrorNotice } from "../ui";
 import { formatDateTime } from "../lib/time";
 import { useAdmin } from "./AdminContext";
 import { adminApi } from "./adminApi";

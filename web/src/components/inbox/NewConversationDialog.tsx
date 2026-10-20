@@ -7,9 +7,9 @@ import type { Channel, Contact, Pagination, Room } from "../../api/types";
 import { checkComposer, defaultEmailSubject, messageKindFor, verifiedSenders } from "../../lib/composerRules";
 import { newClientMsgId } from "../../lib/ids";
 import { keys } from "../../state/keys";
-import { Dialog } from "../ui/Dialog";
-import { ErrorNotice } from "../ui/ErrorNotice";
-import { Field } from "../ui/Field";
+import { Dialog } from "../../ui";
+import { ErrorNotice } from "../../ui";
+import { Field } from "../../ui";
 
 type Mode = "existing" | "new";
 

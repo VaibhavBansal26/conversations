@@ -4,10 +4,10 @@ import { useTemplates } from "../../api/hooks";
 import { useListMutation } from "../../api/settingsHooks";
 import type { Template } from "../../api/types";
 import { SettingsSection } from "../../components/settings/SettingsSection";
-import { EmptyState } from "../../components/ui/EmptyState";
-import { ErrorNotice } from "../../components/ui/ErrorNotice";
-import { Field } from "../../components/ui/Field";
-import { LoadingBlock } from "../../components/ui/Spinner";
+import { EmptyState } from "../../ui";
+import { ErrorNotice } from "../../ui";
+import { Field } from "../../ui";
+import { LoadingBlock } from "../../ui";
 import { fieldErrors } from "../../lib/apiError";
 import { keys } from "../../state/keys";
 

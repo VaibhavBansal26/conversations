@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ApiError } from "../../lib/apiError";
-import { ErrorNotice } from "./ErrorNotice";
+import { ApiError } from "../lib/apiError";
+import { ErrorNotice } from "./error-notice";
 
 describe("ErrorNotice", () => {
   it("shows the server message verbatim in an alert", () => {

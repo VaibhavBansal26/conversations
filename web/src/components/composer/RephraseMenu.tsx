@@ -1,8 +1,8 @@
 import { useMutation } from "@tanstack/react-query";
 import { api } from "../../api/client";
 import type { RephraseMode } from "../../api/types";
-import { Icon } from "../ui/Icon";
-import { Menu } from "../ui/Menu";
+import { Icon } from "../../ui";
+import { Menu } from "../../ui";
 
 const MODES: { id: RephraseMode; label: string }[] = [
   { id: "improve", label: "Improve writing" },

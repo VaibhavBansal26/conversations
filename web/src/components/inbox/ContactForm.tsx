@@ -4,10 +4,10 @@ import { api } from "../../api/client";
 import type { Contact } from "../../api/types";
 import { fieldErrors } from "../../lib/apiError";
 import { keys } from "../../state/keys";
-import { ErrorNotice } from "../ui/ErrorNotice";
-import { Field } from "../ui/Field";
-import { Icon } from "../ui/Icon";
-import { Switch } from "../ui/Switch";
+import { ErrorNotice } from "../../ui";
+import { Field } from "../../ui";
+import { Icon } from "../../ui";
+import { Switch } from "../../ui";
 
 type Attr = { key: string; value: string };
 

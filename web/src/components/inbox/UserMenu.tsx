@@ -4,8 +4,8 @@ import { api } from "../../api/client";
 import type { Availability, Member, Session } from "../../api/types";
 import { useAuth, useSession } from "../../auth/AuthContext";
 import { keys } from "../../state/keys";
-import { Avatar } from "../ui/Avatar";
-import { Menu, type MenuItem } from "../ui/Menu";
+import { Avatar } from "../../ui";
+import { Menu, type MenuItem } from "../../ui";
 
 const LEVELS: { id: Availability; label: string }[] = [
   { id: "active", label: "Available" },

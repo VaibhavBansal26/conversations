@@ -3,7 +3,7 @@ import type { Message } from "../../api/types";
 import { formatClock } from "../../lib/time";
 import { getWorkerClient, CancelledError } from "../../workers/client";
 import type { SearchHit } from "../../workers/protocol";
-import { Icon } from "../ui/Icon";
+import { Icon } from "../../ui";
 
 interface Props {
   messages: Message[];

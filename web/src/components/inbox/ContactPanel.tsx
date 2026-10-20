@@ -2,10 +2,10 @@ import { Link } from "react-router";
 import { useContact, useContactRooms, useMembers } from "../../api/hooks";
 import type { Room } from "../../api/types";
 import { formatRelative } from "../../lib/time";
-import { Avatar } from "../ui/Avatar";
-import { ErrorNotice } from "../ui/ErrorNotice";
-import { Icon } from "../ui/Icon";
-import { LoadingBlock } from "../ui/Spinner";
+import { Avatar } from "../../ui";
+import { ErrorNotice } from "../../ui";
+import { Icon } from "../../ui";
+import { LoadingBlock } from "../../ui";
 import { ContactForm } from "./ContactForm";
 import { ContactNotes } from "./ContactNotes";
 

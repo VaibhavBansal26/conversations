@@ -1,6 +1,6 @@
 import { Navigate, Outlet, useLocation } from "react-router";
-import { ErrorNotice } from "../components/ui/ErrorNotice";
-import { LoadingBlock } from "../components/ui/Spinner";
+import { ErrorNotice } from "../ui";
+import { LoadingBlock } from "../ui";
 import { useAuth } from "./AuthContext";
 
 export function RequireAuth() {

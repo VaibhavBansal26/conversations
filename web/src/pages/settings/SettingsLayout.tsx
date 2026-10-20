@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { Link, NavLink, Navigate, Outlet, useLocation } from "react-router";
 import { useIsManager } from "../../auth/AuthContext";
-import { Icon } from "../../components/ui/Icon";
+import { Icon } from "../../ui";
 
 export const SETTINGS_PAGES = [
   { path: "general", label: "General", managerOnly: true },

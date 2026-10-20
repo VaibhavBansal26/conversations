@@ -2,8 +2,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Message, TypingEvent } from "../../api/types";
 import { buildItems } from "../../lib/grouping";
 import type { Thread } from "../../state/messageCache";
-import { Icon } from "../ui/Icon";
-import { Spinner } from "../ui/Spinner";
+import { Icon } from "../../ui";
+import { Spinner } from "../../ui";
 import { MessageBubble, type BubbleProps } from "./MessageBubble";
 import { TypingIndicator } from "./TypingIndicator";
 

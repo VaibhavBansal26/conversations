@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { snoozePresets, toApiTimestamp } from "../../lib/snooze";
 import { toLocalInput } from "../../lib/time";
-import { Icon } from "../ui/Icon";
-import { Popover } from "../ui/Popover";
+import { Icon } from "../../ui";
+import { Popover } from "../../ui";
 
 interface Props {
   snoozed: boolean;

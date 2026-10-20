@@ -1,6 +1,6 @@
 import type { Message } from "../../api/types";
 import { sendStateOf } from "../../state/optimistic";
-import { Icon } from "../ui/Icon";
+import { Icon } from "../../ui";
 
 /** Tick state of an outgoing message: pending clock, sent check, delivered double check, read (accent) double check. */
 export function DeliveryStatus({ message }: { message: Message }) {

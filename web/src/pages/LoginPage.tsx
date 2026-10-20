@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { useAuth } from "../auth/AuthContext";
-import { ErrorNotice } from "../components/ui/ErrorNotice";
-import { Field } from "../components/ui/Field";
+import { ErrorNotice } from "../ui";
+import { Field } from "../ui";
 import { fieldErrors } from "../lib/apiError";
 import { AuthCard } from "./AuthCard";
 

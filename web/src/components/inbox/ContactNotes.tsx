@@ -4,9 +4,9 @@ import { api } from "../../api/client";
 import { useContactNotes } from "../../api/hooks";
 import { formatDateTime } from "../../lib/time";
 import { keys } from "../../state/keys";
-import { ErrorNotice } from "../ui/ErrorNotice";
-import { Icon } from "../ui/Icon";
-import { LoadingBlock } from "../ui/Spinner";
+import { ErrorNotice } from "../../ui";
+import { Icon } from "../../ui";
+import { LoadingBlock } from "../../ui";
 
 /** Notes attached to the contact (visible to the whole team, independent of any one conversation). */
 export function ContactNotes({ contactId }: { contactId: string }) {

@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../api/client";
 import type { AiSummary } from "../../api/types";
-import { ErrorNotice } from "../ui/ErrorNotice";
-import { Icon } from "../ui/Icon";
-import { LoadingBlock } from "../ui/Spinner";
-import { Popover } from "../ui/Popover";
+import { ErrorNotice } from "../../ui";
+import { Icon } from "../../ui";
+import { LoadingBlock } from "../../ui";
+import { Popover } from "../../ui";
 
 function SummaryBody({ roomId }: { roomId: string }) {
   const q = useQuery({

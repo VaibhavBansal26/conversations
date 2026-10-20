@@ -1,6 +1,6 @@
 import type { Channel, EmailSender } from "../../api/types";
 import { verifiedSenders } from "../../lib/composerRules";
-import { Icon, type IconName } from "../ui/Icon";
+import { Icon, type IconName } from "../../ui";
 
 const CHANNELS: { id: Channel; label: string; icon: IconName }[] = [
   { id: "dm", label: "Chat", icon: "chat" },

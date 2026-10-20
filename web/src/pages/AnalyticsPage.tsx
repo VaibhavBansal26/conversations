@@ -4,7 +4,7 @@ import { Link } from "react-router";
 import { api } from "../api/client";
 import { useCan } from "../auth/AuthContext";
 import { BarChart, LineChart } from "../components/charts/Charts";
-import { ErrorNotice } from "../components/ui/ErrorNotice";
+import { ErrorNotice } from "../ui";
 
 interface Overview {
   rooms_opened: number;

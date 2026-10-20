@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Message } from "../../api/types";
 import { formatClock } from "../../lib/time";
-import { Icon } from "../ui/Icon";
+import { Icon } from "../../ui";
 import { Attachments } from "./Attachments";
 import { DeliveryStatus } from "./DeliveryStatus";
 import { COLLAPSE_FROM, EmailBody } from "./EmailBody";

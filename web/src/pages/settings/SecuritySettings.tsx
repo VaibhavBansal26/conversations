@@ -2,8 +2,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { api } from "../../api/client";
 import { SettingsSection } from "../../components/settings/SettingsSection";
-import { ErrorNotice } from "../../components/ui/ErrorNotice";
-import { Field } from "../../components/ui/Field";
+import { ErrorNotice } from "../../ui";
+import { Field } from "../../ui";
 
 interface SessionRow {
   id: string;

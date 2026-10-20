@@ -3,7 +3,7 @@ import { api } from "../../api/client";
 import { useCan } from "../../auth/AuthContext";
 import { formatMoney } from "../../lib/money";
 import { formatClock } from "../../lib/time";
-import { Icon } from "../ui/Icon";
+import { Icon } from "../../ui";
 
 export interface PaymentCardData {
   type: "payment_request";

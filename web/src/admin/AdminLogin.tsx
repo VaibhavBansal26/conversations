@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
-import { ErrorNotice } from "../components/ui/ErrorNotice";
-import { Field } from "../components/ui/Field";
+import { ErrorNotice } from "../ui";
+import { Field } from "../ui";
 import { useAdmin } from "./AdminContext";
 
 /** Password, then an authenticator code, always. First sign-in enrols the authenticator (nothing else is reachable before that). */

@@ -3,7 +3,7 @@ import type { Counts, Inbox, RoomFilter } from "../../api/types";
 import { inboxSearch } from "../../lib/inboxParams";
 import { formatBadge } from "../../lib/unread";
 import type { RoomListFilters } from "../../state/keys";
-import { Icon, type IconName } from "../ui/Icon";
+import { Icon, type IconName } from "../../ui";
 import { NotificationsMenu } from "./NotificationsMenu";
 import { UserMenu } from "./UserMenu";
 

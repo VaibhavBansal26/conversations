@@ -3,9 +3,9 @@ import { AI_TONES, useAiStatus, useSaveWorkspace } from "../../api/settingsHooks
 import type { AiTone } from "../../api/types";
 import { useSession } from "../../auth/AuthContext";
 import { SaveBar, SettingsSection } from "../../components/settings/SettingsSection";
-import { ErrorNotice } from "../../components/ui/ErrorNotice";
-import { Field } from "../../components/ui/Field";
-import { Switch } from "../../components/ui/Switch";
+import { ErrorNotice } from "../../ui";
+import { Field } from "../../ui";
+import { Switch } from "../../ui";
 
 export function AiSettings() {
   const s = useSession().workspace.settings;

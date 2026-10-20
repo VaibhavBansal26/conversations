@@ -8,8 +8,8 @@ import { checkComposer, defaultEmailSubject, messageKindFor, SMS_LIMIT, verified
 import { activeMention, insertMention } from "../../lib/mentions";
 import { useSocket } from "../../realtime/SocketProvider";
 import { useSendMessage } from "../../state/useSendMessage";
-import { ErrorNotice } from "../ui/ErrorNotice";
-import { Icon } from "../ui/Icon";
+import { ErrorNotice } from "../../ui";
+import { Icon } from "../../ui";
 import { AttachmentChips } from "./AttachmentChips";
 import { ChannelBar } from "./ChannelBar";
 import { EmojiPicker } from "./EmojiPicker";

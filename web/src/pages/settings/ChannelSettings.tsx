@@ -4,8 +4,8 @@ import { useEmailSenders, useInboundAddresses, useSmsNumbers } from "../../api/h
 import { useListMutation } from "../../api/settingsHooks";
 import type { EmailSender, SmsNumber } from "../../api/types";
 import { SettingsSection } from "../../components/settings/SettingsSection";
-import { ErrorNotice } from "../../components/ui/ErrorNotice";
-import { Field } from "../../components/ui/Field";
+import { ErrorNotice } from "../../ui";
+import { Field } from "../../ui";
 import { keys } from "../../state/keys";
 
 function SmsNumbers() {

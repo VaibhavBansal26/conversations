@@ -5,7 +5,7 @@ import { SocketProvider } from "../realtime/SocketProvider";
 import { documentTitle } from "../lib/unread";
 import { Link } from "react-router";
 import { useAuth, useSession } from "../auth/AuthContext";
-import { Icon } from "./ui/Icon";
+import { Icon } from "../ui";
 import { ReconnectBanner } from "./inbox/ReconnectBanner";
 
 /** The token's own `imp` claim says this is a platform support view: read-only, ends by itself. */

@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { api } from "../api/client";
-import { ErrorNotice } from "../components/ui/ErrorNotice";
-import { Field } from "../components/ui/Field";
+import { ErrorNotice } from "../ui";
+import { Field } from "../ui";
 import { AuthCard } from "./AuthCard";
 
 function useSubmit(fn: () => Promise<void>) {

@@ -4,8 +4,8 @@ import { api } from "../../api/client";
 import type { Availability, Member, NotificationPrefs, Session } from "../../api/types";
 import { useSession } from "../../auth/AuthContext";
 import { SettingsSection } from "../../components/settings/SettingsSection";
-import { ErrorNotice } from "../../components/ui/ErrorNotice";
-import { Switch } from "../../components/ui/Switch";
+import { ErrorNotice } from "../../ui";
+import { Switch } from "../../ui";
 import { toLocalInput } from "../../lib/time";
 import { keys } from "../../state/keys";
 

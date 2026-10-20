@@ -7,8 +7,8 @@ import { NewConversationDialog } from "../components/inbox/NewConversationDialog
 import { RoomListPane } from "../components/inbox/RoomListPane";
 import { ShortcutsHelp } from "../components/inbox/ShortcutsHelp";
 import { Sidebar } from "../components/inbox/Sidebar";
-import { EmptyState } from "../components/ui/EmptyState";
-import { Icon } from "../components/ui/Icon";
+import { EmptyState } from "../ui";
+import { Icon } from "../ui";
 import { inboxSearch, parseInboxParams } from "../lib/inboxParams";
 import { useShortcuts } from "../lib/useShortcuts";
 import { flattenRooms } from "../state/roomCache";

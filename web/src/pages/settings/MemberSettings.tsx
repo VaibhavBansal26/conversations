@@ -6,9 +6,9 @@ import type { Member, Role } from "../../api/types";
 import { useSession } from "../../auth/AuthContext";
 import { CopyButton } from "../../components/settings/CopyButton";
 import { SettingsSection } from "../../components/settings/SettingsSection";
-import { ErrorNotice } from "../../components/ui/ErrorNotice";
-import { Field } from "../../components/ui/Field";
-import { LoadingBlock } from "../../components/ui/Spinner";
+import { ErrorNotice } from "../../ui";
+import { Field } from "../../ui";
+import { LoadingBlock } from "../../ui";
 import { fieldErrors } from "../../lib/apiError";
 import { keys } from "../../state/keys";
 

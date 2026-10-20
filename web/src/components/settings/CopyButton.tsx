@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Icon } from "../ui/Icon";
+import { Icon } from "../../ui";
 
 export function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
   const [done, setDone] = useState(false);

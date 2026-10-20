@@ -6,11 +6,11 @@ import type { NotificationItem } from "../../api/types";
 import { formatRelative } from "../../lib/time";
 import { formatBadge } from "../../lib/unread";
 import { onNotificationRead } from "../../state/events";
-import { EmptyState } from "../ui/EmptyState";
-import { ErrorNotice } from "../ui/ErrorNotice";
-import { Icon } from "../ui/Icon";
-import { Popover } from "../ui/Popover";
-import { LoadingBlock } from "../ui/Spinner";
+import { EmptyState } from "../../ui";
+import { ErrorNotice } from "../../ui";
+import { Icon } from "../../ui";
+import { Popover } from "../../ui";
+import { LoadingBlock } from "../../ui";
 
 export function NotificationsMenu() {
   const qc = useQueryClient();

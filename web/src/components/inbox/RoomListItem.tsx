@@ -3,8 +3,8 @@ import { Link } from "react-router";
 import type { Member, Room } from "../../api/types";
 import { formatBadge } from "../../lib/unread";
 import { formatRelative } from "../../lib/time";
-import { Avatar } from "../ui/Avatar";
-import { Icon } from "../ui/Icon";
+import { Avatar } from "../../ui";
+import { Icon } from "../../ui";
 
 interface Props {
   room: Room;

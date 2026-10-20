@@ -9,10 +9,10 @@ import { flattenRooms } from "../../state/roomCache";
 import { scrollToReveal, windowRange } from "../../lib/virtual";
 import { getWorkerClient } from "../../workers/client";
 import { roomSig } from "../../workers/logic/diff";
-import { EmptyState } from "../ui/EmptyState";
-import { ErrorNotice } from "../ui/ErrorNotice";
-import { Icon } from "../ui/Icon";
-import { LoadingBlock } from "../ui/Spinner";
+import { EmptyState } from "../../ui";
+import { ErrorNotice } from "../../ui";
+import { Icon } from "../../ui";
+import { LoadingBlock } from "../../ui";
 import { RoomListItem } from "./RoomListItem";
 
 interface Props {
