@@ -82,6 +82,12 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       socket.disconnect();
       reconnectLater(p.reconnect_in_ms ?? 2000);
     });
+    // the server lost cross-node events (cache/pub-sub outage): refetch what the screen shows
+    socket.on("server:resync", () => {
+      void qc.invalidateQueries({ queryKey: keys.rooms });
+      void qc.invalidateQueries({ queryKey: keys.counts });
+      void qc.invalidateQueries({ queryKey: ["thread"] });
+    });
     socket.on("auth:expired", () => logout());
     socket.on("connect_error", (err: Error & { data?: { code?: string } }) => {
       setStatus("disconnected");

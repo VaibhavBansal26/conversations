@@ -64,7 +64,7 @@ export class Fleet {
   async stats(reset = false) {
     const all = (await this.all({ cmd: "stats", reset })).map((r) => r.stats);
     const sum = (k) => all.reduce((a, s) => a + (s[k] ?? 0), 0);
-    const keys = ["connected", "connectErrors", "disconnects", "reconnects", "recv", "recvTeam", "recvVisitor", "dup", "gap", "gapMsgs", "recovered", "resyncRequests", "resyncFailed", "sendUnique", "resent", "failovers", "sendOk", "sendErr", "sendCreatedFalse", "acksTimeout", "drained", "slowKicked", "auditMissing", "open", "total"];
+    const keys = ["connected", "connectErrors", "disconnects", "reconnects", "recv", "recvTeam", "recvVisitor", "dup", "gap", "gapMsgs", "recovered", "resyncRequests", "resyncFailed", "resyncSignals", "sendUnique", "resent", "failovers", "sendOk", "sendErr", "sendCreatedFalse", "acksTimeout", "drained", "slowKicked", "auditMissing", "open", "total"];
     const out = Object.fromEntries(keys.map((k) => [k, sum(k)]));
     out.connectErrorSamples = {};
     for (const s of all) for (const [k, v] of Object.entries(s.connectErrorSamples)) out.connectErrorSamples[k] = (out.connectErrorSamples[k] ?? 0) + v;

@@ -369,6 +369,7 @@
           setTimeout(function () { if (!state.destroyed && state.socket === socket) socket.connect(); }, wait);
         }
       });
+      socket.on("server:resync", function () { loadMessages().then(renderMessages).catch(function () {}); });
       socket.on("server:draining", function (p) { state.drainWait = Math.max(500, (p && p.reconnect_in_ms) || 0) + Math.random() * 1000; });
       socket.on("connect_error", function () { state.connected = false; if (els.banner) els.banner.hidden = false; startPolling(); });
       socket.on("message:new", function (p) { onIncoming(p.message); });

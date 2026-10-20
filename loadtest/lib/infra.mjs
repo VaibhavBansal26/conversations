@@ -78,7 +78,7 @@ export async function startPostgres() {
     password: "postgres",
     port,
     persistent: false,
-    postgresFlags: ["-c", "max_connections=300", "-c", "shared_buffers=256MB", "-c", "synchronous_commit=off", "-c", "fsync=off"],
+    postgresFlags: ["-c", "max_connections=300", "-c", "max_files_per_process=128", "-c", "shared_buffers=256MB", "-c", "synchronous_commit=off", "-c", "fsync=off"],
     onLog: () => {},
     onError: () => {},
   });
@@ -124,6 +124,10 @@ export async function startNodes({ count, databaseUrl, redisUrl, env = {}, nodeF
       WS_TRANSPORTS: "websocket",
       PUBLIC_URL: `http://127.0.0.1:${port}`,
       CORS_ORIGINS: "http://shop.example.com",
+      // fewer partitions keep the shared file table (kern.maxfiles on this Mac) from being the limit: see PERFORMANCE.md
+      SHED_LOOP_LAG_MS: "3000", // the box is shared and noisy; shedding itself is tested separately
+      MESSAGE_HASH_PARTITIONS: "4",
+      MESSAGE_PARTITION_MONTHS_AHEAD: "1",
       ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
       ...(redisUrl ? { REDIS_URL: redisUrl } : {}),
       ...env,

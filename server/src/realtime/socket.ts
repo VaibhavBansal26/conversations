@@ -344,6 +344,11 @@ export async function attachSocketServer(httpServer: HttpServer, ctx: AppContext
   });
   const useRedis = cfg.SOCKET_ADAPTER !== "memory" && !!ctx.redis && (await useRedisAdapter(io, ctx));
   bus.bind(ctx, io, useRedis);
+  // Redis came back after an outage: cross-node events published meanwhile were lost, so every local client refetches over REST
+  ctx.redis?.onRecovered(() => {
+    ctx.log.warn("redis recovered: asking local clients to resync", { node: ctx.nodeId });
+    for (const s of bus.allSockets(io.of(/^\/ws\/ws_[0-9a-f]{24}$/))) s.emit("server:resync", {});
+  });
 
   const parent = io.of(/^\/ws\/ws_[0-9a-f]{24}$/);
   const perIp = new Map<string, number>();

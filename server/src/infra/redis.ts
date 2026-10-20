@@ -9,6 +9,11 @@ export class RedisHub {
   readonly client: Redis;
   private readonly subscriber: Redis;
   private readonly extras: Redis[] = [];
+  private readonly recovered = new Set<() => void>();
+  /** called each time the connection comes back after having been lost */
+  onRecovered(cb: () => void) {
+    this.recovered.add(cb);
+  }
   private readonly handlers = new Map<string, Set<(msg: string) => void>>();
 
   constructor(
@@ -17,6 +22,20 @@ export class RedisHub {
     readonly prefix = "conv",
   ) {
     this.client = this.make();
+    // after an outage (restart, failover) in-flight pub/sub messages and ephemeral state are gone: tell the app so it can repair itself
+    let lost = false;
+    this.client.on("close", () => (lost = true));
+    this.client.on("ready", () => {
+      if (!lost) return;
+      lost = false;
+      for (const cb of this.recovered) {
+        try {
+          cb();
+        } catch {
+          /* a listener must not break the others */
+        }
+      }
+    });
     this.subscriber = this.make();
     this.subscriber.on("message", (channel: string, msg: string) => this.handlers.get(channel)?.forEach((h) => h(msg)));
   }

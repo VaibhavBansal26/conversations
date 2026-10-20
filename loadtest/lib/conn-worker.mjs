@@ -7,7 +7,7 @@ const sockets = []; // {s, kind, rooms, last: Map<room, {seq,id}>, item}
 const ctr = {
   connected: 0, connectErrors: 0, connectErrorSamples: {}, disconnects: 0, reconnects: 0,
   recv: 0, recvTeam: 0, recvVisitor: 0, auditMissing: 0, dup: 0, gap: 0, gapMsgs: 0, recovered: 0, resyncRequests: 0, resyncFailed: 0,
-  sendUnique: 0, resent: 0, failovers: 0, sendOk: 0, sendErr: 0, sendCreatedFalse: 0, acksTimeout: 0, drained: 0, slowKicked: 0,
+  resyncSignals: 0, sendUnique: 0, resent: 0, failovers: 0, sendOk: 0, sendErr: 0, sendCreatedFalse: 0, acksTimeout: 0, drained: 0, slowKicked: 0,
 };
 let deliveryLat = [];
 let ackLat = [];
@@ -107,6 +107,7 @@ function connectOne(item) {
     ctr.connectErrorSamples[k] = (ctr.connectErrorSamples[k] ?? 0) + 1;
   });
   s.on("server:draining", () => ctr.drained++);
+  s.on("server:resync", () => ctr.resyncSignals++);
   s.on("message:new", (p) => {
     const m = p?.message;
     track(rec, m, m?.room_id ?? p?.room?.id);
@@ -155,7 +156,7 @@ function startSending({ ratePerSec, bytes = 64, kindFilter = "visitor", track = 
     while (n < due) {
       const rec = pool[Math.floor(Math.random() * pool.length)];
       n++;
-      if (!track && !rec.s.connected) continue;
+      if (!rec.s.connected) continue; // only sockets that are up originate new messages; unacknowledged ones are re-sent after a reconnect
       const roomId = rec.kind === "visitor" ? rec.item.rooms[0] : rec.item.rooms[Math.floor(Math.random() * rec.item.rooms.length)];
       const cid = `c${process.pid}-${sentSeq++}`;
       ctr.sendUnique++;

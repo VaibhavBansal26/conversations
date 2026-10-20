@@ -81,6 +81,16 @@ const results = { scenario, date: new Date().toISOString(), machine, config: cfg
 let cleanup = [];
 
 async function main() {
+  // the kernel's file table is shared with every other process on the machine; stop before we starve them (and the tooling around us)
+  const guardTimer = setInterval(() => {
+    const n = numFiles();
+    if (n && n > Number(opt["max-files"] ?? 27500)) {
+      console.error(`kern.num_files=${n}: aborting the run to protect the machine`);
+      for (const c of cleanup) void c();
+      setTimeout(() => process.exit(3), 3000);
+    }
+  }, 1000);
+  guardTimer.unref();
   await waitQuiet();
   const fns = { ramp, fanout, storm, slow, multinode, soak, idempotency, rest, drain, fault, roomsize };
   if (!fns[scenario]) throw new Error(`unknown scenario "${scenario}". one of: ${Object.keys(fns).join(", ")}`);
@@ -145,7 +155,11 @@ async function steady(opts = {}) {
   const items = makeItems({ stack, ws, visitors, agents: cfg.agents, agentNode: opts.agentNode ?? 0 });
   // agents first so they are subscribed before traffic
   await fleet.connect(items, cfg.connectRate);
-  await sleep(2000);
+  // sockets refused during the ramp retry with backoff; wait for them so traffic starts from a fully connected fleet
+  for (let i = 0; i < 45; i++) {
+    await sleep(1000);
+    if ((await fleet.stats()).open >= items.length * 0.995) break;
+  }
   const s = await fleet.stats();
   log(`connected ${s.open}/${items.length}, errors ${s.connectErrors}`);
   const sampler = await sampleNodes(stack, fleet);
@@ -419,7 +433,8 @@ async function fault() {
     LOST: fin.sendUnique - stored,
     DUPLICATED_IN_DB: stored - distinct,
     per_room_seq_gaps_in_db: gaps,
-    client_seq_gaps: fin.gap,
+    client_seq_gaps_live: fin.gap,
+    server_resync_signals_received_by_clients: fin.resyncSignals,
     client_duplicates_received: fin.dup,
     client_missing_after_resync_audit: fin.auditMissing,
   };
