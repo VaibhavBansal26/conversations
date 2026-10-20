@@ -1,0 +1,26 @@
+# k6-operator TestRun: runs the script on N pods in the cluster that hosts (or is near) the system under test.
+#   kubectl create configmap chat-k6 --from-file=chat.js=loadtest/k6/chat.js -n loadtest
+#   kubectl apply -f loadtest/k6/testrun.yaml
+# 40 pods x 25,000 VUs = 1,000,000 sockets. k6 VUs are heavy: size pods for ~25k WebSockets each (4 vCPU / 8 GiB) and spread them over several source IPs
+# or NAT gateways (ephemeral ports: ~64k per source IP and destination IP:port).
+apiVersion: k6.io/v1alpha1
+kind: TestRun
+metadata:
+  name: chat-1m
+  namespace: loadtest
+spec:
+  parallelism: 40
+  script:
+    configMap: { name: chat-k6, file: chat.js }
+  separate: true
+  arguments: --out experimental-prometheus-rw
+  runner:
+    resources: { requests: { cpu: "4", memory: 8Gi }, limits: { memory: 10Gi } }
+    env:
+      - { name: BASE, value: "https://chat.example.com" }
+      - { name: ORIGIN, value: "https://shop.example.com" }
+      - { name: API_KEY, valueFrom: { secretKeyRef: { name: chat-k6-secrets, key: embed-token } } }
+      - { name: VUS, value: "25000" }        # per pod (k6-operator divides executors across pods when `execution segments` are used; here each pod runs the full script)
+      - { name: RATE, value: "0.01" }        # 1M sockets x 0.01 msg/s = 10,000 msg/s
+      - { name: RAMP, value: "30m" }
+      - { name: STEADY, value: "30m" }

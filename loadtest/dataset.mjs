@@ -95,30 +95,46 @@ try {
   let loaded = 0;
   const tLoad = Date.now();
   const freeBefore = freeGb(os.tmpdir());
-  for (let from = 0; from < ROOMS; ) {
-    const roomsThisChunk = Math.max(1, Math.floor(CHUNK / perRoom));
-    const to = Math.min(ROOMS, from + roomsThisChunk);
-    const tc = Date.now();
-    await q(
-      `INSERT INTO messages(id, workspace_id, room_id, seq, sender_type, sender_id, sender_name, kind, source, content, content_text, created_at)
-       SELECT 'msg_' || lpad(r::text, 9, '0') || lpad(s::text, 3, '0'), $1, 'room_' || lpad(r::text, 9, '0'), s,
-              CASE WHEN (r + s) % 3 = 0 THEN 'agent' ELSE 'contact' END, CASE WHEN (r + s) % 3 = 0 THEN $2 ELSE NULL END, CASE WHEN (r + s) % 3 = 0 THEN 'Agent' ELSE 'Contact' END,
-              'text', 'dm', 'message ' || s || ' in conversation ' || r || ' about order ' || (r % 9973), 'message ' || s || ' in conversation ' || r || ' about order ' || (r % 9973),
-              to_char(to_timestamp(($3::bigint + (((r::bigint * 7919 + s::bigint * 104729) % 1000003) * $4::bigint / 1000003)) / 1000.0) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
-       FROM generate_series($5::int, $6::int) r, generate_series(1, $7::int) s`,
-      wsId, memberId, t0span, span, from, to - 1, perRoom,
+  const PAR = Number(opt.parallel ?? 4);
+  const roomsPerChunk = Math.max(1, Math.floor(CHUNK / perRoom));
+  let nextFrom = 0;
+  let stop = false;
+  const workers = [];
+  for (let w = 0; w < PAR; w++) {
+    const wc = new pgmod.Client({ connectionString: url });
+    await wc.connect();
+    await wc.query("SET synchronous_commit = off");
+    workers.push(
+      (async () => {
+        while (!stop) {
+          const from = nextFrom;
+          if (from >= ROOMS) break;
+          nextFrom += roomsPerChunk;
+          const to = Math.min(ROOMS, from + roomsPerChunk);
+          await wc.query(
+            `INSERT INTO messages(id, workspace_id, room_id, seq, sender_type, sender_id, sender_name, kind, source, content, content_text, created_at)
+             SELECT 'msg_' || lpad(r::text, 9, '0') || lpad(s::text, 3, '0'), $1, 'room_' || lpad(r::text, 9, '0'), s,
+                    CASE WHEN (r + s) % 3 = 0 THEN 'agent' ELSE 'contact' END, CASE WHEN (r + s) % 3 = 0 THEN $2 ELSE NULL END, CASE WHEN (r + s) % 3 = 0 THEN 'Agent' ELSE 'Contact' END,
+                    'text', 'dm', 'message ' || s || ' in conversation ' || r || ' about order ' || (r % 9973), 'message ' || s || ' in conversation ' || r || ' about order ' || (r % 9973),
+                    to_char(to_timestamp(($3::bigint + (((r::bigint * 7919 + s::bigint * 104729) % 1000003) * $4::bigint / 1000003)) / 1000.0) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+             FROM generate_series($5::int, $6::int) r, generate_series(1, $7::int) s`,
+            [wsId, memberId, t0span, span, from, to - 1, perRoom],
+          );
+          loaded += (to - from) * perRoom;
+          const secs = (Date.now() - tLoad) / 1000;
+          series.push({ rows: loaded, secs: Math.round(secs) });
+          if (series.length % 5 === 0) log(`${loaded.toLocaleString()} rows, ${Math.round(loaded / secs).toLocaleString()} rows/s overall, free disk ${freeGb(os.tmpdir()).toFixed(1)} GB`);
+          if (freeGb(os.tmpdir()) < MIN_FREE_GB) {
+            log(`free disk below ${MIN_FREE_GB} GB: stopping the load here`);
+            results.stopped_for_disk = true;
+            stop = true;
+          }
+        }
+        await wc.end();
+      })(),
     );
-    loaded += (to - from) * perRoom;
-    from = to;
-    const rate = Math.round(((to - 0) * perRoom) / ((Date.now() - tLoad) / 1000));
-    series.push({ rows: loaded, secs: Math.round((Date.now() - tLoad) / 1000), chunk_rows_per_s: Math.round(((to - from + roomsThisChunk) * perRoom) / ((Date.now() - tc) / 1000)) });
-    log(`${loaded.toLocaleString()} rows, ${rate.toLocaleString()} rows/s overall, free disk ${freeGb(os.tmpdir()).toFixed(1)} GB`);
-    if (freeGb(os.tmpdir()) < MIN_FREE_GB) {
-      log(`free disk below ${MIN_FREE_GB} GB: stopping the load here`);
-      results.stopped_for_disk = true;
-      break;
-    }
   }
+  await Promise.all(workers);
   results.load_secs = (Date.now() - tLoad) / 1000;
   if (deferIdx) {
     log("rebuilding indexes");
@@ -164,10 +180,20 @@ try {
       times.push(Number(process.hrtime.bigint() - t) / 1e6);
     }
     times.sort((a, b) => a - b);
+    // the app names statements after a few uses, so planning is paid once per connection: time that path too
+    const ptimes = [];
+    const stmt = { name: `ds_${name.replace(/\W+/g, "_").slice(0, 40)}`, text: sql };
+    for (let i = 0; i < 8; i++) await c.query({ ...stmt, values: params });
+    for (let i = 0; i < 30; i++) {
+      const t = process.hrtime.bigint();
+      await c.query({ ...stmt, values: params });
+      ptimes.push(Number(process.hrtime.bigint() - t) / 1e6);
+    }
+    ptimes.sort((a, b) => a - b);
     const plan = (await q(`EXPLAIN (ANALYZE, BUFFERS, COSTS OFF, SUMMARY ON) ${sql}`, ...params)).map((r) => r["QUERY PLAN"]).join("\n");
     const leaves = new Set([...plan.matchAll(/(?:Scan|Bitmap Heap Scan|Index Only Scan)[^\n]* on (messages_h\d+(?:_\w+)?)/g)].map((m) => m[1]));
     const hashParts = new Set([...leaves].map((l) => l.split("_").slice(0, 2).join("_")));
-    results.queries[name] = { p50_ms: Number(times[15].toFixed(2)), p99_ms: Number(times[29].toFixed(2)), hash_partitions_touched: hashParts.size, leaves_touched: leaves.size, planning_ms: Number((plan.match(/Planning Time: ([\d.]+)/)?.[1]) ?? 0), execution_ms: Number((plan.match(/Execution Time: ([\d.]+)/)?.[1]) ?? 0) };
+    results.queries[name] = { prepared_p50_ms: Number(ptimes[15].toFixed(2)), prepared_p99_ms: Number(ptimes[29].toFixed(2)), p50_ms: Number(times[15].toFixed(2)), p99_ms: Number(times[29].toFixed(2)), hash_partitions_touched: hashParts.size, leaves_touched: leaves.size, planning_ms: Number((plan.match(/Planning Time: ([\d.]+)/)?.[1]) ?? 0), execution_ms: Number((plan.match(/Execution Time: ([\d.]+)/)?.[1]) ?? 0) };
     plans.push(`### ${name}\n${sql}\n\n${plan}\n`);
     log(name, JSON.stringify(results.queries[name]));
   }
