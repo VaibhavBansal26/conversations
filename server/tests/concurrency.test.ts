@@ -117,6 +117,6 @@ describe(`concurrency on ${postgres ? "PostgreSQL (3 nodes)" : "SQLite (1 node)"
     const nodes = await Promise.all([0, 1, 2, 3].map((i) => makeCtx({ ...iso.env, NODE_ID: `m${i}` })));
     for (const n of nodes) trackCtx(n, undefined);
     expect(await migrate(nodes[0]!.db)).toEqual([]);
-    expect((await nodes[0]!.db.get<{ n: number }>("SELECT COUNT(*) n FROM _migrations"))!.n).toBe(readdirSync(new URL("../src/db/migrations", import.meta.url)).filter((f) => f.endsWith(".sql")).length);
+    expect((await nodes[0]!.db.get<{ n: number }>("SELECT COUNT(*) n FROM _migrations"))!.n).toBe(readdirSync(new URL("../src/db/migrations", import.meta.url)).filter((f) => f.endsWith(".sql") && !f.endsWith(postgres ? ".sqlite.sql" : ".pg.sql")).length);
   });
 });

@@ -93,7 +93,9 @@ export async function visitorSend(
 ): Promise<{ message: MessageRow; created: boolean; room: RoomRow }> {
   const room = await getVisitorRoom(ctx, session, roomId);
   const findDup = async () =>
-    input.client_msg_id ? await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE room_id = ? AND client_msg_id = ?", roomId, input.client_msg_id) : undefined;
+    input.client_msg_id
+      ? await ctx.db.get<MessageRow>("SELECT m.* FROM message_qids q JOIN messages m ON m.room_id = q.room_id AND m.id = q.message_id WHERE q.room_id = ? AND q.client_msg_id = ?", roomId, input.client_msg_id)
+      : undefined;
   const dup = await findDup();
   if (dup) return { message: dup, created: false, room };
   await enforceSendLimits(ctx, { workspaceId: room.workspace_id, roomId, contactId: room.contact_id, clientMsgId: input.client_msg_id });

@@ -121,7 +121,7 @@ export async function notifyMentions(ctx: AppContext, room: RoomRow, message: Me
 export async function notifySnoozeEnded(ctx: AppContext, room: RoomRow, snoozedBy: string | null): Promise<void> {
   if (!snoozedBy) return;
   const m = (await listMemberRows(ctx, room.workspace_id)).find((x) => x.id === snoozedBy);
-  const last = room.last_message_id ? await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE id = ?", room.last_message_id) : undefined;
+  const last = room.last_message_id ? await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE room_id = ? AND id = ?", room.id, room.last_message_id) : undefined;
   if (!m || !last) return;
   await create(ctx, m, { type: "snooze_ended", room, message: last, title: "Snoozed conversation is back", body: snippet(last.content_text, 140) });
 }

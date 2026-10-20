@@ -10,7 +10,7 @@ import { parseJson } from "../util/json.js";
 import { addFollower, contactBrief, findContact, getContact, normalizeTags, type ContactInput, type ContactRow, findOrCreateContact } from "./contacts.js";
 import { findInbox, nextRoundRobinAssignee } from "./inboxes.js";
 import { findMember } from "./members.js";
-import { emitMessage, lastMessageBrief, postSystemMessage, type MessageRow } from "./messageStore.js";
+import { emitMessage, lastBriefOf, lastMessageBrief, postSystemMessage, type MessageRow } from "./messageStore.js";
 import { assigneeIds, canSeeRoom, getRoomRow, getVisibleRoom, roomVisibility, type RoomRow } from "./roomStore.js";
 
 export type RoomSort = "newest" | "oldest" | "waiting_longest" | "priority_first";
@@ -76,12 +76,10 @@ async function hydrate(ctx: AppContext, rows: (RoomRow & Partial<ListRow>)[]) {
   const contacts = new Map(
     (await ctx.db.all<ContactRow>(`SELECT * FROM contacts WHERE id IN (${rows.map(() => "?").join(",")})`, ...rows.map((r) => r.contact_id))).map((c) => [c.id, c]),
   );
-  const lastIds = rows.map((r) => r.last_message_id).filter((v): v is string => !!v);
-  const lasts = new Map(
-    lastIds.length ? (await ctx.db.all<MessageRow>(`SELECT * FROM messages WHERE id IN (${lastIds.map(() => "?").join(",")})`, ...lastIds)).map((m) => [m.id, m]) : [],
-  );
+  // "last message" cards come from the denormalised column; only rooms that predate it fall back to the messages table (and are filled in)
+  const briefs = new Map<string, ReturnType<typeof lastMessageBrief> | null>();
+  await Promise.all(rows.map(async (r) => void briefs.set(r.id, await lastBriefOf(ctx, r))));
   return rows.map((r) => {
-    const last = r.last_message_id ? lasts.get(r.last_message_id) : undefined;
     const c = contacts.get(r.contact_id);
     return {
       id: r.id,
@@ -96,7 +94,7 @@ async function hydrate(ctx: AppContext, rows: (RoomRow & Partial<ListRow>)[]) {
       subject: r.subject,
       room_type: r.room_type,
       verified_session: !!r.session_id,
-      last_message: last && !last.deleted_at ? lastMessageBrief(last) : null,
+      last_message: briefs.get(r.id) ?? null,
       last_message_at: r.last_message_at,
       last_contact_message_at: r.last_contact_message_at,
       waiting_since: r.waiting_since ?? null,

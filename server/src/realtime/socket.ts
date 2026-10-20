@@ -7,11 +7,12 @@ import { seesAll, type Actor } from "../domain/types.js";
 import { AppError, unauthorized } from "../errors.js";
 import { AssignBody, OtpVerify, ReadBody, RoomCreate, RoomPatch, SendMessageBody, TypingBody, id } from "../schemas.js";
 import { actorFromToken } from "../services/auth.js";
+import { audienceChannels } from "../services/audience.js";
 import { listInboxes } from "../services/inboxes.js";
 import { actorFromRow, findMember, memberScope, onlineMemberIds, visitorScope } from "../services/members.js";
 import { sendAgentMessage, viewMessage } from "../services/messages.js";
 import { visitorMessageDto } from "../services/messageStore.js";
-import { canSeeRoom, roomVisibility } from "../services/roomStore.js";
+import { canSeeRoom } from "../services/roomStore.js";
 import type { RoomRow } from "../services/roomStore.js";
 import { assignRoom, markRead, roomBaseDto, setPriority, setStatus, setSubject, snoozeRoom, startConversation, unsnoozeRoom } from "../services/rooms.js";
 import { visitorMarkRead, visitorRoomDto, visitorRooms, visitorSend, visitorStartRoom } from "../services/visitorChat.js";
@@ -81,13 +82,36 @@ export class SocketBus implements RealtimeBus {
     }
   }
 
+  /** Events for one room are emitted in call order even though resolving the audience is asynchronous (per-room promise chain). */
+  private readonly chains = new Map<string, Promise<void>>();
+  private ordered(key: string, fn: () => Promise<void> | void) {
+    const prev = this.chains.get(key);
+    const next: Promise<void> = (prev ? prev.then(fn) : Promise.resolve().then(fn))
+      .catch((e) => this.ctx?.log.warn("room emit failed", { error: e instanceof Error ? e.message : String(e) }))
+      .finally(() => {
+        if (this.chains.get(key) === next) this.chains.delete(key);
+      });
+    this.chains.set(key, next);
+  }
+  /** Wait for in-flight emits (graceful shutdown, tests). */
+  async settle() {
+    while (this.chains.size) await Promise.all([...this.chains.values()]);
+  }
+
+  private async teamChannels(ws: string, roomId: string): Promise<string[]> {
+    return this.ctx ? await audienceChannels(this.ctx, ws, roomId) : ["managers"];
+  }
+
   toRoom(ws: string, roomId: string, event: string, payload: unknown, opts?: { visitor?: unknown }) {
     if (event === "message:receipt") return this.queueReceipt(ws, roomId, payload as { reader: { type: string; id?: string } }, opts?.visitor);
-    this.timed(event, () => {
-      const n = this.nsp(ws);
-      if (!n) return;
-      n.to(`room:${roomId}`).emit(event, payload);
-      if (opts?.visitor !== undefined) n.to(`vroom:${roomId}`).emit(event, opts.visitor);
+    this.ordered(roomId, async () => {
+      const channels = await this.teamChannels(ws, roomId);
+      this.timed(event, () => {
+        const n = this.nsp(ws);
+        if (!n) return;
+        n.to(channels).emit(event, payload);
+        if (opts?.visitor !== undefined) n.to(`vroom:${roomId}`).emit(event, opts.visitor);
+      });
     });
   }
   toMember(ws: string, memberId: string, event: string, payload: unknown) {
@@ -126,11 +150,14 @@ export class SocketBus implements RealtimeBus {
     const q = this.receiptQueue;
     this.receiptQueue = new Map();
     for (const { ws, roomId, payload, visitor } of q.values()) {
-      this.timed("message:receipt", () => {
-        const n = this.nsp(ws);
-        if (!n) return;
-        n.to(`room:${roomId}`).emit("message:receipt", payload);
-        if (visitor !== undefined) n.to(`vroom:${roomId}`).emit("message:receipt", visitor);
+      this.ordered(roomId, async () => {
+        const channels = await this.teamChannels(ws, roomId);
+        this.timed("message:receipt", () => {
+          const n = this.nsp(ws);
+          if (!n) return;
+          n.to(channels).emit("message:receipt", payload);
+          if (visitor !== undefined) n.to(`vroom:${roomId}`).emit("message:receipt", visitor);
+        });
       });
     }
   }
@@ -151,6 +178,7 @@ export class SocketBus implements RealtimeBus {
   }
 
   async refreshRoomAccess(ws: string, roomId: string) {
+    await this.ctx?.cache.invalidate(`aud:${roomId}`);
     await this.applyRoom(ws, roomId);
     this.peers(ws, { t: "room", id: roomId });
   }
@@ -210,14 +238,7 @@ export class SocketBus implements RealtimeBus {
   private async applyRoom(ws: string, roomId: string) {
     const ctx = this.ctx;
     if (!ctx) return;
-    for (const [memberId, socks] of this.teamSocketsByMember(ws)) {
-      const row = await findMember(ctx, ws, memberId);
-      const can = row ? await canSeeRoom(ctx, actorFromRow(row), roomId) : false;
-      for (const s of socks) {
-        if (can) s.join(`room:${roomId}`);
-        else s.leave(`room:${roomId}`);
-      }
-    }
+    // team audiences are computed per event (services/audience.ts); only visitor channel membership is stored on sockets
     const visitors = this.localSockets(ws).filter((s) => (s.data as SockData).kind === "visitor");
     if (!visitors.length) return;
     const room = await ctx.db.get<{ contact_id: string; session_id: string | null; archived: number }>("SELECT contact_id, session_id, archived FROM rooms WHERE id = ? AND workspace_id = ?", roomId, ws);
@@ -243,7 +264,7 @@ export class SocketBus implements RealtimeBus {
     }
     const a = actorFromRow(row);
     for (const s of socks) {
-      for (const r of s.rooms) if (r.startsWith("room:") || r.startsWith("inbox:") || r === "managers") s.leave(r);
+      for (const r of s.rooms) if (r.startsWith("inbox:") || r.startsWith("inboxv:") || r === "managers") s.leave(r);
       await joinTeamRooms(ctx, s, a);
     }
   }
@@ -265,12 +286,12 @@ export class SocketBus implements RealtimeBus {
 }
 
 async function joinTeamRooms(ctx: AppContext, s: Socket, a: Actor) {
+  // O(inboxes), independent of how many rooms exist: room events reach agents through computed audiences, not per-room channels
   s.join(["team", `member:${a.memberId}`]);
   if (seesAll(a)) s.join("managers");
-  for (const i of await listInboxes(ctx, a)) s.join(`inbox:${i.id}`);
-  const v = roomVisibility(a);
-  const rows = await ctx.db.all<{ id: string }>(`SELECT r.id FROM rooms r WHERE r.workspace_id = ? AND r.archived = 0 AND ${v.sql}`, a.workspaceId, ...v.params);
-  s.join(rows.map((r) => `room:${r.id}`));
+  const inboxes = await listInboxes(ctx, a);
+  for (const i of inboxes) s.join(`inbox:${i.id}`);
+  if (!seesAll(a) && a.inboxVisibility === "assigned_inbox") for (const i of inboxes) s.join(`inboxv:${i.id}`);
 }
 
 function errorAck(e: unknown) {
@@ -681,11 +702,11 @@ function registerHandlers(ctx: AppContext, socket: Socket, ready: Promise<void>)
     if (who.actor) {
       if (!(await canSeeRoom(ctx, who.actor, p.room_id))) throw new AppError(404, "NOT_FOUND", "Room not found");
       const payload = { room_id: p.room_id, typing: p.typing, who: { type: "agent", id: who.actor.memberId, name: who.actor.name } };
-      socket.to(`room:${p.room_id}`).volatile.emit("typing", payload);
+      socket.to(await audienceChannels(ctx, ws, p.room_id)).volatile.emit("typing", payload);
       if (!p.internal) socket.to(`vroom:${p.room_id}`).volatile.emit("typing", { ...payload, who: { type: "agent", name: who.actor.name } });
     } else {
       if (!(await visitorRooms(ctx, who.session!)).some((r) => r.id === p.room_id)) throw new AppError(404, "NOT_FOUND", "Room not found");
-      socket.to(`room:${p.room_id}`).volatile.emit("typing", { room_id: p.room_id, typing: p.typing, who: { type: "contact", id: (data as VisitorData).contactId } });
+      socket.to(await audienceChannels(ctx, ws, p.room_id)).volatile.emit("typing", { room_id: p.room_id, typing: p.typing, who: { type: "contact", id: (data as VisitorData).contactId } });
     }
     return {};
   });

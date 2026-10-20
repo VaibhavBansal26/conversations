@@ -328,8 +328,10 @@ export async function migrate(db: Db, dir = resolve(dirname(fileURLToPath(import
     await db.exec("CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)");
     const done = new Set((await db.all<{ name: string }>("SELECT name FROM _migrations")).map((r) => r.name));
     const applied: string[] = [];
+    // `NNN_name.sql` applies everywhere; `NNN_name.pg.sql` / `NNN_name.sqlite.sql` only on that dialect (a name is recorded once either way)
+    const other = db.dialect === "postgres" ? ".sqlite.sql" : ".pg.sql";
     for (const file of readdirSync(dir)
-      .filter((f) => f.endsWith(".sql"))
+      .filter((f) => f.endsWith(".sql") && !f.endsWith(other))
       .sort()) {
       if (done.has(file)) continue;
       await db.exec(readFileSync(resolve(dir, file), "utf8"));

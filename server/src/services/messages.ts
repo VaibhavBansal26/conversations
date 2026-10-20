@@ -18,7 +18,7 @@ import {
   messageDto,
   messageDtos,
   loadRefs,
-  refreshLastMessage,
+  refreshLastMessage, lastMessageBrief,
   type InsertResult,
   type MessageRow,
 } from "./messageStore.js";
@@ -105,7 +105,9 @@ export async function parseMentions(ctx: AppContext, ws: string, room: RoomRow, 
 }
 
 async function existingByQid(ctx: AppContext, roomId: string, qid: string | undefined): Promise<MessageRow | undefined> {
-  return qid ? await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE room_id = ? AND client_msg_id = ?", roomId, qid) : undefined;
+  return qid
+    ? await ctx.db.get<MessageRow>("SELECT m.* FROM message_qids q JOIN messages m ON m.room_id = q.room_id AND m.id = q.message_id WHERE q.room_id = ? AND q.client_msg_id = ?", roomId, qid)
+    : undefined;
 }
 
 async function validateRef(ctx: AppContext, room: RoomRow, refId: string | undefined): Promise<void> {
@@ -316,6 +318,7 @@ export async function editMessage(ctx: AppContext, actor: Actor, id: string, inp
   if (!text) throw unprocessable("EMPTY_MESSAGE", "Message is empty");
   await ctx.db.run("UPDATE messages SET content = ?, content_text = ?, edited_at = ? WHERE id = ?", content, text, nowIso(ctx), id);
   const fresh = (await findMessageRow(ctx, actor.workspaceId, id))!;
+  if (room.last_message_id === id) await ctx.db.run("UPDATE rooms SET last_brief = ? WHERE id = ?", JSON.stringify(lastMessageBrief(fresh)), room.id);
   await emitMessage(ctx, await getRoomRow(ctx, room.workspace_id, room.id), fresh, "message:updated");
   return fresh;
 }

@@ -2,6 +2,7 @@ import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
 import { closeContext, createContext } from "./app-context.js";
 import { loadConfig } from "./config.js";
+import { startOutbox } from "./events/outbox.js";
 import { startScheduler } from "./jobs/scheduler.js";
 import { createLogger } from "./logger.js";
 import { startTelemetry } from "./telemetry.js";
@@ -33,6 +34,7 @@ const server = serve({ fetch: app.fetch, port: config.PORT, hostname: config.HOS
 (server as import("node:http").Server).headersTimeout = 66_000;
 const sockets = await attachSocketServer(server as never, ctx, bus);
 const stopScheduler = config.SCHEDULER_ENABLED ? await startScheduler(ctx) : () => {};
+const outbox = config.SCHEDULER_ENABLED ? await startOutbox(ctx) : null;
 
 let closing = false;
 /**
@@ -45,6 +47,7 @@ async function shutdown(signal: string) {
   log.info("draining", { signal, node: ctx.nodeId, ...sockets.stats() });
   ctx.state.draining = true;
   stopScheduler();
+  await outbox?.stop();
   await sockets.drain(config.WS_DRAIN_MS);
   await new Promise<void>((resolve) => (server as import("node:http").Server).close(() => resolve()));
   await sockets.close();

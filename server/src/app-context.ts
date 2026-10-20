@@ -5,7 +5,9 @@ import { createAiProvider, type AiProvider } from "./ai/provider.js";
 import type { Config } from "./config.js";
 import { BackgroundTracker, type AppContext } from "./context.js";
 import { migrate, openDb } from "./db/index.js";
+import { ensureMessagePartitions } from "./db/partitions.js";
 import { LocalCache } from "./infra/cache.js";
+import { MemoryBus, RedisStreamsBus } from "./infra/eventbus.js";
 import { MemoryStore } from "./ratelimit/memoryStore.js";
 import { RedisStore } from "./ratelimit/redisStore.js";
 import { RateLimiter } from "./ratelimit/limiter.js";
@@ -50,6 +52,7 @@ export async function createContext(config: Config, o: ContextOverrides = {}): P
   const log = o.log ?? createLogger(config.LOG_LEVEL);
   const db = await openDb({ url: config.DATABASE_URL, path: config.DATABASE_PATH, poolMax: config.DATABASE_POOL_MAX });
   await migrate(db);
+  await ensureMessagePartitions(db);
   const bus = o.bus ?? new RecordingBus();
   const nodeId = config.NODE_ID ?? `${hostname()}-${randomBytes(3).toString("hex")}`;
   const hub = config.REDIS_URL && !o.noRedis ? new RedisHub(config.REDIS_URL, log, config.REDIS_PREFIX) : null;
@@ -70,6 +73,7 @@ export async function createContext(config: Config, o: ContextOverrides = {}): P
     storage: o.storage ?? new LocalDiskStorage(resolve(config.DATA_DIR, "uploads"), config.PUBLIC_URL, config.JWT_SECRET, () => ctxRef.clock().getTime()),
     ai: o.ai ?? createAiProvider(config),
     ratelimit: undefined as never,
+    eventBus: hub ? new RedisStreamsBus(hub) : new MemoryBus(),
     cache,
     locks: hub ? new RedisLocks(hub) : new MemoryLocks(),
     queue: undefined as never,
@@ -150,6 +154,7 @@ export async function closeContext(ctx: AppContext): Promise<void> {
   if ((ctx as { closed?: boolean }).closed) return;
   (ctx as { closed?: boolean }).closed = true;
   await ctx.background.settle();
+  await ctx.eventBus.close();
   await ctx.queue.close();
   ctx.ratelimit.stop();
   await ctx.ratelimit.shared.close();

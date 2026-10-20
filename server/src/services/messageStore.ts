@@ -1,3 +1,4 @@
+import { TOPIC_MESSAGES, writeOutbox, type MessageEvent } from "../events/outbox.js";
 import type { AppContext } from "../context.js";
 import { nowIso } from "../context.js";
 import type { Attachment, Delivery, MessageKind, MessageSource, SenderType } from "../domain/types.js";
@@ -78,10 +79,12 @@ async function rawInsert(ctx: AppContext, m: NewMessage, now: string): Promise<M
   const bump = await ctx.db.get<{ next_seq: number }>("UPDATE rooms SET next_seq = next_seq + 1 WHERE id = ? RETURNING next_seq", m.roomId);
   if (!bump) throw new Error("room vanished");
   const id = newId("msg");
-  await ctx.db.run(
+  // the idempotency claim commits or rolls back with the message; a duplicate client_msg_id fails here as a unique violation
+  if (m.clientMsgId) await ctx.db.run("INSERT INTO message_qids(room_id, client_msg_id, message_id, created_at) VALUES (?,?,?,?)", m.roomId, m.clientMsgId, id, now);
+  const row = await ctx.db.get<MessageRow>(
     `INSERT INTO messages(id, workspace_id, room_id, seq, client_msg_id, sender_type, sender_id, sender_name, kind, source, content, content_text, subject,
        ref_message_id, attachments, meta, delivery, provider_message_id, rfc_message_id, in_reply_to, references_hdr, from_addr, to_addr, created_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING *`,
     id,
     m.workspaceId,
     m.roomId,
@@ -115,7 +118,19 @@ async function rawInsert(ctx: AppContext, m: NewMessage, now: string): Promise<M
       ...mentioned.flatMap((member) => [id, m.roomId, m.workspaceId, member]),
     );
   }
-  return (await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE id = ?", id))!;
+  // the event commits with the message (insertMessage wraps this in its transaction); a relay publishes it after commit
+  await writeOutbox(ctx, TOPIC_MESSAGES, m.roomId, {
+    type: "message.created",
+    workspace_id: m.workspaceId,
+    room_id: m.roomId,
+    message_id: id,
+    seq: bump.next_seq,
+    sender_type: m.senderType,
+    kind: m.kind,
+    source: m.source,
+    created_at: now,
+  } satisfies MessageEvent);
+  return row!;
 }
 
 /**
@@ -155,7 +170,7 @@ export async function insertMessage(ctx: AppContext, m: NewMessage): Promise<Ins
     const isSystem = m.senderType === "system";
     await ctx.db.run(
       `UPDATE rooms SET last_message_id = CASE WHEN ? = 1 THEN last_message_id ELSE ? END, last_message_at = CASE WHEN ? = 1 THEN last_message_at ELSE ? END,
-         last_message_seq = CASE WHEN ? = 1 THEN last_message_seq ELSE ? END, updated_at = ?,
+         last_message_seq = CASE WHEN ? = 1 THEN last_message_seq ELSE ? END, last_brief = CASE WHEN ? = 1 THEN last_brief ELSE ? END, updated_at = ?,
          last_contact_message_at = CASE WHEN ? = 'contact' THEN ? ELSE last_contact_message_at END,
          digest_due = CASE WHEN ? = 'contact' THEN 1 ELSE digest_due END,
          status = CASE WHEN ? = 1 THEN 'open' ELSE status END,
@@ -168,6 +183,8 @@ export async function insertMessage(ctx: AppContext, m: NewMessage): Promise<Ins
       now,
       isSystem,
       message.seq,
+      isSystem,
+      JSON.stringify(lastMessageBrief(message)),
       now,
       m.senderType,
       now,
@@ -266,7 +283,6 @@ export async function visitorMessageDtos(ctx: AppContext, rows: MessageRow[], vi
 }
 
 export async function roomPatch(ctx: AppContext, room: RoomRow) {
-  const last = room.last_message_id ? await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE id = ?", room.last_message_id) : undefined;
   return {
     id: room.id,
     status: room.status,
@@ -275,8 +291,21 @@ export async function roomPatch(ctx: AppContext, room: RoomRow) {
     last_message_at: room.last_message_at,
     last_contact_message_at: room.last_contact_message_at,
     updated_at: room.updated_at,
-    last_message: last && !last.deleted_at ? lastMessageBrief(last) : null,
+    last_message: await lastBriefOf(ctx, room),
   };
+}
+
+/**
+ * The room's "last message" card straight from the denormalised column (no messages-table access). Rooms that predate the column are
+ * filled in on first read.
+ */
+export async function lastBriefOf(ctx: AppContext, room: Pick<RoomRow, "id" | "last_message_id" | "last_brief">): Promise<ReturnType<typeof lastMessageBrief> | null> {
+  if (room.last_brief) return JSON.parse(room.last_brief);
+  if (!room.last_message_id) return null;
+  const m = await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE room_id = ? AND id = ?", room.id, room.last_message_id);
+  const brief = m && !m.deleted_at ? lastMessageBrief(m) : null;
+  if (brief) await ctx.db.run("UPDATE rooms SET last_brief = ? WHERE id = ? AND last_brief IS NULL", JSON.stringify(brief), room.id);
+  return brief;
 }
 
 export const lastMessageBrief = (m: MessageRow) => ({
@@ -309,10 +338,11 @@ export async function postSystemMessage(ctx: AppContext, roomId: string, workspa
 export async function refreshLastMessage(ctx: AppContext, roomId: string): Promise<void> {
   const last = await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE room_id = ? AND deleted_at IS NULL AND kind != 'system' ORDER BY seq DESC LIMIT 1", roomId);
   await ctx.db.run(
-    "UPDATE rooms SET last_message_id = ?, last_message_at = COALESCE(?, created_at), last_message_seq = ? WHERE id = ?",
+    "UPDATE rooms SET last_message_id = ?, last_message_at = COALESCE(?, created_at), last_message_seq = ?, last_brief = ? WHERE id = ?",
     last?.id ?? null,
     last?.created_at ?? null,
     last?.seq ?? 0,
+    last ? JSON.stringify(lastMessageBrief(last)) : null,
     roomId,
   );
 }

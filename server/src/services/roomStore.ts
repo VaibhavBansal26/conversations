@@ -18,6 +18,8 @@ export interface RoomRow {
   subject: string | null;
   next_seq: number;
   last_message_id: string | null;
+  /** JSON of lastMessageBrief for the last non-system message; NULL for rooms predating the column */
+  last_brief: string | null;
   last_message_at: string | null;
   last_message_seq: number;
   last_contact_message_at: string | null;

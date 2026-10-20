@@ -3,6 +3,7 @@ import type { Db } from "./db/index.js";
 import type { Logger } from "./logger.js";
 import type { RealtimeBus } from "./realtime/bus.js";
 import type { PresenceService } from "./infra/presence.js";
+import type { EventBus } from "./infra/eventbus.js";
 import type { RateLimiter } from "./ratelimit/limiter.js";
 import type { Cache } from "./infra/cache.js";
 import type { Locks } from "./infra/locks.js";
@@ -27,6 +28,8 @@ export interface AppContext {
   storage: Storage;
   ai: AiProvider;
   ratelimit: RateLimiter;
+  /** domain event bus fed by the transactional outbox (Redis Streams when REDIS_URL is set, in-process otherwise) */
+  eventBus: EventBus;
   cache: Cache;
   locks: Locks;
   queue: JobQueue;

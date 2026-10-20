@@ -71,7 +71,14 @@ describe("socket handshake and connection limits", () => {
     const srv = await server({ WS_MAX_HANDSHAKES: "2" });
     const { wsId, owner } = await srv.seedWorkspace(srv.ctx, "Shed");
     const token = await (await import("./helpers.js")).tokenFor(srv.ctx, owner);
+    // make authentication take a moment so handshakes genuinely overlap
+    const realGet = srv.ctx.db.get.bind(srv.ctx.db);
+    (srv.ctx.db as any).get = async (...a: unknown[]) => {
+      await new Promise((r) => setTimeout(r, 15));
+      return (realGet as any)(...a);
+    };
     const results = await Promise.all(Array.from({ length: 40 }, () => attempt(srv.url, wsId, { token })));
+    (srv.ctx.db as any).get = realGet;
     const shed = results.filter((r) => r.code === "OVERLOADED");
     expect(shed.length).toBeGreaterThan(0);
     expect(shed.every((r) => (r.retry ?? 0) >= 1500)).toBe(true);

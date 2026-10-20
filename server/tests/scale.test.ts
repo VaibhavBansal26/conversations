@@ -82,6 +82,11 @@ describe("500 concurrent sockets", () => {
       }
     }
 
+    // lazy subscription: an agent socket's channel set is O(inboxes), not O(rooms), however many rooms exist
+    const teamSocks = (srv.ctx.bus as unknown as { localSockets(ws: string): { rooms: Set<string>; data: { kind: string } }[] }).localSockets(wsId).filter((x) => x.data.kind === "team");
+    expect(teamSocks).toHaveLength(AGENTS);
+    for (const t of teamSocks) expect(t.rooms.size).toBeLessThanOrEqual(6);
+
     // an agent reply reaches exactly the one visitor in that room
     const target = people[7]!;
     const got: unknown[] = [];
