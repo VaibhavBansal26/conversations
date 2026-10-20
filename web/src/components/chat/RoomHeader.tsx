@@ -1,12 +1,14 @@
 import { Link } from "react-router";
 import { useInboxes, useMembers, useRoomActions } from "../../api/hooks";
 import type { Room } from "../../api/types";
-import { useSession } from "../../auth/AuthContext";
+import { useCan, useSession } from "../../auth/AuthContext";
 import { useSocket } from "../../realtime/SocketProvider";
 import { isSnoozed } from "../../state/roomCache";
 import { Avatar } from "../ui/Avatar";
 import { Icon } from "../ui/Icon";
 import { Menu, type MenuItem } from "../ui/Menu";
+import { useState } from "react";
+import { RequestPaymentDialog } from "./RequestPaymentDialog";
 import { SnoozeMenu } from "./SnoozeMenu";
 import { SummaryPopover } from "./SummaryPopover";
 
@@ -21,11 +23,13 @@ interface Props {
 }
 
 export function RoomHeader({ room, backTo, assignOpen, onAssignOpen, panelOpen, onTogglePanel, titleRef }: Props) {
-  const { member } = useSession();
+  const { member, workspace } = useSession();
   const members = useMembers().data ?? [];
   const inboxes = useInboxes().data ?? [];
   const { visitorOnline } = useSocket();
   const actions = useRoomActions(room.id);
+  const canRequestPayment = useCan("payments:request");
+  const [paying, setPaying] = useState(false);
   const name = room.contact?.name || room.contact?.email || room.contact?.phone || "Unknown contact";
   const closed = room.status === "closed";
   const assigned = members.filter((m) => room.assignee_ids.includes(m.id));
@@ -87,6 +91,11 @@ export function RoomHeader({ room, backTo, assignOpen, onAssignOpen, panelOpen, 
         </button>
         <SnoozeMenu snoozed={isSnoozed(room, new Date())} onSnooze={(until) => actions.snooze.mutate(until)} />
         <SummaryPopover roomId={room.id} />
+        {canRequestPayment && (
+          <button type="button" className="icon-btn" aria-label="Request payment" title="Request payment" onClick={() => setPaying(true)}>
+            <Icon name="card" />
+          </button>
+        )}
         <button type="button" className={`btn btn-sm ${closed ? "btn-primary" : "btn-outline"}`} onClick={() => actions.patch.mutate({ status: closed ? "open" : "closed" })}>
           <Icon name={closed ? "refresh" : "check"} size={15} /> {closed ? "Reopen" : "Close"}
         </button>
@@ -94,6 +103,7 @@ export function RoomHeader({ room, backTo, assignOpen, onAssignOpen, panelOpen, 
           <Icon name="panel" />
         </button>
       </div>
+      {paying && <RequestPaymentDialog roomId={room.id} currency={workspace.currency} onClose={() => setPaying(false)} />}
     </header>
   );
 }

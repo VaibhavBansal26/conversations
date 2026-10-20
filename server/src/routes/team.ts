@@ -35,6 +35,8 @@ export function teamRoutes(ctx: AppContext) {
   r.post("/credits/grant", async (c) => {
     const a = c.get("actor");
     if (a.role !== "owner") throw forbidden("Only an owner can add credits");
+    // with Stripe connected, credits are bought (or granted by a platform admin), never self-issued
+    if (ctx.billing.configured) throw forbidden("Credits are purchased under Settings > Billing", "CREDIT_GRANT_DISABLED");
     const b = await parseBody(c, CreditGrant);
     return c.json({ balance: await recordUsage(ctx, a.workspaceId, "grant", b.amount, b.note) }, 201);
   });

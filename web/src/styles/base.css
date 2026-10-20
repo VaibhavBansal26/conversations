@@ -360,6 +360,21 @@ button:disabled {
   background: var(--danger-soft);
   color: var(--danger);
 }
+.notice-warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+.notice-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+.banner.billing {
+  top: 52px;
+}
 .notice-muted {
   background: var(--surface-3);
   color: var(--text-2);

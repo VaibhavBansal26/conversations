@@ -20,6 +20,7 @@ const TemplateSettings = lazy(() => import("./pages/settings/TemplateSettings").
 const TokenSettings = lazy(() => import("./pages/settings/TokenSettings").then((m) => ({ default: m.TokenSettings })));
 const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage").then((m) => ({ default: m.AnalyticsPage })));
 const SecuritySettings = lazy(() => import("./pages/settings/SecuritySettings").then((m) => ({ default: m.SecuritySettings })));
+const BillingSettings = lazy(() => import("./pages/settings/BillingSettings").then((m) => ({ default: m.BillingSettings })));
 const RoleSettings = lazy(() => import("./pages/settings/RoleSettings").then((m) => ({ default: m.RoleSettings })));
 const WidgetSettings = lazy(() => import("./pages/settings/WidgetSettings").then((m) => ({ default: m.WidgetSettings })));
 
@@ -51,6 +52,7 @@ export function App() {
             <Route path="ai" element={<AiSettings />} />
             <Route path="security" element={<SecuritySettings />} />
             <Route path="roles" element={<RoleSettings />} />
+            <Route path="billing" element={<BillingSettings />} />
             <Route path="notifications" element={<NotificationSettings />} />
           </Route>
         </Route>

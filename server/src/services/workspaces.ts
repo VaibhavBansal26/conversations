@@ -2,7 +2,7 @@ import type { AppContext } from "../context.js";
 import { nowIso } from "../context.js";
 import { mergeSettings, parseSettings, WorkspaceSettingsPatchSchema, type WorkspaceSettings } from "../domain/settings.js";
 import { notFound, paymentRequired } from "../errors.js";
-import { assertNotLocked } from "../billing/state.js";
+import { accountState, assertNotLocked } from "../billing/state.js";
 import { onBalanceChanged } from "../billing/credits.js";
 import { newId } from "../util/ids.js";
 import type { z } from "zod";
@@ -27,7 +27,9 @@ export const getSettings = (ctx: AppContext, id: string): Promise<WorkspaceSetti
 
 export async function workspaceDto(ctx: AppContext, id: string) {
   const w = await getWorkspace(ctx, id);
-  return { id: w.id, name: w.name, created_at: w.created_at, settings: parseSettings(w.settings), credit_balance: w.credit_balance };
+  const s = await accountState(ctx, id);
+  // plan and billing access are shown to every member (a locked workspace explains itself to all of them); amounts and cards stay with billing:manage
+  return { id: w.id, name: w.name, created_at: w.created_at, settings: parseSettings(w.settings), credit_balance: w.credit_balance, plan: s.plan, billing_access: s.state, billing_grace_until: s.graceUntil, currency: ctx.config.BILLING_CURRENCY };
 }
 
 export async function updateWorkspace(ctx: AppContext, id: string, patch: { name?: string; settings?: z.infer<typeof WorkspaceSettingsPatchSchema> }) {

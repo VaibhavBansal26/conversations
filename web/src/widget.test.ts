@@ -286,3 +286,37 @@ describe("satisfaction rating", () => {
     expect(shadow().querySelector(".rate")).toBeNull();
   });
 });
+
+describe("payment request card", () => {
+  const card = (o: any = {}) => ({ type: "payment_request", id: "pay_1", amount: 2500, currency: "usd", description: "Deposit for the install", status: "open", url: "https://checkout.stripe.test/pay/1", paid_at: null, ...o });
+
+  it("shows amount, description and a Pay now link to the Stripe page, and updates to Paid live", async () => {
+    const pay = mkMsg({ id: "msg_pay", seq: 2, content_text: "Payment request: Deposit - $25.00\nPay securely: https://checkout.stripe.test/pay/1", meta: { card: card() } });
+    replies["GET /public/rooms/room_1/messages"] = () => ({ json: { data: [pay] } });
+    widget = await boot();
+    widget.open();
+    await flush(); await flush(); await flush();
+    const el = shadow().querySelector(".m.pay") as HTMLElement;
+    expect(el.textContent).toContain("$25.00");
+    expect(el.textContent).toContain("Deposit for the install");
+    expect(el.textContent).toContain("Awaiting payment");
+    expect(el.textContent).not.toContain("Pay securely"); // the card replaces the raw link text
+    const a = el.querySelector("a.btn") as HTMLAnchorElement;
+    expect([a.href, a.target, a.rel]).toEqual(["https://checkout.stripe.test/pay/1", "_blank", "noopener noreferrer"]);
+
+    sockets[0]!.fire("message:updated", { message: { ...pay, meta: { card: card({ status: "paid", url: null, paid_at: "2026-03-02T10:00:00Z" }) } } });
+    const paid = shadow().querySelector(".m.pay") as HTMLElement;
+    expect(paid.classList.contains("paid")).toBe(true);
+    expect(paid.textContent).toContain("Paid, thank you");
+    expect(paid.querySelector("a")).toBeNull();
+  });
+
+  it("never links anything but an https URL", async () => {
+    const evil = mkMsg({ id: "msg_evil", seq: 2, meta: { card: card({ url: "javascript:alert(1)" }) } });
+    replies["GET /public/rooms/room_1/messages"] = () => ({ json: { data: [evil] } });
+    widget = await boot();
+    widget.open();
+    await flush(); await flush(); await flush();
+    expect(shadow().querySelector(".m.pay a")).toBeNull();
+  });
+});

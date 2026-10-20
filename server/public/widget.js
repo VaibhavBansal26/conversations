@@ -41,6 +41,14 @@
     return el;
   }
 
+  var PAY_LABEL = { open: "Awaiting payment", paid: "Paid, thank you", expired: "Expired", canceled: "Cancelled", refunded: "Refunded" };
+  function formatMoney(minor, currency) {
+    try {
+      var f = new Intl.NumberFormat(undefined, { style: "currency", currency: String(currency).toUpperCase() });
+      return f.format(minor / Math.pow(10, f.resolvedOptions().maximumFractionDigits));
+    } catch (e) { return (minor / 100).toFixed(2) + " " + String(currency).toUpperCase(); }
+  }
+
   function linkify(doc, text) {
     var frag = doc.createDocumentFragment();
     var re = /(https?:\/\/[^\s<]+)/g, last = 0, m;
@@ -81,6 +89,11 @@
     ".m .tag{display:inline-block;font-size:10px;background:#4338ca;color:#fff;border-radius:4px;padding:0 4px;margin-left:4px}",
     ".m .meta{display:block;font-size:11px;opacity:.75;margin-top:2px;text-align:right}",
     ".m.failed{background:#fee2e2;color:#7f1d1d}",
+    ".m.pay{background:#fff;color:#111827;border:1px solid #d1d5db;min-width:200px}",
+    ".pay .amt{font-size:20px;font-weight:650;display:block}",
+    ".pay .st{font-size:12px;color:#6b7280;display:block;margin:2px 0 6px}",
+    ".pay.paid{border-color:#16a34a}.pay.paid .st{color:#15803d}",
+    ".pay a.btn{display:inline-block;background:var(--c);color:var(--t);padding:6px 12px;border-radius:8px;text-decoration:none;font-weight:600}",
     ".m.sys{align-self:center;background:transparent;border:0;color:#6b7280;font-size:12px}",
     ".typing{font-size:12px;color:#6b7280;padding:0 14px 6px;min-height:20px}",
     ".compose{display:flex;gap:8px;padding:10px;border-top:1px solid #e5e7eb;background:#fff}",
@@ -193,9 +206,19 @@
           body.appendChild(who);
         }
         var text = m.content_text != null ? m.content_text : m.content || "";
-        var span = h(doc, "span");
-        span.appendChild(linkify(doc, text));
-        body.appendChild(span);
+        var card = m.meta && m.meta.card && m.meta.card.type === "payment_request" ? m.meta.card : null;
+        if (card) {
+          body.className += " pay " + String(card.status).replace(/[^a-z]/g, "");
+          body.appendChild(h(doc, "span", { class: "amt", text: formatMoney(card.amount, card.currency) }));
+          body.appendChild(h(doc, "span", { text: String(card.description || "") }));
+          body.appendChild(h(doc, "span", { class: "st", text: PAY_LABEL[card.status] || "" }));
+          // only a Stripe-hosted https page is ever offered as a link
+          if (card.status === "open" && /^https:\/\//.test(card.url || "")) body.appendChild(h(doc, "a", { class: "btn", href: card.url, target: "_blank", rel: "noopener noreferrer", text: "Pay now" }));
+        } else {
+          var span = h(doc, "span");
+          span.appendChild(linkify(doc, text));
+          body.appendChild(span);
+        }
         if (mine) {
           var meta = h(doc, "span", { class: "meta" });
           if (m.status === "failed") {

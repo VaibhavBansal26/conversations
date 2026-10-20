@@ -655,3 +655,13 @@
   font: inherit;
   text-decoration: underline;
 }
+
+/* payment request card inside a message bubble */
+.pay-card { display: grid; gap: 4px; min-width: 220px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); }
+.pay-card .pay-amount { font-size: 22px; font-weight: 650; }
+.pay-card .pay-desc { color: var(--text-2); }
+.pay-card .pay-status { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); }
+.pay-card.status-paid { border-color: var(--success); }
+.pay-card.status-paid .pay-status { color: var(--success); }
+.pay-card.status-expired, .pay-card.status-canceled, .pay-card.status-refunded { opacity: 0.75; }
+.pay-card .pay-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }

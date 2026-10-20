@@ -5,6 +5,7 @@ import { Icon } from "../ui/Icon";
 import { Attachments } from "./Attachments";
 import { DeliveryStatus } from "./DeliveryStatus";
 import { COLLAPSE_FROM, EmailBody } from "./EmailBody";
+import { PaymentCard, asPaymentCard } from "./PaymentCard";
 import { RichText } from "./RichText";
 
 export interface BubbleProps {
@@ -42,6 +43,7 @@ export function MessageBubble({ message: m, selfMemberId, contactName, first, la
   const reason = m.local?.error ?? m.failure_reason ?? "Unknown error";
   const canEdit = mine && !m.local && m.kind === "text" && editWindowOpen && !!onEdit;
   const text = m.content_text || m.content;
+  const payCard = asPaymentCard(m.meta);
 
   const submitEdit = async () => {
     const next = draft.trim();
@@ -83,6 +85,8 @@ export function MessageBubble({ message: m, selfMemberId, contactName, first, la
               </button>
             </div>
           </div>
+        ) : payCard ? (
+          <PaymentCard card={payCard} />
         ) : (
           text && (
             <p className="body">{m.source === "email" && m.sender.type === "contact" && text.length >= COLLAPSE_FROM ? <EmailBody text={text} /> : <RichText text={text} />}</p>

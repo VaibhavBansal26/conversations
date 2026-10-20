@@ -77,6 +77,11 @@ export interface Workspace {
   created_at: string;
   settings: WorkspaceSettings;
   credit_balance: number;
+  plan?: "free" | "pro" | "business";
+  /** ok | grace (a payment failed, still working) | locked (overdue: external sends refused) */
+  billing_access?: "ok" | "grace" | "locked";
+  billing_grace_until?: string | null;
+  currency?: string;
 }
 
 export interface Session {
