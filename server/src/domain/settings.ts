@@ -25,6 +25,11 @@ const WidgetShape = z.object({
   logo_url: z.string().url().max(500).nullable().default(null),
   launcher_position: z.enum(["left", "right"]).default("right"),
   launcher_spacing: z.number().int().min(0).max(200).default(20),
+  /** bubble = round icon button, pill = icon + label, icon = rounded-square icon button */
+  launcher_style: z.enum(["bubble", "pill", "icon"]).default("bubble"),
+  launcher_label: z.string().max(24).default("Chat with us"),
+  /** corner radius of the chat panel in px (message bubbles and controls scale from it) */
+  radius: z.number().int().min(0).max(24).default(16),
   sound: z.boolean().default(true),
   welcome_message: z.string().max(500).default("Hi there! How can we help you today?"),
   away_message: z.string().max(500).default("We're currently away. Leave a message and we'll get back to you."),

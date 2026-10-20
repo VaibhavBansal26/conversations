@@ -1108,6 +1108,26 @@
                             "minimum": 0,
                             "maximum": 200
                           },
+                          "launcher_style": {
+                            "default": "bubble",
+                            "type": "string",
+                            "enum": [
+                              "bubble",
+                              "pill",
+                              "icon"
+                            ]
+                          },
+                          "launcher_label": {
+                            "default": "Chat with us",
+                            "type": "string",
+                            "maxLength": 24
+                          },
+                          "radius": {
+                            "default": 16,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 24
+                          },
                           "sound": {
                             "default": true,
                             "type": "boolean"
