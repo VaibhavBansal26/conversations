@@ -1,3 +1,4 @@
+import { metricsTriage } from "../services/roomMetrics.js";
 import { z } from "zod";
 import type { AppContext } from "../context.js";
 import { nowIso } from "../context.js";
@@ -189,6 +190,7 @@ export async function triageMessage(ctx: AppContext, room: RoomRow, message: Mes
     nowIso(ctx),
     room.id,
   );
+  await metricsTriage(ctx, room.id, { intent: result.intent, sentiment: (result as { sentiment?: string }).sentiment, urgency: result.urgency });
   await publishRoomUpdated(ctx, fresh);
   const m2 = (await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE room_id = ? AND id = ?", message.room_id, message.id))!;
   await emitMessage(ctx, await getRoomRow(ctx, room.workspace_id, room.id), m2, "message:updated");

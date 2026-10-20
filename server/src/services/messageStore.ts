@@ -1,3 +1,4 @@
+import { metricsMessage, metricsUnsnoozed } from "./roomMetrics.js";
 import { putRef } from "./messageRefs.js";
 import { TOPIC_MESSAGES, writeOutbox, type MessageEvent } from "../events/outbox.js";
 import type { AppContext } from "../context.js";
@@ -200,6 +201,8 @@ export async function insertMessage(ctx: AppContext, m: NewMessage): Promise<Ins
       unsnoozed,
       m.roomId,
     );
+    if (unsnoozed) await metricsUnsnoozed(ctx, m.workspaceId, m.roomId, now);
+    await metricsMessage(ctx, before, message, reopens, now);
     return { message, room: await getRoomRow(ctx, m.workspaceId, m.roomId), reopened: reopens, unsnoozed, extra };
   });
 }

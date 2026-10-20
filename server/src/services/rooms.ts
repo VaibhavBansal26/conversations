@@ -1,3 +1,4 @@
+import { metricsAssignee, metricsCreated, metricsSnoozed, metricsStatus, metricsUnsnoozed } from "./roomMetrics.js";
 import type { AppContext } from "../context.js";
 import { nowIso } from "../context.js";
 import { isUniqueViolation, type Param } from "../db/index.js";
@@ -249,6 +250,7 @@ export async function findOrCreateRoom(ctx: AppContext, ws: string, input: Creat
   if (input.inboxId && !(await findInbox(ctx, ws, input.inboxId))) throw unprocessable("UNKNOWN_INBOX", "Inbox does not exist");
   const id = newId("room");
   const now = nowIso(ctx);
+  let assignedTo: string | null = null;
   try {
     await ctx.db.tx(async () => {
       await ctx.db.run(
@@ -269,8 +271,11 @@ export async function findOrCreateRoom(ctx: AppContext, ws: string, input: Creat
         if (pick) {
           await ctx.db.run("INSERT INTO room_assignees(room_id, member_id, added_at) VALUES (?,?,?)", id, pick, now);
           await addFollower(ctx, input.contactId, pick);
+          assignedTo = pick;
         }
       }
+      await metricsCreated(ctx, { id, workspace_id: ws, inbox_id: input.inboxId ?? null, contact_id: input.contactId, created_at: now } as RoomRow);
+      if (assignedTo) await metricsAssignee(ctx, id, assignedTo);
     });
   } catch (e) {
     if (isUniqueViolation(e)) {
@@ -321,6 +326,7 @@ export async function setAssignees(ctx: AppContext, room: RoomRow, memberIds: st
       await addFollower(ctx, room.contact_id, m);
     }
     await ctx.db.run("UPDATE rooms SET updated_at = ? WHERE id = ?", now, room.id);
+    await metricsAssignee(ctx, room.id, next[0] ?? null);
   });
   const names = await Promise.all(next.map(async (m) => (await findMember(ctx, ws, m))?.name ?? "Someone"));
   await postSystemMessage(ctx, room.id, ws, next.length ? `${byName} assigned this conversation to ${names.join(", ")}` : `${byName} unassigned this conversation`, {
@@ -398,6 +404,7 @@ export async function setStatus(ctx: AppContext, actor: Actor, roomId: string, s
     );
     // closing releases the SMS sender numbers pinned to this conversation
     if (status === "closed") await ctx.db.run("DELETE FROM message_locks WHERE room_id = ? AND type = 'sms'", roomId);
+    await metricsStatus(ctx, room, status);
   });
   await postSystemMessage(ctx, roomId, actor.workspaceId, `${actor.name} ${status === "closed" ? "closed" : "reopened"} the conversation`, {
     sub_type: "status",
@@ -437,7 +444,10 @@ export async function snoozeRoom(ctx: AppContext, actor: Actor, roomId: string, 
   if (t - now > 366 * 86400_000) throw unprocessable("INVALID_SNOOZE", "Snooze time must be within a year");
   if (room.status === "closed") throw unprocessable("ROOM_CLOSED", "Closed conversations cannot be snoozed");
   const iso = new Date(t).toISOString();
-  await ctx.db.run("UPDATE rooms SET snooze_until = ?, snoozed_by = ?, updated_at = ? WHERE id = ?", iso, actor.memberId, nowIso(ctx), roomId);
+  await ctx.db.tx(async () => {
+    await ctx.db.run("UPDATE rooms SET snooze_until = ?, snoozed_by = ?, updated_at = ? WHERE id = ?", iso, actor.memberId, nowIso(ctx), roomId);
+    await metricsSnoozed(ctx, roomId);
+  });
   // wake-up is a delayed job (exact timing, no polling); the periodic sweep only exists as a safety net
   await enqueueJob(ctx, "wake_room", { room_id: roomId, until: iso }, { runAt: new Date(t), dedupeKey: `wake:${roomId}:${iso}` });
   await postSystemMessage(ctx, roomId, actor.workspaceId, `${actor.name} snoozed this conversation until ${iso}`, {
@@ -453,7 +463,10 @@ export async function snoozeRoom(ctx: AppContext, actor: Actor, roomId: string, 
 export async function unsnoozeRoom(ctx: AppContext, actor: Actor, roomId: string): Promise<RoomRow> {
   const room = await getVisibleRoom(ctx, actor, roomId);
   if (!room.snooze_until) return room;
-  await ctx.db.run("UPDATE rooms SET snooze_until = NULL, snoozed_by = NULL, updated_at = ? WHERE id = ?", nowIso(ctx), roomId);
+  await ctx.db.tx(async () => {
+    await ctx.db.run("UPDATE rooms SET snooze_until = NULL, snoozed_by = NULL, updated_at = ? WHERE id = ?", nowIso(ctx), roomId);
+    await metricsUnsnoozed(ctx, actor.workspaceId, roomId);
+  });
   const fresh = await getRoomRow(ctx, actor.workspaceId, roomId);
   await publishRoomUpdated(ctx, fresh);
   return fresh;
@@ -466,6 +479,7 @@ export async function wakeRoom(ctx: AppContext, r: RoomRow, onWake?: WakeHook): 
   const now = nowIso(ctx);
   const res = await ctx.db.run("UPDATE rooms SET snooze_until = NULL, snoozed_by = NULL, updated_at = ? WHERE id = ? AND snooze_until = ?", now, r.id, r.snooze_until);
   if (res.changes === 0) return false;
+  await metricsUnsnoozed(ctx, r.workspace_id, r.id, now);
   await postSystemMessage(ctx, r.id, r.workspace_id, "Snooze ended", { sub_type: "snooze_ended" });
   const fresh = await getRoomRow(ctx, r.workspace_id, r.id);
   ctx.bus.toRoom(r.workspace_id, r.id, "room:updated", { room: await roomBaseDto(ctx, fresh), reason: "snooze_ended" }, { visitor: { room: { id: r.id, status: fresh.status } } });

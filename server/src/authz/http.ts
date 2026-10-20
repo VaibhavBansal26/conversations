@@ -27,6 +27,6 @@ export function authorizeRoute(c: Context, actor: Actor): void {
   const { key } = specFor(c);
   const access = ROUTE_ACCESS.get(key);
   if (access === undefined) throw new AppError(403, "NO_POLICY", "This route has no authorisation policy");
-  if (access === "authed" || access === "public") return;
+  if (access === "authed" || access === "public" || access === "apikey") return;
   if (!can(actor, access)) throw new PermissionDenied(access);
 }

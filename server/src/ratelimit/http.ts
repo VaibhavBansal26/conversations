@@ -53,7 +53,7 @@ export function specFor(c: Context): { key: string; spec?: RouteSpec; exempt: bo
   return { key, spec: ROUTE_LIMITS.get(key), exempt: key in EXEMPT };
 }
 
-function keyFor(c: Context, policyId: string, st: RlState, who: { userId?: string; workspaceId?: string; visitorId?: string }): string | null {
+function keyFor(c: Context, policyId: string, st: RlState, who: { userId?: string; workspaceId?: string; visitorId?: string; apiKeyId?: string }): string | null {
   switch (policyOf(policyId).keyBy) {
     case "ip":
       return st.ip;
@@ -63,6 +63,8 @@ function keyFor(c: Context, policyId: string, st: RlState, who: { userId?: strin
       return who.workspaceId ?? null;
     case "visitor":
       return who.visitorId ?? null;
+    case "apiKey":
+      return who.apiKeyId ?? null;
     case "composite":
       // composite keys that can be computed from headers; body-derived ones are applied in handlers
       if (policyId === "public.session") return `${st.ip}|${c.req.header("origin") ?? ""}|${c.req.header("x-api-key") ?? ""}`;
@@ -72,7 +74,7 @@ function keyFor(c: Context, policyId: string, st: RlState, who: { userId?: strin
   }
 }
 
-async function apply(ctx: AppContext, c: Context, ids: string[], st: RlState, who: { userId?: string; workspaceId?: string; visitorId?: string }, spec: RouteSpec) {
+async function apply(ctx: AppContext, c: Context, ids: string[], st: RlState, who: { userId?: string; workspaceId?: string; visitorId?: string; apiKeyId?: string }, spec: RouteSpec) {
   for (const id of ids) {
     const key = keyFor(c, id, st, who);
     if (key === null) continue;
@@ -107,7 +109,7 @@ export function rateLimitMiddleware(ctx: AppContext): MiddlewareHandler {
 }
 
 /** Called by the auth middlewares once the principal is known: runs the route's `post` policies. */
-export async function applyPrincipalLimits(ctx: AppContext, c: Context, who: { userId?: string; workspaceId?: string; visitorId?: string }): Promise<void> {
+export async function applyPrincipalLimits(ctx: AppContext, c: Context, who: { userId?: string; workspaceId?: string; visitorId?: string; apiKeyId?: string }): Promise<void> {
   const st = (c as unknown as Record<symbol, RlState>)[STATE];
   if (!st?.spec?.post?.length) return;
   await apply(ctx, c, st.spec.post, st, who, st.spec);

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ALL_PERMISSIONS, PERMISSIONS, SYSTEM_ROLES, can } from "../src/authz/permissions.js";
 import { EVENT_ACCESS, ROUTE_ACCESS } from "../src/authz/routePerms.js";
+import { API_KEY_SCOPES } from "../src/services/apiKeys.js";
 import { ROUTE_LIMITS } from "../src/ratelimit/routePolicies.js";
 import { actorFromRow, getMember } from "../src/services/members.js";
 import { createRole, setMemberRole } from "../src/services/roles.js";
@@ -9,7 +10,7 @@ import { ack, startServer } from "./rt-helpers.js";
 import { addMemberRaw, fullApp, tokenFor } from "./helpers.js";
 
 /** permissions that are enforced by features not yet listed in the route table (they land with those features) */
-const NOT_YET_ROUTED = new Set<string>(["analytics:read", "analytics:export", "analytics_identity:manage", "api_keys:manage", "conversations:assign"]);
+const NOT_YET_ROUTED = new Set<string>(["conversations:assign"]);
 
 describe("authorisation declaration", () => {
   it("every registered REST route has an access rule, and every rule names a real route", async () => {
@@ -35,7 +36,8 @@ describe("authorisation declaration", () => {
 
   it("every permission in the catalogue guards something", () => {
     const used = new Set<string>(Object.values(EVENT_ACCESS).filter((v) => v !== "authed" && v !== "visitor-only"));
-    for (const a of ROUTE_ACCESS.values()) if (a !== "authed" && a !== "public") used.add(a);
+    for (const a of ROUTE_ACCESS.values()) if (a !== "authed" && a !== "public" && a !== "apikey") used.add(a);
+    for (const k of API_KEY_SCOPES) used.add(k); // permissions that bound the scopes an API key may carry
     for (const p of ALL_PERMISSIONS) expect(used.has(p) || NOT_YET_ROUTED.has(p), `permission ${p} guards nothing`).toBe(true);
     expect(Object.keys(PERMISSIONS)).toEqual(ALL_PERMISSIONS);
   });
@@ -67,7 +69,7 @@ describe("role x route matrix", () => {
     for (const [role, actor] of Object.entries(seats)) {
       const token = await tokenFor(ctx, actor);
       for (const [key, access] of ROUTE_ACCESS) {
-        if (access === "public" || access === "authed") continue;
+        if (access === "public" || access === "authed" || access === "apikey") continue;
         const [method, path] = key.split(" ") as [string, string];
         const res = await app.request(dummy(path), { method, headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: ["GET", "DELETE"].includes(method) ? undefined : "{}" });
         const body = (await res.json().catch(() => ({}))) as { error?: { code?: string } };
@@ -91,7 +93,7 @@ describe("role x route matrix", () => {
     expect((await http.get("/api/rooms", vt)).body.data.map((r: { id: string }) => r.id)).toContain(room.id);
     expect((await http.get("/api/rooms", at)).body.data).toHaveLength(0);
     expect((await http.post(`/api/rooms/${room.id}/messages`, { content: "hi", source: "dm", kind: "text" }, vt)).status).toBe(403);
-    expect((await http.get("/api/analytics/overview", vt)).status).toBe(404); // not built yet: but not 403 either way for a viewer (analytics:read)
+    expect((await http.get("/api/analytics/overview", vt)).status).toBe(200); // viewers hold analytics:read
   });
 });
 

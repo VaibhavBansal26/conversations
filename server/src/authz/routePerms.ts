@@ -8,17 +8,18 @@ import type { Permission } from "./permissions.js";
  * Deny by default: an authenticated route missing from this table is refused with 403 NO_POLICY, and a test fails the build.
  * The rate-limit declaration (ratelimit/routePolicies.ts) has the same route keys; a test keeps the two tables in step.
  */
-export type RouteAccess = Permission | "authed" | "public";
+export type RouteAccess = Permission | "authed" | "public" | "apikey";
 
 const GROUPS: [RouteAccess, string[]][] = [
   ["public", [
     "POST /api/auth/register", "POST /api/auth/login", "POST /api/auth/refresh", "POST /api/auth/logout", "POST /api/auth/mfa/verify", "POST /api/auth/password/forgot", "POST /api/auth/password/reset",
     "GET /api/auth/invitations/:token", "POST /api/auth/invitations/accept",
     "GET /public/widget/config", "POST /public/sessions", "GET /public/session", "GET /public/rooms", "POST /public/rooms", "GET /public/rooms/:id/messages", "POST /public/rooms/:id/messages",
-    "POST /public/rooms/:id/read", "POST /public/otp/send", "POST /public/otp/verify",
+    "POST /public/rooms/:id/read", "POST /public/rooms/:id/csat", "POST /public/otp/send", "POST /public/otp/verify",
     "POST /webhooks/twilio/sms", "POST /webhooks/twilio/status", "POST /webhooks/sendgrid/inbound", "POST /webhooks/sendgrid/events",
     "GET /files/*", "GET /widget.js", "GET /widget-demo.html",
   ]],
+  ["apikey", ["GET /api/v1/analytics/overview", "GET /api/v1/analytics/timeseries", "GET /api/v1/analytics/schema", "GET /api/v1/analytics/identity-pepper", "GET /api/v1/analytics/export/rooms", "GET /api/v1/analytics/export/messages-meta"]],
   ["authed", ["GET /api/auth/me", "GET /api/auth/sessions", "DELETE /api/auth/sessions/:id", "POST /api/auth/password/change", "POST /api/auth/mfa/setup", "POST /api/auth/mfa/enable", "POST /api/auth/mfa/disable", "GET /api/members/me", "PATCH /api/members/me", "PATCH /api/members/:id", "GET /api/notifications", "POST /api/notifications/read-all", "POST /api/notifications/:id/read", "GET /api/ai/status"]],
   ["conversations:read", [
     "GET /api/dashboard/counts", "GET /api/inboxes", "GET /api/inboxes/counts", "GET /api/inboxes/:id", "GET /api/rooms", "GET /api/rooms/:id", "GET /api/rooms/:id/messages", "GET /api/messages/search",
@@ -38,6 +39,9 @@ const GROUPS: [RouteAccess, string[]][] = [
   ["members:manage", ["POST /api/members", "DELETE /api/members/:id", "GET /api/invitations", "POST /api/invitations", "DELETE /api/invitations/:id"]],
   ["roles:manage", ["POST /api/roles", "PATCH /api/roles/:id", "DELETE /api/roles/:id", "PUT /api/members/:id/role"]],
   ["audit:read", ["GET /api/audit"]],
+  ["api_keys:manage", ["GET /api/v1/api-keys", "POST /api/v1/api-keys", "DELETE /api/v1/api-keys/:id"]],
+  ["analytics:read", ["GET /api/analytics/overview", "GET /api/analytics/timeseries"]],
+  ["analytics_identity:manage", ["GET /api/analytics/identity-pepper", "POST /api/analytics/identity-pepper/rotate"]],
   ["settings:read", ["GET /api/workspace", "GET /api/credits", "GET /api/sms-numbers", "GET /api/email-senders", "GET /api/inbound-addresses"]],
   ["settings:write", ["PATCH /api/workspace"]],
   ["billing:manage", ["POST /api/credits/grant"]],

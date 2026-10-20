@@ -54,6 +54,12 @@ export const POLICIES: Policy[] = [
   P({ id: "ai.workspace", description: "AI calls per workspace per day, by plan", keyBy: "workspace", algo: "window", limit: 200, windowSec: 86400, tiers: { free: 200, pro: 5000, business: 50000 }, onFail: "open" }),
   P({ id: "ai.concurrency", description: "Concurrent AI calls per workspace", keyBy: "workspace", algo: "concurrency", limit: 4, windowSec: 60, ttlMs: 60_000, onFail: "open" }),
 
+  // ---- analytics API (API keys) ----
+  P({ id: "analytics.read", description: "Analytics API reads, per API key (60 per minute)", keyBy: "apiKey", algo: "gcra", limit: 60, windowSec: 60, burst: 60, onFail: "open" }),
+  P({ id: "analytics.export", description: "Analytics exports, per API key (10 per minute)", keyBy: "apiKey", algo: "gcra", limit: 10, windowSec: 60, burst: 10, cost: 1, onFail: "open" }),
+  P({ id: "analytics.workspace", description: "Analytics API calls per workspace per minute, by plan", keyBy: "workspace", algo: "window", limit: 120, windowSec: 60, tiers: { free: 120, pro: 600, business: 3000 }, onFail: "open" }),
+  P({ id: "analytics.concurrency", description: "Concurrent exports per API key", keyBy: "apiKey", algo: "concurrency", limit: 2, windowSec: 60, ttlMs: 60_000, onFail: "open" }),
+
   // ---- provider webhooks ----
   P({ id: "webhook.provider", description: "Provider webhooks (Twilio, SendGrid), per IP", keyBy: "ip", algo: "gcra", limit: 300, windowSec: 60, burst: 300, onFail: "closed" }),
   P({ id: "webhook.badsig", description: "Webhook signature failures per IP: 10 in 10 min block the IP, escalating", keyBy: "ip", algo: "strike", limit: 10, windowSec: 600, onFail: "closed" }),

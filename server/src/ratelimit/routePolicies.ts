@@ -45,7 +45,7 @@ const GROUPS: { spec: RouteSpec; routes: string[] }[] = [
       "GET /api/auth/me", "GET /api/auth/sessions", "GET /api/invitations", "GET /api/workspace", "GET /api/credits", "GET /api/dashboard/counts", "GET /api/members", "GET /api/members/me", "GET /api/presence",
       "GET /api/inboxes", "GET /api/inboxes/counts", "GET /api/inboxes/:id", "GET /api/contacts", "GET /api/contacts/:id", "GET /api/contacts/:id/notes", "GET /api/contacts/:id/rooms",
       "GET /api/rooms", "GET /api/rooms/:id", "GET /api/rooms/:id/messages", "GET /api/messages/search", "GET /api/notifications", "GET /api/sms-numbers", "GET /api/email-senders",
-      "GET /api/inbound-addresses", "GET /api/tokens", "GET /api/templates", "GET /api/kb", "GET /api/ai/status", "GET /api/roles", "GET /api/audit",
+      "GET /api/inbound-addresses", "GET /api/tokens", "GET /api/templates", "GET /api/kb", "GET /api/ai/status", "GET /api/roles", "GET /api/audit", "GET /api/v1/api-keys", "GET /api/analytics/overview", "GET /api/analytics/timeseries", "GET /api/analytics/identity-pepper",
     ],
   },
   {
@@ -59,7 +59,7 @@ const GROUPS: { spec: RouteSpec; routes: string[] }[] = [
       "POST /api/notifications/read-all", "POST /api/notifications/:id/read", "POST /api/sms-numbers", "POST /api/sms-numbers/:id/default", "DELETE /api/sms-numbers/:id",
       "POST /api/email-senders", "PATCH /api/email-senders/:id", "DELETE /api/email-senders/:id", "POST /api/inbound-addresses", "DELETE /api/inbound-addresses/:address",
       "POST /api/tokens", "POST /api/tokens/:id/rotate", "DELETE /api/tokens/:id", "POST /api/templates", "PATCH /api/templates/:id", "DELETE /api/templates/:id", "POST /api/templates/:id/render",
-      "POST /api/kb", "PUT /api/kb/:id", "DELETE /api/kb/:id", "POST /api/roles", "PATCH /api/roles/:id", "DELETE /api/roles/:id", "PUT /api/members/:id/role",
+      "POST /api/kb", "PUT /api/kb/:id", "DELETE /api/kb/:id", "POST /api/roles", "PATCH /api/roles/:id", "DELETE /api/roles/:id", "PUT /api/members/:id/role", "POST /api/v1/api-keys", "DELETE /api/v1/api-keys/:id", "POST /api/analytics/identity-pepper/rotate",
     ],
   },
   { spec: { post: ["api.send", "api.workspace"], inHandler: ["msg.room", "msg.workspace", "sms.workspace", "email.workspace", "sms.contact", "sms.number", "email.sender"] }, routes: ["POST /api/rooms/:id/messages"] },
@@ -67,12 +67,14 @@ const GROUPS: { spec: RouteSpec; routes: string[] }[] = [
   { spec: { post: ["api.import", "api.workspace"], inHandler: ["heavy.concurrency"] }, routes: ["POST /api/contacts/import"] },
   { spec: AI_CALL, routes: ["POST /api/ai/suggest-replies", "POST /api/ai/summary", "POST /api/ai/rephrase"] },
 
+  { spec: { post: ["analytics.read", "analytics.workspace"] }, routes: ["GET /api/v1/analytics/overview", "GET /api/v1/analytics/timeseries", "GET /api/v1/analytics/schema", "GET /api/v1/analytics/identity-pepper"] },
+  { spec: { post: ["analytics.export", "analytics.workspace"], inHandler: ["analytics.concurrency"] }, routes: ["GET /api/v1/analytics/export/rooms", "GET /api/v1/analytics/export/messages-meta"] },
   { spec: { pre: ["public.config"] }, routes: ["GET /public/widget/config"] },
   { spec: { pre: ["public.session"] }, routes: ["POST /public/sessions"] },
   { spec: { post: ["public.query"] }, routes: ["GET /public/session", "GET /public/rooms", "GET /public/rooms/:id/messages"] },
   { spec: { post: ["public.room"] }, routes: ["POST /public/rooms"] },
   { spec: { post: ["public.send"], inHandler: ["msg.room", "msg.workspace"] }, routes: ["POST /public/rooms/:id/messages"] },
-  { spec: { post: ["public.read"] }, routes: ["POST /public/rooms/:id/read"] },
+  { spec: { post: ["public.read"] }, routes: ["POST /public/rooms/:id/read", "POST /public/rooms/:id/csat"] },
   { spec: { post: ["public.otp.send"], inHandler: ["public.otp.contact", "public.otp.ip"] }, routes: ["POST /public/otp/send"] },
   { spec: { post: ["public.otp.verify"] }, routes: ["POST /public/otp/verify"] },
 

@@ -232,7 +232,7 @@ describe("transactional outbox", () => {
     await expect(relayOutbox(ctx, down)).rejects.toThrow("bus down");
     expect((await outboxLag(ctx)).unpublished).toBeGreaterThanOrEqual(5);
     const got: number[] = [];
-    const up = { publish: async (_t: string, k: string, p: { seq: number }) => void (k === room.id && got.push(p.seq)) } as unknown as EventBus;
+    const up = { publish: async (t: string, k: string, p: { seq: number }) => void (t === TOPIC_MESSAGES && k === room.id && got.push(p.seq)) } as unknown as EventBus;
     await relayOutbox(ctx, up);
     expect((await outboxLag(ctx)).unpublished).toBe(0);
     expect(got).toEqual([...got].sort((a, b) => a - b));
@@ -253,7 +253,7 @@ describe("transactional outbox", () => {
     expect(events.length).toBeGreaterThanOrEqual(8);
     for (const e of events) await rollupHandler(ctx, e);
     const total = (await ctx.db.get<{ n: number }>("SELECT COALESCE(SUM(messages), 0) AS n FROM rollup_messages_daily"))!.n;
-    const unique = new Set(events.filter((e) => (e.payload as { sender_type: string }).sender_type !== "system").map((e) => e.id)).size;
+    const unique = new Set(events.filter((e) => e.topic === TOPIC_MESSAGES && (e.payload as { sender_type: string }).sender_type !== "system").map((e) => e.id)).size;
     expect(Number(total)).toBe(unique);
   });
 

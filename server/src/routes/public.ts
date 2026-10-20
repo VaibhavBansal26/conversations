@@ -3,6 +3,9 @@ import type { Context } from "hono";
 import type { AppContext } from "../context.js";
 import { publicWidgetConfig } from "../domain/settings.js";
 import { badRequest, forbidden } from "../errors.js";
+import { z } from "zod";
+import { AppError } from "../errors.js";
+import { recordCsat } from "../services/roomMetrics.js";
 import { knownIp, parseBody, parseQuery } from "../http.js";
 import { applyPrincipalLimits, enforce } from "../ratelimit/http.js";
 import { ipKey } from "../util/clientIp.js";
@@ -29,6 +32,8 @@ interface PEnv {
 }
 
 const DEVICE_RE = /^[A-Za-z0-9_-]{8,64}$/;
+
+const Csat = z.object({ score: z.number().int().min(1).max(5), comment: z.string().max(500).optional() });
 
 export function publicRoutes(ctx: AppContext) {
   const r = new Hono<PEnv>();
@@ -109,6 +114,12 @@ export function publicRoutes(ctx: AppContext) {
     await enforce(ctx, "public.otp.contact", { key: `${s.workspace_id}|${s.contact_id}` });
     await enforce(ctx, "public.otp.ip", { key: ipKey(knownIp(ctx, c) ?? "unknown") });
     return c.json(await sendOtp(ctx, s));
+  });
+  r.post("/rooms/:id/csat", async (c) => {
+    const body = await parseBody(c, Csat);
+    const room = await getVisitorRoom(ctx, c.get("session"), c.req.param("id"));
+    if (!(await recordCsat(ctx, room, body.score, body.comment))) throw new AppError(409, "CSAT_NOT_AVAILABLE", "The conversation must be closed and not yet rated");
+    return c.json({ ok: true });
   });
   r.post("/otp/verify", async (c) => c.json(await verifyOtp(ctx, c.get("session"), (await parseBody(c, OtpVerify)).code)));
 

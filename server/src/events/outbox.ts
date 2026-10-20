@@ -65,7 +65,7 @@ export async function once(ctx: AppContext, consumer: string, event: BusEvent, f
 /** Rollup consumer: counts messages per workspace/day/channel/direction. A real consumer that Phase 3 analytics reads. */
 export async function rollupHandler(ctx: AppContext, event: BusEvent): Promise<void> {
   const e = event.payload as MessageEvent;
-  if (e.type !== "message.created" || e.sender_type === "system") return;
+  if (e.type !== "message.created" || e.sender_type === "system" || e.sender_type === "bot" || e.kind === "note") return;
   const direction = e.sender_type === "contact" ? "in" : "out";
   await once(ctx, "rollup", event, async () => {
     await ctx.db.run(
