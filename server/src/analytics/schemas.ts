@@ -63,7 +63,7 @@ export const SCHEMAS: Record<string, object> = {
       created_at: iso,
       closed_at: { type: ["string", "null"], format: "date-time" },
       contact_key: { type: ["string", "null"], pattern: "^[0-9a-f]{64}$" },
-      phone_key: { type: ["string", "null"], pattern: "^[0-9a-f]{64}$" },
+      phone_key: { type: ["string", "null"], pattern: "^[0-9a-f]{64}$", description: "Extra field (not required by the contract): HMAC-SHA256(pepper, lower(trim(E.164 phone))) hex, null without a phone number." },
       channel_mix: { type: "object", required: ["dm", "sms", "email"], properties: { dm: { type: "integer" }, sms: { type: "integer" }, email: { type: "integer" } } },
       inbox_id: nullable("string"),
       assignee_key: { type: ["string", "null"], pattern: "^[0-9a-f]{32}$" },
@@ -79,8 +79,8 @@ export const SCHEMAS: Record<string, object> = {
       ai_sentiment: nullable("string"),
       ai_urgency: nullable("number"),
       csat: { type: ["integer", "null"], minimum: 1, maximum: 5 },
-      hour_of_day_created: { type: "integer", minimum: 0, maximum: 23 },
-      dow_created: { type: "integer", minimum: 0, maximum: 6 },
+      hour_of_day_created: { type: "integer", minimum: 0, maximum: 23, description: "Hour of `created_at` in the request's `tz` (UTC by default)." },
+      dow_created: { type: "integer", minimum: 0, maximum: 6, description: "Day of week of `created_at` in the request's `tz` (UTC by default), JavaScript getDay(): Sunday = 0, Monday = 1, ... Saturday = 6." },
     },
   },
   "export-messages-meta-line": {
@@ -103,7 +103,13 @@ export const SCHEMAS: Record<string, object> = {
   "identity-pepper": {
     $id: "identity-pepper.schema.json",
     type: "object",
-    required: ["pepper", "version", "algorithm"],
-    properties: { pepper: { type: "string", pattern: "^[0-9a-f]{64}$" }, version: { type: "integer", minimum: 1 }, algorithm: { type: "string" }, contact_key: { type: "string" } },
+    required: ["pepper", "version", "algorithm", "fingerprint", "rotatedAt"],
+    properties: {
+      pepper: { type: "string", minLength: 32, maxLength: 256, description: "The HMAC key, used exactly as given (UTF-8). Generated peppers are 64 hex characters; an imported one may be any acceptable string of 32 to 256 characters." },
+      version: { type: "integer", minimum: 1, description: "Starts at 1; every change of value (rotate, or set to a different value) adds 1." },
+      algorithm: { const: "HMAC-SHA256", description: "contact_key = hex(HMAC-SHA256(pepper, lower(trim(email))))" },
+      fingerprint: { type: "string", pattern: "^[0-9a-f]{8}$", description: "First 8 hex characters of SHA-256 over the pepper (UTF-8): compare it between apps without showing the pepper." },
+      rotatedAt: { type: "string", format: "date-time", description: "When the value last changed (rotate or set)." },
+    },
   },
 };

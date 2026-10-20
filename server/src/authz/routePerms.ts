@@ -24,7 +24,7 @@ const GROUPS: [RouteAccess, string[]][] = [
     "GET /admin/api/audit", "GET /admin/api/ratelimit", "GET /admin/api/admins", "POST /admin/api/workspaces/:id/impersonate", "POST /admin/api/workspaces/:id/suspend", "POST /admin/api/workspaces/:id/unsuspend",
     "POST /admin/api/workspaces/:id/credits", "PUT /admin/api/workspaces/:id/tier", "PUT /admin/api/workspaces/:id/region", "POST /admin/api/ratelimit/:kind", "DELETE /admin/api/ratelimit/:kind/:entity", "POST /admin/api/admins/:id/disable", "POST /admin/api/admins/:id/enable",
   ]],
-  ["apikey", ["GET /api/v1/analytics/overview", "GET /api/v1/analytics/timeseries", "GET /api/v1/analytics/schema", "GET /api/v1/analytics/identity-pepper", "GET /api/v1/analytics/export/rooms", "GET /api/v1/analytics/export/messages-meta"]],
+  ["apikey", ["GET /api/v1/analytics/overview", "GET /api/v1/analytics/timeseries", "GET /api/v1/analytics/schema", "GET /api/v1/analytics/identity-pepper", "PUT /api/v1/analytics/identity-pepper", "POST /api/v1/analytics/identity-pepper/rotate", "GET /api/v1/analytics/export/rooms", "GET /api/v1/analytics/export/messages-meta"]],
   ["authed", ["GET /api/auth/me", "GET /api/auth/sessions", "DELETE /api/auth/sessions/:id", "POST /api/auth/password/change", "POST /api/auth/mfa/setup", "POST /api/auth/mfa/enable", "POST /api/auth/mfa/disable", "GET /api/members/me", "PATCH /api/members/me", "PATCH /api/members/:id", "GET /api/notifications", "POST /api/notifications/read-all", "POST /api/notifications/:id/read", "GET /api/ai/status"]],
   ["conversations:read", [
     "GET /api/dashboard/counts", "GET /api/inboxes", "GET /api/inboxes/counts", "GET /api/inboxes/:id", "GET /api/rooms", "GET /api/rooms/:id", "GET /api/rooms/:id/messages", "GET /api/rooms/:id/payment-requests", "GET /api/messages/search",
@@ -46,7 +46,7 @@ const GROUPS: [RouteAccess, string[]][] = [
   ["audit:read", ["GET /api/audit"]],
   ["api_keys:manage", ["GET /api/v1/api-keys", "POST /api/v1/api-keys", "DELETE /api/v1/api-keys/:id"]],
   ["analytics:read", ["GET /api/analytics/overview", "GET /api/analytics/timeseries"]],
-  ["analytics_identity:manage", ["GET /api/analytics/identity-pepper", "POST /api/analytics/identity-pepper/rotate"]],
+  ["analytics_identity:manage", ["GET /api/analytics/identity-pepper", "PUT /api/analytics/identity-pepper", "POST /api/analytics/identity-pepper/rotate"]],
   ["settings:read", ["GET /api/workspace", "GET /api/credits", "GET /api/sms-numbers", "GET /api/email-senders", "GET /api/inbound-addresses"]],
   ["settings:write", ["PATCH /api/workspace"]],
   ["billing:manage", [

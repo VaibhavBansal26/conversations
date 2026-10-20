@@ -10,6 +10,8 @@ x-app: &app
   environment: &env
     NODE_ENV: production
     JWT_SECRET: ${JWT_SECRET:-change-me-change-me-change-me}
+    # 32 random bytes (openssl rand -hex 32); encrypts the analytics identity pepper. The default is for local trials only.
+    DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:-6b1f0c9e4a7d2358e1b64f0a93c7d5128fa4e6b0c3d97a15e28f4b6c0d1a7e93}
     PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
     CORS_ORIGINS: ${PUBLIC_URL:-http://localhost:8080}
     DATABASE_URL: postgres://conversations:conversations@postgres:5432/conversations

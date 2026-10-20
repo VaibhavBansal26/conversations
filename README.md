@@ -57,7 +57,7 @@ Everything is environment driven and validated at boot (`server/src/config.ts`);
 
 | Concern | Variables |
 | --- | --- |
-| Secrets | `JWT_SECRET` (required in production) |
+| Secrets | `JWT_SECRET` (required in production), `DATA_ENCRYPTION_KEY` (required in production once analytics is used: encrypts the identity pepper) |
 | Public URL / CORS | `PUBLIC_URL`, `CORS_ORIGINS`, `TRUST_PROXY` |
 | SMS | `SMS_PROVIDER=twilio`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` (also verifies inbound webhooks) |
 | Email | `EMAIL_PROVIDER=sendgrid`, `SENDGRID_API_KEY`, `SENDGRID_WEBHOOK_PUBLIC_KEY` or `WEBHOOK_SHARED_SECRET` |

@@ -5,6 +5,8 @@ All notable user-visible changes. Format: [Keep a Changelog](https://keepachange
 ## [Unreleased]
 
 ### Added
+- **Shareable identity pepper**: `PUT /api/v1/analytics/identity-pepper` imports a pepper (validated, audited, `version` bumps) so two apps of one customer derive the same `contact_key`; responses carry a `fingerprint` (first 8 hex characters of SHA-256) to compare apps without showing the pepper. `GET` takes a session or an API key with `analytics:export` + `analytics_identity:manage`; response `{pepper, version, algorithm: "HMAC-SHA256", fingerprint, rotatedAt}`. The old `/api/analytics/identity-pepper` paths remain as aliases. See [docs/ANALYTICS.md](docs/ANALYTICS.md).
+- `DATA_ENCRYPTION_KEY` and `DATA_ENCRYPTION_KEY_PREVIOUS`: a dedicated key for the identity pepper, with key-versioned ciphertext. **Production now requires `DATA_ENCRYPTION_KEY` once analytics is used**; existing peppers are re-encrypted from `JWT_SECRET` on first read. An unreadable pepper answers `409 PEPPER_UNREADABLE` instead of `500`.
 - `render.yaml` blueprint, manual `deploy-check` workflow and `docs/DEPLOY.md` for a free Render deployment.
 - **Billing with Stripe** ([docs/STRIPE.md](docs/STRIPE.md)): plans (Free, Pro, Business) with seat limits, Checkout and customer portal, credit top-ups, monthly plan credits, low-balance alerts, auto-recharge on a saved card, failed-payment grace period and soft lock, signed and idempotent webhooks (`/webhooks/stripe`, `/webhooks/stripe/connect`).
 - **Customer payment requests** through Stripe Connect Standard: a payment card in the conversation (agent app and widget) that updates live when the customer pays; new permission `payments:request`.
@@ -23,6 +25,9 @@ All notable user-visible changes. Format: [Keep a Changelog](https://keepachange
 - Message `meta.card` is passed through to the widget's copy of a message.
 
 ### Fixed
+- Rotating `JWT_SECRET` no longer breaks the identity pepper endpoint and the analytics exports (the pepper was encrypted under it).
+- `npm run seed` exits when done (it stayed alive until killed); regression test spawns the script.
+- `dow_created` (Sunday = 0), the `phone_key` extra field, the export page maximum (5,000) and how `Retry-After` relates to the `RateLimit` reset are now documented; the schemas say so.
 - Event bus: after a consumer takeover the new owner now drains the previous owner's unacknowledged entries **before** reading new ones (per-key order could be violated); regression test added.
 - Rate limiter: a 24-hour penalty no longer forgives itself; the Lua and TypeScript implementations agree.
 - Webhook signature failures are counted from the response status (Hono turns thrown errors into responses).

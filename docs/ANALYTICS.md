@@ -32,9 +32,11 @@ Base `/api/v1/analytics`, `Authorization: Bearer ca_live_...`. Every response is
 | `GET /schema` | `analytics:read` | the JSON Schemas and `schema_version` |
 | `GET /export/rooms` | `analytics:export` | NDJSON, one room per line |
 | `GET /export/messages-meta` | `analytics:export` | NDJSON, one message per line, **no content** |
-| `GET /identity-pepper` | `analytics:export` | the workspace's identity pepper (also needs `analytics_identity:manage` for the in-app view) |
+| `GET /identity-pepper` | session with `analytics_identity:manage` + `analytics:export`, **or** an API key with the scopes `analytics:export` + `analytics_identity:manage` | `{pepper, version, algorithm: "HMAC-SHA256", fingerprint, rotatedAt}` |
+| `PUT /identity-pepper` | session with `analytics_identity:manage` + `analytics:export` (never an API key) | import a pepper chosen elsewhere; same response; see [Sharing the pepper between apps](#sharing-the-pepper-between-apps) |
+| `POST /identity-pepper/rotate` | session, as `PUT` | replace it with a new random one; same response |
 
-Query parameters: `from`, `to` (ISO date or datetime, default the last 30 days, at most 366 days: `RANGE_TOO_LARGE`), `tz` (IANA, bucketing only), `interval` (`hour|day|week|month`). Exports take `limit` (1 to 5,000) and `cursor`, are **keyset paginated** on a stable `(ts, id)` order (no OFFSET), return `X-Next-Cursor`, and can be gzipped. Errors are `{"error": {"code", "message"}}` and match `error.schema.json`. Full request/response reference: [API.md](API.md).
+Query parameters: `from`, `to` (ISO date or datetime, default the last 30 days, at most 366 days: `RANGE_TOO_LARGE`), `tz` (IANA, bucketing only), `interval` (`hour|day|week|month`). Exports take `limit` (default 1,000, **at most 5,000**, above that is `400 VALIDATION_ERROR`; the contract's 1,000 is the minimum every app must accept) and `cursor`, are **keyset paginated** on a stable `(ts, id)` order (no OFFSET), return `X-Next-Cursor`, and can be gzipped. Errors are `{"error": {"code", "message"}}` and match `error.schema.json`. Full request/response reference: [API.md](API.md).
 
 ```bash
 curl -s -H "Authorization: Bearer $KEY" "http://localhost:3000/api/v1/analytics/overview?from=2026-03-01&to=2026-03-31&tz=Europe/Berlin"
@@ -45,15 +47,42 @@ curl -s -H "Authorization: Bearer $KEY" "http://localhost:3000/api/v1/analytics/
 
 Created in the app or with `POST /api/v1/api-keys` (permission `api_keys:manage`): a name, scopes (`analytics:read`, `analytics:export`, `analytics_identity:manage`), an optional expiry, and an optional **CIDR allow-list**. The plaintext (`ca_live_<random>`) appears **once**, in the creation response; only its SHA-256 is stored. A key cannot carry a scope its creator's role does not hold (`PRIVILEGE_ESCALATION`). Every authentication failure (unknown, revoked, expired, wrong IP) is the same `401`, so nothing reveals which. Last-used time is recorded, keys are revocable, creation and revocation are audited.
 
-Limits (per key, plus a per-workspace ceiling that follows the plan): reads 60 per minute, exports 10 per minute and at most 2 concurrent exports per key; `429` with `Retry-After`. See [RATE-LIMITING.md](RATE-LIMITING.md).
+Limits (per key, plus a per-workspace ceiling that follows the plan): reads 60 per minute, exports 10 per minute (all export routes of a key share them) and at most 2 concurrent exports per key; the workspace ceiling (120 per minute on the free plan) is shared by every key; `429` with `Retry-After` (seconds until one more request is allowed) and `RateLimit` `t` (seconds until the quota is full again). See [RATE-LIMITING.md](RATE-LIMITING.md#analytics-api-reading-the-limits).
 
 ## Privacy: no raw PII in exports
 
-Exports never contain email, phone, names or message text. A person is `contact_key = hex(HMAC-SHA256(pepper, lower(trim(email))))`, the phone `phone_key` the same way over the E.164 number, and `agent_key` a keyed hash of the member id (never the id or the name). The **pepper** is a per-workspace secret: the workspace admin (`analytics_identity:manage`) can read it and give it to the intelligence service, so two products owned by the same customer derive the *same* key and can be joined; rotating it (`POST /api/analytics/identity-pepper/rotate`) changes every key (version number returned) and is audited. The algorithm is exactly the contract's and is covered by a test that recomputes it independently.
+Exports never contain email, phone, names or message text. A person is `contact_key = hex(HMAC-SHA256(pepper, lower(trim(email))))`, the phone `phone_key` the same way over the E.164 number (an **extra** field that the contract only mentions in prose; `null` without a phone number), and `agent_key` a keyed hash of the member id (never the id or the name). The **pepper** is a per-workspace secret: the workspace admin (`analytics_identity:manage`) can read, set and rotate it, so two products owned by the same customer derive the *same* key and can be joined. The algorithm is exactly the contract's and is covered by a test that recomputes it independently.
+
+Time fields in room exports: `hour_of_day_created` and `dow_created` are computed in the request's `tz` (UTC by default). **`dow_created` follows JavaScript's `getDay()`: Sunday = 0, Monday = 1, ... Saturday = 6.** (Consumers that count Monday as 0 must convert.)
+
+## Sharing the pepper between apps
+
+Each workspace starts with its own random pepper, so two apps of one customer produce different keys for the same e-mail address until both use the same value. To join them:
+
+1. Pick one value: `openssl rand -hex 32` (or copy the pepper of the other app with `GET /api/v1/analytics/identity-pepper`).
+2. Set it here: `curl -X PUT -H "Authorization: Bearer $SESSION_TOKEN" -H "Content-Type: application/json" -d '{"pepper":"<value>","confirm":"<value>"}' .../api/v1/analytics/identity-pepper`. `confirm` is optional; when sent it must repeat the pepper exactly (`400 PEPPER_CONFIRM_MISMATCH`).
+3. Compare the `fingerprint` in both apps (first 8 hex characters of SHA-256 over the pepper): equal fingerprints mean equal peppers, and the fingerprint reveals nothing usable.
+
+Rules (`INVALID_PEPPER` otherwise): 32 to 256 printable ASCII characters without spaces; a hex pepper needs 64 characters and a base64 pepper 43 (32 bytes); at least 12 distinct characters, about 128 bits of entropy by a Shannon estimate, and no repeated pattern or sequence. The value is used exactly as typed (nothing is trimmed), so both apps must receive the same string. Setting the value that is already stored changes nothing; a different value adds 1 to `version`, sets `rotatedAt` and writes an `analytics.pepper_set` audit entry holding the fingerprint (never the pepper). Rotate writes `analytics.pepper_rotated`. After a change every `contact_key` in later exports differs, so consumers must re-key (the intelligence service does it from the pepper it is given).
+
+An API key with both scopes can **read** the pepper, which lets a leaked integration key recompute contact keys from e-mail addresses: give the scope only to the service that needs it. Changing the pepper needs a person's session.
+
+The settings page does not yet have a form for this; the API above is the supported way (UI follow-up).
+
+### How it is stored
+
+`analytics_pepper.pepper_enc` holds `enc2.<keyId>.<ciphertext>`: AES-256-GCM under a key derived from `DATA_ENCRYPTION_KEY` (32 random bytes, 64 hex characters or base64), bound to the workspace id. It is independent of `JWT_SECRET`, so rotating the signing secret no longer breaks the pepper endpoint and the exports (it used to: `500` with `Unsupported state or unable to authenticate data`).
+
+* Production: `DATA_ENCRYPTION_KEY` is required once analytics is used; without it the pepper routes, the exports and `overview` answer `503 DATA_ENCRYPTION_KEY_REQUIRED`. Development and tests derive a key from `JWT_SECRET` and warn at start-up.
+* Existing rows (encrypted under `JWT_SECRET` by earlier versions) are read with the old key and **re-encrypted under the new key on their first read**; the value, `version` and `rotatedAt` do not change. Keep `JWT_SECRET` unchanged until each workspace has been read once.
+* Rotating the data key: put the old value in `DATA_ENCRYPTION_KEY_PREVIOUS`; rows are re-encrypted on read ([RUNBOOK.md](RUNBOOK.md#rotating-secrets)).
+* A pepper that cannot be decrypted (key lost or changed without the previous key) is `409 PEPPER_UNREADABLE` with an explanation, never a `500`; `PUT` (or `POST .../rotate`) replaces it and recovers.
+
+Old session-only paths `GET|PUT /api/analytics/identity-pepper` and `POST /api/analytics/identity-pepper/rotate` remain as aliases with the same behaviour.
 
 ## Schemas and contract tests
 
-`npm run docs:analytics-schemas` (in `server/`) writes the JSON Schemas (draft 2020-12) to `docs/analytics-api/`; `docs:check` fails when they are stale. Within v1 fields are only **added**; consumers must ignore unknown ones, so `additionalProperties` stays true. `server/tests/analytics.test.ts` validates real responses and every NDJSON line against the schemas with Ajv, and tests metric definitions (business hours, snooze exclusion, reopen), cross-workspace isolation, key scopes/expiry/CIDR, pagination and resumability, PII absence, and the pepper algorithm.
+`npm run docs:analytics-schemas` (in `server/`) writes the JSON Schemas (draft 2020-12) to `docs/analytics-api/`; `docs:check` fails when they are stale. Within v1 fields are only **added**; consumers must ignore unknown ones, so `additionalProperties` stays true. `server/tests/analytics.test.ts` validates real responses and every NDJSON line against the schemas with Ajv, and tests metric definitions (business hours, snooze exclusion, reopen), cross-workspace isolation, key scopes/expiry/CIDR, pagination and resumability, PII absence, and the pepper algorithm. `server/tests/pepper.test.ts` covers importing, validation, fingerprints, key scopes on the pepper routes, the data key, migration from `JWT_SECRET` and recovery.
 
 ## Not done
 

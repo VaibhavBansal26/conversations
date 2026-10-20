@@ -59,6 +59,9 @@ npm run test --prefix server -- tests/rooms.test.ts   # one file
 | `redis.test.ts`, `redis-recovery.test.ts` | presence, locks, cache invalidation, `server:resync` after a Redis outage |
 | `scale.test.ts`, `archive.test.ts`, `fairness.test.ts`, `workers.test.ts` | partition planning and pruning (EXPLAIN), archival and restore, fair per-tenant scheduling, worker pool |
 | `rbac.test.ts`, `accounts.test.ts` | declaration coverage, role matrix, escalation, immutability, sessions, refresh rotation and reuse, MFA, reset, invitations, lockouts |
+| `pepper.test.ts` | importing a pepper (rules, fingerprint, audit), pepper endpoint auth (session or key scopes), DATA_ENCRYPTION_KEY, migration from JWT_SECRET, `PEPPER_UNREADABLE` recovery |
+| `ratelimit.analytics.test.ts` | analytics key limits as observed: separate read/export budgets, shared workspace quota, Retry-After vs reset, no penalty box |
+| `entrypoints.test.ts` | `npm run seed` in a child process: seeds and exits |
 | `analytics.test.ts` | metric definitions, API keys (scope, expiry, CIDR), isolation, exports, pepper algorithm, JSON Schema contract |
 | `billing.test.ts`, `stripe-provider.test.ts` | webhook signatures, idempotency and ordering, plan lifecycle, grace and soft lock, seats, auto-recharge, Connect payment requests, request shapes against the SDK stub |
 | `admin.test.ts` | operator sign-in and MFA, token separation, roles, directory, suspension everywhere, credits, tier and region, support access (REST and sockets), audit, rate-limit lists |

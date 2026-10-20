@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
+import { parseDataKey } from "./util/dataCrypto.js";
 
 const bool = z.enum(["true", "false", "1", "0"]).transform((v) => v === "true" || v === "1");
 
@@ -23,6 +24,13 @@ export const configSchema = z.object({
   DATA_DIR: z.string().default("./data"),
   WEB_DIST: z.string().optional(),
   JWT_SECRET: z.string().min(16).optional(),
+  /** key for secrets that must outlive JWT_SECRET rotations (the analytics identity pepper): 32 bytes as 64 hex characters or base64 */
+  DATA_ENCRYPTION_KEY: z.string().refine((v) => parseDataKey(v) !== null, "must be 32 bytes as 64 hex characters or base64 (openssl rand -hex 32)").optional(),
+  /** previous DATA_ENCRYPTION_KEY value(s), comma separated, kept while a rotation re-encrypts stored secrets on their next read */
+  DATA_ENCRYPTION_KEY_PREVIOUS: z
+    .string()
+    .refine((v) => v.split(",").every((x) => !x.trim() || parseDataKey(x) !== null), "every entry must be 32 bytes as 64 hex characters or base64")
+    .optional(),
   /** access tokens are short lived; clients renew them with the refresh token (30 days, single use, rotated) */
   ACCESS_TOKEN_TTL_SECONDS: z.coerce
     .number()
@@ -172,6 +180,10 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     if (cfg.NODE_ENV === "production") throw new Error("JWT_SECRET is required in production");
     secret = randomBytes(32).toString("hex");
     warn("JWT_SECRET not set: generated an ephemeral development secret (tokens die on restart)");
+  }
+  if (!cfg.DATA_ENCRYPTION_KEY && cfg.NODE_ENV !== "test") {
+    if (cfg.NODE_ENV === "production") warn("DATA_ENCRYPTION_KEY not set: the analytics identity pepper (and so every analytics export) is refused until it is configured");
+    else warn("DATA_ENCRYPTION_KEY not set: derived a development key from JWT_SECRET (an identity pepper stored now is unreadable if JWT_SECRET changes)");
   }
   if (cfg.SMS_PROVIDER === "twilio" && !(cfg.TWILIO_ACCOUNT_SID && cfg.TWILIO_AUTH_TOKEN)) {
     throw new Error("SMS_PROVIDER=twilio requires TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN");

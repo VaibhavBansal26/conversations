@@ -26,7 +26,7 @@ export const PERMISSIONS = {
   "payments:request": "Send payment requests to customers in a conversation",
   "analytics:read": "See analytics",
   "analytics:export": "Export analytics data",
-  "analytics_identity:manage": "View or rotate the analytics identity pepper",
+  "analytics_identity:manage": "View, set (import) or rotate the analytics identity pepper",
   "api_keys:manage": "Create and revoke API keys",
   "audit:read": "Read the audit log",
 } as const;

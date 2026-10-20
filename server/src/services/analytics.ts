@@ -2,10 +2,11 @@ import { createHmac, randomBytes } from "node:crypto";
 import type { AppContext } from "../context.js";
 import { nowIso } from "../context.js";
 import type { Actor } from "../domain/types.js";
-import { badRequest, unprocessable } from "../errors.js";
+import { pepperFingerprint, validatePepper } from "../analytics/pepperRules.js";
+import { AppError, badRequest, unprocessable } from "../errors.js";
 import { decodeCursor, encodeCursor } from "../util/cursor.js";
 import { zonedParts } from "../util/time.js";
-import { decryptSecret, encryptSecret } from "../util/totp.js";
+import { decryptWithDataKey, encryptWithDataKey } from "../util/dataCrypto.js";
 import { recordAudit } from "./audit.js";
 import type { RoomMetricsRow } from "./roomMetrics.js";
 
@@ -17,22 +18,83 @@ import type { RoomMetricsRow } from "./roomMetrics.js";
  * hashes to the same key everywhere and records can be joined without ever exchanging the raw values. Rotating it changes every key.
  * ===================================================================================================================================== */
 
-export async function getPepper(ctx: AppContext, workspaceId: string): Promise<{ pepper: string; version: number }> {
-  const row = await ctx.db.get<{ pepper_enc: string; version: number }>("SELECT pepper_enc, version FROM analytics_pepper WHERE workspace_id = ?", workspaceId);
-  if (row) return { pepper: decryptSecret(ctx.config.JWT_SECRET, row.pepper_enc), version: row.version };
-  const pepper = randomBytes(32).toString("hex");
-  // two requests may race to create it: the primary key makes exactly one win, the other reads the winner's
-  await ctx.db.run("INSERT OR IGNORE INTO analytics_pepper(workspace_id, pepper_enc, version, rotated_at) VALUES (?,?,1,?)", workspaceId, encryptSecret(ctx.config.JWT_SECRET, pepper), nowIso(ctx));
-  const won = (await ctx.db.get<{ pepper_enc: string; version: number }>("SELECT pepper_enc, version FROM analytics_pepper WHERE workspace_id = ?", workspaceId))!;
-  return { pepper: decryptSecret(ctx.config.JWT_SECRET, won.pepper_enc), version: won.version };
+export interface PepperInfo {
+  pepper: string;
+  version: number;
+  algorithm: "HMAC-SHA256";
+  /** first 8 hex characters of SHA-256 over the pepper: compare it between apps without showing the pepper */
+  fingerprint: string;
+  rotatedAt: string;
 }
 
-export async function rotatePepper(ctx: AppContext, actor: Actor): Promise<{ pepper: string; version: number }> {
-  await getPepper(ctx, actor.workspaceId);
+interface PepperRow {
+  pepper_enc: string;
+  version: number;
+  rotated_at: string;
+}
+
+const pepperAad = (workspaceId: string) => `pepper:${workspaceId}`;
+const readPepperRow = (ctx: AppContext, workspaceId: string) => ctx.db.get<PepperRow>("SELECT pepper_enc, version, rotated_at FROM analytics_pepper WHERE workspace_id = ?", workspaceId);
+const info = (pepper: string, row: PepperRow): PepperInfo => ({ pepper, version: Number(row.version), algorithm: "HMAC-SHA256", fingerprint: pepperFingerprint(pepper), rotatedAt: row.rotated_at });
+
+/** Creates the workspace's first pepper (random) when it has none, without decrypting anything: two requests may race, the primary key makes one win. */
+async function ensurePepperRow(ctx: AppContext, workspaceId: string): Promise<PepperRow> {
+  const have = await readPepperRow(ctx, workspaceId);
+  if (have) return have;
+  await ctx.db.run(
+    "INSERT OR IGNORE INTO analytics_pepper(workspace_id, pepper_enc, version, rotated_at) VALUES (?,?,1,?)",
+    workspaceId,
+    encryptWithDataKey(ctx.config, randomBytes(32).toString("hex"), pepperAad(workspaceId)),
+    nowIso(ctx),
+  );
+  return (await readPepperRow(ctx, workspaceId))!;
+}
+
+/**
+ * The workspace's pepper, created on first use. Stored encrypted under DATA_ENCRYPTION_KEY (see util/dataCrypto.ts); a value that is still
+ * under the old JWT_SECRET-derived key, or under a previous data key, is decrypted and re-encrypted under the current key on this read.
+ * A pepper that cannot be decrypted is a 409 `PEPPER_UNREADABLE` (never a 500 with a crypto message); `setPepper` and `rotatePepper` recover from it.
+ */
+export async function getPepper(ctx: AppContext, workspaceId: string): Promise<PepperInfo> {
+  const row = await ensurePepperRow(ctx, workspaceId);
+  const { plain, needsRewrite } = decryptWithDataKey(ctx.config, row.pepper_enc, pepperAad(workspaceId));
+  if (needsRewrite) {
+    // compare-and-set on the old ciphertext: a concurrent set or rotate wins and is never overwritten by this migration
+    await ctx.db.run("UPDATE analytics_pepper SET pepper_enc = ? WHERE workspace_id = ? AND pepper_enc = ?", encryptWithDataKey(ctx.config, plain, pepperAad(workspaceId)), workspaceId, row.pepper_enc);
+  }
+  return info(plain, row);
+}
+
+/** Replace the pepper with a newly generated one. Every contact_key changes; consumers must adopt the new value. */
+export async function rotatePepper(ctx: AppContext, actor: Actor): Promise<PepperInfo> {
+  await ensurePepperRow(ctx, actor.workspaceId);
   const pepper = randomBytes(32).toString("hex");
-  await ctx.db.run("UPDATE analytics_pepper SET pepper_enc = ?, version = version + 1, rotated_at = ? WHERE workspace_id = ?", encryptSecret(ctx.config.JWT_SECRET, pepper), nowIso(ctx), actor.workspaceId);
-  await recordAudit(ctx, { workspaceId: actor.workspaceId, actor: { type: "member", id: actor.memberId }, action: "analytics.pepper_rotated", target: actor.workspaceId });
-  return getPepper(ctx, actor.workspaceId);
+  await ctx.db.run("UPDATE analytics_pepper SET pepper_enc = ?, version = version + 1, rotated_at = ? WHERE workspace_id = ?", encryptWithDataKey(ctx.config, pepper, pepperAad(actor.workspaceId)), nowIso(ctx), actor.workspaceId);
+  const after = await getPepper(ctx, actor.workspaceId);
+  await recordAudit(ctx, { workspaceId: actor.workspaceId, actor: { type: "member", id: actor.memberId }, action: "analytics.pepper_rotated", target: actor.workspaceId, detail: { version: after.version, fingerprint: after.fingerprint } });
+  return after;
+}
+
+/**
+ * Import a pepper chosen elsewhere (the other app of the same customer, the intelligence service) so both derive the same contact_key.
+ * Validated by analytics/pepperRules.ts; `confirm`, when sent, must repeat it exactly. Setting the value already stored changes nothing
+ * (no version bump); a different value bumps `version`. The audit entry records the fingerprint, never the pepper.
+ */
+export async function setPepper(ctx: AppContext, actor: Actor, input: { pepper: unknown; confirm?: unknown }): Promise<PepperInfo> {
+  const pepper = validatePepper(input.pepper);
+  if (input.confirm !== undefined && input.confirm !== pepper) throw badRequest("PEPPER_CONFIRM_MISMATCH", "The confirmation does not match the pepper");
+  const row = await ensurePepperRow(ctx, actor.workspaceId);
+  let same = false;
+  try {
+    same = decryptWithDataKey(ctx.config, row.pepper_enc, pepperAad(actor.workspaceId)).plain === pepper;
+  } catch (e) {
+    if (!(e instanceof AppError) || e.code !== "PEPPER_UNREADABLE") throw e; // an unreadable stored value is exactly what setting a new one fixes
+  }
+  if (same) return getPepper(ctx, actor.workspaceId);
+  await ctx.db.run("UPDATE analytics_pepper SET pepper_enc = ?, version = version + 1, rotated_at = ? WHERE workspace_id = ?", encryptWithDataKey(ctx.config, pepper, pepperAad(actor.workspaceId)), nowIso(ctx), actor.workspaceId);
+  const after = await getPepper(ctx, actor.workspaceId);
+  await recordAudit(ctx, { workspaceId: actor.workspaceId, actor: { type: "member", id: actor.memberId }, action: "analytics.pepper_set", target: actor.workspaceId, detail: { version: after.version, fingerprint: after.fingerprint } });
+  return after;
 }
 
 /** The contract's algorithm, exactly: hex(HMAC-SHA256(pepper, lower(trim(value)))). */

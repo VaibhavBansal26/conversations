@@ -31,7 +31,7 @@ Source of truth: `server/src/authz/permissions.ts` (a test checks that the built
 | `payments:request` | Send payment requests to customers in a conversation | yes | yes | yes |  |
 | `analytics:read` | See analytics | yes | yes |  | yes |
 | `analytics:export` | Export analytics data | yes | yes |  |  |
-| `analytics_identity:manage` | View or rotate the analytics identity pepper | yes |  |  |  |
+| `analytics_identity:manage` | View, set (import) or rotate the analytics identity pepper | yes |  |  |  |
 | `api_keys:manage` | Create and revoke API keys | yes | yes |  |  |
 | `audit:read` | Read the audit log | yes | yes |  |  |
 

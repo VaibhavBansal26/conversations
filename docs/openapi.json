@@ -7400,6 +7400,74 @@
             "$ref": "#/components/responses/RateLimited"
           }
         }
+      },
+      "put": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Set (import) the identity pepper so two apps derive the same `contact_key` (alias of `PUT /api/v1/analytics/identity-pepper`)",
+        "operationId": "put_api_analytics_identity_pepper",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "analytics_identity:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "pepper": {
+                    "type": "string",
+                    "maxLength": 512
+                  },
+                  "confirm": {
+                    "type": "string",
+                    "maxLength": 512
+                  }
+                },
+                "required": [
+                  "pepper"
+                ]
+              }
+            }
+          }
+        }
       }
     },
     "/api/analytics/identity-pepper/rotate": {
@@ -8444,7 +8512,7 @@
         "tags": [
           "Analytics API"
         ],
-        "summary": "The identity pepper (API key, `analytics:export`)",
+        "summary": "The identity pepper and its fingerprint: a user session with `analytics_identity:manage` + `analytics:export`, or an API key with the scopes `analytics:export` + `analytics_identity:manage`",
         "operationId": "get_api_v1_analytics_identity_pepper",
         "security": [
           {
@@ -8457,6 +8525,112 @@
           "post": [
             "analytics.read",
             "analytics.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Analytics API"
+        ],
+        "summary": "Set (import) the identity pepper (session with `analytics_identity:manage` only; audited; bumps `version`)",
+        "operationId": "put_api_v1_analytics_identity_pepper",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "x-access": "apikey",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "pepper": {
+                    "type": "string",
+                    "maxLength": 512
+                  },
+                  "confirm": {
+                    "type": "string",
+                    "maxLength": 512
+                  }
+                },
+                "required": [
+                  "pepper"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/identity-pepper/rotate": {
+      "post": {
+        "tags": [
+          "Analytics API"
+        ],
+        "summary": "Replace the pepper with a new random one (session with `analytics_identity:manage` only; audited)",
+        "operationId": "post_api_v1_analytics_identity_pepper_rotate",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "x-access": "apikey",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
           ],
           "in_handler": []
         },

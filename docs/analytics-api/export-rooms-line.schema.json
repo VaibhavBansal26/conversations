@@ -53,7 +53,8 @@
         "string",
         "null"
       ],
-      "pattern": "^[0-9a-f]{64}$"
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Extra field (not required by the contract): HMAC-SHA256(pepper, lower(trim(E.164 phone))) hex, null without a phone number."
     },
     "channel_mix": {
       "type": "object",
@@ -156,12 +157,14 @@
     "hour_of_day_created": {
       "type": "integer",
       "minimum": 0,
-      "maximum": 23
+      "maximum": 23,
+      "description": "Hour of `created_at` in the request's `tz` (UTC by default)."
     },
     "dow_created": {
       "type": "integer",
       "minimum": 0,
-      "maximum": 6
+      "maximum": 6,
+      "description": "Day of week of `created_at` in the request's `tz` (UTC by default), JavaScript getDay(): Sunday = 0, Monday = 1, ... Saturday = 6."
     }
   }
 }

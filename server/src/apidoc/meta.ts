@@ -150,6 +150,7 @@ const rows: [string, string, string, Opt?][] = [
   ["GET /api/analytics/overview", "Analytics", "Dashboard overview (same definitions as the API)", { query: anR.Range }],
   ["GET /api/analytics/timeseries", "Analytics", "Dashboard time series", { query: anR.Range.extend({ metric: anApiR.TsQ.shape.metric }) }],
   ["GET /api/analytics/identity-pepper", "Analytics", "View the workspace identity pepper"],
+  ["PUT /api/analytics/identity-pepper", "Analytics", "Set (import) the identity pepper so two apps derive the same `contact_key` (alias of `PUT /api/v1/analytics/identity-pepper`)", { body: anR.PepperBody }],
   ["POST /api/analytics/identity-pepper/rotate", "Analytics", "Rotate the identity pepper (changes every `contact_key`)"],
   ["GET /api/v1/api-keys", "API keys", "List API keys (never the secret)"],
   ["POST /api/v1/api-keys", "API keys", "Create an API key; the plaintext is returned once", { body: anR.KeyBody, status: 201 }],
@@ -171,7 +172,9 @@ const rows: [string, string, string, Opt?][] = [
   ["GET /api/v1/analytics/overview", "Analytics API", "Overview for a range (API key, `analytics:read`)", { query: anApiR.Range }],
   ["GET /api/v1/analytics/timeseries", "Analytics API", "Zero-filled time series (API key, `analytics:read`)", { query: anApiR.TsQ }],
   ["GET /api/v1/analytics/schema", "Analytics API", "The JSON Schemas and `schema_version`"],
-  ["GET /api/v1/analytics/identity-pepper", "Analytics API", "The identity pepper (API key, `analytics:export`)"],
+  ["GET /api/v1/analytics/identity-pepper", "Analytics API", "The identity pepper and its fingerprint: a user session with `analytics_identity:manage` + `analytics:export`, or an API key with the scopes `analytics:export` + `analytics_identity:manage`"],
+  ["PUT /api/v1/analytics/identity-pepper", "Analytics API", "Set (import) the identity pepper (session with `analytics_identity:manage` only; audited; bumps `version`)", { body: anR.PepperBody }],
+  ["POST /api/v1/analytics/identity-pepper/rotate", "Analytics API", "Replace the pepper with a new random one (session with `analytics_identity:manage` only; audited)"],
   ["GET /api/v1/analytics/export/rooms", "Analytics API", "NDJSON export of rooms, keyset paged (`X-Next-Cursor`)", { query: anApiR.ExportQ, media: "application/x-ndjson" }],
   ["GET /api/v1/analytics/export/messages-meta", "Analytics API", "NDJSON export of message metadata, no content", { query: anApiR.ExportQ, media: "application/x-ndjson" }],
 

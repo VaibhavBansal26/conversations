@@ -5,22 +5,35 @@
   "required": [
     "pepper",
     "version",
-    "algorithm"
+    "algorithm",
+    "fingerprint",
+    "rotatedAt"
   ],
   "properties": {
     "pepper": {
       "type": "string",
-      "pattern": "^[0-9a-f]{64}$"
+      "minLength": 32,
+      "maxLength": 256,
+      "description": "The HMAC key, used exactly as given (UTF-8). Generated peppers are 64 hex characters; an imported one may be any acceptable string of 32 to 256 characters."
     },
     "version": {
       "type": "integer",
-      "minimum": 1
+      "minimum": 1,
+      "description": "Starts at 1; every change of value (rotate, or set to a different value) adds 1."
     },
     "algorithm": {
-      "type": "string"
+      "const": "HMAC-SHA256",
+      "description": "contact_key = hex(HMAC-SHA256(pepper, lower(trim(email))))"
     },
-    "contact_key": {
-      "type": "string"
+    "fingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}$",
+      "description": "First 8 hex characters of SHA-256 over the pepper (UTF-8): compare it between apps without showing the pepper."
+    },
+    "rotatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the value last changed (rotate or set)."
     }
   }
 }

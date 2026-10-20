@@ -59,7 +59,7 @@ const GROUPS: { spec: RouteSpec; routes: string[] }[] = [
       "POST /api/notifications/read-all", "POST /api/notifications/:id/read", "POST /api/sms-numbers", "POST /api/sms-numbers/:id/default", "DELETE /api/sms-numbers/:id",
       "POST /api/email-senders", "PATCH /api/email-senders/:id", "DELETE /api/email-senders/:id", "POST /api/inbound-addresses", "DELETE /api/inbound-addresses/:address",
       "POST /api/tokens", "POST /api/tokens/:id/rotate", "DELETE /api/tokens/:id", "POST /api/templates", "PATCH /api/templates/:id", "DELETE /api/templates/:id", "POST /api/templates/:id/render",
-      "POST /api/kb", "PUT /api/kb/:id", "DELETE /api/kb/:id", "POST /api/roles", "PATCH /api/roles/:id", "DELETE /api/roles/:id", "PUT /api/members/:id/role", "POST /api/v1/api-keys", "DELETE /api/v1/api-keys/:id", "POST /api/analytics/identity-pepper/rotate",
+      "POST /api/kb", "PUT /api/kb/:id", "DELETE /api/kb/:id", "POST /api/roles", "PATCH /api/roles/:id", "DELETE /api/roles/:id", "PUT /api/members/:id/role", "POST /api/v1/api-keys", "DELETE /api/v1/api-keys/:id", "POST /api/analytics/identity-pepper/rotate", "PUT /api/analytics/identity-pepper", "PUT /api/v1/analytics/identity-pepper", "POST /api/v1/analytics/identity-pepper/rotate",
     ],
   },
   { spec: { post: ["api.send", "api.workspace"], inHandler: ["msg.room", "msg.workspace", "sms.workspace", "email.workspace", "sms.contact", "sms.number", "email.sender"] }, routes: ["POST /api/rooms/:id/messages"] },

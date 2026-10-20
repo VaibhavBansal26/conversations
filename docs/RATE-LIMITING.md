@@ -110,8 +110,8 @@ Generated from `policies.ts` and `routePolicies.ts` (`npm run docs:ratelimit`; `
 | `msg.room` | composite | window | 300 per 1 min | - | fail-open | Messages per room (visitor + agents together): stops a runaway client or loop (POST /api/rooms/:id/messages, POST /public/rooms/:id/messages, socket message:send) |
 | `msg.workspace` | workspace | window | 5000 per 1 h | free 5000, pro 50000, business 500000 | fail-open | Messages per workspace per hour, by plan (POST /api/rooms/:id/messages, POST /public/rooms/:id/messages, socket message:send) |
 | `api.read` | user | gcra | 20 per 1 s, burst 100 | - | fail-open + lease | Authenticated reads, per user (36 entry points) |
-| `api.write` | user | gcra | 10 per 1 s, burst 50 | - | fail-open + lease | Authenticated writes, per user (66 entry points) |
-| `api.workspace` | workspace | window | 1200 per 1 min | free 1200, pro 6000, business 30000 | fail-open | All API calls per workspace per minute, by plan (113 entry points) |
+| `api.write` | user | gcra | 10 per 1 s, burst 50 | - | fail-open + lease | Authenticated writes, per user (69 entry points) |
+| `api.workspace` | workspace | window | 1200 per 1 min | free 1200, pro 6000, business 30000 | fail-open | All API calls per workspace per minute, by plan (116 entry points) |
 | `api.send` | user | gcra | 120 per 1 min, burst 60 | - | fail-open | Agent message sends, per user (POST /api/rooms/:id/messages) |
 | `api.upload` | user | gcra | 30 per 1 min, burst 30 | - | fail-open | Uploads, per user (POST /api/attachments) |
 | `api.import` | workspace | gcra | 10 per 10 min, burst 10 | - | fail-open | CSV imports (cost 5 of a small bucket), per workspace (POST /api/contacts/import) |
@@ -178,5 +178,11 @@ Socket event costs (per-socket bucket, `ws.event`):
 
 * No Redis Cluster test (keys are hash-tagged for it, but only a single `redis-server` was available).
 * No Cloudflare-side rate limiting beyond the documented rules and the optional Worker (`docs/CLOUDFLARE.md`).
-* API-key limits (`apiKey` key type) are supported by the registry and arrive with the analytics API (phase 3).
+* The analytics policies have no penalty box: a key that keeps hitting `429` is simply refused again as its bucket allows; escalating blocks exist for the auth, OTP and webhook-signature policies (see the table). A consumer that honours `Retry-After` never sees more than the plain `429`.
+
+## Analytics API: reading the limits
+
+Per API key: `analytics.read` (60 per minute, reads) and `analytics.export` (10 per minute, **all export routes together**: rooms and messages-meta draw on the same 10), at most 2 concurrent exports. Per workspace: `analytics.workspace` (120 per minute on the free plan) counts **every** analytics call of **every** key of the workspace, reads and exports. So a key can be refused before its own 10 exports are spent when other keys or other export routes used the workspace budget; the policy named in the `429` body and in the `RateLimit` header tells which limit applied. Reads never reduce a key's export budget (separate buckets; covered by `tests/ratelimit.analytics.test.ts`).
+
+`Retry-After` and `retry_after_s` are the GCRA answer: seconds until the same request would be allowed (one token: window / quota, 6 s for exports). `RateLimit: ...;t=` and `X-RateLimit-Reset` are seconds until the bucket is full again (60 s after ten rapid requests). Both are correct and `Retry-After <= reset` always holds: wait `Retry-After` to send one more request, `t` to have the whole quota back.
 * Overhead numbers are in [PERFORMANCE.md](PERFORMANCE.md).
