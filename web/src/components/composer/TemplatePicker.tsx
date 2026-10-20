@@ -1,3 +1,4 @@
+// Adapted from the legacy UI (see docs/PROVENANCE.md): template insertion in the editor, as a searchable picker.
 import { FileText, Loader2, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { Channel, Template } from "../../api/types";

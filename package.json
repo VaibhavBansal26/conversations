@@ -7,7 +7,7 @@
     "node": ">=22.13"
   },
   "scripts": {
-    "setup": "npm ci --prefix server && npm ci --prefix web",
+    "setup": "npm ci --prefix server && npm ci --prefix web && npm ci --prefix e2e",
     "dev": "node scripts/dev.mjs",
     "build": "npm run build --prefix server && npm run build --prefix web",
     "test": "npm test --prefix server && npm test --prefix web && npm test --prefix edge",
@@ -17,6 +17,8 @@
     "e2e": "npm run e2e --prefix server",
     "package": "docker build -t conversations .",
     "docs:check": "npm run docs:check --prefix server",
-    "docs:generate": "npm run docs:config --prefix server && npm run docs:api --prefix server && npm run docs:realtime --prefix server && npm run docs:ratelimit --prefix server && npm run docs:analytics-schemas --prefix server"
+    "docs:generate": "npm run docs:config --prefix server && npm run docs:api --prefix server && npm run docs:realtime --prefix server && npm run docs:ratelimit --prefix server && npm run docs:analytics-schemas --prefix server",
+    "e2e:ui": "npm test --prefix e2e",
+    "shots": "npm run shots --prefix e2e"
   }
 }

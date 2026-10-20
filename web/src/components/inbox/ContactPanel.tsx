@@ -87,7 +87,7 @@ export function ContactPanel({ room, onClose }: Props) {
               ))}
             </div>
           </div>
-          <Accordion type="multiple" defaultValue={["details", "notes"]}>
+          <Accordion type="multiple" defaultValue={["notes"]}>
             <AccordionSection value="details" title="Details">
               <ContactForm key={`${contact.data.id}-${contact.data.updated_at}`} contact={contact.data} />
             </AccordionSection>

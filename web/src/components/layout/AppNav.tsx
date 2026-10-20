@@ -1,5 +1,5 @@
 import { BarChart3, Inbox, MessageCircle, Settings, type LucideIcon } from "lucide-react";
-import { NavLink, useMatch } from "react-router";
+import { Link, useMatch } from "react-router";
 import { useCounts } from "../../api/hooks";
 import { formatBadge } from "../../lib/unread";
 import { cn, ThemeToggle, Tooltip } from "../../ui";
@@ -31,6 +31,36 @@ function Badge({ n }: { n: number }) {
   );
 }
 
+function RailLink({ item: i }: { item: Item }) {
+  const active = !!useMatch({ path: i.to, end: false });
+  return (
+    <Tooltip content={i.label} side="right">
+      <Link
+        to={i.to}
+        aria-label={i.label}
+        aria-current={active ? "page" : undefined}
+        className={cn("relative grid size-10 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground", active && "bg-primary-soft text-primary-text hover:bg-primary-soft hover:text-primary-text")}
+      >
+        <i.icon className="size-5" aria-hidden="true" />
+        {i.badge !== undefined && <Badge n={i.badge} />}
+      </Link>
+    </Tooltip>
+  );
+}
+
+function TabLink({ item: i }: { item: Item }) {
+  const active = !!useMatch({ path: i.to, end: false });
+  return (
+    <Link to={i.to} aria-current={active ? "page" : undefined} className={cn("relative flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-muted-foreground", active && "text-primary-text")}>
+      <span className="relative">
+        <i.icon className="size-5" aria-hidden="true" />
+        {i.badge !== undefined && <Badge n={i.badge} />}
+      </span>
+      {i.label}
+    </Link>
+  );
+}
+
 /** Slim icon rail (md and up). */
 export function NavRail({ onHelp }: { onHelp: () => void }) {
   const items = useItems();
@@ -40,16 +70,7 @@ export function NavRail({ onHelp }: { onHelp: () => void }) {
         <MessageCircle className="size-5" />
       </div>
       {items.map((i) => (
-        <Tooltip key={i.to} content={i.label} side="right">
-          <NavLink
-            to={i.to}
-            aria-label={i.label}
-            className={({ isActive }) => cn("relative grid size-10 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground", isActive && "bg-primary-soft text-primary-text hover:bg-primary-soft hover:text-primary-text")}
-          >
-            <i.icon className="size-5" aria-hidden="true" />
-            {i.badge !== undefined && <Badge n={i.badge} />}
-          </NavLink>
-        </Tooltip>
+        <RailLink key={i.to} item={i} />
       ))}
       <div className="mt-auto flex flex-col items-center gap-1">
         <NotificationsMenu />
@@ -68,17 +89,7 @@ export function BottomNav({ onHelp }: { onHelp: () => void }) {
   return (
     <nav aria-label="Main" className="pb-safe flex shrink-0 items-stretch justify-around border-t border-border bg-surface md:hidden">
       {items.map((i) => (
-        <NavLink
-          key={i.to}
-          to={i.to}
-          className={({ isActive }) => cn("relative flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-muted-foreground", isActive && "text-primary-text")}
-        >
-          <span className="relative">
-            <i.icon className="size-5" aria-hidden="true" />
-            {i.badge !== undefined && <Badge n={i.badge} />}
-          </span>
-          {i.label}
-        </NavLink>
+        <TabLink key={i.to} item={i} />
       ))}
       <div className="flex min-h-14 flex-1 items-center justify-center">
         <UserMenu onHelp={onHelp} side="top" />

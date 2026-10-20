@@ -15,16 +15,16 @@ export function Attachments({ items, tone = "in" }: { items: Attachment[]; tone?
   return (
     <div className="mt-1.5 flex flex-col gap-1.5">
       {images.length > 0 && (
-        <div className={cn("grid gap-1", images.length === 1 ? "grid-cols-1" : "grid-cols-2")}>
+        <div className={cn("grid gap-1", images.length === 1 ? "w-72 max-w-full grid-cols-1" : "w-80 max-w-full grid-cols-2")}>
           {images.map((a, i) => (
             <button
               key={a.id}
               type="button"
               onClick={() => setOpen(i)}
               aria-label={`View ${a.file_name}`}
-              className={cn("overflow-hidden rounded-lg bg-black/10", images.length === 1 ? "max-w-[280px]" : "aspect-square")}
+              className={cn("overflow-hidden rounded-lg bg-black/10", images.length === 1 ? "" : "aspect-[4/3]")}
             >
-              <img src={a.url} alt={a.file_name} loading="lazy" className={cn("size-full object-cover", images.length === 1 && "max-h-72")} />
+              <img src={a.url} alt={a.file_name} loading="lazy" className={cn("size-full object-cover", images.length === 1 && "max-h-64")} />
             </button>
           ))}
         </div>

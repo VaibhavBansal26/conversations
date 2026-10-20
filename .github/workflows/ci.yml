@@ -92,3 +92,24 @@ jobs:
           for i in $(seq 1 30); do curl -fsS http://localhost:3000/healthz && exit 0; sleep 1; done
           docker logs conv
           exit 1
+
+  # real browser: the built server + web app, driven with real clicks and typing; axe contrast and responsive checks
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci --prefix server
+      - run: npm ci --prefix web
+      - run: npm ci --prefix e2e
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+        working-directory: e2e
+      - name: Browser end-to-end (Chromium)
+        run: E2E_CHANNEL= npm test --prefix e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-traces
+          path: e2e/test-results

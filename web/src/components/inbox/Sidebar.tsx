@@ -61,7 +61,7 @@ export function Sidebar({ filters, counts, inboxes, inboxesLoading, onNavigate, 
   return (
     <nav aria-label="Inbox navigation" className="flex h-full min-h-0 flex-col bg-surface">
       <div className="flex items-center justify-between gap-2 px-4 pb-2 pt-4">
-        <h2 className="text-base font-semibold tracking-tight">Conversations</h2>
+        <h2 className="text-base font-semibold tracking-tight">Inbox</h2>
         {onCollapse && (
           <Tooltip content="Hide sidebar">
             <button type="button" onClick={onCollapse} aria-label="Hide sidebar" className="grid size-8 place-items-center rounded-md text-subtle hover:bg-surface-2 hover:text-foreground">

@@ -24,6 +24,7 @@ const LOAD_OLDER_PX = 120;
 
 export function MessageList({ thread, loadingOlder, onLoadOlder, selfMemberId, contactName, contactSeed, editWindowSeconds, typing, handlers }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
+  const content = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
   const prevHeight = useRef<number | null>(null);
   const lastKey = useRef<string | null>(null);
@@ -66,6 +67,18 @@ export function MessageList({ thread, loadingOlder, onLoadOlder, selfMemberId, c
     if (typing && atBottom.current) scrollToBottom();
   }, [typing]);
 
+  // images, voice notes and quoted blocks settle after the first paint: stay pinned to the newest message while the reader is at the bottom
+  useEffect(() => {
+    const el = scroller.current;
+    const inner = content.current;
+    if (!el || !inner || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      if (atBottom.current && prevHeight.current === null) el.scrollTop = el.scrollHeight;
+    });
+    ro.observe(inner);
+    return () => ro.disconnect();
+  }, []);
+
   const onScroll = () => {
     const el = scroller.current;
     if (!el) return;
@@ -84,6 +97,7 @@ export function MessageList({ thread, loadingOlder, onLoadOlder, selfMemberId, c
         {announcement}
       </div>
       <div ref={scroller} className="h-full overflow-y-auto overscroll-contain px-3 pb-3 pt-2 md:px-5" onScroll={onScroll} role="log" aria-label="Conversation messages" tabIndex={0}>
+        <div ref={content}>
         {thread.hasMoreBefore && (
           <div className="flex justify-center py-2">
             {loadingOlder ? (
@@ -118,6 +132,7 @@ export function MessageList({ thread, loadingOlder, onLoadOlder, selfMemberId, c
           ),
         )}
         <TypingIndicator who={typing} />
+        </div>
       </div>
       {unseen > 0 || away ? (
         <Button

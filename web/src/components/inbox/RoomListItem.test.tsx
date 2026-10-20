@@ -52,4 +52,12 @@ describe("RoomListItem", () => {
     renderItem(makeRoom({ last_message: { ...base, kind: "note", sender_type: "agent" } }));
     expect(screen.getByText(/Note: On it/)).toBeInTheDocument();
   });
+
+  it("shows @mentions in note snippets as names, never as raw tokens", () => {
+    renderItem(
+      makeRoom({ last_message: { id: "m", source: "dm", sender_name: "Me", kind: "note", sender_type: "agent", snippet: "cc @[Sam Lee](mem_1) please check", created_at: "2026-01-05T11:55:00.000Z" } }),
+    );
+    expect(screen.getByText(/Note: cc @Sam Lee please check/)).toBeInTheDocument();
+    expect(screen.queryByText(/mem_1/)).toBeNull();
+  });
 });

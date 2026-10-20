@@ -4,7 +4,18 @@ All notable user-visible changes. Format: [Keep a Changelog](https://keepachange
 
 ## [Unreleased]
 
+### Changed (web redesign)
+- **New design system for the whole web app** (Tailwind CSS v4 tokens, Radix-based components in `web/src/ui`, lucide icons; [docs/design/DESIGN.md](docs/design/DESIGN.md), [ADR 0017](docs/adr/0017-tailwind-and-headless-primitives.md)): light, dark and system themes with a manual toggle, AA contrast checked in CI, visible focus rings, reduced-motion support, layouts from 360 px to 1920 px. The handwritten stylesheets are gone.
+- **Inbox**: three columns (views and inboxes with counts, virtualised conversation list with avatars, snippets, unread, priority, assignee, channel and time, thread) with a collapsible contact panel; drawers on tablets, separate list and chat screens with bottom navigation on phones.
+- **Thread**: grouped bubbles with day separators, delivery and read ticks, failed sends with retry, notes and system lines, quote and reply, image previews with a viewer, voice-note player, payment-request card, AI suggestion strip.
+- **Composer**: channel tabs (chat, SMS, email) and a note tab, From and Subject for email, template picker next to the `/` shortcut, emoji, mentions, rewrite, attachments by picker, paste and drag-and-drop.
+- **Settings, analytics, billing, members, roles, tokens, security and the operator console** redesigned; confirmation dialogs replace `window.confirm`; toasts confirm saves.
+- Widget customiser with a live preview (screens, light/dark, desktop/phone), launcher styles, corner radius, AA contrast check; the embeddable widget was restyled (Shadow DOM, dark mode, focus management, Escape closes) and honours the new settings `launcher_style`, `launcher_label` and `radius`.
+
 ### Added
+- Command palette (Cmd/Ctrl+K): jump to a conversation, open pages, run actions on the open conversation. New shortcuts: `/` search, `n` new conversation, `i` contact panel, `p` priority, `f` favorite, `s` snooze; the help dialog (`?`) lists them all.
+- Browser end-to-end suite (`e2e/`, Playwright) with axe accessibility checks, responsive checks, a 3,000-room scroll test and the screenshot matrix in `docs/design/`.
+- `docs/PROVENANCE.md`: what the redesign adapted from the legacy UI.
 - **Shareable identity pepper**: `PUT /api/v1/analytics/identity-pepper` imports a pepper (validated, audited, `version` bumps) so two apps of one customer derive the same `contact_key`; responses carry a `fingerprint` (first 8 hex characters of SHA-256) to compare apps without showing the pepper. `GET` takes a session or an API key with `analytics:export` + `analytics_identity:manage`; response `{pepper, version, algorithm: "HMAC-SHA256", fingerprint, rotatedAt}`. The old `/api/analytics/identity-pepper` paths remain as aliases. See [docs/ANALYTICS.md](docs/ANALYTICS.md).
 - `DATA_ENCRYPTION_KEY` and `DATA_ENCRYPTION_KEY_PREVIOUS`: a dedicated key for the identity pepper, with key-versioned ciphertext. **Production now requires `DATA_ENCRYPTION_KEY` once analytics is used**; existing peppers are re-encrypted from `JWT_SECRET` on first read. An unreadable pepper answers `409 PEPPER_UNREADABLE` instead of `500`.
 - `render.yaml` blueprint, manual `deploy-check` workflow and `docs/DEPLOY.md` for a free Render deployment.

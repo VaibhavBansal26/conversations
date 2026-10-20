@@ -18,3 +18,4 @@ Short records of decisions that shaped the system. Add one when you make a decis
 * [0014](./0014-permissions-deny-by-default.md) Permission-based access control, declared in one table, deny by default
 * [0015](./0015-soft-delete-and-append-only-audit.md) Soft delete for messages and append-only audit
 * [0016](./0016-analytics-pseudonymous-keys.md) Analytics exports are pseudonymous: HMAC keys from a per-workspace pepper
+* [0017](./0017-tailwind-and-headless-primitives.md) Tailwind CSS v4 with owned components on headless primitives

@@ -1,7 +1,9 @@
+// Adapted from the legacy UI (see docs/PROVENANCE.md): room row anatomy (avatar, name, time, last-message sender prefix, subject, unread marker).
 import { Flag, Mail, MessageSquare, Smartphone, Star } from "lucide-react";
 import { memo } from "react";
 import { Link } from "react-router";
 import type { Member, Room } from "../../api/types";
+import { splitMentions } from "../../lib/mentions";
 import { formatRelative } from "../../lib/time";
 import { formatBadge } from "../../lib/unread";
 import { Avatar, cn } from "../../ui";
@@ -24,7 +26,9 @@ function preview(room: Room): string {
   const m = room.last_message;
   if (!m) return "No messages yet";
   const who = m.kind === "note" ? "Note" : m.sender_type === "agent" ? "You" : "";
-  const text = m.snippet || (m.kind === "voice" ? "Voice note" : "Attachment");
+  // notes store mentions as @[Name](id) tokens: the list shows the name only
+  const plain = splitMentions(m.snippet ?? "").map((seg) => (seg.type === "mention" ? `@${seg.name}` : seg.text)).join("");
+  const text = plain || (m.kind === "voice" ? "Voice note" : "Attachment");
   return who ? `${who}: ${text}` : text;
 }
 

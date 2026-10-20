@@ -52,4 +52,6 @@ Every document under `docs/` is listed here (a check fails otherwise). Generated
 | [RUNBOOK.md](RUNBOOK.md) | capacity and billing incident playbooks, dashboards, alerts, SLOs, deploys, secrets, backups |
 | [SECURITY.md](SECURITY.md) | data handled, threat model, secrets, privacy, what is not covered |
 | [GLOSSARY.md](GLOSSARY.md) | domain terms and legacy term mapping |
+| [design/DESIGN.md](design/DESIGN.md) | web design system: tokens, components, shortcuts, responsive rules, and the screenshot set (`design/*.jpg`) |
+| [PROVENANCE.md](PROVENANCE.md) | which legacy UI ideas the web redesign adapted, and what was deliberately not carried over |
 | [adr/README.md](adr/README.md) | architecture decision records |

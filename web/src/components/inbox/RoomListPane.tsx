@@ -1,3 +1,4 @@
+// Adapted from the legacy UI (see docs/PROVENANCE.md): status tabs, sort options and the search box of the conversation list.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import type { Counts, Member, RoomSort, RoomStatusTab } from "../../api/types";
@@ -9,9 +10,9 @@ import { flattenRooms } from "../../state/roomCache";
 import { scrollToReveal, windowRange } from "../../lib/virtual";
 import { getWorkerClient } from "../../workers/client";
 import { roomSig } from "../../workers/logic/diff";
-import { Inbox, MenuIcon, MessageSquarePlus, Search, SearchX, X } from "lucide-react";
+import { ArrowUpDown, Inbox, MenuIcon, MessageSquarePlus, Search, SearchX, X } from "lucide-react";
 import { useSocket } from "../../realtime/SocketProvider";
-import { Button, EmptyState, ErrorNotice, Select, SegmentedList, SegmentedTrigger, Skeleton, Tabs, Tooltip } from "../../ui";
+import { Button, EmptyState, ErrorNotice, Menu, buttonVariants, SegmentedList, SegmentedTrigger, Skeleton, Tabs, Tooltip } from "../../ui";
 import { RoomListItem } from "./RoomListItem";
 
 interface Props {
@@ -133,14 +134,21 @@ export function RoomListPane({ filters, query, counts, members, selectedId, titl
           <h1 className="truncate text-lg font-semibold leading-tight tracking-tight">{title}</h1>
           {typeof total === "number" && <p className="text-xs text-subtle">{total.toLocaleString()} conversation{total === 1 ? "" : "s"}</p>}
         </div>
+        <Menu
+          label={`Sort: ${SORT_LABELS[filters.sort]}`}
+          align="end"
+          triggerClassName={buttonVariants({ variant: "ghost", size: "icon" })}
+          trigger={<ArrowUpDown aria-hidden="true" />}
+          items={(Object.entries(SORT_LABELS) as [RoomSort, string][]).map(([id, label]) => ({ id, label, checked: filters.sort === id, onSelect: () => go({ sort: id }) }))}
+        />
         <Tooltip content="New conversation" shortcut="n">
           <Button variant="outline" size="icon" aria-label="New conversation" onClick={onNewConversation} className="xl:hidden">
             <MessageSquarePlus />
           </Button>
         </Tooltip>
       </div>
-      <div className="flex items-center gap-2 px-3 pb-2 md:px-4">
-        <div className="relative min-w-0 flex-1">
+      <div className="px-3 pb-2 md:px-4">
+        <div className="relative">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-subtle" aria-hidden="true" />
           <label className="sr-only" htmlFor="room-search">
             Search conversations
@@ -149,25 +157,21 @@ export function RoomListPane({ filters, query, counts, members, selectedId, titl
             id="room-search"
             ref={searchRef}
             type="search"
-            placeholder="Search name, email, phone"
+            placeholder="Search name, email or phone"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-9 w-full rounded-md border border-border-strong bg-surface-2 pl-8 pr-8 text-sm placeholder:text-subtle focus-visible:border-ring focus-visible:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 [&::-webkit-search-cancel-button]:hidden"
           />
-          {search && (
+          {search ? (
             <button type="button" aria-label="Clear search" className="absolute right-1.5 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded text-subtle hover:bg-surface-3" onClick={() => setSearch("")}>
               <X className="size-3.5" aria-hidden="true" />
             </button>
+          ) : (
+            <kbd className="absolute right-2 top-1/2 -translate-y-1/2 rounded pointer-coarse:hidden border border-border-strong px-1.5 font-mono text-[10px] text-subtle" aria-hidden="true">
+              /
+            </kbd>
           )}
         </div>
-        <Select
-          size="sm"
-          aria-label="Sort conversations"
-          className="w-[8.5rem] shrink-0"
-          value={filters.sort}
-          onValueChange={(v) => go({ sort: v as RoomSort })}
-          options={Object.entries(SORT_LABELS).map(([value, label]) => ({ value, label }))}
-        />
       </div>
       <Tabs value={filters.status} onValueChange={(v) => go({ status: v as RoomStatusTab })} className="px-3 pb-2 md:px-4">
         <SegmentedList aria-label="Conversation status" className="flex w-full">

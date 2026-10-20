@@ -112,6 +112,24 @@ Development runs the same thing with `npm run dev` (API on :3000, Vite on :5173 
 | `apidoc/` | the documented route list, curated intro and generators' inputs |
 | `server/public/widget.js` | the embeddable widget (framework-free, Shadow DOM) |
 
+### Code layout (`web/src`)
+
+The web app is a React 19 single-page app (Vite, React Router, TanStack Query) styled with Tailwind CSS v4 ([ADR 0017](adr/0017-tailwind-and-headless-primitives.md)); the design system is documented in [design/DESIGN.md](design/DESIGN.md) and the legacy ideas it adapted in [PROVENANCE.md](PROVENANCE.md).
+
+| Path | Responsibility |
+| --- | --- |
+| `styles/index.css` | the only stylesheet: `@theme` tokens, semantic colours with `light-dark()`, base styles, reduced-motion rule |
+| `ui/` | design-system components owned by the repo: Radix primitives wrapped with `class-variance-authority` and `tailwind-merge` (button, input, select, tabs, dialog, sheet, popover, tooltip, dropdown menu, command palette, toast, badge, avatar with presence dot, table, card, skeleton, empty state, switch, scroll area, accordion), `theme.ts` (light/dark/system, stored per browser) |
+| `components/layout/`, `components/AppLayout.tsx` | the shell after sign-in: nav rail (md and up) or bottom navigation (below md), realtime connection banner, billing and support banners, shortcuts help, account menu |
+| `components/palette/` | Cmd/Ctrl+K command palette: server-side conversation search, page jumps, actions registered by whichever screen is mounted |
+| `components/inbox/`, `pages/InboxPage.tsx` | three columns (views sidebar, virtualised room list, thread) plus a collapsible contact panel; breakpoints decide inline column, drawer or separate screen |
+| `components/chat/`, `components/composer/` | thread (grouping, day separators, ticks, failed + retry, notes, system lines, quotes, images with viewer, voice notes, payment card), header actions, composer (channel tabs, From/Subject, templates, emoji, mentions, rephrase, suggestions) |
+| `pages/settings/`, `components/settings/` | settings shell (grouped navigation, list-then-detail on phones), pages, widget customiser with live preview |
+| `pages/` (auth, analytics), `admin/`, `components/charts/` | sign-in and password flows, analytics dashboard with accessible SVG charts, the operator console (its own dark chrome) |
+| `state/`, `api/`, `realtime/`, `workers/` | unchanged by the redesign: optimistic sends and cache patching from socket events, REST client with refresh rotation, Socket.IO provider, worker pool for search/diff/email splitting |
+
+Responsive behaviour: from 1280 px the views sidebar and the contact panel are inline columns; between 768 and 1279 px they are drawers (the list and the thread stay side by side); below 768 px the list and the thread are separate screens selected by the URL, with bottom navigation on the list screen. Header toolbars use container queries, so they adapt to the width of the pane, not the window. Everything behind sign-in is a lazy chunk (initial JavaScript is about 157 KB gzip against a 170 KB budget, `npm run check:bundle`).
+
 Services never touch Socket.IO directly: they call the `RealtimeBus` interface. Tests plug in a `RecordingBus`; the server plugs in `SocketBus`.
 
 ## 3. Data model

@@ -1,3 +1,4 @@
+// Adapted from the legacy UI (see docs/PROVENANCE.md): channel switch with From address and Subject for email.
 import { Lock, Mail, MessageSquare, Smartphone, type LucideIcon } from "lucide-react";
 import type { Channel, EmailSender } from "../../api/types";
 import { verifiedSenders } from "../../lib/composerRules";
