@@ -39,6 +39,8 @@ export const WidgetSettingsSchema = WidgetShape;
 export const WorkspaceSettingsSchema = z.object({
   default_region: z.string().length(2).toUpperCase().default("US"),
   edit_window_seconds: z.number().int().min(0).max(86400).default(900),
+  /** messages older than this are archived to object storage and removed (0 = keep forever) */
+  retention_days: z.number().int().min(0).max(3650).default(0),
   credits_enforced: z.boolean().default(false),
   ai_triage_enabled: z.boolean().default(false),
   ai_autoresponder_enabled: z.boolean().default(false),
@@ -54,6 +56,7 @@ export type OfficeHours = z.infer<typeof OfficeHoursSchema>;
 export const WorkspaceSettingsPatchSchema = z.object({
   default_region: WorkspaceSettingsSchema.shape.default_region.optional(),
   edit_window_seconds: WorkspaceSettingsSchema.shape.edit_window_seconds.optional(),
+  retention_days: WorkspaceSettingsSchema.shape.retention_days.optional(),
   credits_enforced: z.boolean().optional(),
   ai_triage_enabled: z.boolean().optional(),
   ai_autoresponder_enabled: z.boolean().optional(),

@@ -13,6 +13,8 @@ export interface EnqueueOptions {
   /** a repeated key is ignored while the first job still exists, so enqueueing is safe to repeat */
   dedupeKey?: string;
   maxAttempts?: number;
+  /** tenant the job belongs to: used for fair scheduling and per-tenant backpressure */
+  workspaceId?: string;
 }
 
 export interface QueueDepth {
@@ -52,7 +54,7 @@ export class DbJobQueue implements JobQueue {
     const ctx = this.ctx;
     const now = nowIso(ctx);
     const res = await ctx.db.run(
-      `INSERT OR IGNORE INTO jobs(id, type, payload, dedupe_key, run_at, max_attempts, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)`,
+      `INSERT OR IGNORE INTO jobs(id, type, payload, dedupe_key, run_at, max_attempts, created_at, updated_at, workspace_id) VALUES (?,?,?,?,?,?,?,?,?)`,
       newId("job"),
       type,
       JSON.stringify(payload),
@@ -61,6 +63,7 @@ export class DbJobQueue implements JobQueue {
       opts.maxAttempts ?? 6,
       now,
       now,
+      opts.workspaceId ?? null,
     );
     return res.changes > 0;
   }
@@ -84,8 +87,17 @@ export const enqueueJob = (ctx: AppContext, type: string, payload: unknown, opts
  * Run every due db job once. A failing job is rescheduled with exponential backoff (2^attempt seconds, capped at 15 min)
  * until max_attempts, then parked as `failed`. Claiming is a conditional UPDATE so two workers never run the same job.
  */
-export async function runDueJobs(ctx: AppContext, handlers: Record<string, JobHandler>, limit = 50): Promise<{ ran: number; failed: number }> {
-  const due = await ctx.db.all<JobRow>("SELECT * FROM jobs WHERE status = 'pending' AND run_at <= ? ORDER BY run_at LIMIT ?", nowIso(ctx), limit);
+export async function runDueJobs(ctx: AppContext, handlers: Record<string, JobHandler>, limit = 50, quantum = 5): Promise<{ ran: number; failed: number }> {
+  // Fair scheduling: at most `quantum` jobs per workspace per pass, interleaved round-robin (rank 1 of every workspace first, then rank 2, ...).
+  // A tenant that enqueues a million sends therefore delays other tenants' jobs by at most one rank per pass, not by its whole backlog.
+  const due = await ctx.db.all<JobRow>(
+    `SELECT t.* FROM (SELECT j.*, ROW_NUMBER() OVER (PARTITION BY COALESCE(j.workspace_id, '') ORDER BY j.run_at, j.id) AS rn
+                      FROM jobs j WHERE j.status = 'pending' AND j.run_at <= ?) t
+     WHERE t.rn <= ? ORDER BY t.rn, t.run_at, t.id LIMIT ?`,
+    nowIso(ctx),
+    quantum,
+    limit,
+  );
   let ran = 0;
   let failed = 0;
   for (const job of due) {

@@ -124,6 +124,9 @@ const schema = z.object({
   SCHEDULER_ENABLED: bool.default(true),
   /** pace provider sends per number/sender (queue with a delay instead of rejecting); off only in tests that assert immediate sends */
   SEND_PACING: bool.default(true),
+  /** a workspace with more than this many sends waiting gets 429 on new external sends (other tenants are unaffected) */
+  SEND_QUEUE_WORKSPACE_MAX: z.coerce.number().int().positive().default(5000),
+  SEND_RETRY_JITTER: bool.default(true),
   SEND_QUEUE_MAX: z.coerce.number().int().positive().default(500),
   SEND_RETRY_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
   SEND_RETRY_BASE_SECONDS: z.coerce.number().positive().default(30),

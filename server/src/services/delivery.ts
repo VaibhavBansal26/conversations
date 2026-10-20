@@ -9,8 +9,11 @@ import { getRoomRow } from "./roomStore.js";
 import { creditCost, recordUsage } from "./workspaces.js";
 import { getContact } from "./contacts.js";
 
-export const retryDelaySeconds = (ctx: AppContext, attempt: number): number =>
-  Math.min(ctx.config.SEND_RETRY_CAP_SECONDS, ctx.config.SEND_RETRY_BASE_SECONDS * 2 ** Math.max(0, attempt - 1));
+/** exponential backoff capped, with +-20% jitter in production so a provider outage does not turn into synchronised retry waves */
+export const retryDelaySeconds = (ctx: AppContext, attempt: number): number => {
+  const base = Math.min(ctx.config.SEND_RETRY_CAP_SECONDS, ctx.config.SEND_RETRY_BASE_SECONDS * 2 ** Math.max(0, attempt - 1));
+  return ctx.config.SEND_RETRY_JITTER ? Math.max(1, Math.round(base * (0.8 + Math.random() * 0.4))) : base;
+};
 
 async function mark(
   ctx: AppContext,
@@ -54,7 +57,7 @@ export async function deliverMessage(ctx: AppContext, messageId: string, opts: {
     const r = await ctx.ratelimit.pace(kind === "sms" ? "sms.number" : "email.sender", msg.from_addr, { queueMax: ctx.config.SEND_QUEUE_MAX });
     if (r.full) failure = { reason: "Sending queue for this number is full, will retry", retryable: true };
     else if (r.waitMs > 0) {
-      await enqueueJob(ctx, "paced_send", { message_id: msg.id }, { runAt: new Date(ctx.clock().getTime() + r.waitMs), dedupeKey: `paced:${msg.id}` });
+      await enqueueJob(ctx, "paced_send", { message_id: msg.id }, { runAt: new Date(ctx.clock().getTime() + r.waitMs), dedupeKey: `paced:${msg.id}`, workspaceId: msg.workspace_id });
       if (r.waitMs <= 60_000 && ctx.queue.kind === "db") {
         // single-node/DB queue: nudge the poller just after the slot opens so pacing does not wait for the next 10 s sweep
         const t = setTimeout(() => void import("../jobs/scheduler.js").then((m) => runDueJobs(ctx, m.jobHandlers)).catch(() => {}), r.waitMs + 25);
@@ -119,7 +122,7 @@ export async function deliverMessage(ctx: AppContext, messageId: string, opts: {
         ctx,
         "send_retry",
         { message_id: msg.id },
-        { runAt: addSeconds(ctx.clock(), retryDelaySeconds(ctx, attempts)), dedupeKey: `send_retry:${msg.id}:${attempts}` },
+        { runAt: addSeconds(ctx.clock(), retryDelaySeconds(ctx, attempts)), dedupeKey: `send_retry:${msg.id}:${attempts}`, workspaceId: msg.workspace_id },
       );
     }
   }

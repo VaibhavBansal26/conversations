@@ -8,6 +8,8 @@ import type { RoomRow } from "../services/roomStore.js";
 import { notifySnoozeEnded, sendNotificationEmail } from "../services/notifications.js";
 import { wakeDueRooms, wakeRoom } from "../services/rooms.js";
 import { nowIso } from "../context.js";
+import { ensureMessagePartitions } from "../db/partitions.js";
+import { retentionSweep } from "../services/archive.js";
 import { enqueueJob, runDueJobs, type JobHandler } from "./queue.js";
 
 export const jobHandlers: Record<string, JobHandler> = {
@@ -95,10 +97,22 @@ export async function startScheduler(ctx: AppContext): Promise<() => void> {
     }),
     60_000,
   );
+  // daily housekeeping: partitions for the coming months, retention/archival, expired idempotency keys
+  const daily = setInterval(
+    guard(async () => {
+      await ctx.locks.withLock("scheduler-daily", 3_600_000, async () => {
+        await ensureMessagePartitions(ctx.db, ctx.config.MESSAGE_PARTITION_MONTHS_AHEAD);
+        await retentionSweep(ctx);
+      });
+    }),
+    6 * 3600_000,
+  );
   pull.unref();
   sweep.unref();
+  daily.unref();
   return () => {
     clearInterval(pull);
     clearInterval(sweep);
+    clearInterval(daily);
   };
 }

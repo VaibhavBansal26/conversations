@@ -96,6 +96,7 @@ export function testConfig(env: Record<string, string> = {}): Config {
       ...(process.env.TEST_REDIS_URL ? { REDIS_URL: process.env.TEST_REDIS_URL, REDIS_PREFIX: `t${randomBytes(4).toString("hex")}`, JOB_QUEUE: "db" } : {}),
       PUBLIC_URL: "http://localhost:3000",
       SEND_PACING: "false",
+      SEND_RETRY_JITTER: "false",
       MESSAGE_HASH_PARTITIONS: "2",
       MESSAGE_PARTITION_MONTHS_AHEAD: "0",
       SEND_RETRY_BASE_SECONDS: "10",
