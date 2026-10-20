@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router";
 import { setToken } from "../api/client";
+import { LoadingBlock } from "../ui";
 
 /** Landing page for the platform console's read-only support view: takes the token from the URL fragment, removes it from the address bar, signs in. */
 export function ImpersonatePage() {
@@ -15,5 +16,5 @@ export function ImpersonatePage() {
     setDone("ok");
   }, []);
   if (done === "bad") return <Navigate to="/login" replace />;
-  return <p role="status" className="muted">Opening support view…</p>;
+  return <LoadingBlock label="Opening support view" />;
 }

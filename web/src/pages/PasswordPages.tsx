@@ -1,9 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { api } from "../api/client";
-import { ErrorNotice } from "../ui";
-import { Field } from "../ui";
-import { AuthCard } from "./AuthCard";
+import { Button, ErrorNotice, Field, Input } from "../ui";
+import { AuthCard, PasswordInput, authLink } from "./AuthCard";
 
 function useSubmit(fn: () => Promise<void>) {
   const [busy, setBusy] = useState(false);
@@ -33,20 +32,22 @@ export function ForgotPasswordPage() {
   return (
     <AuthCard title="Reset your password" subtitle="We will email you a link that works for one hour.">
       {sent ? (
-        <p role="status">If an account exists for {email}, a reset link is on its way.</p>
+        <p role="status" className="rounded-md bg-success-soft px-3 py-2.5 text-sm text-success-text">If an account exists for {email}, a reset link is on its way.</p>
       ) : (
-        <form onSubmit={(e) => void submit(e)}>
+        <form onSubmit={(e) => void submit(e)} className="space-y-4">
           <Field label="Email">
-            <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required data-autofocus />
+            <Input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required data-autofocus />
           </Field>
           {error !== null && <ErrorNotice error={error} />}
-          <button type="submit" className="btn btn-primary btn-block" disabled={busy || !email}>
+          <Button type="submit" size="lg" className="w-full" loading={busy} disabled={!email}>
             {busy ? "Sending…" : "Send reset link"}
-          </button>
+          </Button>
         </form>
       )}
-      <p className="auth-alt">
-        <Link to="/login">Back to sign in</Link>
+      <p className="text-center text-sm">
+        <Link to="/login" className={authLink}>
+          Back to sign in
+        </Link>
       </p>
     </AuthCard>
   );
@@ -62,14 +63,14 @@ export function ResetPasswordPage() {
   });
   return (
     <AuthCard title="Choose a new password" subtitle="You will be signed out everywhere else.">
-      <form onSubmit={(e) => void submit(e)}>
+      <form onSubmit={(e) => void submit(e)} className="space-y-4">
         <Field label="New password" hint="At least 8 characters.">
-          <input type="password" autoComplete="new-password" minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} required data-autofocus />
+          <PasswordInput autoComplete="new-password" minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} required data-autofocus autoFocus />
         </Field>
         {error !== null && <ErrorNotice error={error} />}
-        <button type="submit" className="btn btn-primary btn-block" disabled={busy || password.length < 8}>
+        <Button type="submit" size="lg" className="w-full" loading={busy} disabled={password.length < 8}>
           {busy ? "Saving…" : "Set password"}
-        </button>
+        </Button>
       </form>
     </AuthCard>
   );
@@ -87,17 +88,17 @@ export function AcceptInvitationPage() {
   });
   return (
     <AuthCard title="Join your team" subtitle="Choose a name and password to accept the invitation. If you already have an account, enter your current password.">
-      <form onSubmit={(e) => void submit(e)}>
+      <form onSubmit={(e) => void submit(e)} className="space-y-4">
         <Field label="Your name">
-          <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" data-autofocus />
+          <Input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" data-autofocus />
         </Field>
         <Field label="Password">
-          <input type="password" autoComplete="new-password" minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <PasswordInput autoComplete="new-password" minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} required />
         </Field>
         {error !== null && <ErrorNotice error={error} />}
-        <button type="submit" className="btn btn-primary btn-block" disabled={busy || password.length < 8}>
+        <Button type="submit" size="lg" className="w-full" loading={busy} disabled={password.length < 8}>
           {busy ? "Joining…" : "Accept invitation"}
-        </button>
+        </Button>
       </form>
     </AuthCard>
   );
