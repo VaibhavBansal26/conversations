@@ -1,8 +1,8 @@
 import { useMutation } from "@tanstack/react-query";
+import { Loader2, Sparkles } from "lucide-react";
 import { api } from "../../api/client";
 import type { RephraseMode } from "../../api/types";
-import { Icon } from "../../ui";
-import { Menu } from "../../ui";
+import { Menu, buttonVariants } from "../../ui";
 
 const MODES: { id: RephraseMode; label: string }[] = [
   { id: "improve", label: "Improve writing" },
@@ -30,10 +30,10 @@ export function RephraseMenu({ text, roomId, onResult, onError }: Props) {
   return (
     <Menu
       label="Rewrite draft with AI"
-      triggerClassName="btn btn-ghost btn-sm"
+      triggerClassName={buttonVariants({ variant: "ghost", size: "sm", className: "h-8 px-2 text-[13px] text-muted-foreground" })}
       trigger={
         <>
-          <Icon name="sparkles" size={14} /> {rephrase.isPending ? "Rewriting…" : "Rewrite"}
+          {rephrase.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Sparkles aria-hidden="true" />} <span className="max-sm:sr-only">{rephrase.isPending ? "Rewriting…" : "Rewrite"}</span>
         </>
       }
       items={MODES.map((m) => ({ id: m.id, label: m.label, disabled, onSelect: () => rephrase.mutate(m.id) }))}

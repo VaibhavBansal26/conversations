@@ -1,13 +1,16 @@
+// Adapted from the legacy UI (see docs/PROVENANCE.md): assignee, status, priority and snooze controls in the conversation header.
+import { ArrowLeft, Check, CircleDollarSign, Flag, Inbox as InboxIcon, MoreHorizontal, PanelRight, RotateCcw, Search, Sparkles, Star, UserRound } from "lucide-react";
+import { useState } from "react";
 import { Link } from "react-router";
 import { useInboxes, useMembers, useRoomActions } from "../../api/hooks";
 import type { Room } from "../../api/types";
 import { useCan, useSession } from "../../auth/AuthContext";
+import { snoozePresets, toApiTimestamp } from "../../lib/snooze";
 import { useSocket } from "../../realtime/SocketProvider";
 import { isSnoozed } from "../../state/roomCache";
-import { Avatar } from "../../ui";
-import { Icon } from "../../ui";
-import { Menu, type MenuItem } from "../../ui";
-import { useState } from "react";
+import {
+  Avatar, Button, cn, DropdownMenuCheckItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRoot, DropdownMenuSeparator, DropdownMenuTrigger, Tooltip,
+} from "../../ui";
 import { RequestPaymentDialog } from "./RequestPaymentDialog";
 import { SnoozeMenu } from "./SnoozeMenu";
 import { SummaryPopover } from "./SummaryPopover";
@@ -17,12 +20,28 @@ interface Props {
   backTo: string;
   assignOpen: boolean;
   onAssignOpen: (open: boolean) => void;
+  snoozeOpen: boolean;
+  onSnoozeOpen: (open: boolean) => void;
   panelOpen: boolean;
   onTogglePanel: () => void;
+  searchOpen: boolean;
+  onToggleSearch: () => void;
   titleRef: React.RefObject<HTMLHeadingElement | null>;
 }
 
-export function RoomHeader({ room, backTo, assignOpen, onAssignOpen, panelOpen, onTogglePanel, titleRef }: Props) {
+const iconBtn = "grid size-9 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground aria-pressed:bg-primary-soft aria-pressed:text-primary-text";
+
+function IconToggle({ label, shortcut, pressed, onClick, children, className }: { label: string; shortcut?: string; pressed?: boolean; onClick: () => void; children: React.ReactNode; className?: string }) {
+  return (
+    <Tooltip content={label} shortcut={shortcut}>
+      <button type="button" aria-label={label} aria-pressed={pressed} onClick={onClick} className={cn(iconBtn, className)}>
+        {children}
+      </button>
+    </Tooltip>
+  );
+}
+
+export function RoomHeader({ room, backTo, assignOpen, onAssignOpen, snoozeOpen, onSnoozeOpen, panelOpen, onTogglePanel, searchOpen, onToggleSearch, titleRef }: Props) {
   const { member, workspace } = useSession();
   const members = useMembers().data ?? [];
   const inboxes = useInboxes().data ?? [];
@@ -30,80 +49,149 @@ export function RoomHeader({ room, backTo, assignOpen, onAssignOpen, panelOpen, 
   const actions = useRoomActions(room.id);
   const canRequestPayment = useCan("payments:request");
   const [paying, setPaying] = useState(false);
+  const [summary, setSummary] = useState(false);
   const name = room.contact?.name || room.contact?.email || room.contact?.phone || "Unknown contact";
   const closed = room.status === "closed";
+  const snoozed = isSnoozed(room, new Date());
   const assigned = members.filter((m) => room.assignee_ids.includes(m.id));
-
-  const assignItems: MenuItem[] = [
-    { id: "me", label: "Assign to me", checked: room.assignee_ids.includes(member.id), onSelect: () => actions.assign.mutate({ member_ids: [member.id] }) },
-    { id: "auto", label: "Auto-assign (round robin)", onSelect: () => actions.assign.mutate({ auto: true }) },
-    ...members
-      .filter((m) => m.id !== member.id && m.live_seat)
-      .map<MenuItem>((m) => ({ id: m.id, label: m.name, checked: room.assignee_ids.includes(m.id), onSelect: () => actions.assign.mutate({ member_ids: [m.id] }) })),
-    { id: "none", label: "Unassign", disabled: !room.assignee_ids.length, danger: true, onSelect: () => actions.assign.mutate({ member_ids: [] }) },
-  ];
+  const details = [room.contact?.email, room.contact?.phone].filter(Boolean).join(" · ") || room.subject || "No contact details";
 
   return (
-    <header className="room-header">
-      <Link to={backTo} className="icon-btn back-btn" aria-label="Back to conversations">
-        <Icon name="left" />
-      </Link>
-      <Avatar name={name} seed={room.contact_id} online={visitorOnline[room.id]} />
-      <div className="room-title">
-        <h2 ref={titleRef} tabIndex={-1}>
-          {name}
-        </h2>
-        <p>
-          {[room.contact?.email, room.contact?.phone].filter(Boolean).join(" · ") || room.subject || "No contact details"}
-          {isSnoozed(room, new Date()) && " · Snoozed"}
-        </p>
-      </div>
-      <div className="room-actions">
-        <label className="sr-only" htmlFor="room-inbox">
-          Inbox
-        </label>
-        <select id="room-inbox" className="select-sm" value={room.inbox_id ?? ""} onChange={(e) => actions.assign.mutate({ inbox_id: e.target.value || null })}>
-          <option value="">No inbox</option>
-          {inboxes.map((i) => (
-            <option key={i.id} value={i.id}>
-              {i.name}
-            </option>
-          ))}
-        </select>
-        <Menu
-          label="Assign conversation"
-          open={assignOpen}
-          onOpenChange={onAssignOpen}
-          align="end"
-          triggerClassName="btn btn-ghost btn-sm"
-          trigger={
-            <>
-              <Icon name="user" size={16} /> <span>{assigned.length ? assigned.map((m) => m.name.split(" ")[0]).join(", ") : "Unassigned"}</span>
-            </>
-          }
-          items={assignItems}
-        />
-        <button type="button" className={`icon-btn${room.priority ? " on" : ""}`} aria-pressed={!!room.priority} aria-label="Mark as priority" onClick={() => actions.patch.mutate({ priority: room.priority ? 0 : 1 })}>
-          <Icon name="flag" filled={!!room.priority} />
-        </button>
-        <button type="button" className={`icon-btn${room.favorite ? " on" : ""}`} aria-pressed={room.favorite} aria-label="Favorite" onClick={() => actions.favorite.mutate(!room.favorite)}>
-          <Icon name="star" filled={room.favorite} />
-        </button>
-        <SnoozeMenu snoozed={isSnoozed(room, new Date())} onSnooze={(until) => actions.snooze.mutate(until)} />
-        <SummaryPopover roomId={room.id} />
-        {canRequestPayment && (
-          <button type="button" className="icon-btn" aria-label="Request payment" title="Request payment" onClick={() => setPaying(true)}>
-            <Icon name="card" />
-          </button>
-        )}
-        <button type="button" className={`btn btn-sm ${closed ? "btn-primary" : "btn-outline"}`} onClick={() => actions.patch.mutate({ status: closed ? "open" : "closed" })}>
-          <Icon name={closed ? "refresh" : "check"} size={15} /> {closed ? "Reopen" : "Close"}
-        </button>
-        <button type="button" className={`icon-btn panel-toggle${panelOpen ? " on" : ""}`} aria-pressed={panelOpen} aria-label="Contact details" onClick={onTogglePanel}>
-          <Icon name="panel" />
-        </button>
+    <header className="@container shrink-0 border-b border-border bg-surface">
+      <div className="flex h-16 items-center gap-2 px-2 md:px-4">
+        <Link to={backTo} className={cn(iconBtn, "md:hidden")} aria-label="Back to conversations">
+          <ArrowLeft className="size-5" aria-hidden="true" />
+        </Link>
+        <Avatar name={name} seed={room.contact_id} online={visitorOnline[room.id]} />
+        <div className="min-w-0 flex-1">
+          <h2 ref={titleRef} tabIndex={-1} className="truncate text-[15px] font-semibold leading-tight focus:outline-none">
+            {name}
+          </h2>
+          <p className="truncate text-xs text-subtle">
+            {details}
+            {snoozed && <span className="ml-1.5 rounded bg-warning-soft px-1.5 py-px font-medium text-warning-text">Snoozed</span>}
+            {closed && <span className="ml-1.5 rounded bg-surface-3 px-1.5 py-px font-medium text-muted-foreground">Closed</span>}
+          </p>
+        </div>
+
+        <DropdownMenuRoot open={assignOpen} onOpenChange={onAssignOpen}>
+          <DropdownMenuTrigger
+            aria-label="Assign conversation"
+            className="flex h-9 items-center gap-2 rounded-md border border-border-strong bg-surface px-2.5 text-[13px] font-medium shadow-xs hover:bg-surface-2"
+          >
+            {assigned.length ? (
+              <span className="flex -space-x-1.5">
+                {assigned.slice(0, 2).map((a) => (
+                  <Avatar key={a.id} name={a.name} size="xs" className="rounded-full ring-2 ring-surface" />
+                ))}
+              </span>
+            ) : (
+              <UserRound className="size-4 text-subtle" aria-hidden="true" />
+            )}
+            <span className="max-w-28 truncate @max-lg:hidden">{assigned.length ? assigned.map((m) => m.name.split(" ")[0]).join(", ") : "Unassigned"}</span>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-60">
+            <DropdownMenuLabel>Assign to</DropdownMenuLabel>
+            <DropdownMenuCheckItem checked={room.assignee_ids.includes(member.id)} onSelect={() => actions.assign.mutate({ member_ids: [member.id] })}>
+              Assign to me
+            </DropdownMenuCheckItem>
+            <DropdownMenuItem onSelect={() => actions.assign.mutate({ auto: true })}>Auto-assign (round robin)</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            {members
+              .filter((m) => m.id !== member.id && m.live_seat)
+              .map((m) => (
+                <DropdownMenuCheckItem key={m.id} checked={room.assignee_ids.includes(m.id)} onSelect={() => actions.assign.mutate({ member_ids: [m.id] })}>
+                  {m.name}
+                </DropdownMenuCheckItem>
+              ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem danger disabled={!room.assignee_ids.length} onSelect={() => actions.assign.mutate({ member_ids: [] })}>
+              Unassign
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenuRoot>
+
+        <div className="hidden items-center @2xl:flex">
+          <IconToggle label="Mark as priority" shortcut="p" pressed={!!room.priority} onClick={() => actions.patch.mutate({ priority: room.priority ? 0 : 1 })}>
+            <Flag className="size-[18px]" fill={room.priority ? "currentColor" : "none"} aria-hidden="true" />
+          </IconToggle>
+          <IconToggle label="Favorite" shortcut="f" pressed={room.favorite} onClick={() => actions.favorite.mutate(!room.favorite)}>
+            <Star className="size-[18px]" fill={room.favorite ? "currentColor" : "none"} aria-hidden="true" />
+          </IconToggle>
+          <SnoozeMenu snoozed={snoozed} onSnooze={(until) => actions.snooze.mutate(until)} open={snoozeOpen} onOpenChange={onSnoozeOpen} />
+          <SummaryPopover roomId={room.id} />
+          <IconToggle label="Search in this conversation" pressed={searchOpen} onClick={onToggleSearch}>
+            <Search className="size-[18px]" aria-hidden="true" />
+          </IconToggle>
+          {canRequestPayment && (
+            <IconToggle label="Request payment" onClick={() => setPaying(true)}>
+              <CircleDollarSign className="size-[18px]" aria-hidden="true" />
+            </IconToggle>
+          )}
+        </div>
+
+        <Button variant={closed ? "primary" : "outline"} size="sm" className="h-9" onClick={() => actions.patch.mutate({ status: closed ? "open" : "closed" })}>
+          {closed ? <RotateCcw aria-hidden="true" /> : <Check aria-hidden="true" />}
+          <span className="@max-md:sr-only">{closed ? "Reopen" : "Close"}</span>
+        </Button>
+
+        <DropdownMenuRoot>
+          <DropdownMenuTrigger aria-label="More actions" className={cn(iconBtn, "data-[state=open]:bg-surface-2")}>
+            <MoreHorizontal className="size-5" aria-hidden="true" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-60">
+            <div className="@2xl:hidden">
+              <DropdownMenuCheckItem checked={!!room.priority} onSelect={() => actions.patch.mutate({ priority: room.priority ? 0 : 1 })}>
+                Mark as priority
+              </DropdownMenuCheckItem>
+              <DropdownMenuCheckItem checked={room.favorite} onSelect={() => actions.favorite.mutate(!room.favorite)}>
+                Favorite
+              </DropdownMenuCheckItem>
+              <DropdownMenuItem onSelect={() => setSummary(true)}>
+                <Sparkles className="size-4 text-subtle" aria-hidden="true" /> AI summary
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={onToggleSearch}>
+                <Search className="size-4 text-subtle" aria-hidden="true" /> Search in conversation
+              </DropdownMenuItem>
+              {canRequestPayment && (
+                <DropdownMenuItem onSelect={() => setPaying(true)}>
+                  <CircleDollarSign className="size-4 text-subtle" aria-hidden="true" /> Request payment
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Snooze until</DropdownMenuLabel>
+              {snoozePresets(new Date()).slice(0, 4).map((p) => (
+                <DropdownMenuItem key={p.id} onSelect={() => actions.snooze.mutate(toApiTimestamp(p.until))}>
+                  {p.label}
+                </DropdownMenuItem>
+              ))}
+              {snoozed && (
+                <DropdownMenuItem danger onSelect={() => actions.snooze.mutate(null)}>
+                  Remove snooze
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+            </div>
+            <DropdownMenuLabel>Move to inbox</DropdownMenuLabel>
+            <DropdownMenuCheckItem checked={!room.inbox_id} onSelect={() => actions.assign.mutate({ inbox_id: null })}>
+              <InboxIcon className="size-4 text-subtle" aria-hidden="true" /> No inbox
+            </DropdownMenuCheckItem>
+            {inboxes.map((i) => (
+              <DropdownMenuCheckItem key={i.id} checked={room.inbox_id === i.id} onSelect={() => actions.assign.mutate({ inbox_id: i.id })}>
+                {i.name}
+              </DropdownMenuCheckItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenuRoot>
+
+        <IconToggle label="Contact details" shortcut="i" pressed={panelOpen} onClick={onTogglePanel}>
+          <PanelRight className="size-5" aria-hidden="true" />
+        </IconToggle>
       </div>
       {paying && <RequestPaymentDialog roomId={room.id} currency={workspace.currency} onClose={() => setPaying(false)} />}
+      <div className="@2xl:hidden">
+        <SummaryPopover roomId={room.id} sheet open={summary} onOpenChange={setSummary} />
+      </div>
     </header>
   );
 }

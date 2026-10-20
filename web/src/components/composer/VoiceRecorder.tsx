@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Icon } from "../../ui";
+import { Mic, Square } from "lucide-react";
+import { Tooltip, cn } from "../../ui";
 
 interface Props {
   disabled?: boolean;
@@ -55,13 +56,18 @@ export function VoiceRecorder({ disabled, onRecorded, onError }: Props) {
   };
 
   return recording ? (
-    <button type="button" className="icon-btn recording" aria-label={`Stop recording (${seconds}s)`} onClick={stop}>
-      <Icon name="stop" />
-      <span className="rec-time">{seconds}s</span>
+    <button type="button" className="flex h-8 items-center gap-1.5 rounded-md bg-danger-soft px-2 text-[13px] font-semibold text-danger-text" aria-label={`Stop recording (${seconds}s)`} onClick={stop}>
+      <span className="size-2 animate-pulse rounded-full bg-danger motion-reduce:animate-none" aria-hidden="true" />
+      <Square className="size-3.5" fill="currentColor" aria-hidden="true" />
+      <span className="tabular-nums">
+        {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}
+      </span>
     </button>
   ) : (
-    <button type="button" className="icon-btn" aria-label="Record voice note" disabled={disabled} onClick={() => void start()}>
-      <Icon name="mic" />
-    </button>
+    <Tooltip content="Record a voice note">
+      <button type="button" className={cn("grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-surface-2 hover:text-foreground disabled:opacity-45")} aria-label="Record voice note" disabled={disabled} onClick={() => void start()}>
+        <Mic className="size-4" aria-hidden="true" />
+      </button>
+    </Tooltip>
   );
 }

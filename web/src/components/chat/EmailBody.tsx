@@ -26,12 +26,12 @@ export function EmailBody({ text }: { text: string }) {
     <>
       <RichText text={shown.main} />
       {shown.quoted && (
-        <div className="quoted-block">
-          <button type="button" className="link-btn" aria-expanded={showQuoted} onClick={() => setShowQuoted((v) => !v)}>
-            {showQuoted ? "Hide quoted text" : "Show quoted text"}
+        <div className="mt-2">
+          <button type="button" className="inline-flex items-center gap-1 rounded bg-black/5 px-2 py-0.5 text-xs font-medium hover:bg-black/10" aria-expanded={showQuoted} onClick={() => setShowQuoted((v) => !v)}>
+            <span aria-hidden="true">···</span> {showQuoted ? "Hide quoted text" : "Show quoted text"}
           </button>
           {showQuoted && (
-            <div className="quoted-text">
+            <div className="mt-2 whitespace-pre-wrap border-l-2 border-current/30 pl-3 opacity-80">
               <RichText text={shown.quoted} />
             </div>
           )}

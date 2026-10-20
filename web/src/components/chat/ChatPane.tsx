@@ -11,8 +11,9 @@ import { keys } from "../../state/keys";
 import { newestConfirmed, upsertMessage, type Thread } from "../../state/messageCache";
 import { useSendMessage } from "../../state/useSendMessage";
 import { Composer } from "../composer/Composer";
-import { ErrorNotice } from "../../ui";
-import { LoadingBlock } from "../../ui";
+import { Check, Flag, RotateCcw, Star, UserRound, Search } from "lucide-react";
+import { useCommandActions } from "../palette/CommandPaletteProvider";
+import { ConfirmDialog, ErrorNotice, Skeleton, toast } from "../../ui";
 import { MessageList } from "./MessageList";
 import { ThreadSearch } from "./ThreadSearch";
 import { RoomHeader } from "./RoomHeader";
@@ -45,6 +46,9 @@ export function ChatPane({ roomId, backTo, panelOpen, onTogglePanel }: Props) {
   const { retry } = useSendMessage(roomId);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [assignOpen, setAssignOpen] = useState(false);
+  const [snoozeOpen, setSnoozeOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [deleting, setDeleting] = useState<Message | null>(null);
   const [actionError, setActionError] = useState<unknown>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -54,6 +58,7 @@ export function ChatPane({ roomId, backTo, panelOpen, onTogglePanel }: Props) {
   useEffect(() => {
     setReplyTo(null);
     setActionError(null);
+    setSearchOpen(false);
     markedRef.current = null;
   }, [roomId]);
 
@@ -76,6 +81,9 @@ export function ChatPane({ roomId, backTo, panelOpen, onTogglePanel }: Props) {
   useShortcuts({
     toggle_status: () => room.data && actions.patch.mutate({ status: room.data.status === "closed" ? "open" : "closed" }),
     open_assign: () => setAssignOpen(true),
+    open_snooze: () => setSnoozeOpen(true),
+    toggle_priority: () => room.data && actions.patch.mutate({ priority: room.data.priority ? 0 : 1 }),
+    toggle_favorite: () => room.data && actions.favorite.mutate(!room.data.favorite),
     focus_composer: () => composerRef.current?.focus(),
   });
 
@@ -98,21 +106,66 @@ export function ChatPane({ roomId, backTo, panelOpen, onTogglePanel }: Props) {
       else void guard(async () => merge(await api.post<Message>(`/messages/${m.id}/retry`)));
     },
     onEdit: (m: Message, content: string) => guard(async () => merge(await api.patch<Message>(`/messages/${m.id}`, { content }))),
-    onDelete: (m: Message) => {
-      if (window.confirm("Delete this message for everyone?")) void guard(() => api.delete(`/messages/${m.id}`));
-    },
+    onDelete: (m: Message) => setDeleting(m),
   };
 
-  if (room.isPending || thread.isPending) return <LoadingBlock label="Loading conversation" />;
-  if (room.isError || thread.isError) return <ErrorNotice error={room.error ?? thread.error} onRetry={() => { void room.refetch(); void thread.refetch(); }} />;
+  const closed = room.data?.status === "closed";
+  useCommandActions("room", [
+    { id: "room-status", label: closed ? "Reopen conversation" : "Close conversation", hint: "e", icon: closed ? <RotateCcw className="size-4" aria-hidden="true" /> : <Check className="size-4" aria-hidden="true" />, run: () => actions.patch.mutate({ status: closed ? "open" : "closed" }) },
+    { id: "room-assign-me", label: "Assign to me", keywords: "assign", icon: <UserRound className="size-4" aria-hidden="true" />, run: () => actions.assign.mutate({ member_ids: [member.id] }) },
+    { id: "room-assign", label: "Assign to someone…", hint: "a", keywords: "assign", icon: <UserRound className="size-4" aria-hidden="true" />, run: () => setAssignOpen(true) },
+    { id: "room-priority", label: room.data?.priority ? "Remove priority" : "Mark as priority", hint: "p", icon: <Flag className="size-4" aria-hidden="true" />, run: () => actions.patch.mutate({ priority: room.data?.priority ? 0 : 1 }) },
+    { id: "room-favorite", label: room.data?.favorite ? "Remove from favorites" : "Add to favorites", hint: "f", icon: <Star className="size-4" aria-hidden="true" />, run: () => actions.favorite.mutate(!room.data?.favorite) },
+    { id: "room-snooze", label: "Snooze…", hint: "s", icon: <Check className="size-4" aria-hidden="true" />, run: () => setSnoozeOpen(true) },
+    { id: "room-search", label: "Search in this conversation", icon: <Search className="size-4" aria-hidden="true" />, run: () => setSearchOpen(true) },
+  ]);
+
+  if (room.isPending || thread.isPending) {
+    return (
+      <div className="flex flex-1 flex-col" role="status" aria-label="Loading conversation">
+        <div className="flex h-16 items-center gap-3 border-b border-border bg-surface px-4">
+          <Skeleton className="size-9 rounded-full" />
+          <Skeleton className="h-4 w-40" />
+        </div>
+        <div className="flex-1 space-y-4 p-5">
+          <Skeleton className="h-12 w-64 rounded-2xl" />
+          <Skeleton className="ml-auto h-10 w-48 rounded-2xl" />
+          <Skeleton className="h-16 w-72 rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
+  if (room.isError || thread.isError) {
+    return (
+      <div className="m-auto max-w-md p-6">
+        <ErrorNotice error={room.error ?? thread.error} onRetry={() => { void room.refetch(); void thread.refetch(); }} />
+      </div>
+    );
+  }
 
   return (
-    <section className="chat" aria-label={`Conversation with ${room.data.contact?.name ?? "contact"}`}>
-      <RoomHeader room={room.data} backTo={backTo} assignOpen={assignOpen} onAssignOpen={setAssignOpen} panelOpen={panelOpen} onTogglePanel={onTogglePanel} titleRef={titleRef} />
-      {actionError !== null && <ErrorNotice error={actionError} compact />}
-      {actions.patch.error && <ErrorNotice error={actions.patch.error} compact />}
-      {actions.assign.error && <ErrorNotice error={actions.assign.error} compact />}
-      <ThreadSearch key={`search-${roomId}`} messages={thread.data.messages} hasOlder={!!thread.data.beforeCursor} onLoadOlder={() => older.mutate()} />
+    <section className="flex min-h-0 flex-1 flex-col" aria-label={`Conversation with ${room.data.contact?.name ?? "contact"}`}>
+      <RoomHeader
+        room={room.data}
+        backTo={backTo}
+        assignOpen={assignOpen}
+        onAssignOpen={setAssignOpen}
+        snoozeOpen={snoozeOpen}
+        onSnoozeOpen={setSnoozeOpen}
+        panelOpen={panelOpen}
+        onTogglePanel={onTogglePanel}
+        searchOpen={searchOpen}
+        onToggleSearch={() => setSearchOpen((o) => !o)}
+        titleRef={titleRef}
+      />
+      {(actionError !== null || actions.patch.error || actions.assign.error) && (
+        <div className="space-y-1 px-3 pt-2 md:px-5">
+          {actionError !== null && <ErrorNotice error={actionError} compact />}
+          {actions.patch.error && <ErrorNotice error={actions.patch.error} compact />}
+          {actions.assign.error && <ErrorNotice error={actions.assign.error} compact />}
+        </div>
+      )}
+      <ThreadSearch key={`search-${roomId}`} messages={thread.data.messages} hasOlder={!!thread.data.beforeCursor} onLoadOlder={() => older.mutate()} open={searchOpen} onOpenChange={setSearchOpen} />
       <MessageList
         key={`messages-${roomId}`}
         thread={thread.data}
@@ -120,10 +173,28 @@ export function ChatPane({ roomId, backTo, panelOpen, onTogglePanel }: Props) {
         onLoadOlder={() => older.mutate()}
         selfMemberId={member.id}
         contactName={room.data.contact?.name}
+        contactSeed={room.data.contact_id}
         editWindowSeconds={workspace.settings.edit_window_seconds}
         typing={socket.typing[roomId]}
         handlers={handlers}
       />
+      {deleting && (
+        <ConfirmDialog
+          title="Delete this message?"
+          description="It is removed for everyone in the conversation, including the customer where the channel allows."
+          confirmLabel="Delete message"
+          danger
+          onCancel={() => setDeleting(null)}
+          onConfirm={() => {
+            const m = deleting;
+            setDeleting(null);
+            void guard(async () => {
+              await api.delete(`/messages/${m.id}`);
+              toast({ title: "Message deleted", tone: "success" });
+            });
+          }}
+        />
+      )}
       <Composer key={`composer-${roomId}`} room={room.data} messages={thread.data.messages} replyTo={replyTo} onClearReply={() => setReplyTo(null)} textareaRef={composerRef} />
     </section>
   );

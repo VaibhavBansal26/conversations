@@ -18,7 +18,7 @@ describe("MessageBubble", () => {
     const { container } = render(<MessageBubble {...props} message={makeMessage({ kind: "note", sender: me, content_text: "cc @[Sam Lee](mem_2) please check" })} />);
     expect(screen.getByText(/Internal note/)).toBeInTheDocument();
     expect(screen.getByText("@Sam Lee")).toBeInTheDocument();
-    expect(container.querySelector(".bubble.note")).not.toBeNull();
+    expect(container.querySelector("[data-bubble=note]")).not.toBeNull();
     expect(container.textContent).not.toContain("mem_2");
     expect(screen.queryByRole("img", { name: /sent|delivered|read/i })).toBeNull();
   });
@@ -28,7 +28,7 @@ describe("MessageBubble", () => {
       <MessageBubble {...props} message={makeMessage({ kind: "system", sender: { type: "system", id: null, name: "" }, content_text: "Conversation reopened", meta: { sub_type: "status" } })} />,
     );
     expect(screen.getByRole("note")).toHaveTextContent("Conversation reopened");
-    expect(container.querySelector(".bubble")).toBeNull();
+    expect(container.querySelector("[data-bubble]")).toBeNull();
   });
 
   it("shows 'Failed to send: <reason>' with a Retry button that reports the message", async () => {
@@ -86,5 +86,34 @@ describe("MessageBubble", () => {
     rerender(<MessageBubble {...props} message={makeMessage()} onReply={onReply} onEdit={vi.fn()} onDelete={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "Edit message" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Delete message" })).toBeNull();
+  });
+});
+
+describe("MessageBubble voice notes and images", () => {
+  it("renders an audio attachment as a voice note with a play button", async () => {
+    render(<MessageBubble {...props} message={makeMessage({ attachments: [{ id: "v1", file_name: "note.webm", content_type: "audio/webm", size: 20, url: "/files/v1" }] })} />);
+    expect(screen.getByRole("button", { name: "Play voice note" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Playback speed 1x/ })).toBeInTheDocument();
+  });
+
+  it("opens an image in the viewer and moves between images with the arrow keys", async () => {
+    render(
+      <MessageBubble
+        {...props}
+        message={makeMessage({
+          attachments: [
+            { id: "i1", file_name: "one.png", content_type: "image/png", size: 10, url: "/files/i1" },
+            { id: "i2", file_name: "two.png", content_type: "image/png", size: 10, url: "/files/i2" },
+          ],
+        })}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "View one.png" }));
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveTextContent("1 / 2");
+    await userEvent.keyboard("{ArrowRight}");
+    expect(dialog).toHaveTextContent("2 / 2");
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });

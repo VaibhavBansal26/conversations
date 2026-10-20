@@ -8,8 +8,9 @@ import { checkComposer, defaultEmailSubject, messageKindFor, SMS_LIMIT, verified
 import { activeMention, insertMention } from "../../lib/mentions";
 import { useSocket } from "../../realtime/SocketProvider";
 import { useSendMessage } from "../../state/useSendMessage";
-import { ErrorNotice } from "../../ui";
-import { Icon } from "../../ui";
+import { AtSign, Loader2, Paperclip, Reply, SendHorizontal, X } from "lucide-react";
+import { Button, cn, ErrorNotice, Tooltip } from "../../ui";
+import { TemplatePicker } from "./TemplatePicker";
 import { AttachmentChips } from "./AttachmentChips";
 import { ChannelBar } from "./ChannelBar";
 import { EmojiPicker } from "./EmojiPicker";
@@ -54,6 +55,7 @@ export function Composer({ room, messages, replyTo, onClearReply, textareaRef }:
   const [caret, setCaret] = useState(0);
   const [active, setActive] = useState(0);
   const [dismissed, setDismissed] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const lastTyping = useRef(0);
   const subjectSeeded = useRef(false);
@@ -203,73 +205,130 @@ export function Composer({ room, messages, replyTo, onClearReply, textareaRef }:
     el?.focus();
   };
 
+  // grow with the text up to a cap, then scroll
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
+  }, [text, textareaRef]);
+
+  const onPaste = (e: React.ClipboardEvent) => {
+    const files = [...e.clipboardData.files];
+    if (files.length) {
+      e.preventDefault();
+      void upload(files);
+    }
+  };
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const files = [...e.dataTransfer.files];
+    if (files.length) void upload(files);
+  };
+
   const lastConfirmed = [...messages].reverse().find((m) => !m.local && m.kind !== "system");
   const suggestFor = lastConfirmed && lastConfirmed.sender.type === "contact" && !isNote && !text ? lastConfirmed.id : null;
   const problemsId = `${listId}-problems`;
 
   return (
     <form
-      className={`composer${isNote ? " is-note" : ""}`}
+      className="pb-safe shrink-0 border-t border-border bg-surface px-3 pb-3 pt-2.5 md:px-5"
+      aria-label="Reply"
       onSubmit={(e) => {
         e.preventDefault();
         submit();
       }}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes("Files")) {
+          e.preventDefault();
+          setDragging(true);
+        }
+      }}
+      onDragLeave={(e) => e.currentTarget.contains(e.relatedTarget as Node) || setDragging(false)}
+      onDrop={onDrop}
     >
-      {replyTo && (
-        <div className="reply-bar">
-          <Icon name="reply" size={14} />
-          <span>
-            Replying to <strong>{replyTo.sender.name || "message"}</strong>: {replyTo.content_text.slice(0, 90) || `[${replyTo.kind}]`}
-          </span>
-          <button type="button" className="icon-btn sm" aria-label="Cancel reply" onClick={onClearReply}>
-            <Icon name="x" size={12} />
-          </button>
-        </div>
-      )}
       <SuggestionStrip roomId={room.id} triggerMessageId={suggestFor} onPick={(s) => update(s)} />
-      <ChannelBar channel={channel} onChannel={setChannel} isNote={isNote} onNote={setNote} senders={senderList} from={from} onFrom={setFrom} subject={subject} onSubject={setSubject} />
-      <div className="composer-input">
-        {suggestOpen && <SuggestList id={listId} label={slash !== null ? "Templates" : "Mention a teammate"} items={items} active={active} onPick={pick} />}
-        <textarea
-          ref={textareaRef}
-          aria-label={isNote ? "Write an internal note" : "Write a reply"}
-          placeholder={isNote ? "Write a note for your team. Type @ to mention someone." : "Reply… Type / for templates"}
-          rows={3}
-          value={text}
-          aria-describedby={check.problems.length ? problemsId : undefined}
-          aria-controls={suggestOpen ? listId : undefined}
-          aria-activedescendant={suggestOpen && items.length ? `${listId}-${active}` : undefined}
-          onChange={(e) => update(e.target.value, e.target.selectionStart)}
-          onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
-          onKeyDown={onKeyDown}
-        />
-      </div>
-      <AttachmentChips items={attachments} uploading={uploading} onRemove={(id) => setAttachments((a) => a.filter((x) => x.id !== id))} />
-      {notice !== null && <ErrorNotice error={notice} compact />}
-      {check.problems.length > 0 && (text.trim() || attachments.length > 0 || channel !== "dm") && (
-        <ul id={problemsId} className="problems" aria-live="polite">
-          {check.problems.map((p) => (
-            <li key={p}>{p}</li>
-          ))}
-        </ul>
-      )}
-      <div className="composer-tools">
-        <input ref={fileInput} type="file" multiple hidden onChange={(e) => { void upload([...(e.target.files ?? [])]); e.target.value = ""; }} />
-        <button type="button" className="icon-btn" aria-label="Attach files" onClick={() => fileInput.current?.click()}>
-          <Icon name="paperclip" />
-        </button>
-        <EmojiPicker onPick={insertAtCaret} />
-        <VoiceRecorder disabled={isNote} onRecorded={(f) => void upload([f])} onError={(m) => setNotice(new Error(m))} />
-        <RephraseMenu text={text} roomId={room.id} onResult={(t) => update(t)} onError={setNotice} />
-        <span className="grow" />
-        {check.smsRemaining !== null && (
-          <span className={`counter${check.smsRemaining < 0 ? " over" : ""}`} aria-live="polite">
-            {text.length}/{SMS_LIMIT}
-          </span>
+      <div
+        data-note={isNote || undefined}
+        className={cn(
+          "relative rounded-xl border bg-surface shadow-xs transition-[border-color,box-shadow] focus-within:ring-2",
+          isNote ? "border-warning-border bg-warning-soft focus-within:border-warning-text focus-within:ring-warning-text/20" : "border-border-strong focus-within:border-ring focus-within:ring-ring/20",
+          dragging && "border-primary ring-2 ring-primary/30",
         )}
-        <button type="submit" className="btn btn-primary" disabled={!check.canSend}>
-          <Icon name="send" size={16} /> {isNote ? "Add note" : "Send"}
-        </button>
+      >
+        {dragging && <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-xl bg-primary-soft/90 text-sm font-medium text-primary-text">Drop files to attach</div>}
+        <ChannelBar channel={channel} onChannel={setChannel} isNote={isNote} onNote={setNote} senders={senderList} from={from} onFrom={setFrom} subject={subject} onSubject={setSubject} />
+        {replyTo && (
+          <div className="mx-3 mt-2 flex items-center gap-2 rounded-md border-l-[3px] border-primary bg-surface-2 py-1.5 pl-2.5 pr-1 text-[13px]">
+            <Reply className="size-3.5 shrink-0 text-subtle" aria-hidden="true" />
+            <span className="min-w-0 flex-1 truncate">
+              Replying to <strong>{replyTo.sender.name || "message"}</strong>: {replyTo.content_text.slice(0, 90) || `[${replyTo.kind}]`}
+            </span>
+            <Button variant="ghost" size="icon-sm" aria-label="Cancel reply" onClick={onClearReply}>
+              <X />
+            </Button>
+          </div>
+        )}
+        <div className="relative">
+          {suggestOpen && <SuggestList id={listId} label={slash !== null ? "Templates" : "Mention a teammate"} items={items} active={active} onPick={pick} />}
+          <textarea
+            ref={textareaRef}
+            aria-label={isNote ? "Write an internal note" : "Write a reply"}
+            placeholder={isNote ? "Write a note for your team. Type @ to mention someone." : "Reply… Type / for templates"}
+            rows={2}
+            value={text}
+            aria-describedby={check.problems.length ? problemsId : undefined}
+            aria-controls={suggestOpen ? listId : undefined}
+            aria-activedescendant={suggestOpen && items.length ? `${listId}-${active}` : undefined}
+            onChange={(e) => update(e.target.value, e.target.selectionStart)}
+            onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
+            onKeyDown={onKeyDown}
+            onPaste={onPaste}
+            className="block max-h-56 min-h-[3.25rem] w-full resize-none bg-transparent px-3.5 py-3 text-[14px] leading-relaxed placeholder:text-subtle focus:outline-none"
+          />
+        </div>
+        <AttachmentChips items={attachments} uploading={uploading} onRemove={(id) => setAttachments((a) => a.filter((x) => x.id !== id))} />
+        {notice !== null && (
+          <div className="px-3 pb-2">
+            <ErrorNotice error={notice} compact />
+          </div>
+        )}
+        {check.problems.length > 0 && (text.trim() || attachments.length > 0 || channel !== "dm") && (
+          <ul id={problemsId} className="space-y-0.5 px-3.5 pb-2 text-xs text-danger-text" aria-live="polite">
+            {check.problems.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+        )}
+        <div className="flex items-center gap-0.5 border-t border-border/70 px-2 py-1.5">
+          <input ref={fileInput} type="file" multiple hidden onChange={(e) => { void upload([...(e.target.files ?? [])]); e.target.value = ""; }} />
+          <Tooltip content="Attach files">
+            <Button variant="ghost" size="icon-sm" aria-label="Attach files" onClick={() => fileInput.current?.click()}>
+              <Paperclip />
+            </Button>
+          </Tooltip>
+          <EmojiPicker onPick={insertAtCaret} />
+          {!isNote && <TemplatePicker templates={templates.data ?? []} channel={check.channel} onPick={(t) => render.mutate(t)} busy={render.isPending} />}
+          {isNote && (
+            <Tooltip content="Mention a teammate">
+              <Button variant="ghost" size="icon-sm" aria-label="Mention a teammate" onClick={() => { insertAtCaret(text && !/\s$/.test(text) ? " @" : "@"); }}>
+                <AtSign />
+              </Button>
+            </Tooltip>
+          )}
+          <VoiceRecorder disabled={isNote} onRecorded={(f) => void upload([f])} onError={(m) => setNotice(new Error(m))} />
+          <RephraseMenu text={text} roomId={room.id} onResult={(t) => update(t)} onError={setNotice} />
+          <span className="flex-1" />
+          {check.smsRemaining !== null && (
+            <span className={cn("mr-2 text-xs tabular-nums", check.smsRemaining < 0 ? "font-semibold text-danger-text" : "text-subtle")} aria-live="polite">
+              {text.length}/{SMS_LIMIT}
+            </span>
+          )}
+          <Button type="submit" size="sm" className="h-8" disabled={!check.canSend} variant={isNote ? "secondary" : "primary"}>
+            {uploading > 0 ? <Loader2 className="animate-spin" aria-hidden="true" /> : <SendHorizontal aria-hidden="true" />} {isNote ? "Add note" : "Send"}
+          </Button>
+        </div>
       </div>
     </form>
   );
