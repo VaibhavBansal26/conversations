@@ -4,6 +4,7 @@ import { RedirectIfAuthed, RequireAuth } from "./auth/RequireAuth";
 import { AppLayout } from "./components/AppLayout";
 import { InboxPage } from "./pages/InboxPage";
 import { LoginPage } from "./pages/LoginPage";
+import { AcceptInvitationPage, ForgotPasswordPage, ResetPasswordPage } from "./pages/PasswordPages";
 import { RegisterPage } from "./pages/RegisterPage";
 import { SettingsLayout } from "./pages/settings/SettingsLayout";
 
@@ -17,6 +18,8 @@ const MemberSettings = lazy(() => import("./pages/settings/MemberSettings").then
 const NotificationSettings = lazy(() => import("./pages/settings/NotificationSettings").then((m) => ({ default: m.NotificationSettings })));
 const TemplateSettings = lazy(() => import("./pages/settings/TemplateSettings").then((m) => ({ default: m.TemplateSettings })));
 const TokenSettings = lazy(() => import("./pages/settings/TokenSettings").then((m) => ({ default: m.TokenSettings })));
+const SecuritySettings = lazy(() => import("./pages/settings/SecuritySettings").then((m) => ({ default: m.SecuritySettings })));
+const RoleSettings = lazy(() => import("./pages/settings/RoleSettings").then((m) => ({ default: m.RoleSettings })));
 const WidgetSettings = lazy(() => import("./pages/settings/WidgetSettings").then((m) => ({ default: m.WidgetSettings })));
 
 export function App() {
@@ -25,6 +28,9 @@ export function App() {
       <Route element={<RedirectIfAuthed />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/accept-invitation" element={<AcceptInvitationPage />} />
       </Route>
       <Route element={<RequireAuth />}>
         <Route element={<AppLayout />}>
@@ -41,6 +47,8 @@ export function App() {
             <Route path="contacts" element={<ContactSettings />} />
             <Route path="knowledge-base" element={<KnowledgeBaseSettings />} />
             <Route path="ai" element={<AiSettings />} />
+            <Route path="security" element={<SecuritySettings />} />
+            <Route path="roles" element={<RoleSettings />} />
             <Route path="notifications" element={<NotificationSettings />} />
           </Route>
         </Route>

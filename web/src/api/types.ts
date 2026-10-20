@@ -87,7 +87,13 @@ export interface Session {
 
 export interface AuthResponse extends Session {
   token: string;
+  refresh_token: string;
   expires_in: number;
+}
+
+export interface MfaRequired {
+  mfa_required: true;
+  mfa_token: string;
 }
 
 export interface ContactBrief {

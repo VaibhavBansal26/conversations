@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useMatch } from "react-router";
 import { io, type Socket } from "socket.io-client";
 import type { MessageEventPayload, NotificationItem, ReceiptPayload, Room, TypingEvent } from "../api/types";
+import { getToken, refreshAccess } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import {
   onMessageDeleted, onMessageNew, onMessageUpdated, onNotificationNew, onNotificationRead, onReceipt, onRoomDeleted, onRoomNew, onRoomUnread, onRoomUpdated,
@@ -36,6 +37,8 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   const activeRoom = useRef<string | null>(null);
   activeRoom.current = roomMatch?.params.roomId ?? null;
 
+  // the socket is created once per sign-in; a refreshed access token reaches it through the auth callback, not by recreating it
+  const signedIn = !!token;
   const socketRef = useRef<Socket | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const [typing, setTyping] = useState<Record<string, TypingEvent["who"]>>({});
@@ -43,11 +46,12 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   const [visitorOnline, setVisitorOnline] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    if (!token || !workspaceId) return;
+    if (!signedIn || !workspaceId) return;
     // websocket first (no long-polling round trips on every emit), polling only as a fallback; jittered exponential backoff so a
     // server restart does not make every client reconnect in the same instant
     const socket = io(`/ws/${workspaceId}`, {
-      auth: { token }, transports: ["websocket", "polling"], reconnectionDelay: 1000, reconnectionDelayMax: 15_000, randomizationFactor: 0.8,
+      // evaluated on every (re)connect, so a socket that reconnects after a token refresh presents the new token
+      auth: (cb) => cb({ token: getToken() }), transports: ["websocket", "polling"], reconnectionDelay: 1000, reconnectionDelayMax: 15_000, randomizationFactor: 0.8,
     });
     let manualTimer: ReturnType<typeof setTimeout> | undefined;
     const reconnectLater = (ms: number) => {
@@ -88,7 +92,10 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       void qc.invalidateQueries({ queryKey: keys.counts });
       void qc.invalidateQueries({ queryKey: ["thread"] });
     });
-    socket.on("auth:expired", () => logout());
+    // the access token this socket authenticated with ran out: renew it and reconnect (log out only when renewal is impossible)
+    socket.on("auth:expired", () => {
+      void refreshAccess().then((ok) => (ok ? reconnectLater(200) : logout()));
+    });
     socket.on("connect_error", (err: Error & { data?: { code?: string } }) => {
       setStatus("disconnected");
       if (err.data?.code && AUTH_CODES.has(err.data.code)) logout();
@@ -142,7 +149,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       socketRef.current = null;
       setStatus("connecting");
     };
-  }, [token, workspaceId, memberId, qc, logout]);
+  }, [signedIn, workspaceId, memberId, qc, logout]);
 
   const emit = useCallback(<T extends object>(event: string, payload: object, timeoutMs = 10_000): Promise<Ack<T>> => {
     const socket = socketRef.current;

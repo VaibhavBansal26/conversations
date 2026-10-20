@@ -8,12 +8,14 @@ export const SETTINGS_PAGES = [
   { path: "widget", label: "Chat widget", managerOnly: true },
   { path: "inboxes", label: "Inboxes", managerOnly: true },
   { path: "members", label: "Members & seats", managerOnly: true },
+  { path: "roles", label: "Roles & invitations", managerOnly: true },
   { path: "tokens", label: "Embed tokens", managerOnly: true },
   { path: "channels", label: "Numbers & senders", managerOnly: true },
   { path: "templates", label: "Templates", managerOnly: true },
   { path: "contacts", label: "Import contacts", managerOnly: false },
   { path: "knowledge-base", label: "Knowledge base", managerOnly: true },
   { path: "ai", label: "AI assistant", managerOnly: true },
+  { path: "security", label: "Account security", managerOnly: false },
   { path: "notifications", label: "Notifications & availability", managerOnly: false },
 ] as const;
 
