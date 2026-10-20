@@ -1,0 +1,31 @@
+# Scale on what actually limits a realtime node: open connections (and event-loop lag as a second trigger), not CPU alone.
+# Needs KEDA (https://keda.sh) and a Prometheus that scrapes the pods (the Deployment is annotated for it).
+# Apply instead of hpa.yaml:   kubectl apply -k deploy/k8s-keda        (replaces the CPU-only HPA with this ScaledObject)
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: conversations
+  namespace: conversations
+spec:
+  scaleTargetRef: { name: conversations }
+  minReplicaCount: 2
+  maxReplicaCount: 60
+  cooldownPeriod: 900            # sockets are expensive to move: wait 15 min of low load before removing a node
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp: { stabilizationWindowSeconds: 0, policies: [{ type: Percent, value: 50, periodSeconds: 60 }] }
+        scaleDown: { stabilizationWindowSeconds: 900, policies: [{ type: Pods, value: 1, periodSeconds: 300 }] }
+  triggers:
+    # target 18,000 connections per pod (the tuned per-node figure is 25,000; this leaves ~30% headroom for a node loss or a reconnect wave)
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus.monitoring.svc:9090
+        query: sum(conv_ws_connections{namespace="conversations"})
+        threshold: "18000"
+    # event loop lag is the early warning that a node is CPU-bound regardless of connection count
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus.monitoring.svc:9090
+        query: max(conv_event_loop_lag_p99_seconds{namespace="conversations"})
+        threshold: "0.1"
