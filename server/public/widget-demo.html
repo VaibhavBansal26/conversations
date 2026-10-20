@@ -5,20 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Conversations widget demo</title>
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 48px auto; padding: 0 16px; color: #111827; line-height: 1.5; }
-    code, input { font-family: ui-monospace, monospace; }
-    input { width: 100%; padding: 8px; margin: 8px 0 16px; box-sizing: border-box; }
-    button { padding: 8px 14px; }
-    .note { background: #eef2ff; padding: 12px 16px; border-radius: 8px; font-size: 14px; }
+    :root { color-scheme: light dark; --bg: #f5f5f8; --card: #fff; --fg: #15151c; --muted: #4b4b5a; --line: #e2e2ea; --accent: #4f46e5; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #0b0b0f; --card: #14141a; --fg: #ececf3; --muted: #a9a9bb; --line: #2b2b38; --accent: #818cf8; } }
+    * { box-sizing: border-box; }
+    body { font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; min-height: 100vh; background: var(--bg); color: var(--fg); line-height: 1.55; }
+    main { max-width: 640px; margin: 0 auto; padding: 56px 16px; }
+    h1 { font-size: 28px; letter-spacing: -0.02em; margin: 0 0 8px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin-top: 20px; }
+    code, input { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+    code { background: color-mix(in srgb, var(--accent) 12%, transparent); padding: 1px 6px; border-radius: 5px; }
+    label { font-weight: 600; font-size: 14px; }
+    input { width: 100%; padding: 10px 12px; margin: 6px 0 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font-size: 14px; }
+    button { padding: 10px 16px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
+    @media (prefers-color-scheme: dark) { button { color: #0b0b0f; } }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .note { color: var(--muted); font-size: 14px; margin: 0; }
   </style>
 </head>
 <body>
+  <main>
   <h1>Live chat widget demo</h1>
+  <div class="card">
   <p class="note">Create an embed token for <code id="host"></code> in <em>Settings &rarr; Tokens</em> (the domain must match this page's host, including the port), paste it below and load the widget.</p>
   <label for="token">Embed token</label>
   <input id="token" placeholder="cvt_..." autocomplete="off">
   <button id="load" type="button">Load widget</button>
-  <p id="msg" role="status"></p>
+  <p id="msg" role="status" class="note"></p>
+  </div>
+  </main>
   <script>
     document.getElementById("host").textContent = location.host;
     var params = new URLSearchParams(location.search);

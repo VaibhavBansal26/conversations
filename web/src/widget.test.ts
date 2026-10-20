@@ -73,6 +73,41 @@ describe("widget rendering", () => {
     expect(document.body.textContent).not.toContain("Welcome"); // nothing leaks outside the shadow root
   });
 
+  it("applies the launcher style, label and radius from the config", async () => {
+    widget = await boot({ launcher_style: "pill", launcher_label: "Ask us", radius: 6 });
+    const launcher = shadow().querySelector("button.launcher")!;
+    expect(launcher.className).toContain("pill");
+    expect(launcher.querySelector(".lbl")!.textContent).toBe("Ask us");
+    expect(launcher.querySelector("svg")).not.toBeNull();
+    expect((document.getElementById("conversations-widget-host") as HTMLElement).style.getPropertyValue("--r")).toBe("6px");
+  });
+
+  it("falls back to the bubble launcher and 16px radius for configs without the new fields", async () => {
+    widget = await boot();
+    expect(shadow().querySelector("button.launcher")!.className).toContain("bubble");
+    expect((document.getElementById("conversations-widget-host") as HTMLElement).style.getPropertyValue("--r")).toBe("16px");
+  });
+
+  it("closes on Escape, returns focus to the launcher and honours the theme option", async () => {
+    widget = await boot({}, { theme: "dark" });
+    expect(shadow().querySelector(".root")!.getAttribute("data-theme")).toBe("dark");
+    widget.open();
+    await flush(); await flush(); await flush();
+    const panel = shadow().querySelector(".panel") as HTMLElement;
+    expect(panel.hidden).toBe(false);
+    panel.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(panel.hidden).toBe(true);
+    expect(shadow().querySelector("button.launcher")!.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("gives the icon-only controls accessible names", async () => {
+    widget = await boot();
+    widget.open();
+    await flush(); await flush(); await flush();
+    expect(shadow().querySelector(".head button")!.getAttribute("aria-label")).toBe("Close chat");
+    expect(shadow().querySelector(".compose .send")!.getAttribute("aria-label")).toBe("Send message");
+  });
+
   it("opens, creates an anonymous session and room, loads the welcome message and sends the API key/device headers", async () => {
     widget = await boot();
     widget.open();
