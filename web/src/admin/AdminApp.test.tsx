@@ -115,6 +115,7 @@ describe("platform console", () => {
     await userEvent.type(screen.getByLabelText(/^reason$/i), "chargeback fraud");
     expect(suspend).toBeEnabled();
     await userEvent.click(suspend);
+    await userEvent.click(await screen.findByRole("button", { name: /confirm suspension/i }));
     await waitFor(() => expect(calls.find((c) => c.path === "/workspaces/ws_1/suspend")?.body).toEqual({ reason: "chargeback fraud" }));
   });
 
