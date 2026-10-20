@@ -11,7 +11,7 @@ const notConfigured = () => new AppError(503, "BILLING_NOT_CONFIGURED", "Billing
 export class NullBilling implements BillingProvider {
   readonly name = "none";
   readonly configured = false;
-  private no = (): never => {
+  private no = (..._args: unknown[]): never => {
     throw notConfigured();
   };
   createCustomer = this.no;
@@ -24,7 +24,7 @@ export class NullBilling implements BillingProvider {
   getConnectAccount = this.no;
   createPaymentCheckout = this.no;
   expirePaymentCheckout = this.no;
-  verifyWebhook = (): never => {
+  verifyWebhook = (..._args: unknown[]): never => {
     throw new AppError(401, "WEBHOOK_NOT_CONFIGURED", "Stripe webhooks are not configured");
   };
 }
