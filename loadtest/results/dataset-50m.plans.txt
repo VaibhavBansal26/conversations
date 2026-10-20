@@ -1,0 +1,1533 @@
+### history page, newest 30
+SELECT * FROM messages WHERE room_id = $1 AND deleted_at IS NULL ORDER BY seq DESC LIMIT 30
+
+Limit (actual time=0.202..0.204 rows=20.00 loops=1)
+  Buffers: shared hit=56
+  ->  Sort (actual time=0.201..0.203 rows=20.00 loops=1)
+        Sort Key: messages.seq DESC
+        Sort Method: quicksort  Memory: 33kB
+        Buffers: shared hit=56
+        ->  Append (actual time=0.089..0.195 rows=20.00 loops=1)
+              Buffers: shared hit=56
+              ->  Index Scan Backward using messages_h8_202511_room_id_seq_idx on messages_h8_202511 messages_1 (actual time=0.088..0.093 rows=1.00 loops=1)
+                    Index Cond: (room_id = 'room_000833333'::text)
+                    Filter: (deleted_at IS NULL)
+                    Index Searches: 1
+                    Buffers: shared hit=4
+              ->  Index Scan Backward using messages_h8_202512_room_id_seq_idx on messages_h8_202512 messages_2 (actual time=0.008..0.009 rows=2.00 loops=1)
+                    Index Cond: (room_id = 'room_000833333'::text)
+                    Filter: (deleted_at IS NULL)
+                    Index Searches: 1
+                    Buffers: shared hit=5
+              ->  Index Scan Backward using messages_h8_202601_room_id_seq_idx on messages_h8_202601 messages_3 (actual time=0.005..0.012 rows=3.00 loops=1)
+                    Index Cond: (room_id = 'room_000833333'::text)
+                    Filter: (deleted_at IS NULL)
+                    Index Searches: 1
+                    Buffers: shared hit=6
+              ->  Index Scan Backward using messages_h8_202602_room_id_seq_idx on messages_h8_202602 messages_4 (actual time=0.007..0.007 rows=1.00 loops=1)
+                    Index Cond: (room_id = 'room_000833333'::text)
+                    Filter: (deleted_at IS NULL)
+                    Index Searches: 1
+                    Buffers: shared hit=4
+              ->  Index Scan Backward using messages_h8_202603_room_id_seq_idx on messages_h8_202603 messages_5 (actual time=0.005..0.006 rows=2.00 loops=1)
+                    Index Cond: (room_id = 'room_000833333'::text)
+                    Filter: (deleted_at IS NULL)
+                    Index Searches: 1
+                    Buffers: shared hit=5
+              ->  Index Scan Backward using messages_h8_202604_room_id_seq_idx on messages_h8_202604 messages_6 (actual time=0.005..0.006 rows=2.00 loops=1)
+                    Index Cond: (room_id = 'room_000833333'::text)
+                    Filter: (deleted_at IS NULL)
+                    Index Searches: 1
+                    Buffers: shared hit=5
+              ->  Index Scan Backward using messages_h8_202605_room_id_seq_idx on messages_h8_202605 messages_7 (actual time=0.005..0.005 rows=1.00 loops=1)
+                    Index Cond: (room_id = 'room_000833333'::text)
+                    Filter: (deleted_at IS NULL)
+                    Index Searches: 1
+                    Buffers: shared hit=4
+              ->  Index Scan Backward using messages_h8_202606_room_id_seq_idx on messages_h8_202606 messages_8 (actual time=0.005..0.006 rows=2.00 loops=1)
+                    Index Cond: (room_id = 'room_000833333'::text)
+                    Filter: (deleted_at IS NULL)
+                    Index Searches: 1
+                    Buffers: shared hit=5
+              ->  Index Scan Backward using messages_h8_202607_room_id_seq_idx on messages_h8_202607 messages_9 (actual time=0.022..0.022 rows=1.00 loops=1)
+                    Index Cond: (room_id = 'room_000833333'::text)
+                    Filter: (deleted_at IS NULL)
+                    Index Searches: 1
+                    Buffers: shared hit=4
+              ->  Index Scan Backward using messages_h8_202608_room_id_seq_idx on messages_h8_202608 messages_10 (actual time=0.006..0.007 rows=2.00 loops=1)
+                    Index Cond: (room_id = 'room_000833333'::text)
+                    Filter: (deleted_at IS NULL)
+                    Index Searches: 1
+                    Buffers: shared hit=5
+              ->  Index Scan Backward using messages_h8_202609_room_id_seq_idx on messages_h8_202609 messages_11 (actual time=0.005..0.006 rows=2.00 loops=1)
+                    Index Cond: (room_id = 'room_000833333'::text)
+                    Filter: (deleted_at IS NULL)
+                    Index Searches: 1
+                    Buffers: shared hit=5
+              ->  Index Scan Backward using messages_h8_202610_room_id_seq_idx on messages_h8_202610 messages_12 (actual time=0.004..0.004 rows=1.00 loops=1)
+                    Index Cond: (room_id = 'room_000833333'::text)
+                    Filter: (deleted_at IS NULL)
+                    Index Searches: 1
+                    Buffers: shared hit=4
+              ->  Seq Scan on messages_h8_202611 messages_13 (actual time=0.004..0.004 rows=0.00 loops=1)
+                    Filter: ((deleted_at IS NULL) AND (room_id = 'room_000833333'::text))
+              ->  Seq Scan on messages_h8_202612 messages_14 (actual time=0.001..0.001 rows=0.00 loops=1)
+                    Filter: ((deleted_at IS NULL) AND (room_id = 'room_000833333'::text))
+              ->  Seq Scan on messages_h8_202701 messages_15 (actual time=0.001..0.001 rows=0.00 loops=1)
+                    Filter: ((deleted_at IS NULL) AND (room_id = 'room_000833333'::text))
+              ->  Seq Scan on messages_h8_default messages_16 (actual time=0.001..0.001 rows=0.00 loops=1)
+                    Filter: ((deleted_at IS NULL) AND (room_id = 'room_000833333'::text))
+Planning:
+  Buffers: shared hit=48
+Planning Time: 7.712 ms
+Execution Time: 0.334 ms
+
+### history page, before a cursor
+SELECT * FROM messages WHERE room_id = $1 AND deleted_at IS NULL AND seq < $2 ORDER BY seq DESC LIMIT 30
+
+Limit (actual time=0.056..0.057 rows=5.00 loops=1)
+  Buffers: shared hit=41
+  ->  Sort (actual time=0.056..0.057 rows=5.00 loops=1)
+        Sort Key: messages.seq DESC
+        Sort Method: quicksort  Memory: 26kB
+        Buffers: shared hit=41
+        ->  Append (actual time=0.016..0.055 rows=5.00 loops=1)
+              Buffers: shared hit=41
+              ->  Index Scan Backward using messages_h8_202511_room_id_seq_idx on messages_h8_202511 messages_1 (actual time=0.007..0.007 rows=0.00 loops=1)
+                    Index Cond: ((room_id = 'room_000833333'::text) AND (seq < 6))
+                    Filter: (deleted_at IS NULL)
+                    Index Searches: 1
+                    Buffers: shared hit=3
+              ->  Index Scan Backward using messages_h8_202512_room_id_seq_idx on messages_h8_202512 messages_2 (actual time=0.005..0.005 rows=0.00 loops=1)
+                    Index Cond: ((room_id = 'room_000833333'::text) AND (seq < 6))
+                    Filter: (deleted_at IS NULL)
+                    Index Searches: 1
+                    Buffers: shared hit=3
+              ->  Index Scan Backward using messages_h8_202601_room_id_seq_idx on messages_h8_202601 messages_3 (actual time=0.005..0.005 rows=1.00 loops=1)
+                    Index Cond: ((room_id = 'room_000833333'::text) AND (seq < 6))
+                    Filter: (deleted_at IS NULL)
+                    Index Searches: 1
+                    Buffers: shared hit=4
+              ->  Index Scan Backward using messages_h8_202602_room_id_seq_idx on messages_h8_202602 messages_4 (actual time=0.003..0.003 rows=0.00 loops=1)
+                    Index Cond: ((room_id = 'room_000833333'::text) AND (seq < 6))
+                    Filter: (deleted_at IS NULL)
+                    Index Searches: 1
+                    Buffers: shared hit=3
+              ->  Index Scan Backward using messages_h8_202603_room_id_seq_idx on messages_h8_202603 messages_5 (actual time=0.004..0.004 rows=1.00 loops=1)
+                    Index Cond: ((room_id = 'room_000833333'::text) AND (seq < 6))
+                    Filter: (deleted_at IS NULL)
+                    Index Searches: 1
+                    Buffers: shared hit=4
+              ->  Index Scan Backward using messages_h8_202604_room_id_seq_idx on messages_h8_202604 messages_6 (actual time=0.005..0.005 rows=1.00 loops=1)
+                    Index Cond: ((room_id = 'room_000833333'::text) AND (seq < 6))
+                    Filter: (deleted_at IS NULL)
+                    Index Searches: 1
+                    Buffers: shared hit=4
+              ->  Index Scan Backward using messages_h8_202605_room_id_seq_idx on messages_h8_202605 messages_7 (actual time=0.003..0.003 rows=1.00 loops=1)
+                    Index Cond: ((room_id = 'room_000833333'::text) AND (seq < 6))
+                    Filter: (deleted_at IS NULL)
+                    Index Searches: 1
+                    Buffers: shared hit=4
+              ->  Index Scan Backward using messages_h8_202606_room_id_seq_idx on messages_h8_202606 messages_8 (actual time=0.004..0.004 rows=1.00 loops=1)
+                    Index Cond: ((room_id = 'room_000833333'::text) AND (seq < 6))
+                    Filter: (deleted_at IS NULL)
+                    Index Searches: 1
+                    Buffers: shared hit=4
+              ->  Index Scan Backward using messages_h8_202607_room_id_seq_idx on messages_h8_202607 messages_9 (actual time=0.004..0.004 rows=0.00 loops=1)
+                    Index Cond: ((room_id = 'room_000833333'::text) AND (seq < 6))
+                    Filter: (deleted_at IS NULL)
+                    Index Searches: 1
+                    Buffers: shared hit=3
+              ->  Index Scan Backward using messages_h8_202608_room_id_seq_idx on messages_h8_202608 messages_10 (actual time=0.002..0.003 rows=0.00 loops=1)
+                    Index Cond: ((room_id = 'room_000833333'::text) AND (seq < 6))
+                    Filter: (deleted_at IS NULL)
+                    Index Searches: 1
+                    Buffers: shared hit=3
+              ->  Index Scan Backward using messages_h8_202609_room_id_seq_idx on messages_h8_202609 messages_11 (actual time=0.004..0.004 rows=0.00 loops=1)
+                    Index Cond: ((room_id = 'room_000833333'::text) AND (seq < 6))
+                    Filter: (deleted_at IS NULL)
+                    Index Searches: 1
+                    Buffers: shared hit=3
+              ->  Index Scan Backward using messages_h8_202610_room_id_seq_idx on messages_h8_202610 messages_12 (actual time=0.003..0.003 rows=0.00 loops=1)
+                    Index Cond: ((room_id = 'room_000833333'::text) AND (seq < 6))
+                    Filter: (deleted_at IS NULL)
+                    Index Searches: 1
+                    Buffers: shared hit=3
+              ->  Seq Scan on messages_h8_202611 messages_13 (actual time=0.004..0.004 rows=0.00 loops=1)
+                    Filter: ((deleted_at IS NULL) AND (seq < 6) AND (room_id = 'room_000833333'::text))
+              ->  Seq Scan on messages_h8_202612 messages_14 (actual time=0.001..0.001 rows=0.00 loops=1)
+                    Filter: ((deleted_at IS NULL) AND (seq < 6) AND (room_id = 'room_000833333'::text))
+              ->  Seq Scan on messages_h8_202701 messages_15 (actual time=0.001..0.001 rows=0.00 loops=1)
+                    Filter: ((deleted_at IS NULL) AND (seq < 6) AND (room_id = 'room_000833333'::text))
+              ->  Seq Scan on messages_h8_default messages_16 (actual time=0.000..0.001 rows=0.00 loops=1)
+                    Filter: ((deleted_at IS NULL) AND (seq < 6) AND (room_id = 'room_000833333'::text))
+Planning:
+  Buffers: shared hit=48
+Planning Time: 2.987 ms
+Execution Time: 0.094 ms
+
+### unread count in one room
+SELECT COUNT(*) FROM messages WHERE room_id = $1 AND seq > $2 AND deleted_at IS NULL AND kind NOT IN ('note','system') AND sender_type != 'system'
+
+Aggregate (actual time=0.028..0.029 rows=1.00 loops=1)
+  Buffers: shared hit=53
+  ->  Append (actual time=0.003..0.028 rows=17.00 loops=1)
+        Buffers: shared hit=53
+        ->  Index Scan using messages_h8_202511_room_id_seq_idx on messages_h8_202511 messages_1 (actual time=0.003..0.003 rows=1.00 loops=1)
+              Index Cond: ((room_id = 'room_000833333'::text) AND (seq > 3))
+              Filter: ((deleted_at IS NULL) AND (kind <> ALL ('{note,system}'::text[])) AND (sender_type <> 'system'::text))
+              Index Searches: 1
+              Buffers: shared hit=4
+        ->  Index Scan using messages_h8_202512_room_id_seq_idx on messages_h8_202512 messages_2 (actual time=0.002..0.002 rows=2.00 loops=1)
+              Index Cond: ((room_id = 'room_000833333'::text) AND (seq > 3))
+              Filter: ((deleted_at IS NULL) AND (kind <> ALL ('{note,system}'::text[])) AND (sender_type <> 'system'::text))
+              Index Searches: 1
+              Buffers: shared hit=5
+        ->  Index Scan using messages_h8_202601_room_id_seq_idx on messages_h8_202601 messages_3 (actual time=0.002..0.002 rows=2.00 loops=1)
+              Index Cond: ((room_id = 'room_000833333'::text) AND (seq > 3))
+              Filter: ((deleted_at IS NULL) AND (kind <> ALL ('{note,system}'::text[])) AND (sender_type <> 'system'::text))
+              Index Searches: 1
+              Buffers: shared hit=5
+        ->  Index Scan using messages_h8_202602_room_id_seq_idx on messages_h8_202602 messages_4 (actual time=0.002..0.002 rows=1.00 loops=1)
+              Index Cond: ((room_id = 'room_000833333'::text) AND (seq > 3))
+              Filter: ((deleted_at IS NULL) AND (kind <> ALL ('{note,system}'::text[])) AND (sender_type <> 'system'::text))
+              Index Searches: 1
+              Buffers: shared hit=4
+        ->  Index Scan using messages_h8_202603_room_id_seq_idx on messages_h8_202603 messages_5 (actual time=0.002..0.002 rows=1.00 loops=1)
+              Index Cond: ((room_id = 'room_000833333'::text) AND (seq > 3))
+              Filter: ((deleted_at IS NULL) AND (kind <> ALL ('{note,system}'::text[])) AND (sender_type <> 'system'::text))
+              Index Searches: 1
+              Buffers: shared hit=4
+        ->  Index Scan using messages_h8_202604_room_id_seq_idx on messages_h8_202604 messages_6 (actual time=0.002..0.002 rows=1.00 loops=1)
+              Index Cond: ((room_id = 'room_000833333'::text) AND (seq > 3))
+              Filter: ((deleted_at IS NULL) AND (kind <> ALL ('{note,system}'::text[])) AND (sender_type <> 'system'::text))
+              Index Searches: 1
+              Buffers: shared hit=4
+        ->  Index Scan using messages_h8_202605_room_id_seq_idx on messages_h8_202605 messages_7 (actual time=0.002..0.002 rows=1.00 loops=1)
+              Index Cond: ((room_id = 'room_000833333'::text) AND (seq > 3))
+              Filter: ((deleted_at IS NULL) AND (kind <> ALL ('{note,system}'::text[])) AND (sender_type <> 'system'::text))
+              Index Searches: 1
+              Buffers: shared hit=4
+        ->  Index Scan using messages_h8_202606_room_id_seq_idx on messages_h8_202606 messages_8 (actual time=0.002..0.002 rows=2.00 loops=1)
+              Index Cond: ((room_id = 'room_000833333'::text) AND (seq > 3))
+              Filter: ((deleted_at IS NULL) AND (kind <> ALL ('{note,system}'::text[])) AND (sender_type <> 'system'::text))
+              Index Searches: 1
+              Buffers: shared hit=5
+        ->  Index Scan using messages_h8_202607_room_id_seq_idx on messages_h8_202607 messages_9 (actual time=0.002..0.002 rows=1.00 loops=1)
+              Index Cond: ((room_id = 'room_000833333'::text) AND (seq > 3))
+              Filter: ((deleted_at IS NULL) AND (kind <> ALL ('{note,system}'::text[])) AND (sender_type <> 'system'::text))
+              Index Searches: 1
+              Buffers: shared hit=4
+        ->  Index Scan using messages_h8_202608_room_id_seq_idx on messages_h8_202608 messages_10 (actual time=0.002..0.002 rows=2.00 loops=1)
+              Index Cond: ((room_id = 'room_000833333'::text) AND (seq > 3))
+              Filter: ((deleted_at IS NULL) AND (kind <> ALL ('{note,system}'::text[])) AND (sender_type <> 'system'::text))
+              Index Searches: 1
+              Buffers: shared hit=5
+        ->  Index Scan using messages_h8_202609_room_id_seq_idx on messages_h8_202609 messages_11 (actual time=0.002..0.002 rows=2.00 loops=1)
+              Index Cond: ((room_id = 'room_000833333'::text) AND (seq > 3))
+              Filter: ((deleted_at IS NULL) AND (kind <> ALL ('{note,system}'::text[])) AND (sender_type <> 'system'::text))
+              Index Searches: 1
+              Buffers: shared hit=5
+        ->  Index Scan using messages_h8_202610_room_id_seq_idx on messages_h8_202610 messages_12 (actual time=0.002..0.002 rows=1.00 loops=1)
+              Index Cond: ((room_id = 'room_000833333'::text) AND (seq > 3))
+              Filter: ((deleted_at IS NULL) AND (kind <> ALL ('{note,system}'::text[])) AND (sender_type <> 'system'::text))
+              Index Searches: 1
+              Buffers: shared hit=4
+        ->  Seq Scan on messages_h8_202611 messages_13 (actual time=0.001..0.001 rows=0.00 loops=1)
+              Filter: ((deleted_at IS NULL) AND (seq > 3) AND (kind <> ALL ('{note,system}'::text[])) AND (sender_type <> 'system'::text) AND (room_id = 'room_000833333'::text))
+        ->  Seq Scan on messages_h8_202612 messages_14 (actual time=0.001..0.001 rows=0.00 loops=1)
+              Filter: ((deleted_at IS NULL) AND (seq > 3) AND (kind <> ALL ('{note,system}'::text[])) AND (sender_type <> 'system'::text) AND (room_id = 'room_000833333'::text))
+        ->  Seq Scan on messages_h8_202701 messages_15 (actual time=0.001..0.001 rows=0.00 loops=1)
+              Filter: ((deleted_at IS NULL) AND (seq > 3) AND (kind <> ALL ('{note,system}'::text[])) AND (sender_type <> 'system'::text) AND (room_id = 'room_000833333'::text))
+        ->  Seq Scan on messages_h8_default messages_16 (actual time=0.001..0.001 rows=0.00 loops=1)
+              Filter: ((deleted_at IS NULL) AND (seq > 3) AND (kind <> ALL ('{note,system}'::text[])) AND (sender_type <> 'system'::text) AND (room_id = 'room_000833333'::text))
+Planning:
+  Buffers: shared hit=48
+Planning Time: 2.995 ms
+Execution Time: 0.047 ms
+
+### last message of a room
+SELECT * FROM messages WHERE room_id = $1 AND deleted_at IS NULL AND kind != 'system' ORDER BY seq DESC LIMIT 1
+
+Limit (actual time=0.097..0.098 rows=1.00 loops=1)
+  Buffers: shared hit=56
+  ->  Merge Append (actual time=0.097..0.098 rows=1.00 loops=1)
+        Sort Key: messages.seq DESC
+        Buffers: shared hit=56
+        ->  Index Scan Backward using messages_h8_202511_room_id_seq_idx on messages_h8_202511 messages_1 (actual time=0.004..0.004 rows=1.00 loops=1)
+              Index Cond: (room_id = 'room_000833333'::text)
+              Filter: ((deleted_at IS NULL) AND (kind <> 'system'::text))
+              Index Searches: 1
+              Buffers: shared hit=4
+        ->  Index Scan Backward using messages_h8_202512_room_id_seq_idx on messages_h8_202512 messages_2 (actual time=0.004..0.004 rows=1.00 loops=1)
+              Index Cond: (room_id = 'room_000833333'::text)
+              Filter: ((deleted_at IS NULL) AND (kind <> 'system'::text))
+              Index Searches: 1
+              Buffers: shared hit=4
+        ->  Index Scan Backward using messages_h8_202601_room_id_seq_idx on messages_h8_202601 messages_3 (actual time=0.004..0.004 rows=1.00 loops=1)
+              Index Cond: (room_id = 'room_000833333'::text)
+              Filter: ((deleted_at IS NULL) AND (kind <> 'system'::text))
+              Index Searches: 1
+              Buffers: shared hit=4
+        ->  Index Scan Backward using messages_h8_202602_room_id_seq_idx on messages_h8_202602 messages_4 (actual time=0.003..0.003 rows=1.00 loops=1)
+              Index Cond: (room_id = 'room_000833333'::text)
+              Filter: ((deleted_at IS NULL) AND (kind <> 'system'::text))
+              Index Searches: 1
+              Buffers: shared hit=4
+        ->  Index Scan Backward using messages_h8_202603_room_id_seq_idx on messages_h8_202603 messages_5 (actual time=0.003..0.004 rows=1.00 loops=1)
+              Index Cond: (room_id = 'room_000833333'::text)
+              Filter: ((deleted_at IS NULL) AND (kind <> 'system'::text))
+              Index Searches: 1
+              Buffers: shared hit=4
+        ->  Index Scan Backward using messages_h8_202604_room_id_seq_idx on messages_h8_202604 messages_6 (actual time=0.049..0.049 rows=1.00 loops=1)
+              Index Cond: (room_id = 'room_000833333'::text)
+              Filter: ((deleted_at IS NULL) AND (kind <> 'system'::text))
+              Index Searches: 1
+              Buffers: shared hit=4
+        ->  Index Scan Backward using messages_h8_202605_room_id_seq_idx on messages_h8_202605 messages_7 (actual time=0.004..0.004 rows=1.00 loops=1)
+              Index Cond: (room_id = 'room_000833333'::text)
+              Filter: ((deleted_at IS NULL) AND (kind <> 'system'::text))
+              Index Searches: 1
+              Buffers: shared hit=4
+        ->  Index Scan Backward using messages_h8_202606_room_id_seq_idx on messages_h8_202606 messages_8 (actual time=0.002..0.002 rows=1.00 loops=1)
+              Index Cond: (room_id = 'room_000833333'::text)
+              Filter: ((deleted_at IS NULL) AND (kind <> 'system'::text))
+              Index Searches: 1
+              Buffers: shared hit=4
+        ->  Index Scan Backward using messages_h8_202607_room_id_seq_idx on messages_h8_202607 messages_9 (actual time=0.003..0.003 rows=1.00 loops=1)
+              Index Cond: (room_id = 'room_000833333'::text)
+              Filter: ((deleted_at IS NULL) AND (kind <> 'system'::text))
+              Index Searches: 1
+              Buffers: shared hit=4
+        ->  Index Scan Backward using messages_h8_202608_room_id_seq_idx on messages_h8_202608 messages_10 (actual time=0.003..0.003 rows=1.00 loops=1)
+              Index Cond: (room_id = 'room_000833333'::text)
+              Filter: ((deleted_at IS NULL) AND (kind <> 'system'::text))
+              Index Searches: 1
+              Buffers: shared hit=4
+        ->  Index Scan Backward using messages_h8_202609_room_id_seq_idx on messages_h8_202609 messages_11 (actual time=0.003..0.003 rows=1.00 loops=1)
+              Index Cond: (room_id = 'room_000833333'::text)
+              Filter: ((deleted_at IS NULL) AND (kind <> 'system'::text))
+              Index Searches: 1
+              Buffers: shared hit=4
+        ->  Index Scan Backward using messages_h8_202610_room_id_seq_idx on messages_h8_202610 messages_12 (actual time=0.004..0.004 rows=1.00 loops=1)
+              Index Cond: (room_id = 'room_000833333'::text)
+              Filter: ((deleted_at IS NULL) AND (kind <> 'system'::text))
+              Index Searches: 1
+              Buffers: shared hit=4
+        ->  Index Scan Backward using messages_h8_202611_room_id_seq_idx on messages_h8_202611 messages_13 (actual time=0.003..0.003 rows=0.00 loops=1)
+              Index Cond: (room_id = 'room_000833333'::text)
+              Filter: ((deleted_at IS NULL) AND (kind <> 'system'::text))
+              Index Searches: 1
+              Buffers: shared hit=2
+        ->  Index Scan Backward using messages_h8_202612_room_id_seq_idx on messages_h8_202612 messages_14 (actual time=0.001..0.001 rows=0.00 loops=1)
+              Index Cond: (room_id = 'room_000833333'::text)
+              Filter: ((deleted_at IS NULL) AND (kind <> 'system'::text))
+              Index Searches: 1
+              Buffers: shared hit=2
+        ->  Index Scan Backward using messages_h8_202701_room_id_seq_idx on messages_h8_202701 messages_15 (actual time=0.002..0.002 rows=0.00 loops=1)
+              Index Cond: (room_id = 'room_000833333'::text)
+              Filter: ((deleted_at IS NULL) AND (kind <> 'system'::text))
+              Index Searches: 1
+              Buffers: shared hit=2
+        ->  Index Scan Backward using messages_h8_default_room_id_seq_idx on messages_h8_default messages_16 (actual time=0.005..0.005 rows=0.00 loops=1)
+              Index Cond: (room_id = 'room_000833333'::text)
+              Filter: ((deleted_at IS NULL) AND (kind <> 'system'::text))
+              Index Searches: 1
+              Buffers: shared hit=2
+Planning:
+  Buffers: shared hit=48
+Planning Time: 2.860 ms
+Execution Time: 0.134 ms
+
+### room list, newest 30 open (rooms table only, summaries denormalised)
+SELECT r.*, c.name FROM rooms r JOIN contacts c ON c.id = r.contact_id WHERE r.workspace_id = $1 AND r.archived = 0 AND r.status = 'open' ORDER BY r.last_message_at DESC, r.id DESC LIMIT 30
+
+Limit (actual time=0.011..0.054 rows=30.00 loops=1)
+  Buffers: shared hit=154
+  ->  Nested Loop (actual time=0.011..0.053 rows=30.00 loops=1)
+        Buffers: shared hit=154
+        ->  Index Scan Backward using ix_rooms_list on rooms r (actual time=0.007..0.014 rows=30.00 loops=1)
+              Index Cond: ((workspace_id = 'ws_01a1592dc22d0001836fc3cf'::text) AND (status = 'open'::text) AND (archived = 0))
+              Index Searches: 1
+              Buffers: shared hit=34
+        ->  Index Scan using contacts_pkey on contacts c (actual time=0.001..0.001 rows=1.00 loops=30)
+              Index Cond: (id = r.contact_id)
+              Index Searches: 30
+              Buffers: shared hit=120
+Planning:
+  Buffers: shared hit=10
+Planning Time: 0.151 ms
+Execution Time: 0.064 ms
+
+### message by id (no room known: probes every partition)
+SELECT * FROM messages WHERE id = $1
+
+Append (actual time=1.207..2.208 rows=1.00 loops=1)
+  Buffers: shared hit=577
+  ->  Index Scan using messages_h0_202511_id_idx on messages_h0_202511 messages_1 (actual time=0.009..0.009 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h0_202512_id_idx on messages_h0_202512 messages_2 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h0_202601_id_idx on messages_h0_202601 messages_3 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h0_202602_id_idx on messages_h0_202602 messages_4 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h0_202603_id_idx on messages_h0_202603 messages_5 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h0_202604_id_idx on messages_h0_202604 messages_6 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h0_202605_id_idx on messages_h0_202605 messages_7 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h0_202606_id_idx on messages_h0_202606 messages_8 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h0_202607_id_idx on messages_h0_202607 messages_9 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h0_202608_id_idx on messages_h0_202608 messages_10 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h0_202609_id_idx on messages_h0_202609 messages_11 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h0_202610_id_idx on messages_h0_202610 messages_12 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Seq Scan on messages_h0_202611 messages_13 (actual time=0.051..0.051 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h0_202612 messages_14 (actual time=0.023..0.023 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h0_202701 messages_15 (actual time=0.043..0.043 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h0_default messages_16 (actual time=0.025..0.025 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Index Scan using messages_h1_202511_id_idx on messages_h1_202511 messages_17 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h1_202512_id_idx on messages_h1_202512 messages_18 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h1_202601_id_idx on messages_h1_202601 messages_19 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h1_202602_id_idx on messages_h1_202602 messages_20 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h1_202603_id_idx on messages_h1_202603 messages_21 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h1_202604_id_idx on messages_h1_202604 messages_22 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h1_202605_id_idx on messages_h1_202605 messages_23 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h1_202606_id_idx on messages_h1_202606 messages_24 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h1_202607_id_idx on messages_h1_202607 messages_25 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h1_202608_id_idx on messages_h1_202608 messages_26 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h1_202609_id_idx on messages_h1_202609 messages_27 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h1_202610_id_idx on messages_h1_202610 messages_28 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Seq Scan on messages_h1_202611 messages_29 (actual time=0.022..0.022 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h1_202612 messages_30 (actual time=0.023..0.023 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h1_202701 messages_31 (actual time=0.021..0.021 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h1_default messages_32 (actual time=0.023..0.023 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Index Scan using messages_h2_202511_id_idx on messages_h2_202511 messages_33 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h2_202512_id_idx on messages_h2_202512 messages_34 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h2_202601_id_idx on messages_h2_202601 messages_35 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h2_202602_id_idx on messages_h2_202602 messages_36 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h2_202603_id_idx on messages_h2_202603 messages_37 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h2_202604_id_idx on messages_h2_202604 messages_38 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h2_202605_id_idx on messages_h2_202605 messages_39 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h2_202606_id_idx on messages_h2_202606 messages_40 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h2_202607_id_idx on messages_h2_202607 messages_41 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h2_202608_id_idx on messages_h2_202608 messages_42 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h2_202609_id_idx on messages_h2_202609 messages_43 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h2_202610_id_idx on messages_h2_202610 messages_44 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Seq Scan on messages_h2_202611 messages_45 (actual time=0.023..0.023 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h2_202612 messages_46 (actual time=0.023..0.023 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h2_202701 messages_47 (actual time=0.034..0.034 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h2_default messages_48 (actual time=0.022..0.022 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Index Scan using messages_h3_202511_id_idx on messages_h3_202511 messages_49 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h3_202512_id_idx on messages_h3_202512 messages_50 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h3_202601_id_idx on messages_h3_202601 messages_51 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h3_202602_id_idx on messages_h3_202602 messages_52 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h3_202603_id_idx on messages_h3_202603 messages_53 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h3_202604_id_idx on messages_h3_202604 messages_54 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h3_202605_id_idx on messages_h3_202605 messages_55 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h3_202606_id_idx on messages_h3_202606 messages_56 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h3_202607_id_idx on messages_h3_202607 messages_57 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h3_202608_id_idx on messages_h3_202608 messages_58 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h3_202609_id_idx on messages_h3_202609 messages_59 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h3_202610_id_idx on messages_h3_202610 messages_60 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Seq Scan on messages_h3_202611 messages_61 (actual time=0.023..0.023 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h3_202612 messages_62 (actual time=0.030..0.030 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h3_202701 messages_63 (actual time=0.022..0.022 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h3_default messages_64 (actual time=0.021..0.021 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Index Scan using messages_h4_202511_id_idx on messages_h4_202511 messages_65 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h4_202512_id_idx on messages_h4_202512 messages_66 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h4_202601_id_idx on messages_h4_202601 messages_67 (actual time=0.008..0.008 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h4_202602_id_idx on messages_h4_202602 messages_68 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h4_202603_id_idx on messages_h4_202603 messages_69 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h4_202604_id_idx on messages_h4_202604 messages_70 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h4_202605_id_idx on messages_h4_202605 messages_71 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h4_202606_id_idx on messages_h4_202606 messages_72 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h4_202607_id_idx on messages_h4_202607 messages_73 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h4_202608_id_idx on messages_h4_202608 messages_74 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h4_202609_id_idx on messages_h4_202609 messages_75 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h4_202610_id_idx on messages_h4_202610 messages_76 (actual time=0.006..0.006 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Seq Scan on messages_h4_202611 messages_77 (actual time=0.021..0.021 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h4_202612 messages_78 (actual time=0.020..0.020 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h4_202701 messages_79 (actual time=0.021..0.021 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h4_default messages_80 (actual time=0.020..0.020 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Index Scan using messages_h5_202511_id_idx on messages_h5_202511 messages_81 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h5_202512_id_idx on messages_h5_202512 messages_82 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h5_202601_id_idx on messages_h5_202601 messages_83 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h5_202602_id_idx on messages_h5_202602 messages_84 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h5_202603_id_idx on messages_h5_202603 messages_85 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h5_202604_id_idx on messages_h5_202604 messages_86 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h5_202605_id_idx on messages_h5_202605 messages_87 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h5_202606_id_idx on messages_h5_202606 messages_88 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h5_202607_id_idx on messages_h5_202607 messages_89 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h5_202608_id_idx on messages_h5_202608 messages_90 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h5_202609_id_idx on messages_h5_202609 messages_91 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h5_202610_id_idx on messages_h5_202610 messages_92 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Seq Scan on messages_h5_202611 messages_93 (actual time=0.024..0.024 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h5_202612 messages_94 (actual time=0.019..0.019 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h5_202701 messages_95 (actual time=0.034..0.034 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h5_default messages_96 (actual time=0.021..0.021 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Index Scan using messages_h6_202511_id_idx on messages_h6_202511 messages_97 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h6_202512_id_idx on messages_h6_202512 messages_98 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h6_202601_id_idx on messages_h6_202601 messages_99 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h6_202602_id_idx on messages_h6_202602 messages_100 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h6_202603_id_idx on messages_h6_202603 messages_101 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h6_202604_id_idx on messages_h6_202604 messages_102 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h6_202605_id_idx on messages_h6_202605 messages_103 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h6_202606_id_idx on messages_h6_202606 messages_104 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h6_202607_id_idx on messages_h6_202607 messages_105 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h6_202608_id_idx on messages_h6_202608 messages_106 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h6_202609_id_idx on messages_h6_202609 messages_107 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h6_202610_id_idx on messages_h6_202610 messages_108 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Seq Scan on messages_h6_202611 messages_109 (actual time=0.031..0.031 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h6_202612 messages_110 (actual time=0.021..0.021 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h6_202701 messages_111 (actual time=0.021..0.021 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h6_default messages_112 (actual time=0.021..0.021 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Index Scan using messages_h7_202511_id_idx on messages_h7_202511 messages_113 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h7_202512_id_idx on messages_h7_202512 messages_114 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h7_202601_id_idx on messages_h7_202601 messages_115 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h7_202602_id_idx on messages_h7_202602 messages_116 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h7_202603_id_idx on messages_h7_202603 messages_117 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h7_202604_id_idx on messages_h7_202604 messages_118 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h7_202605_id_idx on messages_h7_202605 messages_119 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h7_202606_id_idx on messages_h7_202606 messages_120 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h7_202607_id_idx on messages_h7_202607 messages_121 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h7_202608_id_idx on messages_h7_202608 messages_122 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h7_202609_id_idx on messages_h7_202609 messages_123 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h7_202610_id_idx on messages_h7_202610 messages_124 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Seq Scan on messages_h7_202611 messages_125 (actual time=0.022..0.022 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h7_202612 messages_126 (actual time=0.019..0.019 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h7_202701 messages_127 (actual time=0.027..0.027 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h7_default messages_128 (actual time=0.019..0.019 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Index Scan using messages_h8_202511_id_idx on messages_h8_202511 messages_129 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h8_202512_id_idx on messages_h8_202512 messages_130 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h8_202601_id_idx on messages_h8_202601 messages_131 (actual time=0.006..0.006 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h8_202602_id_idx on messages_h8_202602 messages_132 (actual time=0.006..0.006 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h8_202603_id_idx on messages_h8_202603 messages_133 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h8_202604_id_idx on messages_h8_202604 messages_134 (actual time=0.007..0.007 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h8_202605_id_idx on messages_h8_202605 messages_135 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h8_202606_id_idx on messages_h8_202606 messages_136 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h8_202607_id_idx on messages_h8_202607 messages_137 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h8_202608_id_idx on messages_h8_202608 messages_138 (actual time=0.007..0.007 rows=1.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=4
+  ->  Index Scan using messages_h8_202609_id_idx on messages_h8_202609 messages_139 (actual time=0.006..0.006 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h8_202610_id_idx on messages_h8_202610 messages_140 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Seq Scan on messages_h8_202611 messages_141 (actual time=0.021..0.021 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h8_202612 messages_142 (actual time=0.019..0.019 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h8_202701 messages_143 (actual time=0.018..0.018 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h8_default messages_144 (actual time=0.021..0.021 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Index Scan using messages_h9_202511_id_idx on messages_h9_202511 messages_145 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h9_202512_id_idx on messages_h9_202512 messages_146 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h9_202601_id_idx on messages_h9_202601 messages_147 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h9_202602_id_idx on messages_h9_202602 messages_148 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h9_202603_id_idx on messages_h9_202603 messages_149 (actual time=0.011..0.011 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h9_202604_id_idx on messages_h9_202604 messages_150 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h9_202605_id_idx on messages_h9_202605 messages_151 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h9_202606_id_idx on messages_h9_202606 messages_152 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h9_202607_id_idx on messages_h9_202607 messages_153 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h9_202608_id_idx on messages_h9_202608 messages_154 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h9_202609_id_idx on messages_h9_202609 messages_155 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h9_202610_id_idx on messages_h9_202610 messages_156 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Seq Scan on messages_h9_202611 messages_157 (actual time=0.022..0.022 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h9_202612 messages_158 (actual time=0.023..0.023 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h9_202701 messages_159 (actual time=0.020..0.020 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h9_default messages_160 (actual time=0.019..0.019 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Index Scan using messages_h10_202511_id_idx on messages_h10_202511 messages_161 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h10_202512_id_idx on messages_h10_202512 messages_162 (actual time=0.003..0.003 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h10_202601_id_idx on messages_h10_202601 messages_163 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h10_202602_id_idx on messages_h10_202602 messages_164 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h10_202603_id_idx on messages_h10_202603 messages_165 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h10_202604_id_idx on messages_h10_202604 messages_166 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h10_202605_id_idx on messages_h10_202605 messages_167 (actual time=0.007..0.007 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h10_202606_id_idx on messages_h10_202606 messages_168 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h10_202607_id_idx on messages_h10_202607 messages_169 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h10_202608_id_idx on messages_h10_202608 messages_170 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h10_202609_id_idx on messages_h10_202609 messages_171 (actual time=0.009..0.009 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h10_202610_id_idx on messages_h10_202610 messages_172 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Seq Scan on messages_h10_202611 messages_173 (actual time=0.019..0.019 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h10_202612 messages_174 (actual time=0.020..0.020 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h10_202701 messages_175 (actual time=0.023..0.023 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h10_default messages_176 (actual time=0.022..0.022 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Index Scan using messages_h11_202511_id_idx on messages_h11_202511 messages_177 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h11_202512_id_idx on messages_h11_202512 messages_178 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h11_202601_id_idx on messages_h11_202601 messages_179 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h11_202602_id_idx on messages_h11_202602 messages_180 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h11_202603_id_idx on messages_h11_202603 messages_181 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h11_202604_id_idx on messages_h11_202604 messages_182 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h11_202605_id_idx on messages_h11_202605 messages_183 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h11_202606_id_idx on messages_h11_202606 messages_184 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h11_202607_id_idx on messages_h11_202607 messages_185 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h11_202608_id_idx on messages_h11_202608 messages_186 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h11_202609_id_idx on messages_h11_202609 messages_187 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h11_202610_id_idx on messages_h11_202610 messages_188 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Seq Scan on messages_h11_202611 messages_189 (actual time=0.020..0.020 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h11_202612 messages_190 (actual time=0.021..0.021 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h11_202701 messages_191 (actual time=0.020..0.020 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h11_default messages_192 (actual time=0.021..0.021 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Index Scan using messages_h12_202511_id_idx on messages_h12_202511 messages_193 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h12_202512_id_idx on messages_h12_202512 messages_194 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h12_202601_id_idx on messages_h12_202601 messages_195 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h12_202602_id_idx on messages_h12_202602 messages_196 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h12_202603_id_idx on messages_h12_202603 messages_197 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h12_202604_id_idx on messages_h12_202604 messages_198 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h12_202605_id_idx on messages_h12_202605 messages_199 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h12_202606_id_idx on messages_h12_202606 messages_200 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h12_202607_id_idx on messages_h12_202607 messages_201 (actual time=0.004..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h12_202608_id_idx on messages_h12_202608 messages_202 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h12_202609_id_idx on messages_h12_202609 messages_203 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h12_202610_id_idx on messages_h12_202610 messages_204 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Seq Scan on messages_h12_202611 messages_205 (actual time=0.021..0.021 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h12_202612 messages_206 (actual time=0.026..0.026 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h12_202701 messages_207 (actual time=0.019..0.019 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h12_default messages_208 (actual time=0.020..0.020 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Index Scan using messages_h13_202511_id_idx on messages_h13_202511 messages_209 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h13_202512_id_idx on messages_h13_202512 messages_210 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h13_202601_id_idx on messages_h13_202601 messages_211 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h13_202602_id_idx on messages_h13_202602 messages_212 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h13_202603_id_idx on messages_h13_202603 messages_213 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h13_202604_id_idx on messages_h13_202604 messages_214 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h13_202605_id_idx on messages_h13_202605 messages_215 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h13_202606_id_idx on messages_h13_202606 messages_216 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h13_202607_id_idx on messages_h13_202607 messages_217 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h13_202608_id_idx on messages_h13_202608 messages_218 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h13_202609_id_idx on messages_h13_202609 messages_219 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h13_202610_id_idx on messages_h13_202610 messages_220 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Seq Scan on messages_h13_202611 messages_221 (actual time=0.020..0.020 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h13_202612 messages_222 (actual time=0.021..0.021 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h13_202701 messages_223 (actual time=0.021..0.021 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h13_default messages_224 (actual time=0.021..0.021 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Index Scan using messages_h14_202511_id_idx on messages_h14_202511 messages_225 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h14_202512_id_idx on messages_h14_202512 messages_226 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h14_202601_id_idx on messages_h14_202601 messages_227 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h14_202602_id_idx on messages_h14_202602 messages_228 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h14_202603_id_idx on messages_h14_202603 messages_229 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h14_202604_id_idx on messages_h14_202604 messages_230 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h14_202605_id_idx on messages_h14_202605 messages_231 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h14_202606_id_idx on messages_h14_202606 messages_232 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h14_202607_id_idx on messages_h14_202607 messages_233 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h14_202608_id_idx on messages_h14_202608 messages_234 (actual time=0.006..0.006 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h14_202609_id_idx on messages_h14_202609 messages_235 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h14_202610_id_idx on messages_h14_202610 messages_236 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Seq Scan on messages_h14_202611 messages_237 (actual time=0.025..0.025 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h14_202612 messages_238 (actual time=0.019..0.019 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h14_202701 messages_239 (actual time=0.019..0.019 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h14_default messages_240 (actual time=0.019..0.020 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Index Scan using messages_h15_202511_id_idx on messages_h15_202511 messages_241 (actual time=0.006..0.006 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h15_202512_id_idx on messages_h15_202512 messages_242 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h15_202601_id_idx on messages_h15_202601 messages_243 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h15_202602_id_idx on messages_h15_202602 messages_244 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h15_202603_id_idx on messages_h15_202603 messages_245 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h15_202604_id_idx on messages_h15_202604 messages_246 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h15_202605_id_idx on messages_h15_202605 messages_247 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h15_202606_id_idx on messages_h15_202606 messages_248 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h15_202607_id_idx on messages_h15_202607 messages_249 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h15_202608_id_idx on messages_h15_202608 messages_250 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h15_202609_id_idx on messages_h15_202609 messages_251 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h15_202610_id_idx on messages_h15_202610 messages_252 (actual time=0.004..0.004 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Seq Scan on messages_h15_202611 messages_253 (actual time=0.001..0.001 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h15_202612 messages_254 (actual time=0.002..0.002 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h15_202701 messages_255 (actual time=0.001..0.001 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+  ->  Seq Scan on messages_h15_default messages_256 (actual time=0.001..0.001 rows=0.00 loops=1)
+        Filter: (id = 'msg_000833333006'::text)
+Planning:
+  Buffers: shared hit=768
+Planning Time: 96.344 ms
+Execution Time: 2.919 ms
+
+### message by (room, id)
+SELECT * FROM messages WHERE room_id = $1 AND id = $2
+
+Append (actual time=0.015..0.025 rows=1.00 loops=1)
+  Buffers: shared hit=37
+  ->  Index Scan using messages_h8_202511_id_idx on messages_h8_202511 messages_1 (actual time=0.002..0.002 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Filter: (room_id = 'room_000833333'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h8_202512_id_idx on messages_h8_202512 messages_2 (actual time=0.001..0.001 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Filter: (room_id = 'room_000833333'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h8_202601_id_idx on messages_h8_202601 messages_3 (actual time=0.001..0.001 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Filter: (room_id = 'room_000833333'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h8_202602_id_idx on messages_h8_202602 messages_4 (actual time=0.002..0.002 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Filter: (room_id = 'room_000833333'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h8_202603_id_idx on messages_h8_202603 messages_5 (actual time=0.001..0.001 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Filter: (room_id = 'room_000833333'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h8_202604_id_idx on messages_h8_202604 messages_6 (actual time=0.001..0.001 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Filter: (room_id = 'room_000833333'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h8_202605_id_idx on messages_h8_202605 messages_7 (actual time=0.001..0.001 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Filter: (room_id = 'room_000833333'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h8_202606_id_idx on messages_h8_202606 messages_8 (actual time=0.001..0.001 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Filter: (room_id = 'room_000833333'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h8_202607_id_idx on messages_h8_202607 messages_9 (actual time=0.001..0.001 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Filter: (room_id = 'room_000833333'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h8_202608_id_idx on messages_h8_202608 messages_10 (actual time=0.002..0.002 rows=1.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Filter: (room_id = 'room_000833333'::text)
+        Index Searches: 1
+        Buffers: shared hit=4
+  ->  Index Scan using messages_h8_202609_id_idx on messages_h8_202609 messages_11 (actual time=0.001..0.001 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Filter: (room_id = 'room_000833333'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Index Scan using messages_h8_202610_id_idx on messages_h8_202610 messages_12 (actual time=0.001..0.001 rows=0.00 loops=1)
+        Index Cond: (id = 'msg_000833333006'::text)
+        Filter: (room_id = 'room_000833333'::text)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Seq Scan on messages_h8_202611 messages_13 (actual time=0.005..0.005 rows=0.00 loops=1)
+        Filter: ((room_id = 'room_000833333'::text) AND (id = 'msg_000833333006'::text))
+  ->  Seq Scan on messages_h8_202612 messages_14 (actual time=0.001..0.001 rows=0.00 loops=1)
+        Filter: ((room_id = 'room_000833333'::text) AND (id = 'msg_000833333006'::text))
+  ->  Seq Scan on messages_h8_202701 messages_15 (actual time=0.001..0.001 rows=0.00 loops=1)
+        Filter: ((room_id = 'room_000833333'::text) AND (id = 'msg_000833333006'::text))
+  ->  Seq Scan on messages_h8_default messages_16 (actual time=0.001..0.001 rows=0.00 loops=1)
+        Filter: ((room_id = 'room_000833333'::text) AND (id = 'msg_000833333006'::text))
+Planning:
+  Buffers: shared hit=48
+Planning Time: 2.714 ms
+Execution Time: 0.053 ms
+
+### analytics: messages per day, workspace, last 7 days (index ws+time)
+SELECT substr(created_at, 1, 10) d, COUNT(*) FROM messages WHERE workspace_id = $1 AND created_at >= $2 AND created_at < $3 GROUP BY 1 ORDER BY 1
+
+GroupAggregate (actual time=264.593..354.106 rows=8.00 loops=1)
+  Group Key: (substr(messages.created_at, 1, 10))
+  Buffers: shared hit=3801, temp read=2182 written=2187
+  ->  Sort (actual time=257.834..313.001 rows=990092.00 loops=1)
+        Sort Key: (substr(messages.created_at, 1, 10))
+        Sort Method: external merge  Disk: 17456kB
+        Buffers: shared hit=3801, temp read=2182 written=2187
+        ->  Append (actual time=0.021..109.199 rows=990092.00 loops=1)
+              Buffers: shared hit=3801
+              ->  Index Only Scan using messages_h0_202610_workspace_id_created_at_idx on messages_h0_202610 messages_1 (actual time=0.021..4.415 rows=62133.00 loops=1)
+                    Index Cond: ((workspace_id = 'ws_01a1592dc22d0001836fc3cf'::text) AND (created_at >= '2026-10-06T11:58:53.583Z'::text) AND (created_at < '2026-10-13T11:58:53.583Z'::text))
+                    Heap Fetches: 0
+                    Index Searches: 1
+                    Buffers: shared hit=238
+              ->  Index Only Scan using messages_h1_202610_workspace_id_created_at_idx on messages_h1_202610 messages_2 (actual time=0.019..4.074 rows=61645.00 loops=1)
+                    Index Cond: ((workspace_id = 'ws_01a1592dc22d0001836fc3cf'::text) AND (created_at >= '2026-10-06T11:58:53.583Z'::text) AND (created_at < '2026-10-13T11:58:53.583Z'::text))
+                    Heap Fetches: 0
+                    Index Searches: 1
+                    Buffers: shared hit=237
+              ->  Index Only Scan using messages_h2_202610_workspace_id_created_at_idx on messages_h2_202610 messages_3 (actual time=0.014..4.156 rows=62300.00 loops=1)
+                    Index Cond: ((workspace_id = 'ws_01a1592dc22d0001836fc3cf'::text) AND (created_at >= '2026-10-06T11:58:53.583Z'::text) AND (created_at < '2026-10-13T11:58:53.583Z'::text))
+                    Heap Fetches: 0
+                    Index Searches: 1
+                    Buffers: shared hit=239
+              ->  Index Only Scan using messages_h3_202610_workspace_id_created_at_idx on messages_h3_202610 messages_4 (actual time=0.024..4.120 rows=61748.00 loops=1)
+                    Index Cond: ((workspace_id = 'ws_01a1592dc22d0001836fc3cf'::text) AND (created_at >= '2026-10-06T11:58:53.583Z'::text) AND (created_at < '2026-10-13T11:58:53.583Z'::text))
+                    Heap Fetches: 0
+                    Index Searches: 1
+                    Buffers: shared hit=237
+              ->  Index Only Scan using messages_h4_202610_workspace_id_created_at_idx on messages_h4_202610 messages_5 (actual time=0.015..4.096 rows=62047.00 loops=1)
+                    Index Cond: ((workspace_id = 'ws_01a1592dc22d0001836fc3cf'::text) AND (created_at >= '2026-10-06T11:58:53.583Z'::text) AND (created_at < '2026-10-13T11:58:53.583Z'::text))
+                    Heap Fetches: 0
+                    Index Searches: 1
+                    Buffers: shared hit=238
+              ->  Index Only Scan using messages_h5_202610_workspace_id_created_at_idx on messages_h5_202610 messages_6 (actual time=0.023..4.119 rows=62047.00 loops=1)
+                    Index Cond: ((workspace_id = 'ws_01a1592dc22d0001836fc3cf'::text) AND (created_at >= '2026-10-06T11:58:53.583Z'::text) AND (created_at < '2026-10-13T11:58:53.583Z'::text))
+                    Heap Fetches: 0
+                    Index Searches: 1
+                    Buffers: shared hit=238
+              ->  Index Only Scan using messages_h6_202610_workspace_id_created_at_idx on messages_h6_202610 messages_7 (actual time=0.015..4.096 rows=61502.00 loops=1)
+                    Index Cond: ((workspace_id = 'ws_01a1592dc22d0001836fc3cf'::text) AND (created_at >= '2026-10-06T11:58:53.583Z'::text) AND (created_at < '2026-10-13T11:58:53.583Z'::text))
+                    Heap Fetches: 0
+                    Index Searches: 1
+                    Buffers: shared hit=238
+              ->  Index Only Scan using messages_h7_202610_workspace_id_created_at_idx on messages_h7_202610 messages_8 (actual time=0.011..4.116 rows=62124.00 loops=1)
+                    Index Cond: ((workspace_id = 'ws_01a1592dc22d0001836fc3cf'::text) AND (created_at >= '2026-10-06T11:58:53.583Z'::text) AND (created_at < '2026-10-13T11:58:53.583Z'::text))
+                    Heap Fetches: 0
+                    Index Searches: 1
+                    Buffers: shared hit=237
+              ->  Index Only Scan using messages_h8_202610_workspace_id_created_at_idx on messages_h8_202610 messages_9 (actual time=0.012..3.930 rows=62265.00 loops=1)
+                    Index Cond: ((workspace_id = 'ws_01a1592dc22d0001836fc3cf'::text) AND (created_at >= '2026-10-06T11:58:53.583Z'::text) AND (created_at < '2026-10-13T11:58:53.583Z'::text))
+                    Heap Fetches: 0
+                    Index Searches: 1
+                    Buffers: shared hit=238
+              ->  Index Only Scan using messages_h9_202610_workspace_id_created_at_idx on messages_h9_202610 messages_10 (actual time=0.016..3.869 rows=61808.00 loops=1)
+                    Index Cond: ((workspace_id = 'ws_01a1592dc22d0001836fc3cf'::text) AND (created_at >= '2026-10-06T11:58:53.583Z'::text) AND (created_at < '2026-10-13T11:58:53.583Z'::text))
+                    Heap Fetches: 0
+                    Index Searches: 1
+                    Buffers: shared hit=237
+              ->  Index Only Scan using messages_h10_202610_workspace_id_created_at_idx on messages_h10_202610 messages_11 (actual time=0.011..3.892 rows=61630.00 loops=1)
+                    Index Cond: ((workspace_id = 'ws_01a1592dc22d0001836fc3cf'::text) AND (created_at >= '2026-10-06T11:58:53.583Z'::text) AND (created_at < '2026-10-13T11:58:53.583Z'::text))
+                    Heap Fetches: 0
+                    Index Searches: 1
+                    Buffers: shared hit=237
+              ->  Index Only Scan using messages_h11_202610_workspace_id_created_at_idx on messages_h11_202610 messages_12 (actual time=0.007..3.870 rows=61794.00 loops=1)
+                    Index Cond: ((workspace_id = 'ws_01a1592dc22d0001836fc3cf'::text) AND (created_at >= '2026-10-06T11:58:53.583Z'::text) AND (created_at < '2026-10-13T11:58:53.583Z'::text))
+                    Heap Fetches: 0
+                    Index Searches: 1
+                    Buffers: shared hit=238
+              ->  Index Only Scan using messages_h12_202610_workspace_id_created_at_idx on messages_h12_202610 messages_13 (actual time=0.021..3.841 rows=61652.00 loops=1)
+                    Index Cond: ((workspace_id = 'ws_01a1592dc22d0001836fc3cf'::text) AND (created_at >= '2026-10-06T11:58:53.583Z'::text) AND (created_at < '2026-10-13T11:58:53.583Z'::text))
+                    Heap Fetches: 0
+                    Index Searches: 1
+                    Buffers: shared hit=237
+              ->  Index Only Scan using messages_h13_202610_workspace_id_created_at_idx on messages_h13_202610 messages_14 (actual time=0.016..3.828 rows=61611.00 loops=1)
+                    Index Cond: ((workspace_id = 'ws_01a1592dc22d0001836fc3cf'::text) AND (created_at >= '2026-10-06T11:58:53.583Z'::text) AND (created_at < '2026-10-13T11:58:53.583Z'::text))
+                    Heap Fetches: 0
+                    Index Searches: 1
+                    Buffers: shared hit=237
+              ->  Index Only Scan using messages_h14_202610_workspace_id_created_at_idx on messages_h14_202610 messages_15 (actual time=0.016..3.634 rows=62118.00 loops=1)
+                    Index Cond: ((workspace_id = 'ws_01a1592dc22d0001836fc3cf'::text) AND (created_at >= '2026-10-06T11:58:53.583Z'::text) AND (created_at < '2026-10-13T11:58:53.583Z'::text))
+                    Heap Fetches: 0
+                    Index Searches: 1
+                    Buffers: shared hit=238
+              ->  Index Only Scan using messages_h15_202610_workspace_id_created_at_idx on messages_h15_202610 messages_16 (actual time=0.016..3.660 rows=61668.00 loops=1)
+                    Index Cond: ((workspace_id = 'ws_01a1592dc22d0001836fc3cf'::text) AND (created_at >= '2026-10-06T11:58:53.583Z'::text) AND (created_at < '2026-10-13T11:58:53.583Z'::text))
+                    Heap Fetches: 0
+                    Index Searches: 1
+                    Buffers: shared hit=237
+Planning:
+  Buffers: shared hit=48
+Planning Time: 27.416 ms
+Execution Time: 357.379 ms
+
+### in-room search (ILIKE, one room)
+SELECT id FROM messages WHERE room_id = $1 AND content_text ILIKE $2 LIMIT 20
+
+Limit (actual time=0.559..0.560 rows=0.00 loops=1)
+  Buffers: shared hit=56
+  ->  Append (actual time=0.558..0.559 rows=0.00 loops=1)
+        Buffers: shared hit=56
+        ->  Index Scan using messages_h8_202511_room_id_seq_idx on messages_h8_202511 messages_1 (actual time=0.011..0.011 rows=0.00 loops=1)
+              Index Cond: (room_id = 'room_000833333'::text)
+              Filter: (content_text ~~* '%order 12%'::text)
+              Rows Removed by Filter: 1
+              Index Searches: 1
+              Buffers: shared hit=4
+        ->  Index Scan using messages_h8_202512_room_id_seq_idx on messages_h8_202512 messages_2 (actual time=0.006..0.006 rows=0.00 loops=1)
+              Index Cond: (room_id = 'room_000833333'::text)
+              Filter: (content_text ~~* '%order 12%'::text)
+              Rows Removed by Filter: 2
+              Index Searches: 1
+              Buffers: shared hit=5
+        ->  Index Scan using messages_h8_202601_room_id_seq_idx on messages_h8_202601 messages_3 (actual time=0.008..0.008 rows=0.00 loops=1)
+              Index Cond: (room_id = 'room_000833333'::text)
+              Filter: (content_text ~~* '%order 12%'::text)
+              Rows Removed by Filter: 3
+              Index Searches: 1
+              Buffers: shared hit=6
+        ->  Index Scan using messages_h8_202602_room_id_seq_idx on messages_h8_202602 messages_4 (actual time=0.005..0.005 rows=0.00 loops=1)
+              Index Cond: (room_id = 'room_000833333'::text)
+              Filter: (content_text ~~* '%order 12%'::text)
+              Rows Removed by Filter: 1
+              Index Searches: 1
+              Buffers: shared hit=4
+        ->  Index Scan using messages_h8_202603_room_id_seq_idx on messages_h8_202603 messages_5 (actual time=0.005..0.005 rows=0.00 loops=1)
+              Index Cond: (room_id = 'room_000833333'::text)
+              Filter: (content_text ~~* '%order 12%'::text)
+              Rows Removed by Filter: 2
+              Index Searches: 1
+              Buffers: shared hit=5
+        ->  Index Scan using messages_h8_202604_room_id_seq_idx on messages_h8_202604 messages_6 (actual time=0.006..0.006 rows=0.00 loops=1)
+              Index Cond: (room_id = 'room_000833333'::text)
+              Filter: (content_text ~~* '%order 12%'::text)
+              Rows Removed by Filter: 2
+              Index Searches: 1
+              Buffers: shared hit=5
+        ->  Index Scan using messages_h8_202605_room_id_seq_idx on messages_h8_202605 messages_7 (actual time=0.090..0.090 rows=0.00 loops=1)
+              Index Cond: (room_id = 'room_000833333'::text)
+              Filter: (content_text ~~* '%order 12%'::text)
+              Rows Removed by Filter: 1
+              Index Searches: 1
+              Buffers: shared hit=4
+        ->  Index Scan using messages_h8_202606_room_id_seq_idx on messages_h8_202606 messages_8 (actual time=0.015..0.015 rows=0.00 loops=1)
+              Index Cond: (room_id = 'room_000833333'::text)
+              Filter: (content_text ~~* '%order 12%'::text)
+              Rows Removed by Filter: 2
+              Index Searches: 1
+              Buffers: shared hit=5
+        ->  Index Scan using messages_h8_202607_room_id_seq_idx on messages_h8_202607 messages_9 (actual time=0.010..0.010 rows=0.00 loops=1)
+              Index Cond: (room_id = 'room_000833333'::text)
+              Filter: (content_text ~~* '%order 12%'::text)
+              Rows Removed by Filter: 1
+              Index Searches: 1
+              Buffers: shared hit=4
+        ->  Index Scan using messages_h8_202608_room_id_seq_idx on messages_h8_202608 messages_10 (actual time=0.012..0.012 rows=0.00 loops=1)
+              Index Cond: (room_id = 'room_000833333'::text)
+              Filter: (content_text ~~* '%order 12%'::text)
+              Rows Removed by Filter: 2
+              Index Searches: 1
+              Buffers: shared hit=5
+        ->  Index Scan using messages_h8_202609_room_id_seq_idx on messages_h8_202609 messages_11 (actual time=0.022..0.022 rows=0.00 loops=1)
+              Index Cond: (room_id = 'room_000833333'::text)
+              Filter: (content_text ~~* '%order 12%'::text)
+              Rows Removed by Filter: 2
+              Index Searches: 1
+              Buffers: shared hit=5
+        ->  Index Scan using messages_h8_202610_room_id_seq_idx on messages_h8_202610 messages_12 (actual time=0.053..0.053 rows=0.00 loops=1)
+              Index Cond: (room_id = 'room_000833333'::text)
+              Filter: (content_text ~~* '%order 12%'::text)
+              Rows Removed by Filter: 1
+              Index Searches: 1
+              Buffers: shared hit=4
+        ->  Seq Scan on messages_h8_202611 messages_13 (actual time=0.123..0.123 rows=0.00 loops=1)
+              Filter: ((content_text ~~* '%order 12%'::text) AND (room_id = 'room_000833333'::text))
+        ->  Seq Scan on messages_h8_202612 messages_14 (actual time=0.137..0.137 rows=0.00 loops=1)
+              Filter: ((content_text ~~* '%order 12%'::text) AND (room_id = 'room_000833333'::text))
+        ->  Seq Scan on messages_h8_202701 messages_15 (actual time=0.052..0.052 rows=0.00 loops=1)
+              Filter: ((content_text ~~* '%order 12%'::text) AND (room_id = 'room_000833333'::text))
+        ->  Seq Scan on messages_h8_default messages_16 (actual time=0.002..0.002 rows=0.00 loops=1)
+              Filter: ((content_text ~~* '%order 12%'::text) AND (room_id = 'room_000833333'::text))
+Planning:
+  Buffers: shared hit=48
+Planning Time: 7.766 ms
+Execution Time: 0.686 ms

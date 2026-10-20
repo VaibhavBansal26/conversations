@@ -1,0 +1,312 @@
+{
+  "date": "2026-10-20T11:58:51.684Z",
+  "machine": "Apple M1 x8, 8 GB RAM, node v24.11.1",
+  "rows_target": 50000000,
+  "rooms": 2500000,
+  "months": 12,
+  "postgres": "18.4",
+  "rooms_secs": 180.054,
+  "load_secs": 1378.309,
+  "index_build_secs": 287.662,
+  "rows_loaded": 50000000,
+  "rows_per_s_load_only": 36276,
+  "rows_per_s_incl_indexes": 30013,
+  "load_series": [
+    {
+      "rows": 1000000,
+      "secs": 66
+    },
+    {
+      "rows": 2000000,
+      "secs": 66
+    },
+    {
+      "rows": 3000000,
+      "secs": 67
+    },
+    {
+      "rows": 4000000,
+      "secs": 67
+    },
+    {
+      "rows": 5000000,
+      "secs": 134
+    },
+    {
+      "rows": 6000000,
+      "secs": 134
+    },
+    {
+      "rows": 7000000,
+      "secs": 134
+    },
+    {
+      "rows": 8000000,
+      "secs": 134
+    },
+    {
+      "rows": 9000000,
+      "secs": 221
+    },
+    {
+      "rows": 10000000,
+      "secs": 221
+    },
+    {
+      "rows": 11000000,
+      "secs": 221
+    },
+    {
+      "rows": 12000000,
+      "secs": 221
+    },
+    {
+      "rows": 13000000,
+      "secs": 404
+    },
+    {
+      "rows": 14000000,
+      "secs": 404
+    },
+    {
+      "rows": 15000000,
+      "secs": 404
+    },
+    {
+      "rows": 16000000,
+      "secs": 404
+    },
+    {
+      "rows": 17000000,
+      "secs": 612
+    },
+    {
+      "rows": 18000000,
+      "secs": 612
+    },
+    {
+      "rows": 19000000,
+      "secs": 613
+    },
+    {
+      "rows": 20000000,
+      "secs": 613
+    },
+    {
+      "rows": 21000000,
+      "secs": 780
+    },
+    {
+      "rows": 22000000,
+      "secs": 781
+    },
+    {
+      "rows": 23000000,
+      "secs": 782
+    },
+    {
+      "rows": 24000000,
+      "secs": 785
+    },
+    {
+      "rows": 25000000,
+      "secs": 1044
+    },
+    {
+      "rows": 26000000,
+      "secs": 1044
+    },
+    {
+      "rows": 27000000,
+      "secs": 1049
+    },
+    {
+      "rows": 28000000,
+      "secs": 1050
+    },
+    {
+      "rows": 29000000,
+      "secs": 1203
+    },
+    {
+      "rows": 30000000,
+      "secs": 1204
+    },
+    {
+      "rows": 31000000,
+      "secs": 1205
+    },
+    {
+      "rows": 32000000,
+      "secs": 1205
+    },
+    {
+      "rows": 33000000,
+      "secs": 1248
+    },
+    {
+      "rows": 34000000,
+      "secs": 1248
+    },
+    {
+      "rows": 35000000,
+      "secs": 1249
+    },
+    {
+      "rows": 36000000,
+      "secs": 1249
+    },
+    {
+      "rows": 37000000,
+      "secs": 1290
+    },
+    {
+      "rows": 38000000,
+      "secs": 1291
+    },
+    {
+      "rows": 39000000,
+      "secs": 1292
+    },
+    {
+      "rows": 40000000,
+      "secs": 1292
+    },
+    {
+      "rows": 41000000,
+      "secs": 1320
+    },
+    {
+      "rows": 42000000,
+      "secs": 1322
+    },
+    {
+      "rows": 43000000,
+      "secs": 1322
+    },
+    {
+      "rows": 44000000,
+      "secs": 1323
+    },
+    {
+      "rows": 45000000,
+      "secs": 1358
+    },
+    {
+      "rows": 46000000,
+      "secs": 1358
+    },
+    {
+      "rows": 47000000,
+      "secs": 1359
+    },
+    {
+      "rows": 48000000,
+      "secs": 1359
+    },
+    {
+      "rows": 49000000,
+      "secs": 1378
+    },
+    {
+      "rows": 50000000,
+      "secs": 1378
+    }
+  ],
+  "disk_gb_used": 28.02,
+  "bytes_per_row_incl_indexes": 602,
+  "table_size": "19 GB",
+  "partitions": 256,
+  "queries": {
+    "history page, newest 30": {
+      "prepared_p50_ms": 5.04,
+      "prepared_p99_ms": 17.55,
+      "p50_ms": 2.78,
+      "p99_ms": 8.56,
+      "hash_partitions_touched": 1,
+      "leaves_touched": 16,
+      "planning_ms": 7.712,
+      "execution_ms": 0.334
+    },
+    "history page, before a cursor": {
+      "prepared_p50_ms": 2.99,
+      "prepared_p99_ms": 4.59,
+      "p50_ms": 2.91,
+      "p99_ms": 3.6,
+      "hash_partitions_touched": 1,
+      "leaves_touched": 16,
+      "planning_ms": 2.987,
+      "execution_ms": 0.094
+    },
+    "unread count in one room": {
+      "prepared_p50_ms": 3.18,
+      "prepared_p99_ms": 3.39,
+      "p50_ms": 3.09,
+      "p99_ms": 3.53,
+      "hash_partitions_touched": 1,
+      "leaves_touched": 16,
+      "planning_ms": 2.995,
+      "execution_ms": 0.047
+    },
+    "last message of a room": {
+      "prepared_p50_ms": 8.07,
+      "prepared_p99_ms": 21.55,
+      "p50_ms": 3.07,
+      "p99_ms": 3.61,
+      "hash_partitions_touched": 1,
+      "leaves_touched": 16,
+      "planning_ms": 2.86,
+      "execution_ms": 0.134
+    },
+    "room list, newest 30 open (rooms table only, summaries denormalised)": {
+      "prepared_p50_ms": 0.23,
+      "prepared_p99_ms": 1.19,
+      "p50_ms": 0.35,
+      "p99_ms": 0.67,
+      "hash_partitions_touched": 0,
+      "leaves_touched": 0,
+      "planning_ms": 0.151,
+      "execution_ms": 0.064
+    },
+    "message by id (no room known: probes every partition)": {
+      "prepared_p50_ms": 5.28,
+      "prepared_p99_ms": 9.79,
+      "p50_ms": 54.45,
+      "p99_ms": 161.41,
+      "hash_partitions_touched": 16,
+      "leaves_touched": 256,
+      "planning_ms": 96.344,
+      "execution_ms": 2.919
+    },
+    "message by (room, id)": {
+      "prepared_p50_ms": 2.97,
+      "prepared_p99_ms": 3.15,
+      "p50_ms": 2.92,
+      "p99_ms": 3.19,
+      "hash_partitions_touched": 1,
+      "leaves_touched": 16,
+      "planning_ms": 2.714,
+      "execution_ms": 0.053
+    },
+    "analytics: messages per day, workspace, last 7 days (index ws+time)": {
+      "prepared_p50_ms": 366.6,
+      "prepared_p99_ms": 560.44,
+      "p50_ms": 323.31,
+      "p99_ms": 488.11,
+      "hash_partitions_touched": 16,
+      "leaves_touched": 16,
+      "planning_ms": 27.416,
+      "execution_ms": 357.379
+    },
+    "in-room search (ILIKE, one room)": {
+      "prepared_p50_ms": 0.61,
+      "prepared_p99_ms": 1.19,
+      "p50_ms": 3.26,
+      "p99_ms": 3.91,
+      "hash_partitions_touched": 1,
+      "leaves_touched": 16,
+      "planning_ms": 7.766,
+      "execution_ms": 0.686
+    }
+  }
+}

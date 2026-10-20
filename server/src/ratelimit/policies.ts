@@ -61,7 +61,7 @@ export const POLICIES: Policy[] = [
   P({ id: "analytics.concurrency", description: "Concurrent exports per API key", keyBy: "apiKey", algo: "concurrency", limit: 2, windowSec: 60, ttlMs: 60_000, onFail: "open" }),
 
   // ---- billing ----
-  P({ id: "billing.checkout", description: "Creating Stripe checkout/portal/onboarding sessions, per user (each is a paid API call to Stripe)", keyBy: "user", algo: "gcra", limit: 10, windowSec: 60, burst: 5, onFail: "open" }),
+  P({ id: "billing.checkout", description: "Creating Stripe checkout/portal/onboarding sessions, per user (each is a paid API call to Stripe)", keyBy: "user", algo: "gcra", limit: 10, windowSec: 60, burst: 10, onFail: "open" }),
   P({ id: "payments.workspace", description: "Customer payment requests per workspace per hour, by plan", keyBy: "workspace", algo: "window", limit: 20, windowSec: 3600, tiers: { free: 20, pro: 300, business: 3000 }, onFail: "open" }),
 
   // ---- provider webhooks ----
