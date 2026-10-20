@@ -237,7 +237,8 @@ export class RedisStreamsBus implements EventBus {
     const leaseMs = this.opts.leaseMs ?? 6000;
     const pollMs = this.opts.pollMs ?? 250;
     let stopped = false;
-    const owned = new Map<string, { topic: string; p: number }>();
+    // `ready` flips only after the previous owner's unacknowledged entries are drained: reading NEW entries first would break per-key order
+    const owned = new Map<string, { topic: string; p: number; ready: boolean }>();
 
     // groups start at the beginning of the stream so a late subscriber still receives the backlog
     for (const topic of o.topics) {
@@ -298,7 +299,7 @@ export class RedisStreamsBus implements EventBus {
     const byStream = new Map<string, { topic: string; p: number }>();
     const readLoop = (async () => {
       while (!stopped) {
-        const active = [...owned.values()];
+        const active = [...owned.values()].filter((a) => a.ready);
         if (!active.length) {
           await sleep(pollMs / 2);
           continue;
@@ -334,8 +335,10 @@ export class RedisStreamsBus implements EventBus {
           const lk = `${topic}|${p}`;
           const has = await tryLease(topic, p).catch(() => false);
           if (has && !owned.has(lk)) {
-            owned.set(lk, { topic, p });
+            const mine = { topic, p, ready: false };
+            owned.set(lk, mine);
             await drainPending(topic, p).catch(() => {});
+            mine.ready = true;
           } else if (!has && owned.has(lk)) owned.delete(lk);
         }
       }

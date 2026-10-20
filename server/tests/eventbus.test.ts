@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
-import { KafkaBus, MemoryBus, NatsBus, NotImplementedError, RedisStreamsBus, type BusEvent, type EventBus } from "../src/infra/eventbus.js";
+import { KafkaBus, MemoryBus, NatsBus, NotImplementedError, RedisStreamsBus, partitionOf, type BusEvent, type EventBus } from "../src/infra/eventbus.js";
 import { RedisHub } from "../src/infra/redis.js";
 import { silentLogger } from "../src/logger.js";
 import { TOPIC_MESSAGES, once, outboxLag, pruneOutbox, relayOutbox, rollupHandler, startOutbox } from "../src/events/outbox.js";
@@ -187,8 +187,45 @@ for (const [name, factory, enabled] of factories) {
       // at-least-once: an event may be delivered twice around the hand-over, never zero times
       expect([...seen.values()].every((n) => n >= 1)).toBe(true);
     });
+
   });
 }
+
+describe.skipIf(!url)("EventBus redis-streams: takeover ordering", () => {
+  it("a new owner drains the dead owner's unacknowledged entries BEFORE reading new ones, so per-key order holds", async () => {
+    const prefix = `eb${randomBytes(4).toString("hex")}`;
+    const hub = new RedisHub(url!, silentLogger, prefix);
+    hubs.push(hub);
+    const bus = new RedisStreamsBus(hub, { partitions: 4, leaseMs: 800, pollMs: 40 });
+    buses.push(bus);
+    const P = 4;
+    const stream = hub.k(`bus:to:{${partitionOf("a", P)}}`);
+    // the dead owner: it was handed 15 entries of key "a" and crashed before acknowledging any of them
+    for (let n = 0; n < 15; n++) await bus.publish("to", "a", { n });
+    await hub.client.xgroup("CREATE", stream, "g", "0", "MKSTREAM").catch(() => {});
+    await hub.client.xreadgroup("GROUP", "g", "owner", "COUNT", 100, "STREAMS", stream, ">");
+    expect(((await hub.client.xpending(stream, "g")) as [number])[0]).toBe(15);
+    // the dead owner still holds the lease for a moment; the subscriber takes over from a later tick, as in a real failover
+    await hub.client.set(hub.k(`bus:lease:g:to:{${partitionOf("a", P)}}`), "dead-owner", "PX", 300);
+    const seen: number[] = [];
+    await bus.subscribe({
+      group: "g",
+      topics: ["to"],
+      handler: async (e) => {
+        await sleep(10); // draining takes ~150 ms, long enough for a premature read of new entries to overtake it
+        seen.push((e.payload as { n: number }).n);
+      },
+    });
+    // new events arrive while the backlog is being drained
+    for (let n = 15; n < 40; n++) {
+      await bus.publish("to", "a", { n });
+      await sleep(4);
+    }
+    await until(() => new Set(seen).size >= 40, 12000);
+    const firsts = [...new Set(seen)];
+    expect(firsts).toEqual([...firsts].sort((x, y) => x - y));
+  });
+});
 
 describe("EventBus adapters that are documented stubs", () => {
   it.each([
@@ -255,6 +292,14 @@ describe("transactional outbox", () => {
     const total = (await ctx.db.get<{ n: number }>("SELECT COALESCE(SUM(messages), 0) AS n FROM rollup_messages_daily"))!.n;
     const unique = new Set(events.filter((e) => e.topic === TOPIC_MESSAGES && (e.payload as { sender_type: string }).sender_type !== "system").map((e) => e.id)).size;
     expect(Number(total)).toBe(unique);
+  });
+
+  it("the same event id twice in one batch, even handled concurrently, is counted once in the rollup", async () => {
+    const ctx = await makeCtx();
+    const { wsId } = await seedWorkspace(ctx);
+    const e: BusEvent = { id: "evt_dup", topic: TOPIC_MESSAGES, key: "r", attempt: 1, payload: { type: "message.created", workspace_id: wsId, sender_type: "contact", kind: "text", source: "dm", created_at: "2026-03-02T10:00:00.000Z" } };
+    await Promise.all([rollupHandler(ctx, e), rollupHandler(ctx, e), rollupHandler(ctx, { ...e })]);
+    expect(Number((await ctx.db.get<{ n: number }>("SELECT COALESCE(SUM(messages), 0) AS n FROM rollup_messages_daily WHERE workspace_id = ?", wsId))!.n)).toBe(1);
   });
 
   it("once() runs the effect a single time per (consumer, event) and rolls the marker back with a failing effect", async () => {
