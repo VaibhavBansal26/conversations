@@ -49,6 +49,10 @@ export interface WidgetSettings {
   logo_url: string | null;
   launcher_position: "left" | "right";
   launcher_spacing: number;
+  launcher_style: "bubble" | "pill" | "icon";
+  launcher_label: string;
+  /** panel corner radius in px (0-24) */
+  radius: number;
   sound: boolean;
   welcome_message: string;
   away_message: string;
