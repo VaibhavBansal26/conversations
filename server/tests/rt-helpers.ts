@@ -6,6 +6,7 @@ import { HeuristicProvider } from "../src/ai/heuristic.js";
 import { silentLogger } from "../src/logger.js";
 import { FakeEmailProvider, FakeSmsProvider } from "../src/providers/fake.js";
 import { SocketBus, attachSocketServer } from "../src/realtime/socket.js";
+import { actorFromRow, getMember } from "../src/services/members.js";
 import { createToken, createSession } from "../src/services/visitors.js";
 import type { Actor } from "../src/domain/types.js";
 import { TestClock, testConfig, isolatedDbEnv, dropSchema, type TestCtx, seedWorkspace, tokenFor, addMemberRaw } from "./helpers.js";
@@ -42,7 +43,7 @@ export async function startServer(env: Record<string, string> = {}) {
   async function visitor(wsId: string, domain = "chat.example.com", device = "device-rt-0001", info: Record<string, string> = {}) {
     const owner = (await ctx.db.get<{ id: string }>("SELECT id FROM members WHERE workspace_id = ? LIMIT 1", wsId))!;
     const existing = await ctx.db.get<{ token: string; id: string }>("SELECT * FROM tokens WHERE workspace_id = ? AND domain = ? AND status = 'active'", wsId, domain);
-    const token = existing ?? (await createToken(ctx, { role: "owner", memberId: owner.id, workspaceId: wsId } as Actor, domain));
+    const token = existing ?? (await createToken(ctx, actorFromRow(await getMember(ctx, wsId, owner.id)), domain));
     const s = await createSession(ctx, token as never, { device_id: device, ip: null, ...info });
     return { ...s, auth: { session: s.secret, deviceId: device }, domain, tokenRow: token };
   }

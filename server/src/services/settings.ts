@@ -1,3 +1,4 @@
+import { can } from "../authz/permissions.js";
 import type { AppContext } from "../context.js";
 import { nowIso } from "../context.js";
 import { isUniqueViolation } from "../db/index.js";
@@ -9,7 +10,7 @@ import { getSettings } from "./workspaces.js";
 import type { KbDoc } from "../ai/retrieval.js";
 
 const manager = (a: Actor) => {
-  if (a.role === "agent") throw forbidden("Only managers can change channel settings");
+  if (!can(a, "channels:manage")) throw forbidden("Only managers can change channel settings");
 };
 
 /* ---------- SMS numbers ---------- */

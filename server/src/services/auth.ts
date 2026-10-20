@@ -5,8 +5,10 @@ import type { Actor, Role } from "../domain/types.js";
 import { conflict, unauthorized } from "../errors.js";
 import { hashPassword, verifyPassword } from "../util/crypto.js";
 import { newId } from "../util/ids.js";
-import { actorFromRow, findMember, memberDto, type MemberRow } from "./members.js";
+import { actorFromRow, findMember, memberDto } from "./members.js";
 import { workspaceDto } from "./workspaces.js";
+import { mfaChallengeToken, sessionLive, startSession, userHasMfa, type SessionMeta } from "./accounts.js";
+import { recordAudit } from "./audit.js";
 
 const ISSUER = "conversations";
 // Compared against when the email is unknown so login timing does not reveal which emails exist.
@@ -17,10 +19,12 @@ interface Claims {
   mid: string;
   wid: string;
   role: Role;
+  /** auth session id (absent on tokens minted without a session, e.g. by tests) */
+  sid?: string;
 }
 
-export async function signAccessToken(ctx: AppContext, a: Pick<Actor, "userId" | "memberId" | "workspaceId" | "role">): Promise<string> {
-  return await new SignJWT({ mid: a.memberId, wid: a.workspaceId, role: a.role })
+export async function signAccessToken(ctx: AppContext, a: Pick<Actor, "userId" | "memberId" | "workspaceId" | "role">, sid?: string): Promise<string> {
+  return await new SignJWT({ mid: a.memberId, wid: a.workspaceId, role: a.role, ...(sid ? { sid } : {}) })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(a.userId)
     .setIssuer(ISSUER)
@@ -37,7 +41,7 @@ export async function verifyAccessToken(ctx: AppContext, token: string): Promise
       currentDate: ctx.clock(),
     });
     if (typeof payload.sub !== "string" || typeof payload.mid !== "string" || typeof payload.wid !== "string") throw new Error("claims");
-    return { sub: payload.sub, mid: payload.mid, wid: payload.wid, role: payload.role as Role };
+    return { sub: payload.sub, mid: payload.mid, wid: payload.wid, role: payload.role as Role, sid: typeof payload.sid === "string" ? payload.sid : undefined };
   } catch {
     throw unauthorized("Invalid or expired token", "INVALID_TOKEN");
   }
@@ -49,20 +53,12 @@ export async function actorFromToken(ctx: AppContext, token: string, expectedWor
   if (expectedWorkspaceId && c.wid !== expectedWorkspaceId) throw unauthorized("Token belongs to another workspace", "WRONG_WORKSPACE");
   const row = await findMember(ctx, c.wid, c.mid);
   if (!row || row.user_id !== c.sub) throw unauthorized("Seat no longer exists", "INVALID_TOKEN");
+  // a revoked session (logout, password change, refresh-token reuse) stops working at once, not when the access token expires
+  if (c.sid && !(await sessionLive(ctx, c.sid))) throw unauthorized("Session ended", "SESSION_REVOKED");
   return actorFromRow(row);
 }
 
-async function session(ctx: AppContext, row: MemberRow) {
-  return {
-    token: await signAccessToken(ctx, actorFromRow(row)),
-    expires_in: ctx.config.ACCESS_TOKEN_TTL_SECONDS,
-    user: { id: row.user_id, name: row.name, email: row.email },
-    member: await memberDto(ctx, row),
-    workspace: await workspaceDto(ctx, row.workspace_id),
-  };
-}
-
-export async function register(ctx: AppContext, input: { email: string; password: string; name: string; workspace_name: string }) {
+export async function register(ctx: AppContext, input: { email: string; password: string; name: string; workspace_name: string }, meta: SessionMeta = {}) {
   const email = input.email.trim().toLowerCase();
   if (await ctx.db.get("SELECT 1 FROM users WHERE email = ?", email)) throw conflict("EMAIL_TAKEN", "An account with this email already exists");
   const hash = await hashPassword(input.password);
@@ -73,10 +69,11 @@ export async function register(ctx: AppContext, input: { email: string; password
     await ctx.db.run("INSERT INTO users(id, email, password_hash, name, created_at) VALUES (?,?,?,?,?)", ids.user, email, hash, input.name, now);
     await ctx.db.run("INSERT INTO members(id, workspace_id, user_id, role, created_at) VALUES (?,?,?,?,?)", ids.member, ids.ws, ids.user, "owner", now);
   });
-  return await session(ctx, (await findMember(ctx, ids.ws, ids.member))!);
+  await recordAudit(ctx, { workspaceId: ids.ws, actor: { type: "member", id: ids.member }, action: "workspace.create", target: ids.ws });
+  return await startSession(ctx, (await findMember(ctx, ids.ws, ids.member))!, meta);
 }
 
-export async function login(ctx: AppContext, input: { email: string; password: string; workspace_id?: string }) {
+export async function login(ctx: AppContext, input: { email: string; password: string; workspace_id?: string }, meta: SessionMeta = {}) {
   const user = await ctx.db.get<{ id: string; password_hash: string }>("SELECT id, password_hash FROM users WHERE email = ?", input.email.trim().toLowerCase());
   const ok = await verifyPassword(input.password, user?.password_hash ?? DUMMY_HASH);
   if (!user || !ok) throw unauthorized("Invalid email or password", "INVALID_CREDENTIALS");
@@ -86,7 +83,10 @@ export async function login(ctx: AppContext, input: { email: string; password: s
   );
   const pick = input.workspace_id ? seats.find((s) => s.workspace_id === input.workspace_id) : seats[0];
   if (!pick) throw unauthorized("No access to this workspace", "NO_WORKSPACE");
-  const out = await session(ctx, (await findMember(ctx, pick.workspace_id, pick.id))!);
+  // second factor: the password alone is not enough for an account that enabled it
+  if (await userHasMfa(ctx, user.id)) return { mfa_required: true as const, mfa_token: await mfaChallengeToken(ctx, user.id, pick.workspace_id) };
+  const out = await startSession(ctx, (await findMember(ctx, pick.workspace_id, pick.id))!, meta);
+  await recordAudit(ctx, { workspaceId: pick.workspace_id, actor: { type: "member", id: pick.id }, action: "auth.login" });
   return { ...out, workspaces: seats.map((s) => ({ id: s.workspace_id })) };
 }
 

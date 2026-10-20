@@ -19,6 +19,9 @@ import { visitorMarkRead, visitorRoomDto, visitorRooms, visitorSend, visitorStar
 import { authenticateSession, originMatches, verifyOtp, type SessionRow } from "../services/visitors.js";
 import { monitorEventLoopDelay } from "node:perf_hooks";
 import { gcra, type GcraState } from "../ratelimit/algorithms.js";
+import { PermissionDenied } from "../authz/http.js";
+import { can } from "../authz/permissions.js";
+import { EVENT_ACCESS } from "../authz/routePerms.js";
 import { EVENT_LIMITS } from "../ratelimit/routePolicies.js";
 import { ipKey, resolveClientIp } from "../util/clientIp.js";
 import { isWorkspaceId } from "../util/ids.js";
@@ -615,6 +618,7 @@ function registerHandlers(ctx: AppContext, socket: Socket, ready: Promise<void>)
   function on<S extends z.ZodType>(event: string, schema: S | null, only: "team" | "visitor" | undefined, handler: (payload: z.infer<S>, who: Who) => unknown | Promise<unknown>) {
     // the declaration in ratelimit/routePolicies.ts must know every event (a test enumerates both sides)
     if (!EVENT_LIMITS[event]) throw new Error(`socket event "${event}" has no entry in EVENT_LIMITS`);
+    if (!EVENT_ACCESS[event]) throw new Error(`socket event "${event}" has no entry in EVENT_ACCESS`);
     socket.on(event, async (raw: unknown, ack?: Ack) => {
       const reply = typeof ack === "function" ? ack : () => {};
       const end = ctx.metrics.wsAck.startTimer({ event });
@@ -640,6 +644,9 @@ function registerHandlers(ctx: AppContext, socket: Socket, ready: Promise<void>)
             throw new AppError(401, "UNAUTHORIZED", "Seat no longer exists");
           }
           who.actor = actorFromRow(row);
+          // the same permission check as REST (authz/routePerms.ts)
+          const need = EVENT_ACCESS[event]!;
+          if (need !== "authed" && need !== "visitor-only" && !can(who.actor, need)) throw new PermissionDenied(need);
         } else who.session = await visitorSession();
         {
           const d = await ctx.ratelimit.check("ws.actor", { key: `${ws}:${data.kind === "team" ? data.memberId : data.contactId}` }, { cost: w.cost });

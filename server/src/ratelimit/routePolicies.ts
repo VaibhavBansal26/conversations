@@ -34,20 +34,24 @@ export const EXEMPT: Record<string, string> = {
 
 const GROUPS: { spec: RouteSpec; routes: string[] }[] = [
   { spec: { pre: ["auth.register.ip"] }, routes: ["POST /api/auth/register"] },
+  { spec: { pre: ["auth.refresh.ip"] }, routes: ["POST /api/auth/refresh", "POST /api/auth/logout"] },
+  { spec: { pre: ["auth.mfa.ip"], inHandler: ["auth.fail.mfa"] }, routes: ["POST /api/auth/mfa/verify"] },
+  { spec: { pre: ["auth.forgot.ip"], inHandler: ["auth.forgot.email"] }, routes: ["POST /api/auth/password/forgot"] },
+  { spec: { pre: ["auth.reset.ip"] }, routes: ["POST /api/auth/password/reset", "GET /api/auth/invitations/:token", "POST /api/auth/invitations/accept"] },
   { spec: { pre: ["auth.login.ip"], inHandler: ["auth.fail.account", "auth.fail.ip"] }, routes: ["POST /api/auth/login"] },
   {
     spec: READ,
     routes: [
-      "GET /api/auth/me", "GET /api/workspace", "GET /api/credits", "GET /api/dashboard/counts", "GET /api/members", "GET /api/members/me", "GET /api/presence",
+      "GET /api/auth/me", "GET /api/auth/sessions", "GET /api/invitations", "GET /api/workspace", "GET /api/credits", "GET /api/dashboard/counts", "GET /api/members", "GET /api/members/me", "GET /api/presence",
       "GET /api/inboxes", "GET /api/inboxes/counts", "GET /api/inboxes/:id", "GET /api/contacts", "GET /api/contacts/:id", "GET /api/contacts/:id/notes", "GET /api/contacts/:id/rooms",
       "GET /api/rooms", "GET /api/rooms/:id", "GET /api/rooms/:id/messages", "GET /api/messages/search", "GET /api/notifications", "GET /api/sms-numbers", "GET /api/email-senders",
-      "GET /api/inbound-addresses", "GET /api/tokens", "GET /api/templates", "GET /api/kb", "GET /api/ai/status",
+      "GET /api/inbound-addresses", "GET /api/tokens", "GET /api/templates", "GET /api/kb", "GET /api/ai/status", "GET /api/roles", "GET /api/audit",
     ],
   },
   {
     spec: WRITE,
     routes: [
-      "PATCH /api/workspace", "POST /api/credits/grant", "POST /api/members", "PATCH /api/members/me", "PATCH /api/members/:id", "DELETE /api/members/:id",
+      "PATCH /api/workspace", "DELETE /api/auth/sessions/:id", "POST /api/auth/password/change", "POST /api/auth/mfa/setup", "POST /api/auth/mfa/enable", "POST /api/auth/mfa/disable", "POST /api/invitations", "DELETE /api/invitations/:id", "POST /api/credits/grant", "POST /api/members", "PATCH /api/members/me", "PATCH /api/members/:id", "DELETE /api/members/:id",
       "POST /api/inboxes", "PATCH /api/inboxes/:id", "DELETE /api/inboxes/:id", "POST /api/inboxes/:id/members/:memberId", "DELETE /api/inboxes/:id/members/:memberId",
       "POST /api/contacts", "PATCH /api/contacts/:id", "DELETE /api/contacts/:id", "POST /api/contacts/:id/notes", "DELETE /api/contacts/:id/notes/:noteId",
       "POST /api/rooms", "POST /api/rooms/bulk", "PATCH /api/rooms/:id", "DELETE /api/rooms/:id", "POST /api/rooms/:id/assign", "POST /api/rooms/:id/snooze", "DELETE /api/rooms/:id/snooze",
@@ -55,7 +59,7 @@ const GROUPS: { spec: RouteSpec; routes: string[] }[] = [
       "POST /api/notifications/read-all", "POST /api/notifications/:id/read", "POST /api/sms-numbers", "POST /api/sms-numbers/:id/default", "DELETE /api/sms-numbers/:id",
       "POST /api/email-senders", "PATCH /api/email-senders/:id", "DELETE /api/email-senders/:id", "POST /api/inbound-addresses", "DELETE /api/inbound-addresses/:address",
       "POST /api/tokens", "POST /api/tokens/:id/rotate", "DELETE /api/tokens/:id", "POST /api/templates", "PATCH /api/templates/:id", "DELETE /api/templates/:id", "POST /api/templates/:id/render",
-      "POST /api/kb", "PUT /api/kb/:id", "DELETE /api/kb/:id",
+      "POST /api/kb", "PUT /api/kb/:id", "DELETE /api/kb/:id", "POST /api/roles", "PATCH /api/roles/:id", "DELETE /api/roles/:id", "PUT /api/members/:id/role",
     ],
   },
   { spec: { post: ["api.send", "api.workspace"], inHandler: ["msg.room", "msg.workspace", "sms.workspace", "email.workspace", "sms.contact", "sms.number", "email.sender"] }, routes: ["POST /api/rooms/:id/messages"] },

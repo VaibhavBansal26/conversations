@@ -2,6 +2,7 @@ import { enforceSendLimits } from "../ratelimit/enforce.js";
 import type { AppContext } from "../context.js";
 import { nowIso } from "../context.js";
 import { isUniqueViolation } from "../db/index.js";
+import { can } from "../authz/permissions.js";
 import { seesAll, type Actor, type MessageKind, type MessageSource } from "../domain/types.js";
 import { AppError, forbidden, notFound, unprocessable } from "../errors.js";
 import { buildThread, chooseEmailSender, chooseSmsNumber, deriveSubject, isE164, lockChannel, SMS_MAX_CHARS } from "../channels/rules.js";
@@ -329,7 +330,7 @@ export async function deleteMessage(ctx: AppContext, actor: Actor, id: string, r
   const { msg, room } = await ownMessageOrThrow(ctx, actor, id, roomHint);
   if (msg.kind === "system") throw forbidden("System messages cannot be deleted");
   const own = msg.sender_type === "agent" && msg.sender_id === actor.memberId;
-  if (!own && !seesAll(actor)) throw forbidden("You can only delete your own messages");
+  if (!own && !(seesAll(actor) && can(actor, "conversations:delete"))) throw forbidden("You can only delete your own messages");
   await ctx.db.tx(async () => {
     await ctx.db.run("UPDATE messages SET deleted_at = ?, deleted_by = ? WHERE room_id = ? AND id = ?", nowIso(ctx), actor.memberId, room.id, id);
     await ctx.db.run("DELETE FROM message_mentions WHERE message_id = ?", id);

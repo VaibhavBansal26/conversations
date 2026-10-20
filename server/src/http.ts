@@ -5,6 +5,7 @@ import type { AppContext } from "./context.js";
 import type { Actor } from "./domain/types.js";
 import { resolveClientIp } from "./util/clientIp.js";
 import { AppError, badRequest, forbidden, unauthorized } from "./errors.js";
+import { authorizeRoute } from "./authz/http.js";
 import { applyPrincipalLimits } from "./ratelimit/http.js";
 import { actorFromToken } from "./services/auth.js";
 
@@ -61,6 +62,7 @@ export function requireAuth(ctx: AppContext): MiddlewareHandler<Env> {
     if (!token) throw unauthorized();
     const actor = await actorFromToken(ctx, token);
     c.set("actor", actor);
+    authorizeRoute(c, actor);
     await applyPrincipalLimits(ctx, c, { userId: actor.memberId, workspaceId: actor.workspaceId });
     await next();
   };

@@ -34,6 +34,10 @@ export interface Actor {
   email: string;
   liveSeat: boolean;
   inboxVisibility: InboxVisibility;
+  /** what this seat may do (from its role); `can(actor, permission)` is the check */
+  permissions: ReadonlySet<string>;
+  /** key of the role: owner | manager | agent | viewer | a custom role's key */
+  roleKey: string;
 }
 
 export const seesAll = (a: Pick<Actor, "role">): boolean => a.role === "owner" || a.role === "manager";

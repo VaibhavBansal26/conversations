@@ -18,6 +18,8 @@ import { requireAuth, type Env } from "./http.js";
 import { attachmentByKey } from "./services/attachments.js";
 import { authRoutes } from "./routes/auth.js";
 import { publicRoutes } from "./routes/public.js";
+import { roleRoutes } from "./routes/roles.js";
+import { invitationRoutes } from "./routes/invitations.js";
 import { roomRoutes } from "./routes/rooms.js";
 import { settingsRoutes } from "./routes/settings.js";
 import { teamRoutes } from "./routes/team.js";
@@ -99,6 +101,8 @@ export function createApp(ctx: AppContext): Hono {
   api.route("/", teamRoutes(ctx));
   api.route("/", roomRoutes(ctx));
   api.route("/", settingsRoutes(ctx));
+  api.route("/", roleRoutes(ctx));
+  api.route("/", invitationRoutes(ctx));
   app.route("/api", api);
 
   app.route("/public", publicRoutes(ctx));

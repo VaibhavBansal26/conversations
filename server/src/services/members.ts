@@ -20,9 +20,15 @@ export interface MemberRow {
   created_at: string;
   name: string;
   email: string;
+  role_id: string | null;
+  role_key: string;
+  role_name: string;
+  role_permissions: string;
 }
 
-const SELECT = `SELECT m.*, u.name AS name, u.email AS email FROM members m JOIN users u ON u.id = m.user_id`;
+// the role row is resolved in the same query: members.role_id (custom or viewer) or the system role named by members.role
+const SELECT = `SELECT m.*, u.name AS name, u.email AS email, r.key AS role_key, r.name AS role_name, r.permissions AS role_permissions
+  FROM members m JOIN users u ON u.id = m.user_id JOIN roles r ON r.id = COALESCE(m.role_id, 'role_' || m.role)`;
 
 export const memberScope = (workspaceId: string) => `${workspaceId}:member`;
 export const visitorScope = (workspaceId: string) => `${workspaceId}:visitor`;
@@ -60,6 +66,8 @@ export function actorFromRow(m: MemberRow): Actor {
     email: m.email,
     liveSeat: !!m.live_seat,
     inboxVisibility: m.inbox_visibility,
+    permissions: new Set(parseJson<string[]>(m.role_permissions, [])),
+    roleKey: m.role_key,
   };
 }
 
@@ -76,7 +84,10 @@ export async function memberDto(ctx: AppContext, m: MemberRow) {
     user_id: m.user_id,
     name: m.name,
     email: m.email,
-    role: m.role,
+    role: m.role_key,
+    role_id: m.role_id ?? `role_${m.role}`,
+    role_name: m.role_name,
+    permissions: parseJson<string[]>(m.role_permissions, []),
     live_seat: !!m.live_seat,
     availability: m.availability,
     dnd_until: m.dnd_until,

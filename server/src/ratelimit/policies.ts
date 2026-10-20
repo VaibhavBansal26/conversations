@@ -19,6 +19,13 @@ export const POLICIES: Policy[] = [
   P({ id: "auth.fail.account", description: "Failed logins per account (hashed email): 5 failures in 15 min lock the account, escalating 1 min -> 5 min -> 30 min -> 24 h", keyBy: "composite", algo: "strike", limit: 5, windowSec: 900, onFail: "closed" }),
   P({ id: "auth.fail.ip", description: "Failed logins per IP: 20 failures in 15 min block the IP, escalating", keyBy: "ip", algo: "strike", limit: 20, windowSec: 900, onFail: "closed" }),
 
+  P({ id: "auth.refresh.ip", description: "Refresh-token exchanges per IP", keyBy: "ip", algo: "gcra", limit: 60, windowSec: 60, burst: 60, onFail: "open" }),
+  P({ id: "auth.mfa.ip", description: "Second-factor submissions per IP", keyBy: "ip", algo: "gcra", limit: 10, windowSec: 60, burst: 10, onFail: "closed", penalty: true }),
+  P({ id: "auth.fail.mfa", description: "Wrong second-factor codes per user: 5 in 15 min lock the second step, escalating", keyBy: "composite", algo: "strike", limit: 5, windowSec: 900, onFail: "closed" }),
+  P({ id: "auth.forgot.ip", description: "Password-reset requests per IP per hour", keyBy: "ip", algo: "window", limit: 10, windowSec: 3600, onFail: "closed" }),
+  P({ id: "auth.forgot.email", description: "Password-reset requests per address per hour (stops mail bombing)", keyBy: "composite", algo: "window", limit: 3, windowSec: 3600, onFail: "closed" }),
+  P({ id: "auth.reset.ip", description: "Password-reset and invitation token submissions per IP", keyBy: "ip", algo: "gcra", limit: 10, windowSec: 600, burst: 10, onFail: "closed", penalty: true }),
+
   // ---- widget (public) ----
   P({ id: "public.config", description: "Widget config fetch, per IP", keyBy: "ip", algo: "gcra", limit: 60, windowSec: 60, burst: 60, onFail: "open" }),
   P({ id: "public.session", description: "Visitor session creation, per IP + Origin + embed token", keyBy: "composite", algo: "gcra", limit: 20, windowSec: 60, burst: 20, onFail: "closed", penalty: true }),

@@ -1,6 +1,7 @@
 import type { AppContext } from "../context.js";
 import { nowIso } from "../context.js";
 import { isUniqueViolation, type Param } from "../db/index.js";
+import { can } from "../authz/permissions.js";
 import { seesAll, type Actor } from "../domain/types.js";
 import { AppError, forbidden, notFound, unprocessable } from "../errors.js";
 import { decodeCursor, encodeCursor } from "../util/cursor.js";
@@ -344,7 +345,8 @@ export async function assignRoom(
   input: { member_ids?: string[]; inbox_id?: string | null; auto?: boolean },
 ): Promise<RoomRow> {
   let room = await getVisibleRoom(ctx, actor, roomId);
-  const mgr = seesAll(actor);
+  // managers may assign anyone and move rooms between inboxes; a custom role needs the permission too
+  const mgr = seesAll(actor) && can(actor, "conversations:assign");
   if (input.inbox_id !== undefined && input.inbox_id !== room.inbox_id) {
     if (!mgr) throw forbidden("Only managers can move a conversation to another inbox");
     if (input.inbox_id && !(await findInbox(ctx, actor.workspaceId, input.inbox_id))) throw unprocessable("UNKNOWN_INBOX", "Inbox does not exist");
@@ -487,7 +489,7 @@ export async function setFavorite(ctx: AppContext, actor: Actor, roomId: string,
 }
 
 export async function archiveRoom(ctx: AppContext, actor: Actor, roomId: string): Promise<void> {
-  if (!seesAll(actor)) throw forbidden("Only managers can delete conversations");
+  if (!seesAll(actor) || !can(actor, "conversations:delete")) throw forbidden("Only managers can delete conversations");
   const room = await getVisibleRoom(ctx, actor, roomId);
   await ctx.db.tx(async () => {
     await ctx.db.run("UPDATE rooms SET archived = 1, updated_at = ? WHERE id = ?", nowIso(ctx), roomId);

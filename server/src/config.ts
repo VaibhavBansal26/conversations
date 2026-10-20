@@ -23,11 +23,12 @@ const schema = z.object({
   DATA_DIR: z.string().default("./data"),
   WEB_DIST: z.string().optional(),
   JWT_SECRET: z.string().min(16).optional(),
+  /** access tokens are short lived; clients renew them with the refresh token (30 days, single use, rotated) */
   ACCESS_TOKEN_TTL_SECONDS: z.coerce
     .number()
     .int()
     .positive()
-    .default(60 * 60 * 12),
+    .default(15 * 60),
   PUBLIC_URL: z.string().url().default("http://localhost:3000"),
   CORS_ORIGINS: z.string().default("http://localhost:5173"),
   TRUST_PROXY: bool.default(false),

@@ -1,3 +1,4 @@
+import { can } from "../authz/permissions.js";
 import type { AppContext } from "../context.js";
 import { nowIso } from "../context.js";
 import type { Actor } from "../domain/types.js";
@@ -47,7 +48,7 @@ export async function getInbox(ctx: AppContext, ws: string, id: string): Promise
 }
 
 function requireManager(actor: Actor) {
-  if (actor.role === "agent") throw forbidden("Only managers can manage inboxes");
+  if (!can(actor, "inboxes:manage")) throw forbidden("Only managers can manage inboxes");
 }
 
 /** Agents only see inboxes they belong to; managers see all. */

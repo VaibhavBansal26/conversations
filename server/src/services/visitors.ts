@@ -1,3 +1,4 @@
+import { can } from "../authz/permissions.js";
 import type { AppContext } from "../context.js";
 import { nowIso } from "../context.js";
 import { AppError, forbidden, notFound, unauthorized, unprocessable } from "../errors.js";
@@ -71,7 +72,7 @@ export const tokenDto = (t: TokenRow) => ({
 });
 
 export async function createToken(ctx: AppContext, actor: Actor, domainInput: string): Promise<TokenRow> {
-  if (actor.role === "agent") throw forbidden("Only managers can manage embed tokens");
+  if (!can(actor, "tokens:manage")) throw forbidden("Only managers can manage embed tokens");
   const domain = normalizeDomain(domainInput);
   if (await ctx.db.get("SELECT 1 FROM tokens WHERE workspace_id = ? AND domain = ? AND status = 'active'", actor.workspaceId, domain)) {
     throw new AppError(409, "TOKEN_EXISTS", "This domain already has an active token. Rotate it instead.");
@@ -90,7 +91,7 @@ export async function createToken(ctx: AppContext, actor: Actor, domainInput: st
 }
 
 export async function rotateToken(ctx: AppContext, actor: Actor, id: string): Promise<TokenRow> {
-  if (actor.role === "agent") throw forbidden("Only managers can manage embed tokens");
+  if (!can(actor, "tokens:manage")) throw forbidden("Only managers can manage embed tokens");
   const old = await ctx.db.get<TokenRow>("SELECT * FROM tokens WHERE id = ? AND workspace_id = ? AND status = 'active'", id, actor.workspaceId);
   if (!old) throw notFound("Token");
   return await ctx.db.tx(async () => {
@@ -100,7 +101,7 @@ export async function rotateToken(ctx: AppContext, actor: Actor, id: string): Pr
 }
 
 export async function revokeToken(ctx: AppContext, actor: Actor, id: string): Promise<void> {
-  if (actor.role === "agent") throw forbidden("Only managers can manage embed tokens");
+  if (!can(actor, "tokens:manage")) throw forbidden("Only managers can manage embed tokens");
   const res = await ctx.db.run("UPDATE tokens SET status = 'revoked' WHERE id = ? AND workspace_id = ? AND status = 'active'", id, actor.workspaceId);
   if (!res.changes) throw notFound("Token");
 }
