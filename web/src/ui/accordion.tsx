@@ -17,7 +17,7 @@ export function AccordionSection({ value, title, badge, children, className }: {
           <ChevronDown className="size-4 text-subtle transition-transform group-data-[state=open]:rotate-180" aria-hidden="true" />
         </AccordionPrimitive.Trigger>
       </AccordionPrimitive.Header>
-      <AccordionPrimitive.Content className="overflow-hidden px-4 pb-4 data-[state=closed]:hidden">{children}</AccordionPrimitive.Content>
+      <AccordionPrimitive.Content className="overflow-hidden px-4 pb-4 pt-1 data-[state=closed]:hidden">{children}</AccordionPrimitive.Content>
     </AccordionPrimitive.Item>
   );
 }

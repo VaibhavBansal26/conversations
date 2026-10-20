@@ -51,7 +51,7 @@ export function ChannelBar({ channel, onChannel, isNote, onNote, senders, from, 
         </SegmentedList>
       </Tabs>
       {showEmail && (
-        <div className="mb-2 grid gap-2 sm:grid-cols-[minmax(0,14rem)_1fr]">
+        <div className="mb-2 grid gap-2 sm:grid-cols-[minmax(0,19rem)_1fr]">
           <label className="flex items-center gap-2 text-xs text-subtle">
             <span className="w-12 shrink-0 sm:w-auto">From</span>
             <NativeSelect value={from} onChange={(e) => onFrom(e.target.value)} className="h-8 text-[13px]">

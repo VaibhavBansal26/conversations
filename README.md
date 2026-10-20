@@ -18,7 +18,7 @@ Standalone and self-contained: Node + SQLite, no external services required to r
 Requires Node >= 22.13 (developed on 24) and npm.
 
 ```bash
-npm run setup          # install server/ and web/ dependencies
+npm run setup          # install server/, web/ and e2e/ dependencies
 npm run seed           # optional: demo workspace (demo@example.test / demo-password-123), dev only
 npm run dev            # API on http://localhost:3000, web app on http://localhost:5173
 ```
@@ -80,11 +80,12 @@ The token is bound to a domain (`example.com`, `*.example.com`, `localhost:3000`
 
 ```
 server/    Hono + Socket.IO API, SQLite/PostgreSQL, Redis, jobs, rate limiter, AI   (docs/ARCHITECTURE.md)
-web/       React agent app (inbox, settings), Web Worker helpers
+web/       React agent app (inbox, settings, analytics, operator console), Tailwind v4 design system, Web Worker helpers   (docs/design/DESIGN.md)
+e2e/       Playwright browser tests and the screenshot set for docs/design   (docs/TESTING.md)
 edge/      optional Cloudflare Worker (widget cache, edge secret)
 loadtest/  multi-process socket/REST load harness, fault injection, dataset loader
 deploy/    nginx, HAProxy, Kubernetes (kustomize, KEDA)    docker-compose.yml
 docs/      ARCHITECTURE, SCALING, PERFORMANCE, RATE-LIMITING, RUNBOOK, CLOUDFLARE, ADRs, ...
 ```
 
-Documentation index: [docs/README.md](docs/README.md). Quick links: [API](docs/API.md) | [Realtime](docs/REALTIME.md) | [Configuration](docs/CONFIGURATION.md) | [RBAC](docs/RBAC.md) | [Stripe](docs/STRIPE.md) | [Admin](docs/ADMIN.md) | [Analytics](docs/ANALYTICS.md) | [Security](docs/SECURITY.md) | [Changelog](CHANGELOG.md) | [Contributing](CONTRIBUTING.md) | [Architecture](docs/ARCHITECTURE.md) | [Scaling](docs/SCALING.md) | [Performance](docs/PERFORMANCE.md) | [Rate limiting](docs/RATE-LIMITING.md) | [Cloudflare](docs/CLOUDFLARE.md) | [Runbook](docs/RUNBOOK.md) | [Cloud load test](docs/CLOUD-LOADTEST.md) | [Approach](docs/APPROACH.md) | [AI](docs/AI.md) | [Testing](docs/TESTING.md) | [Migration notes](docs/MIGRATION-NOTES.md) | [ADRs](docs/adr/README.md)
+Documentation index: [docs/README.md](docs/README.md). Quick links: [API](docs/API.md) | [Realtime](docs/REALTIME.md) | [Configuration](docs/CONFIGURATION.md) | [RBAC](docs/RBAC.md) | [Stripe](docs/STRIPE.md) | [Admin](docs/ADMIN.md) | [Analytics](docs/ANALYTICS.md) | [Security](docs/SECURITY.md) | [Changelog](CHANGELOG.md) | [Contributing](CONTRIBUTING.md) | [Architecture](docs/ARCHITECTURE.md) | [Scaling](docs/SCALING.md) | [Performance](docs/PERFORMANCE.md) | [Rate limiting](docs/RATE-LIMITING.md) | [Cloudflare](docs/CLOUDFLARE.md) | [Runbook](docs/RUNBOOK.md) | [Cloud load test](docs/CLOUD-LOADTEST.md) | [Approach](docs/APPROACH.md) | [AI](docs/AI.md) | [Testing](docs/TESTING.md) | [Migration notes](docs/MIGRATION-NOTES.md) | [Design system](docs/design/DESIGN.md) | [UI provenance](docs/PROVENANCE.md) | [ADRs](docs/adr/README.md)

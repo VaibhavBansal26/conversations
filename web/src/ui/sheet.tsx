@@ -24,19 +24,23 @@ interface Props extends VariantProps<typeof sheetVariants> {
   className?: string;
   /** hide the title visually but keep it for screen readers */
   hideTitle?: boolean;
+  /** omit the built-in close button when the content has its own */
+  hideClose?: boolean;
 }
 
 /** Drawer: side panels for the navigation / contact panel on small screens, bottom sheet for pickers. */
-export function Sheet({ open, onOpenChange, title, side, children, className, hideTitle }: Props) {
+export function Sheet({ open, onOpenChange, title, side, children, className, hideTitle, hideClose }: Props) {
   return (
     <SheetPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <SheetPrimitive.Portal>
         <DialogOverlay />
         <SheetPrimitive.Content aria-describedby={undefined} className={cn(sheetVariants({ side }), className)}>
           <SheetPrimitive.Title className={hideTitle ? "sr-only" : "border-b border-border px-4 py-3 text-base font-semibold"}>{title}</SheetPrimitive.Title>
-          <SheetPrimitive.Close className="absolute right-2 top-2 grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-surface-2" aria-label={`Close ${title.toLowerCase()}`}>
-            <X className="size-4" aria-hidden="true" />
-          </SheetPrimitive.Close>
+          {!hideClose && (
+            <SheetPrimitive.Close className="absolute right-2 top-2 grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-surface-2" aria-label={`Close ${title.toLowerCase()}`}>
+              <X className="size-4" aria-hidden="true" />
+            </SheetPrimitive.Close>
+          )}
           {children}
         </SheetPrimitive.Content>
       </SheetPrimitive.Portal>

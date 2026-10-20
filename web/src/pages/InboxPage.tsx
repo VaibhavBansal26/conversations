@@ -148,7 +148,7 @@ export function InboxPage() {
         </aside>
       )}
       {roomId && !isXl && (
-        <Sheet open={panel} onOpenChange={(o) => setPanelPref(o)} side="right" title="Contact details" hideTitle className="w-[min(24rem,100vw)]">
+        <Sheet open={panel} onOpenChange={(o) => setPanelPref(o)} side="right" title="Contact details" hideTitle hideClose className="w-[min(24rem,100vw)]">
           {selected ? <ContactPanel room={selected} onClose={() => setPanelPref(false)} /> : null}
         </Sheet>
       )}

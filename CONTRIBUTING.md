@@ -5,7 +5,7 @@
 Node >= 22.13 (developed on 24) and npm. No Docker needed: the default stack is SQLite in-process.
 
 ```bash
-npm run setup     # installs server/ and web/
+npm run setup     # installs server/, web/ and e2e/
 npm run dev       # API :3000 and web app :5173 (demo data: npm run seed)
 ```
 
@@ -16,6 +16,7 @@ PostgreSQL and Redis are optional and used to test the scale-out paths: set `TES
 ```bash
 npm run typecheck && npm test      # server (vitest) and web (vitest + jsdom), includes docs:check
 npm run build && npm run e2e       # boots the built server and drives it with real HTTP and sockets
+npm run build && npm run e2e:ui    # Playwright in a real browser: clicks, typing, axe contrast, responsive layouts (see docs/TESTING.md)
 npm run test --prefix server -- tests/rooms.test.ts
 ```
 
@@ -39,6 +40,8 @@ Write the test with the change. Services are tested directly against in-memory S
 | the analytics API | `analytics/schemas.ts`, then `npm run docs:analytics-schemas --prefix server` |
 | user-visible behaviour | `CHANGELOG.md` under *Unreleased* |
 | a significant decision | a new `docs/adr/NNNN-title.md` and its line in `docs/adr/README.md` |
+| web UI (colours, spacing, a new component) | tokens in `web/src/styles/index.css`, components in `web/src/ui`; no new CSS files; update `docs/design/DESIGN.md` and re-take the screenshots with `npm run shots` |
+| something adapted from the legacy UI | a header comment `Adapted from the legacy UI (see docs/PROVENANCE.md)` and a row in `docs/PROVENANCE.md`; never copy credentials, hostnames, brand names or personal data |
 | a new doc file | its row in `docs/README.md` |
 
 `npm run docs:check --prefix server` verifies links and anchors, the docs index, the generated files, Mermaid blocks, route/event/permission coverage and the changelog. It runs in `npm test` and in CI, and the pull-request template has the checklist.

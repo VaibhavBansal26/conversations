@@ -106,6 +106,32 @@ Web: `BillingSettings.test.tsx`, `PaymentCard.test.tsx`, `money.test.ts`, `admin
 
 Spawns the **built** server (`node dist/index.js`, `NODE_ENV=production`, temp database) and proves, with real HTTP and real Socket.IO clients: register -> create inbox/contact/number/token -> widget session (foreign origin rejected, cross-tenant namespace rejected) -> visitor message reaches the agent over the socket -> agent reply reaches the visitor -> read receipts both ways (and the computed unread count) -> duplicate `client_msg_id` is idempotent -> an inbound SMS webhook with a valid Twilio signature creates a room (unsigned and replayed requests handled). It exits non-zero on the first failed assertion. CI runs it after the build.
 
+## Browser end-to-end tests (`e2e/`, Playwright)
+
+Drive the **built** server and web app in a real Chrome with real clicks, typing and keyboard input. `e2e/support/stack.mjs` starts `server/dist` on a free port with a throwaway SQLite database, the demo seed, an operator account and extra data created through the public and REST APIs (a website visitor writing in, images and a voice note). Nothing is mocked; the realtime path, uploads and the widget run for real. Requires `npm run build` first.
+
+```bash
+npm ci --prefix e2e
+npm run build
+npm run e2e:ui                         # all specs (Chrome from the machine; E2E_CHANNEL= to use Playwright's Chromium, as CI does)
+npm run shots                          # screenshot matrix into docs/design/
+E2E_REUSE=1 E2E_PORT=45555 npx playwright test tests/02-inbox.spec.ts   # against `node e2e/support/stack.mjs` you started yourself
+```
+
+| Spec | What it proves |
+| --- | --- |
+| `01-auth` | wrong password message, password toggle, sign in and out through the account menu, theme switch on the sign-in page survives a reload |
+| `02-inbox` | list with unread badges and counts; open a conversation; send by typing and Enter, Shift+Enter; notes with the @mention picker; templates by `/` and by the picker; emoji; channel tabs (SMS counter, email From/Subject); image attachments with the viewer and arrow keys; real audio playing in the voice-note player; reply and quote; edit and delete with confirmation; failed send and Retry while offline; assign, priority, favorite, snooze, close and reopen; sidebar views and URL-kept search; search inside a conversation; AI suggestions; contact panel edit, tag and note; new conversation; `j`/`k`, `?`, `p`, `i`, `c`, `/`; letter shortcuts ignored while typing; Cmd/Ctrl+K palette; theme toggle changes real colours and persists; notifications; a new visitor message arrives live |
+| `03-settings` | grouped navigation, saving General, templates, inboxes, roles panel; the widget customiser preview follows title, colour and launcher style and the change persists; low-contrast colours are flagged and fixed |
+| `04-widget` | a visitor on a separate origin chats through the embedded widget, an agent answers from the inbox and the reply reaches the visitor; keyboard operation (Escape closes, focus returns) |
+| `05-analytics-admin` | KPI cards, range tabs, the table fallback; the operator console with TOTP enrolment (the secret is read from the page), directory, workspace detail, audit |
+| `06-a11y` | axe-core WCAG 2 A/AA rules (including colour contrast) on sign-in, inbox, conversation with the contact panel, command palette, dialogs, menus, nine settings pages, analytics and the operator sign-in, in light and dark; serious and critical findings fail |
+| `07-responsive` | 390x844: list and chat are separate screens, bottom navigation, drawers, no horizontal scroll (also at 360x640 on five screens); 1024x768: sheets; reduced motion collapses animations |
+| `08-perf` | 3,000 conversations in their own stack: only a window of rows is in the DOM, 5 seconds of scrolling from the bottom to the top and back runs at the display's frame rate (p95 frame time and long tasks are printed), keyboard navigation keeps the selected row visible |
+| `shots` | the screenshot matrix for [design/DESIGN.md](design/DESIGN.md) |
+
+Notes: the widget is exercised from a second origin because a same-origin page sends no `Origin` header on GET requests, so the embed token's domain check cannot pass (see the known limitation in [APPROACH.md](APPROACH.md)). The a11y specs run with reduced motion so that axe measures settled colours, not a menu that is still fading in.
+
 ## Web tests
 
 `web/src/**/*.test.ts(x)` (193 tests, Vitest + Testing Library + jsdom):

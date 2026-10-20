@@ -1,10 +1,11 @@
 // Screenshot matrix for docs/design: pages x 3 viewports x light/dark. Run with `npm run shots` (writes to ../docs/design).
 import { mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { adminSignIn, expect, openRoom, signIn, test } from "../support/fixtures";
 
-const OUT = process.env.SHOTS_DIR ?? join(__dirname, "../../docs/design");
+const OUT = process.env.SHOTS_DIR ?? join(dirname(fileURLToPath(import.meta.url)), "../../docs/design");
 mkdirSync(OUT, { recursive: true });
 
 const VIEWPORTS = [
@@ -57,6 +58,8 @@ for (const vp of VIEWPORTS) {
           await shot(page, "command-palette", vp.id, scheme);
           await page.keyboard.press("Escape");
         }
+        // on a phone the account menu lives in the bottom navigation, which the thread screen hides: go back to the list first
+        if (vp.width < 768) await page.getByRole("link", { name: "Back to conversations" }).click();
         await page.getByRole("button", { name: "Account menu" }).click();
         await page.getByRole("menuitem", { name: "Keyboard shortcuts" }).click();
         await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeVisible();
@@ -81,20 +84,41 @@ for (const vp of VIEWPORTS) {
         await shot(page, "analytics", vp.id, scheme);
       });
 
-      test("operator console", async ({ page }) => {
+      test("operator console sign-in", async ({ page }) => {
         await page.goto("/admin");
         await expect(page.getByLabel("Email")).toBeVisible();
         await shot(page, "admin-login", vp.id, scheme);
-        await adminSignIn(page);
-        await page.waitForLoadState("networkidle");
-        await shot(page, "admin", vp.id, scheme);
-        await page.getByRole("link", { name: /Demo Co/ }).first().click();
-        await page.waitForLoadState("networkidle");
-        await shot(page, "admin-workspace", vp.id, scheme);
       });
     });
   }
 }
+
+// The operator console: one sign-in (a TOTP code can be used once per 30 s window), then every size and scheme in the same session.
+test("operator console, all sizes", async ({ page }) => {
+  test.setTimeout(180_000);
+  await adminSignIn(page);
+  await page.waitForLoadState("networkidle");
+  const go = async (path: string) => {
+    await page.evaluate((p) => {
+      history.pushState({}, "", p);
+      dispatchEvent(new PopStateEvent("popstate"));
+    }, path);
+  };
+  for (const vp of VIEWPORTS) {
+    for (const scheme of SCHEMES) {
+      await page.setViewportSize({ width: vp.width, height: vp.height });
+      await page.emulateMedia({ colorScheme: scheme });
+      await go("/admin");
+      await expect(page.getByRole("link", { name: /Demo Co/ }).first()).toBeVisible();
+      await page.waitForLoadState("networkidle");
+      await shot(page, "admin", vp.id, scheme);
+      await page.getByRole("link", { name: /Demo Co/ }).first().click();
+      await expect(page.getByRole("heading", { name: /Demo Co/ }).first()).toBeVisible();
+      await page.waitForLoadState("networkidle");
+      await shot(page, "admin-workspace", vp.id, scheme);
+    }
+  }
+});
 
 // The embeddable widget on a host page (it follows the visitor's colour scheme).
 for (const scheme of SCHEMES) {

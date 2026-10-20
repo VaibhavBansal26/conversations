@@ -39,6 +39,8 @@ function ActionButton({ label, onClick, children }: { label: string; onClick: ()
 export function MessageBubble({ message: m, selfMemberId, contactName, contactSeed, first, last, editWindowOpen = true, onReply, onRetry, onEdit, onDelete }: BubbleProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
+  // touch screens have no hover: tapping a message reveals its actions instead
+  const [tapped, setTapped] = useState(false);
 
   if (m.kind === "system") {
     return (
@@ -88,6 +90,10 @@ export function MessageBubble({ message: m, selfMemberId, contactName, contactSe
         )}
         <div
           data-bubble={isNote ? "note" : outgoing ? "out" : "in"}
+          onClick={(e) => {
+            if ((e.target as HTMLElement).closest("a,button,audio,img,textarea")) return;
+            setTapped((t) => !t);
+          }}
           className={cn(
             "relative max-w-full rounded-2xl px-3.5 py-2 text-[14px] leading-relaxed shadow-xs",
             isNote
@@ -149,7 +155,8 @@ export function MessageBubble({ message: m, selfMemberId, contactName, contactSe
       </div>
       {!m.local && !editing && (
         <div
-          className="mb-1 flex shrink-0 items-center self-center rounded-lg border border-border bg-surface p-0.5 opacity-0 shadow-sm transition-opacity focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100"
+          data-open={tapped}
+          className="mb-1 flex shrink-0 items-center self-center rounded-lg border border-border bg-surface p-0.5 opacity-0 shadow-sm transition-opacity focus-within:opacity-100 group-hover:opacity-100 data-[open=true]:opacity-100 pointer-coarse:data-[open=false]:hidden"
           role="group"
           aria-label="Message actions"
         >

@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type PointerEvent } from "react";
+import { useId, useLayoutEffect, useRef, useState, type PointerEvent } from "react";
 import { cn } from "../../ui";
 
 export interface Point {
@@ -17,10 +17,26 @@ interface Props {
   className?: string;
 }
 
-const W = 640;
+/** The drawing is as wide as its card (1 SVG unit = 1 CSS pixel), so axis text stays the same size on every screen instead of scaling with the width. */
+function useWidth(): [React.RefObject<HTMLDivElement | null>, number] {
+  const ref = useRef<HTMLDivElement>(null);
+  const [w, setW] = useState(640);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const set = () => setW(Math.max(260, Math.round(el.clientWidth)));
+    set();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(set);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, w];
+}
+
 const PAD = { l: 44, r: 12, t: 14, b: 28 };
 
-function scale(points: Point[], height: number) {
+function scale(points: Point[], height: number, W: number) {
   const max = niceMax(Math.max(1, ...points.map((p) => p.value)));
   const innerW = W - PAD.l - PAD.r;
   const innerH = height - PAD.t - PAD.b;
@@ -71,7 +87,7 @@ function DataTable({ title, points, unit, format }: Pick<Props, "title" | "point
 }
 
 /** Tracks the nearest data point under the pointer; the tooltip is positioned in SVG-viewBox percentages so it scales with the figure. */
-function useHover(count: number, xOf: (i: number) => number) {
+function useHover(count: number, xOf: (i: number) => number, W: number) {
   const ref = useRef<SVGSVGElement>(null);
   const [hover, setHover] = useState<number | null>(null);
   const onMove = (e: PointerEvent<SVGSVGElement>) => {
@@ -122,15 +138,16 @@ function XLabels({ points, x, height }: { points: Point[]; x: (i: number) => num
 
 export function LineChart({ title, summary, points, unit, height = 200, format = String, className }: Props) {
   const id = useId();
-  const { max, x, y } = scale(points, height);
-  const { ref, hover, onMove, onLeave } = useHover(points.length, x);
+  const [wrap, W] = useWidth();
+  const { max, x, y } = scale(points, height, W);
+  const { ref, hover, onMove, onLeave } = useHover(points.length, x, W);
   const d = points.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(" ");
   const area = points.length > 1 ? `${d} L${x(points.length - 1).toFixed(1)},${y(0)} L${x(0).toFixed(1)},${y(0)} Z` : "";
   const hp = hover === null ? null : points[hover]!;
   return (
     <figure className={cn("m-0", className)}>
       <figcaption className="mb-2 text-sm font-semibold">{title}</figcaption>
-      <div className="relative">
+      <div className="relative" ref={wrap}>
         <svg ref={ref} viewBox={`0 0 ${W} ${height}`} role="img" aria-labelledby={`${id}-t ${id}-d`} className="h-auto w-full touch-pan-y overflow-visible" onPointerMove={onMove} onPointerLeave={onLeave}>
           <title id={`${id}-t`}>{title}</title>
           <desc id={`${id}-d`}>{summary}</desc>
@@ -172,14 +189,15 @@ export function LineChart({ title, summary, points, unit, height = 200, format =
 
 export function BarChart({ title, summary, points, unit, height = 200, format = String, className }: Props) {
   const id = useId();
-  const { max, x, y, innerW } = scale(points, height);
-  const { ref, hover, onMove, onLeave } = useHover(points.length, x);
+  const [wrap, W] = useWidth();
+  const { max, x, y, innerW } = scale(points, height, W);
+  const { ref, hover, onMove, onLeave } = useHover(points.length, x, W);
   const bw = Math.max(2, Math.min(36, (innerW / Math.max(1, points.length)) * 0.68));
   const hp = hover === null ? null : points[hover]!;
   return (
     <figure className={cn("m-0", className)}>
       <figcaption className="mb-2 text-sm font-semibold">{title}</figcaption>
-      <div className="relative">
+      <div className="relative" ref={wrap}>
         <svg ref={ref} viewBox={`0 0 ${W} ${height}`} role="img" aria-labelledby={`${id}-t ${id}-d`} className="h-auto w-full touch-pan-y overflow-visible" onPointerMove={onMove} onPointerLeave={onLeave}>
           <title id={`${id}-t`}>{title}</title>
           <desc id={`${id}-d`}>{summary}</desc>

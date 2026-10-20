@@ -89,6 +89,6 @@ test.describe("room list with thousands of conversations", () => {
     await list.evaluate((el) => (el.scrollTop = el.scrollHeight));
     await list.getByRole("link").last().click();
     await page.keyboard.press("k");
-    await expect(list.getByRole("link", { current: "true" })).toBeInViewport();
+    await expect(list.getByRole("link", { current: true })).toBeInViewport();
   });
 });

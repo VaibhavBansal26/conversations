@@ -72,7 +72,7 @@ export function MemberSettings() {
         {members.isError && <ErrorNotice error={members.error} onRetry={() => void members.refetch()} />}
         {members.data?.length === 0 && <EmptyState title="No members yet" hint="Add a teammate to share the inbox." />}
         {members.data && members.data.length > 0 && (
-          <Table>
+          <Table className="[&_td]:px-3 [&_th]:px-3">
             <TableHead>
               <TableRow>
                 <TableHeaderCell scope="col">Member</TableHeaderCell>
@@ -89,7 +89,7 @@ export function MemberSettings() {
                 const editable = canManage(me, m);
                 return (
                   <TableRow key={m.id}>
-                    <th scope="row" className="px-4 py-3 text-left font-normal">
+                    <th scope="row" className="px-3 py-3 text-left font-normal">
                       <div className="flex items-center gap-3">
                         <Avatar name={m.name} seed={m.id} />
                         <div className="min-w-0">
@@ -105,7 +105,7 @@ export function MemberSettings() {
                       {editable && me.role === "owner" ? (
                         <Select
                           size="sm"
-                          className="w-32"
+                          className="w-28"
                           aria-label={`Role of ${m.name}`}
                           value={m.role}
                           onValueChange={(v) => patch.mutate({ id: m.id, role: v as Role })}
@@ -127,7 +127,7 @@ export function MemberSettings() {
                     <TableCell>
                       <Select
                         size="sm"
-                        className="w-40"
+                        className="w-36"
                         aria-label={`Visibility for ${m.name}`}
                         disabled={!editable}
                         value={m.inbox_visibility}

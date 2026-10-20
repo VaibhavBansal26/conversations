@@ -33,7 +33,7 @@ export function CommandPalette({ open, onOpenChange, placeholder = "Type a comma
                 placeholder={placeholder}
                 className="h-12 w-full bg-transparent text-[15px] outline-none placeholder:text-subtle"
               />
-              <kbd className="rounded border border-border px-1.5 py-0.5 font-mono text-[10px] text-subtle">esc</kbd>
+              <kbd className="shrink-0 whitespace-nowrap rounded border border-border px-1.5 py-0.5 font-mono text-[10px] text-subtle">esc</kbd>
             </div>
             <CommandPrimitive.List className="max-h-[min(60dvh,420px)] overflow-y-auto p-1.5">{children}</CommandPrimitive.List>
           </CommandPrimitive>

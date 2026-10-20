@@ -149,7 +149,9 @@ export function WidgetSettings() {
   };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,440px)] lg:items-start">
+    // container query: side by side only when the content area itself is wide enough (the settings navigation takes 256 px of a 1024 px window)
+    <div className="@container">
+    <div className="grid gap-6 @4xl:grid-cols-[minmax(0,1fr)_minmax(320px,440px)] @4xl:items-start">
       <form className="flex min-w-0 flex-col gap-5" onSubmit={submit} aria-label="Chat widget settings">
         <div>
           <h2 className="text-xl font-semibold tracking-tight">Chat widget</h2>
@@ -316,12 +318,12 @@ export function WidgetSettings() {
         </Card>
 
         {save.isError && <ErrorNotice error={save.error} />}
-        <div className="-mx-4 md:-mx-8 lg:mx-0">
+        <div className="-mx-4 md:-mx-8 @4xl:mx-0">
           <SaveBar pending={save.isPending} saved={save.isSuccess} dirty={dirty && isHex(w.primary_color) && isHex(w.text_color)} onReset={() => setW(saved)} />
         </div>
       </form>
 
-      <aside className="flex flex-col gap-3 lg:sticky lg:top-4" aria-label="Preview">
+      <aside className="flex flex-col gap-3 @4xl:sticky @4xl:top-4" aria-label="Preview">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-[15px] font-semibold">Preview</h3>
           <Switch label="Away state" checked={away} onChange={setAway} />
@@ -343,6 +345,7 @@ export function WidgetSettings() {
         <WidgetPreview settings={w} away={away} view={view} theme={theme} device={device} />
         <p className="text-xs text-subtle">Visitors see the dark look when their device is set to dark mode. The preview mirrors the live widget.</p>
       </aside>
+    </div>
     </div>
   );
 }
