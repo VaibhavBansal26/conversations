@@ -1,5 +1,6 @@
 import { Activity, Building2, Gauge, LogOut, ScrollText, ShieldCheck, Users } from "lucide-react";
 import { NavLink, Navigate, Route, Routes } from "react-router";
+import "./admin.css";
 import { Badge, Button, ThemeToggle, cn } from "../ui";
 import { AdminProvider, useAdmin } from "./AdminContext";
 import { AdminLogin } from "./AdminLogin";
@@ -19,7 +20,7 @@ function Shell() {
   return (
     <div className="flex h-dvh flex-col bg-background md:flex-row">
       {/* the operator console is deliberately dark in both themes so it never looks like a workspace */}
-      <nav aria-label="Platform console" style={{ colorScheme: "dark" }} className="flex shrink-0 flex-col gap-1 border-b border-border bg-surface p-3 text-foreground md:w-60 md:border-b-0 md:border-r md:p-4">
+      <nav aria-label="Platform console" className="admin-dark flex shrink-0 flex-col gap-1 border-b border-border bg-surface p-3 text-foreground md:w-60 md:border-b-0 md:border-r md:p-4">
         <div className="flex items-center justify-between gap-2 md:mb-4 md:block">
           <div className="flex items-center gap-2">
             <span className="grid size-8 place-items-center rounded-lg bg-primary text-primary-foreground">

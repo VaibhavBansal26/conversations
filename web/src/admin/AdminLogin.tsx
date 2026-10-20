@@ -1,7 +1,8 @@
 import { ShieldCheck } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { PasswordInput } from "../pages/AuthCard";
-import { Button, ErrorNotice, Field, Input, ThemeToggle } from "../ui";
+import "./admin.css";
+import { Button, ErrorNotice, Field, Input } from "../ui";
 import { useAdmin } from "./AdminContext";
 
 /** Password, then an authenticator code, always. First sign-in enrols the authenticator (nothing else is reachable before that). */
@@ -33,10 +34,7 @@ export function AdminLogin() {
   };
 
   return (
-    <main style={{ colorScheme: "dark" }} className="relative grid min-h-dvh place-items-center bg-background px-4 py-10 text-foreground">
-      <div className="absolute right-3 top-3" style={{ colorScheme: "inherit" }}>
-        <ThemeToggle />
-      </div>
+    <main className="admin-dark relative grid min-h-dvh place-items-center bg-background px-4 py-10 text-foreground">
       <div className="w-full max-w-sm rounded-xl border border-border bg-surface p-7 shadow-lg">
         <span className="mb-5 flex items-center gap-2 text-sm font-semibold text-muted-foreground">
           <span className="grid size-8 place-items-center rounded-lg bg-primary text-primary-foreground">

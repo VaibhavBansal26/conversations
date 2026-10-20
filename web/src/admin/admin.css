@@ -1,0 +1,24 @@
+/*
+ * The operator console keeps a dark chrome in both themes so it is never mistaken for a workspace.
+ * light-dark() tokens are resolved once at :root, so a nested scope has to restate the dark values.
+ */
+.admin-dark {
+  color-scheme: dark;
+  --background: #0b0b0f;
+  --surface: #14141a;
+  --surface-2: #1b1b23;
+  --surface-3: #24242e;
+  --border: #2a2a36;
+  --border-strong: #3d3d4d;
+  --foreground: #ededf3;
+  --muted-foreground: #aaaabb;
+  --subtle-foreground: #8e8ea0;
+  --primary: #5558e8;
+  --primary-hover: #6366f1;
+  --primary-soft: #1f2047;
+  --primary-text: #aab4ff;
+  --danger-text: #fca5a5;
+  --ring: #8b92ff;
+  background-color: var(--background);
+  color: var(--foreground);
+}

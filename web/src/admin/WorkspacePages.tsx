@@ -52,10 +52,10 @@ export function WorkspacesPage() {
         )}
         {stats.isError && <ErrorNotice error={stats.error} />}
         {stats.data && (
-          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
             {tiles.map(([k, v, warn]) => (
               <div key={k} className="rounded-lg border border-border bg-surface-2/50 px-4 py-3">
-                <dt className="text-xs font-medium text-muted-foreground">{k}</dt>
+                <dt className="text-xs font-medium text-muted-foreground [overflow-wrap:normal]">{k}</dt>
                 <dd className={`mt-1 text-2xl font-semibold tabular-nums ${warn ? "text-danger-text" : ""}`}>{String(v)}</dd>
               </div>
             ))}
