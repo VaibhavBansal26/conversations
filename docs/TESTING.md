@@ -2,7 +2,7 @@
 
 ## Strategy
 
-- **Vitest everywhere.** `server/tests` (741 test cases: 689 run on the default in-memory SQLite configuration and 52 more only with PostgreSQL or Redis; **all 741 run in CI** against `postgres:17` and `redis:7`), `web/src` (193) and `edge` (3). Counts as of 2026-10-20.
+- **Vitest everywhere.** `server/tests` (763 test cases: 711 run on the default in-memory SQLite configuration and 52 more only with PostgreSQL or Redis; the PostgreSQL/Redis jobs run them in CI against `postgres:17` and `redis:7`), `web/src` (219) and `edge` (3), plus 63 browser tests in `e2e/` (Playwright, real Chrome). Counts as of 2026-10-20; the server count includes tests added by the billing, operator and widget work since the earlier 741.
 - **Services are tested directly** with an in-memory SQLite database (`:memory:`), a fake clock, a `RecordingBus` (captures realtime events), `FakeSmsProvider` / `FakeEmailProvider` (deterministic ids, programmable failures) and an injected `AiProvider`.
 - **HTTP integration** goes through `app.request()` (no port): auth, tenancy, validation, error envelope, webhooks, widget/public endpoints, uploads.
 - **Realtime tests use real Socket.IO**: `tests/rt-helpers.ts` boots the real Hono server + `SocketBus` on an ephemeral port and connects real `socket.io-client` sockets (team JWT and visitor sessions), so namespace middleware, joins, acks, rate limits and presence run for real.
@@ -134,11 +134,11 @@ Notes: the widget is exercised from a second origin because a same-origin page s
 
 ## Web tests
 
-`web/src/**/*.test.ts(x)` (193 tests, Vitest + Testing Library + jsdom):
+`web/src/**/*.test.ts(x)` (219 tests, Vitest + Testing Library + jsdom):
 
 - socket-to-cache bridge (`message:new` dedupe by id and `client_msg_id`, updated/deleted/receipt, room reorder + unread bump, `room:*`, notifications)
 - optimistic send state machine (ack before/after broadcast, failure, retry with the same `client_msg_id`, socket-to-REST fallback)
 - composer channel rules (SMS 1599/1600, missing phone/email, opt-out, email sender/subject, notes always chat)
 - unread badge logic, keyboard shortcuts (ignored while typing), grouping/day separators, mentions, relative times, filter params
-- components: login, API error display incl. `AI_UNAVAILABLE`, message bubble variants, room list item, snooze menu, keyboard menu, widget preview
+- components: login, API error display incl. `AI_UNAVAILABLE`, message bubble variants (notes, system lines, ticks, failed + retry, quotes, attachments, voice-note player, image viewer), room list item (mentions shown as names), snooze menu, dropdown menu keyboard behaviour (Radix), widget preview and its contrast helper, settings and admin pages, charts
 - `widget.test.ts`: the embeddable `server/public/widget.js` in jsdom with a fake fetch and fake Socket.IO client: shadow-DOM rendering, pre-chat form, optimistic send + ack merge, same-`client_msg_id` retry, REST fallback and resend on reconnect, typing/unread/receipts, safe text rendering, OTP flow, polling fallback, session restore

@@ -13,9 +13,10 @@ test("analytics: KPI cards, range switch and the accessible data table", async (
 
 test("operator console: sign in with enrolment (TOTP), directory, workspace detail, audit", async ({ page }) => {
   await adminSignIn(page);
-  await expect(page.getByRole("heading", { name: /workspaces|overview|platform/i }).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("navigation", { name: "Platform console" })).toBeVisible({ timeout: 15_000 });
   await page.getByRole("link", { name: /Demo Co/ }).first().click();
   await expect(page.getByRole("heading", { name: /Demo Co/ }).first()).toBeVisible();
-  await page.getByRole("link", { name: /audit/i }).first().click();
-  await expect(page.getByRole("table")).toBeVisible();
+  await page.getByRole("navigation", { name: "Platform console" }).getByRole("link", { name: "Audit log" }).click();
+  await expect(page.getByRole("table").first()).toBeVisible();
+  await expect(page.getByText(/admin\.(login|mfa)|workspace/i).first()).toBeVisible();
 });

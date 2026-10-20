@@ -7,7 +7,8 @@
   "scripts": {
     "test": "playwright test",
     "shots": "playwright test --project=shots",
-    "stack": "node support/stack.mjs"
+    "stack": "node support/stack.mjs",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.2",

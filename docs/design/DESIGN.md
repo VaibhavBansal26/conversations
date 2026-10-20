@@ -94,3 +94,7 @@ Taken by `npm run shots` (Playwright, the built app, seeded demo data) at 1440x9
 | The embedded widget on a host page | `widget-1024x768-*`, `widget-390x844-*` |
 | Analytics | `analytics-*` |
 | Operator console | `admin-login-*`, `admin-*`, `admin-workspace-*` |
+
+### What the screenshot review changed (2026-10-20)
+
+Reviewing the first set at all three sizes in both schemes led to these fixes: touch screens showed every message's hover toolbar at once and covered the thread (now a tap reveals it); the contact drawer drew two close buttons; analytics axis text grew with the card width (charts now draw at 1 SVG unit per CSS pixel); the widget customiser was squeezed into a 175 px form column at 1024 px (the layout now follows the width of the content area, not of the window); the members table was clipped at 1024 px; the palette's `esc` key cap wrapped onto two lines; the email From field was cut off. Axe also found a dangling `aria-controls` on every tab switcher, name-versus-visible-text mismatches on the navigation badge and the account button, and one 4.41:1 label in the widget preview; all fixed (see `e2e/tests/06-a11y.spec.ts`).

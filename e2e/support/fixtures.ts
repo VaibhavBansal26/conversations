@@ -63,13 +63,14 @@ export async function adminSignIn(page: Page): Promise<void> {
     writeFileSync(secretFile, secret);
   }
   if (!secret) throw new Error("operator is enrolled but the secret is unknown for this stack");
+  const console_ = page.getByRole("navigation", { name: "Platform console" });
   for (let attempt = 0; attempt < 2; attempt++) {
     await code.fill(totp(secret));
     await page.getByRole("button", { name: /enable|verify|confirm|continue|sign in/i }).last().click();
-    const ok = await page.getByRole("heading", { name: /workspaces|overview|platform/i }).first().isVisible({ timeout: 6000 }).catch(() => false);
     const saved = page.getByRole("button", { name: /i have saved|done|continue/i });
-    if (!ok && (await saved.isVisible().catch(() => false))) await saved.click();
-    if (ok || (await page.getByRole("heading", { name: /workspaces|overview|platform/i }).first().isVisible().catch(() => false))) return;
+    if (await console_.isVisible({ timeout: 6000 }).catch(() => false)) return;
+    if (await saved.isVisible().catch(() => false)) await saved.click();
+    if (await console_.isVisible({ timeout: 3000 }).catch(() => false)) return;
     await page.waitForTimeout(31_000 - (Date.now() % 30_000));
   }
 }
