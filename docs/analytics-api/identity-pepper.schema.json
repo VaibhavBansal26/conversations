@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "identity-pepper.schema.json",
+  "type": "object",
+  "required": [
+    "pepper",
+    "version",
+    "algorithm"
+  ],
+  "properties": {
+    "pepper": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "algorithm": {
+      "type": "string"
+    },
+    "contact_key": {
+      "type": "string"
+    }
+  }
+}

@@ -1,4 +1,4 @@
-import { lazy } from "react";
+import { Suspense, lazy } from "react";
 import { Navigate, Route, Routes } from "react-router";
 import { RedirectIfAuthed, RequireAuth } from "./auth/RequireAuth";
 import { AppLayout } from "./components/AppLayout";
@@ -18,6 +18,7 @@ const MemberSettings = lazy(() => import("./pages/settings/MemberSettings").then
 const NotificationSettings = lazy(() => import("./pages/settings/NotificationSettings").then((m) => ({ default: m.NotificationSettings })));
 const TemplateSettings = lazy(() => import("./pages/settings/TemplateSettings").then((m) => ({ default: m.TemplateSettings })));
 const TokenSettings = lazy(() => import("./pages/settings/TokenSettings").then((m) => ({ default: m.TokenSettings })));
+const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage").then((m) => ({ default: m.AnalyticsPage })));
 const SecuritySettings = lazy(() => import("./pages/settings/SecuritySettings").then((m) => ({ default: m.SecuritySettings })));
 const RoleSettings = lazy(() => import("./pages/settings/RoleSettings").then((m) => ({ default: m.RoleSettings })));
 const WidgetSettings = lazy(() => import("./pages/settings/WidgetSettings").then((m) => ({ default: m.WidgetSettings })));
@@ -36,6 +37,7 @@ export function App() {
         <Route element={<AppLayout />}>
           <Route path="/inbox" element={<InboxPage />} />
           <Route path="/inbox/:roomId" element={<InboxPage />} />
+          <Route path="/analytics" element={<Suspense fallback={null}><AnalyticsPage /></Suspense>} />
           <Route path="/settings" element={<SettingsLayout />}>
             <Route path="general" element={<GeneralSettings />} />
             <Route path="widget" element={<WidgetSettings />} />

@@ -25,6 +25,7 @@ export function UserMenu({ onHelp }: { onHelp: () => void }) {
 
   const items: MenuItem[] = [
     ...LEVELS.map<MenuItem>((l) => ({ id: l.id, label: `Status: ${l.label}`, checked: member.availability === l.id, onSelect: () => setAvailability.mutate(l.id) })),
+    { id: "analytics", label: "Analytics", onSelect: () => navigate("/analytics") },
     { id: "settings", label: "Settings", onSelect: () => navigate("/settings") },
     { id: "help", label: "Keyboard shortcuts", onSelect: onHelp },
     { id: "logout", label: "Sign out", danger: true, onSelect: logout },

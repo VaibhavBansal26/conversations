@@ -278,3 +278,23 @@
     flex-direction: column;
   }
 }
+
+/* analytics */
+.analytics { max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; }
+.analytics header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; }
+.analytics header h1 { margin: 0; }
+.analytics .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin: 16px 0; }
+.analytics .card { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; background: var(--surface); }
+.analytics .card h2 { font-size: 13px; font-weight: 500; color: var(--text-2); margin: 0 0 6px; }
+.analytics .card p { font-size: 20px; font-weight: 600; margin: 0; }
+.chart { margin: 20px 0; }
+.chart figcaption { font-weight: 600; margin-bottom: 6px; }
+.chart svg { width: 100%; height: auto; }
+.chart .grid { stroke: var(--border); stroke-width: 1; }
+.chart .axis { fill: var(--text-2); font-size: 11px; }
+.chart .series { stroke: var(--accent); stroke-width: 2; }
+.chart .dot { fill: var(--accent); }
+.chart .bar { fill: var(--accent); }
+.chart-data summary { cursor: pointer; font-size: 13px; color: var(--text-2); margin-top: 4px; }
+.chart-data table { border-collapse: collapse; margin-top: 6px; font-size: 13px; }
+.chart-data th, .chart-data td { text-align: left; padding: 2px 12px 2px 0; }

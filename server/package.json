@@ -14,7 +14,8 @@
     "test": "vitest run",
     "seed": "tsx src/seed.ts",
     "e2e": "node scripts/e2e.mjs",
-    "docs:ratelimit": "tsx scripts/gen-ratelimit-doc.ts"
+    "docs:ratelimit": "tsx scripts/gen-ratelimit-doc.ts",
+    "docs:analytics-schemas": "tsx scripts/gen-analytics-schemas.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",

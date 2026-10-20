@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "export-messages-meta-line.schema.json",
+  "description": "One NDJSON line of GET /export/messages-meta. Message content is never exported.",
+  "type": "object",
+  "required": [
+    "id",
+    "room_id",
+    "ts",
+    "direction",
+    "channel",
+    "kind",
+    "length_chars",
+    "delivery_status",
+    "sender_type"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "room_id": {
+      "type": "string"
+    },
+    "ts": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "direction": {
+      "enum": [
+        "in",
+        "out"
+      ]
+    },
+    "channel": {
+      "enum": [
+        "dm",
+        "sms",
+        "email"
+      ]
+    },
+    "kind": {
+      "type": "string"
+    },
+    "length_chars": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "delivery_status": {
+      "enum": [
+        "pending",
+        "sent",
+        "delivered",
+        "failed"
+      ]
+    },
+    "sender_type": {
+      "enum": [
+        "agent",
+        "contact",
+        "bot",
+        "system"
+      ]
+    }
+  }
+}

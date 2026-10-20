@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "overview.schema.json",
+  "type": "object",
+  "required": [
+    "rooms_opened",
+    "rooms_closed",
+    "messages_in",
+    "messages_out",
+    "first_response_p50_s",
+    "first_response_p90_s",
+    "resolution_p50_s",
+    "resolution_p90_s",
+    "by_channel",
+    "by_inbox",
+    "by_agent"
+  ],
+  "properties": {
+    "from": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "to": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "rooms_opened": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "rooms_closed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "messages_in": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "messages_out": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "first_response_p50_s": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "first_response_p90_s": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "resolution_p50_s": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "resolution_p90_s": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "csat_avg": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "csat_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "by_channel": {
+      "type": "object",
+      "required": [
+        "dm",
+        "sms",
+        "email"
+      ],
+      "properties": {
+        "dm": {
+          "type": "object",
+          "required": [
+            "messages_in",
+            "messages_out"
+          ],
+          "properties": {
+            "messages_in": {
+              "type": "integer"
+            },
+            "messages_out": {
+              "type": "integer"
+            }
+          }
+        },
+        "sms": {
+          "type": "object",
+          "required": [
+            "messages_in",
+            "messages_out"
+          ],
+          "properties": {
+            "messages_in": {
+              "type": "integer"
+            },
+            "messages_out": {
+              "type": "integer"
+            }
+          }
+        },
+        "email": {
+          "type": "object",
+          "required": [
+            "messages_in",
+            "messages_out"
+          ],
+          "properties": {
+            "messages_in": {
+              "type": "integer"
+            },
+            "messages_out": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    },
+    "by_inbox": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "inbox_id",
+          "rooms_opened",
+          "rooms_closed",
+          "messages_in",
+          "messages_out"
+        ],
+        "properties": {
+          "inbox_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rooms_opened": {
+            "type": "integer"
+          },
+          "rooms_closed": {
+            "type": "integer"
+          },
+          "messages_in": {
+            "type": "integer"
+          },
+          "messages_out": {
+            "type": "integer"
+          },
+          "first_response_p50_s": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "resolution_p50_s": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "by_agent": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "agent_key",
+          "rooms_handled",
+          "avg_first_response_s",
+          "avg_resolution_s"
+        ],
+        "properties": {
+          "agent_key": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$"
+          },
+          "rooms_handled": {
+            "type": "integer"
+          },
+          "avg_first_response_s": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "avg_resolution_s": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

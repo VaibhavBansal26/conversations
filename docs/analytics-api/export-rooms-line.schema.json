@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "export-rooms-line.schema.json",
+  "description": "One NDJSON line of GET /export/rooms. contact_key is hex(HMAC-SHA256(pepper, lower(trim(email)))); no raw email, phone or name ever appears.",
+  "type": "object",
+  "required": [
+    "id",
+    "created_at",
+    "closed_at",
+    "contact_key",
+    "channel_mix",
+    "inbox_id",
+    "assignee_key",
+    "priority",
+    "status",
+    "messages_in",
+    "messages_out",
+    "first_response_s",
+    "resolution_s",
+    "reopen_count",
+    "snoozed_count",
+    "ai_intent",
+    "ai_sentiment",
+    "ai_urgency",
+    "csat",
+    "hour_of_day_created",
+    "dow_created"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "closed_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "contact_key": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "phone_key": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "channel_mix": {
+      "type": "object",
+      "required": [
+        "dm",
+        "sms",
+        "email"
+      ],
+      "properties": {
+        "dm": {
+          "type": "integer"
+        },
+        "sms": {
+          "type": "integer"
+        },
+        "email": {
+          "type": "integer"
+        }
+      }
+    },
+    "inbox_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "assignee_key": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{32}$"
+    },
+    "priority": {
+      "enum": [
+        0,
+        1
+      ]
+    },
+    "status": {
+      "enum": [
+        "open",
+        "closed"
+      ]
+    },
+    "messages_in": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "messages_out": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "first_response_s": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "resolution_s": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "reopen_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "snoozed_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "ai_intent": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "ai_sentiment": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "ai_urgency": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "csat": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1,
+      "maximum": 5
+    },
+    "hour_of_day_created": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 23
+    },
+    "dow_created": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 6
+    }
+  }
+}

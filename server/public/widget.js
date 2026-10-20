@@ -69,6 +69,7 @@
     ".head img{width:32px;height:32px;border-radius:50%;object-fit:cover}",
     ".head .ttl{font-weight:600;font-size:15px}.head .sub{font-size:12px;opacity:.9}",
     ".head button{margin-left:auto;background:transparent;border:0;color:inherit;font-size:20px;cursor:pointer}",
+    ".rate{align-self:center;display:flex;gap:6px;align-items:center;font-size:13px;color:#374151}.rate button{width:32px;height:32px;border-radius:50%;border:1px solid #d1d5db;background:#fff;cursor:pointer}.rate button:hover,.rate button:focus-visible{background:var(--c);color:var(--t)}",
     ".status{font-size:12px;padding:6px 12px;background:#fef3c7;color:#92400e}",
     ".msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:6px;background:#f9fafb}",
     ".m{max-width:80%;padding:8px 12px;border-radius:14px;font-size:14px;line-height:1.4;white-space:pre-wrap;word-break:break-word}",
@@ -206,7 +207,35 @@
         }
         els.list.appendChild(body);
       });
+      renderRating();
       els.list.scrollTop = els.list.scrollHeight;
+    }
+
+    /* ---------- satisfaction rating: offered once after the team closes the conversation ---------- */
+    function closedMarker() {
+      var list = sorted();
+      for (var i = list.length - 1; i >= 0; i--) {
+        var m = list[i];
+        if (m.deleted) continue;
+        if (m.sender && m.sender.type === "system") { if (m.meta && m.meta.sub_type === "status") return m.meta.status === "closed" ? m.id || "closed" : null; continue; }
+        return null; // a real message after the close: the conversation is live again
+      }
+      return null;
+    }
+    function renderRating() {
+      var marker = state.room && closedMarker();
+      if (!marker) return;
+      var key = keyPrefix + "rated_" + state.room.id + "_" + marker;
+      if (store.getItem(key)) { els.list.appendChild(h(doc, "div", { class: "m sys", text: "Thanks for your feedback." })); return; }
+      var box = h(doc, "div", { class: "rate", role: "group", "aria-label": "How did we do?" });
+      box.appendChild(h(doc, "span", { text: "How did we do?" }));
+      [1, 2, 3, 4, 5].forEach(function (n) {
+        box.appendChild(h(doc, "button", { type: "button", "aria-label": n + " out of 5", "data-score": String(n), text: String(n), onclick: function () {
+          store.setItem(key, String(n));
+          api("/public/rooms/" + state.room.id + "/csat", { method: "POST", body: { score: n } }).catch(function () {}).then(renderMessages);
+        } }));
+      });
+      els.list.appendChild(box);
     }
 
     function renderTyping(name) { if (els.typing) els.typing.textContent = name ? name + " is typing…" : ""; }

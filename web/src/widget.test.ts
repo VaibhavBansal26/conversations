@@ -258,3 +258,31 @@ describe("widget bootstrap", () => {
     vi.restoreAllMocks();
   });
 });
+
+describe("satisfaction rating", () => {
+  const closed = mkMsg({ id: "msg_closed", seq: 3, sender: { type: "system" }, content_text: "Olivia closed the conversation", meta: { sub_type: "status", status: "closed" } });
+
+  it("offers 1-5 once after the team closes the conversation, posts the score, and then thanks the visitor", async () => {
+    replies["GET /public/rooms/room_1/messages"] = () => ({ json: { data: [mkMsg({ id: "msg_a", seq: 1, content_text: "Anything else?" }), closed] } });
+    widget = await boot();
+    widget.open();
+    await flush(); await flush(); await flush();
+    const buttons = shadow().querySelectorAll<HTMLButtonElement>(".rate button");
+    expect(buttons).toHaveLength(5);
+    expect(shadow().querySelector(".rate")!.getAttribute("aria-label")).toBe("How did we do?");
+    replies["POST /public/rooms/room_1/csat"] = () => ({ json: { ok: true } });
+    buttons[3]!.click();
+    await flush(); await flush();
+    expect(calls.find((c) => c.path === "/public/rooms/room_1/csat")!.body).toEqual({ score: 4 });
+    expect(shadow().querySelector(".rate")).toBeNull();
+    expect(shadow().querySelector(".msgs")!.textContent).toContain("Thanks for your feedback");
+  });
+
+  it("is not offered while the conversation is live, or after the visitor writes again", async () => {
+    replies["GET /public/rooms/room_1/messages"] = () => ({ json: { data: [closed, mkMsg({ id: "msg_b", seq: 4, sender: { type: "contact" }, content_text: "one more thing" })] } });
+    widget = await boot();
+    widget.open();
+    await flush(); await flush(); await flush();
+    expect(shadow().querySelector(".rate")).toBeNull();
+  });
+});
