@@ -5,6 +5,7 @@ All notable user-visible changes. Format: [Keep a Changelog](https://keepachange
 ## [Unreleased]
 
 ### Added
+- `render.yaml` blueprint, manual `deploy-check` workflow and `docs/DEPLOY.md` for a free Render deployment.
 - **Billing with Stripe** ([docs/STRIPE.md](docs/STRIPE.md)): plans (Free, Pro, Business) with seat limits, Checkout and customer portal, credit top-ups, monthly plan credits, low-balance alerts, auto-recharge on a saved card, failed-payment grace period and soft lock, signed and idempotent webhooks (`/webhooks/stripe`, `/webhooks/stripe/connect`).
 - **Customer payment requests** through Stripe Connect Standard: a payment card in the conversation (agent app and widget) that updates live when the customer pays; new permission `payments:request`.
 - **Platform console** (`/admin`, [docs/ADMIN.md](docs/ADMIN.md)): operator sign-in with mandatory TOTP, workspace directory, suspension, credit adjustments, rate-limit tier overrides, read-only support access that is visible in the customer's own audit log, platform audit view. Operators are created with `npm run admin -- create`.

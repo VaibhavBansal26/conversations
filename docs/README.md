@@ -6,6 +6,7 @@ Every document under `docs/` is listed here (a check fails otherwise). Generated
 
 | If you want to... | Read |
 | --- | --- |
+| deploy it for free (Render, GitHub-connected) | [DEPLOY.md](DEPLOY.md) |
 | run it and see it work | [../README.md](../README.md) (quick start), [TESTING.md](TESTING.md) |
 | understand how it is built | [ARCHITECTURE.md](ARCHITECTURE.md), [APPROACH.md](APPROACH.md), [adr/README.md](adr/README.md) |
 | configure it (every environment variable) | [CONFIGURATION.md](CONFIGURATION.md) |

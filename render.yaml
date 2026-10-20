@@ -1,0 +1,38 @@
+# Render blueprint: https://render.com/docs/blueprint-spec
+# Render > New > Blueprint > pick this GitHub repo. It creates a free web service (built from the Dockerfile)
+# and a free Postgres database, and redeploys on every push to main (autoDeploy).
+databases:
+  - name: conversations-db
+    plan: free
+    databaseName: conversations
+    user: conversations
+
+services:
+  - type: web
+    name: conversations
+    runtime: docker
+    plan: free
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: conversations-db
+          property: connectionString
+      # Render's proxy appends the client address once. Raise to 2 if you also put Cloudflare in front.
+      - key: TRUST_PROXY
+        value: "true"
+      - key: TRUSTED_PROXY_HOPS
+        value: "1"
+      # Set after the first deploy, to the service's public address (https://conversations-xxxx.onrender.com), then redeploy.
+      - key: PUBLIC_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      # Optional. Leave unset and the matching feature uses its offline/test fallback.
+      - key: ANTHROPIC_API_KEY
+        sync: false
