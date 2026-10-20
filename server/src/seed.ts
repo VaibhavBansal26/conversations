@@ -1,5 +1,5 @@
 import { pathToFileURL } from "node:url";
-import { createContext } from "./app-context.js";
+import { closeContext, createContext } from "./app-context.js";
 import { loadConfig } from "./config.js";
 import { RecordingBus } from "./realtime/bus.js";
 import { register } from "./services/auth.js";
@@ -23,6 +23,14 @@ export async function seed(env: Record<string, string | undefined> = process.env
   const config = loadConfig(env);
   if (config.NODE_ENV === "production") throw new Error("Refusing to seed in production");
   const ctx = await createContext(config, { bus: new RecordingBus() });
+  try {
+    await seedWorkspace(ctx);
+  } finally {
+    await closeContext(ctx); // stops the rate limiter, metrics, queue and event bus timers as well as the database: the process can end
+  }
+}
+
+async function seedWorkspace(ctx: Awaited<ReturnType<typeof createContext>>) {
   if (await ctx.db.get("SELECT 1 FROM users WHERE email = ?", DEMO_EMAIL)) {
     console.log(`Already seeded. Log in as ${DEMO_EMAIL} / ${DEMO_PASSWORD}`);
     return;
@@ -160,12 +168,15 @@ export async function seed(env: Record<string, string | undefined> = process.env
 
   console.log(`Seeded demo workspace "Demo Co" (${ws}).\nLogin: ${DEMO_EMAIL} / ${DEMO_PASSWORD}  (also maya@, sam@, priya@example.test with the same password)`);
   await ctx.background.settle();
-  await ctx.db.close();
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  seed().catch((e) => {
-    console.error(e instanceof Error ? e.message : e);
-    process.exit(1);
-  });
+  seed().then(
+    // closeContext released everything; the explicit exit is the safety net so `npm run seed` can never hang a script or CI job on a stray handle
+    () => process.exit(0),
+    (e) => {
+      console.error(e instanceof Error ? e.message : e);
+      process.exit(1);
+    },
+  );
 }
