@@ -1,12 +1,13 @@
+import { Check, Copy } from "lucide-react";
 import { useState } from "react";
-import { Icon } from "../../ui";
+import { Button } from "../../ui";
 
 export function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
   const [done, setDone] = useState(false);
   return (
-    <button
-      type="button"
-      className="btn btn-ghost btn-sm"
+    <Button
+      variant="ghost"
+      size="sm"
       onClick={() => {
         void navigator.clipboard?.writeText(text).then(() => {
           setDone(true);
@@ -14,7 +15,8 @@ export function CopyButton({ text, label = "Copy" }: { text: string; label?: str
         });
       }}
     >
-      <Icon name={done ? "check" : "copy"} size={14} /> {done ? "Copied" : label}
-    </button>
+      {done ? <Check className="text-success" aria-hidden="true" /> : <Copy aria-hidden="true" />}
+      {done ? "Copied" : label}
+    </Button>
   );
 }

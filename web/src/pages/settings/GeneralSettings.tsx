@@ -1,15 +1,14 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Coins } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { api } from "../../api/client";
 import { useCredits, useSaveWorkspace } from "../../api/settingsHooks";
 import { useSession } from "../../auth/AuthContext";
 import { SaveBar, SettingsSection } from "../../components/settings/SettingsSection";
-import { ErrorNotice } from "../../ui";
-import { Field } from "../../ui";
-import { Switch } from "../../ui";
 import { fieldErrors } from "../../lib/apiError";
 import { formatDateTime } from "../../lib/time";
 import { keys } from "../../state/keys";
+import { Badge, Button, ErrorNotice, Field, Input, Skeleton, Switch, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, toast } from "../../ui";
 
 export function GeneralSettings() {
   const { workspace, member } = useSession();
@@ -25,6 +24,7 @@ export function GeneralSettings() {
   const addCredits = useMutation({
     mutationFn: () => api.post("/credits/grant", { amount: Number(grant) }),
     onSuccess: () => {
+      toast({ title: `${grant} credits added`, tone: "success" });
       setGrant("");
       void qc.invalidateQueries({ queryKey: keys.credits });
       void qc.invalidateQueries({ queryKey: keys.me });
@@ -32,6 +32,12 @@ export function GeneralSettings() {
   });
   const errors = fieldErrors(save.error);
   const dirty = name !== workspace.name || region !== s.default_region || Number(editWindow) !== s.edit_window_seconds || enforced !== s.credits_enforced;
+  const reset = () => {
+    setName(workspace.name);
+    setRegion(s.default_region);
+    setEditWindow(String(s.edit_window_seconds));
+    setEnforced(s.credits_enforced);
+  };
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -41,28 +47,37 @@ export function GeneralSettings() {
   return (
     <>
       <SettingsSection title="General" description="Workspace identity and messaging defaults.">
-        <form className="stack narrow" onSubmit={submit}>
+        <form className="flex max-w-lg flex-col gap-4" onSubmit={submit}>
           <Field label="Workspace name" error={errors.name}>
-            <input value={name} maxLength={100} onChange={(e) => setName(e.target.value)} required />
+            <Input value={name} maxLength={100} onChange={(e) => setName(e.target.value)} required />
           </Field>
-          <Field label="Default region" hint="Two-letter country code used to read phone numbers without a + prefix." error={errors["settings.default_region"]}>
-            <input value={region} maxLength={2} onChange={(e) => setRegion(e.target.value.toUpperCase())} pattern="[A-Za-z]{2}" required />
-          </Field>
-          <Field label="Edit window (seconds)" hint="How long after sending an agent can still edit a message. 0 disables editing." error={errors["settings.edit_window_seconds"]}>
-            <input type="number" min={0} max={86400} value={editWindow} onChange={(e) => setEditWindow(e.target.value)} />
-          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Default region" hint="Two-letter country code used to read phone numbers without a + prefix." error={errors["settings.default_region"]}>
+              <Input value={region} maxLength={2} onChange={(e) => setRegion(e.target.value.toUpperCase())} pattern="[A-Za-z]{2}" required className="uppercase" />
+            </Field>
+            <Field label="Edit window (seconds)" hint="How long after sending an agent can still edit a message. 0 disables editing." error={errors["settings.edit_window_seconds"]}>
+              <Input type="number" min={0} max={86400} value={editWindow} onChange={(e) => setEditWindow(e.target.value)} />
+            </Field>
+          </div>
           <Switch label="Enforce credits" hint="When on, SMS and email sends are blocked once the credit balance runs out." checked={enforced} onChange={setEnforced} />
           {save.isError && <ErrorNotice error={save.error} />}
-          <SaveBar pending={save.isPending} saved={save.isSuccess} dirty={dirty} />
+          <SaveBar pending={save.isPending} saved={save.isSuccess} dirty={dirty} onReset={reset} />
         </form>
       </SettingsSection>
+
       <SettingsSection title="Credits" description="Outbound SMS and email each use credits.">
-        <p className="stat">
-          <strong>{workspace.credit_balance}</strong> credits remaining
-        </p>
+        <div className="flex items-center gap-3">
+          <span className="grid size-11 place-items-center rounded-full bg-primary-soft text-primary-text">
+            <Coins className="size-5" aria-hidden="true" />
+          </span>
+          <p>
+            <strong className="text-2xl font-semibold tabular-nums">{workspace.credit_balance.toLocaleString()}</strong>
+            <span className="ml-2 text-muted-foreground">credits remaining</span>
+          </p>
+        </div>
         {member.role === "owner" && (
           <form
-            className="row"
+            className="flex max-w-sm gap-2"
             onSubmit={(e) => {
               e.preventDefault();
               if (Number(grant) > 0) addCredits.mutate();
@@ -71,35 +86,38 @@ export function GeneralSettings() {
             <label className="sr-only" htmlFor="grant">
               Credits to add
             </label>
-            <input id="grant" type="number" min={1} value={grant} placeholder="Credits to add" onChange={(e) => setGrant(e.target.value)} />
-            <button type="submit" className="btn btn-outline" disabled={!(Number(grant) > 0) || addCredits.isPending}>
+            <Input id="grant" type="number" min={1} value={grant} placeholder="Credits to add" onChange={(e) => setGrant(e.target.value)} />
+            <Button type="submit" variant="outline" disabled={!(Number(grant) > 0)} loading={addCredits.isPending}>
               Add credits
-            </button>
+            </Button>
           </form>
         )}
         {addCredits.isError && <ErrorNotice error={addCredits.error} compact />}
+        {credits.isPending && <Skeleton className="h-24 w-full" />}
         {credits.data && credits.data.ledger.length > 0 && (
-          <table className="table">
+          <Table>
             <caption className="sr-only">Recent credit activity</caption>
-            <thead>
-              <tr>
-                <th scope="col">When</th>
-                <th scope="col">Type</th>
-                <th scope="col">Change</th>
-                <th scope="col">Balance</th>
-              </tr>
-            </thead>
-            <tbody>
+            <TableHead>
+              <TableRow>
+                <TableHeaderCell scope="col">When</TableHeaderCell>
+                <TableHeaderCell scope="col">Type</TableHeaderCell>
+                <TableHeaderCell scope="col" className="text-right">Change</TableHeaderCell>
+                <TableHeaderCell scope="col" className="text-right">Balance</TableHeaderCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {credits.data.ledger.slice(0, 10).map((l) => (
-                <tr key={l.id}>
-                  <td>{formatDateTime(l.created_at)}</td>
-                  <td>{l.kind}</td>
-                  <td>{l.delta > 0 ? `+${l.delta}` : l.delta}</td>
-                  <td>{l.balance_after}</td>
-                </tr>
+                <TableRow key={l.id}>
+                  <TableCell className="whitespace-nowrap">{formatDateTime(l.created_at)}</TableCell>
+                  <TableCell>
+                    <Badge>{l.kind}</Badge>
+                  </TableCell>
+                  <TableCell className={`text-right tabular-nums ${l.delta > 0 ? "text-success-text" : ""}`}>{l.delta > 0 ? `+${l.delta}` : l.delta}</TableCell>
+                  <TableCell className="text-right tabular-nums">{l.balance_after}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         )}
       </SettingsSection>
     </>
