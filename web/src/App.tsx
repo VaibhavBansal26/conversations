@@ -1,14 +1,16 @@
 import { Suspense, lazy } from "react";
 import { Navigate, Route, Routes } from "react-router";
 import { RedirectIfAuthed, RequireAuth } from "./auth/RequireAuth";
-import { AppLayout } from "./components/AppLayout";
-import { InboxPage } from "./pages/InboxPage";
 import { LoginPage } from "./pages/LoginPage";
 import { AcceptInvitationPage, ForgotPasswordPage, ResetPasswordPage } from "./pages/PasswordPages";
 import { RegisterPage } from "./pages/RegisterPage";
+import { Spinner } from "./ui";
 import { ImpersonatePage } from "./pages/ImpersonatePage";
-import { SettingsLayout } from "./pages/settings/SettingsLayout";
 
+// Everything behind sign-in loads on demand: the login screen does not pay for the realtime client, the inbox or the settings shell.
+const AppLayout = lazy(() => import("./components/AppLayout").then((m) => ({ default: m.AppLayout })));
+const InboxPage = lazy(() => import("./pages/InboxPage").then((m) => ({ default: m.InboxPage })));
+const SettingsLayout = lazy(() => import("./pages/settings/SettingsLayout").then((m) => ({ default: m.SettingsLayout })));
 const AdminApp = lazy(() => import("./admin/AdminApp"));
 const AiSettings = lazy(() => import("./pages/settings/AiSettings").then((m) => ({ default: m.AiSettings })));
 const ChannelSettings = lazy(() => import("./pages/settings/ChannelSettings").then((m) => ({ default: m.ChannelSettings })));
@@ -26,6 +28,10 @@ const BillingSettings = lazy(() => import("./pages/settings/BillingSettings").th
 const RoleSettings = lazy(() => import("./pages/settings/RoleSettings").then((m) => ({ default: m.RoleSettings })));
 const WidgetSettings = lazy(() => import("./pages/settings/WidgetSettings").then((m) => ({ default: m.WidgetSettings })));
 
+function PageFallback() {
+  return <div className="grid h-full min-h-40 place-items-center" role="status" aria-label="Loading"><Spinner /></div>;
+}
+
 export function App() {
   return (
     <Routes>
@@ -39,11 +45,11 @@ export function App() {
         <Route path="/accept-invitation" element={<AcceptInvitationPage />} />
       </Route>
       <Route element={<RequireAuth />}>
-        <Route element={<AppLayout />}>
-          <Route path="/inbox" element={<InboxPage />} />
-          <Route path="/inbox/:roomId" element={<InboxPage />} />
+        <Route element={<Suspense fallback={<PageFallback />}><AppLayout /></Suspense>}>
+          <Route path="/inbox" element={<Suspense fallback={<PageFallback />}><InboxPage /></Suspense>} />
+          <Route path="/inbox/:roomId" element={<Suspense fallback={<PageFallback />}><InboxPage /></Suspense>} />
           <Route path="/analytics" element={<Suspense fallback={null}><AnalyticsPage /></Suspense>} />
-          <Route path="/settings" element={<SettingsLayout />}>
+          <Route path="/settings" element={<Suspense fallback={<PageFallback />}><SettingsLayout /></Suspense>}>
             <Route path="general" element={<GeneralSettings />} />
             <Route path="widget" element={<WidgetSettings />} />
             <Route path="inboxes" element={<InboxSettings />} />
