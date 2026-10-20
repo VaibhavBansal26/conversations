@@ -74,6 +74,15 @@ const GROUPS: { spec: RouteSpec; routes: string[] }[] = [
   { spec: { post: ["api.write", "api.workspace"] }, routes: ["PATCH /api/billing/automation", "POST /api/payment-requests/:id/cancel"] },
   { spec: { post: ["api.write", "api.workspace"], inHandler: ["payments.workspace"] }, routes: ["POST /api/rooms/:id/payment-requests"] },
   { spec: { pre: ["webhook.stripe"], inHandler: ["webhook.badsig"] }, routes: ["POST /webhooks/stripe", "POST /webhooks/stripe/connect"] },
+  { spec: { pre: ["admin.login.ip"], inHandler: ["admin.fail.account", "admin.fail.ip", "admin.fail.mfa"] }, routes: ["POST /admin/api/login", "POST /admin/api/mfa/setup", "POST /admin/api/mfa/enable", "POST /admin/api/mfa/verify"] },
+  {
+    spec: { post: ["admin.api"] },
+    routes: [
+      "GET /admin/api/me", "GET /admin/api/stats", "GET /admin/api/workspaces", "GET /admin/api/workspaces/:id", "GET /admin/api/audit", "GET /admin/api/ratelimit", "GET /admin/api/admins",
+      "POST /admin/api/workspaces/:id/impersonate", "POST /admin/api/workspaces/:id/suspend", "POST /admin/api/workspaces/:id/unsuspend", "POST /admin/api/workspaces/:id/credits",
+      "PUT /admin/api/workspaces/:id/tier", "POST /admin/api/ratelimit/:kind", "DELETE /admin/api/ratelimit/:kind/:entity", "POST /admin/api/admins/:id/disable", "POST /admin/api/admins/:id/enable",
+    ],
+  },
   { spec: { pre: ["public.config"] }, routes: ["GET /public/widget/config"] },
   { spec: { pre: ["public.session"] }, routes: ["POST /public/sessions"] },
   { spec: { post: ["public.query"] }, routes: ["GET /public/session", "GET /public/rooms", "GET /public/rooms/:id/messages"] },

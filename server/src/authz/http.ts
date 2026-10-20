@@ -25,8 +25,10 @@ export function authorizeRoute(c: Context, actor: Actor): void {
   // no handler matched: the router answers 404 next, there is nothing to authorise
   if (!c.req.matchedRoutes.some((r) => r.method !== "ALL" && r.path !== "/*" && r.path !== "*")) return;
   const { key } = specFor(c);
+  // support access never writes, whatever the route's permission says (routes marked "authed" have no permission to refuse it)
+  if (actor.impersonatedBy && c.req.method !== "GET" && c.req.method !== "HEAD") throw new AppError(403, "IMPERSONATION_READ_ONLY", "Support access is read-only");
   const access = ROUTE_ACCESS.get(key);
   if (access === undefined) throw new AppError(403, "NO_POLICY", "This route has no authorisation policy");
-  if (access === "authed" || access === "public" || access === "apikey") return;
+  if (access === "authed" || access === "public" || access === "apikey" || access === "platform") return;
   if (!can(actor, access)) throw new PermissionDenied(access);
 }

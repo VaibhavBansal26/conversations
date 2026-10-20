@@ -14,6 +14,7 @@
     "test": "vitest run",
     "seed": "tsx src/seed.ts",
     "e2e": "node scripts/e2e.mjs",
+    "admin": "tsx scripts/platform-admin.ts",
     "docs:ratelimit": "tsx scripts/gen-ratelimit-doc.ts",
     "docs:analytics-schemas": "tsx scripts/gen-analytics-schemas.ts"
   },

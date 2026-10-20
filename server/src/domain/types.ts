@@ -38,6 +38,8 @@ export interface Actor {
   permissions: ReadonlySet<string>;
   /** key of the role: owner | manager | agent | viewer | a custom role's key */
   roleKey: string;
+  /** set on a support token: the platform admin looking at this workspace. Such an actor is read-only everywhere (REST and sockets) */
+  impersonatedBy?: string;
 }
 
 export const seesAll = (a: Pick<Actor, "role">): boolean => a.role === "owner" || a.role === "manager";

@@ -26,6 +26,13 @@ export const POLICIES: Policy[] = [
   P({ id: "auth.forgot.email", description: "Password-reset requests per address per hour (stops mail bombing)", keyBy: "composite", algo: "window", limit: 3, windowSec: 3600, onFail: "closed" }),
   P({ id: "auth.reset.ip", description: "Password-reset and invitation token submissions per IP", keyBy: "ip", algo: "gcra", limit: 10, windowSec: 600, burst: 10, onFail: "closed", penalty: true }),
 
+  // ---- platform admin console: stricter than workspace login, always fail-closed ----
+  P({ id: "admin.login.ip", description: "Platform admin sign-in steps per IP (5 per minute)", keyBy: "ip", algo: "gcra", limit: 5, windowSec: 60, burst: 5, onFail: "closed", penalty: true }),
+  P({ id: "admin.fail.account", description: "Failed platform admin logins per account: 5 in 15 min lock it, escalating", keyBy: "composite", algo: "strike", limit: 5, windowSec: 900, onFail: "closed" }),
+  P({ id: "admin.fail.ip", description: "Failed platform admin logins per IP: 10 in 15 min block the IP, escalating", keyBy: "ip", algo: "strike", limit: 10, windowSec: 900, onFail: "closed" }),
+  P({ id: "admin.fail.mfa", description: "Wrong platform admin second-factor codes per admin: 5 in 15 min lock the second step, escalating", keyBy: "composite", algo: "strike", limit: 5, windowSec: 900, onFail: "closed" }),
+  P({ id: "admin.api", description: "Platform admin API calls, per admin", keyBy: "user", algo: "gcra", limit: 10, windowSec: 1, burst: 40, onFail: "closed" }),
+
   // ---- widget (public) ----
   P({ id: "public.config", description: "Widget config fetch, per IP", keyBy: "ip", algo: "gcra", limit: 60, windowSec: 60, burst: 60, onFail: "open" }),
   P({ id: "public.session", description: "Visitor session creation, per IP + Origin + embed token", keyBy: "composite", algo: "gcra", limit: 20, windowSec: 60, burst: 20, onFail: "closed", penalty: true }),

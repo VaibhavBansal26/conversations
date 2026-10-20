@@ -15,6 +15,7 @@ import { signAccessToken } from "./auth.js";
 import { workspaceDto } from "./workspaces.js";
 import { addMinutes } from "../util/time.js";
 import { assertSeatAvailable } from "../billing/state.js";
+import { assertWorkspaceActive } from "../admin/suspension.js";
 
 /* ===================================================================================================================================== *
  * Sessions and refresh-token rotation
@@ -93,6 +94,7 @@ export async function rotateRefresh(ctx: AppContext, raw: string, meta: SessionM
   }
   const now = ctx.clock();
   if (t.expires_at <= iso(now) || s.expires_at <= iso(now)) throw unauthorized("Session expired", "SESSION_EXPIRED");
+  await assertWorkspaceActive(ctx, s.workspace_id);
   const row = await findMember(ctx, s.workspace_id, s.member_id);
   if (!row) {
     await revokeSession(ctx, s.id, "seat_removed");

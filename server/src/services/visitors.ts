@@ -1,3 +1,4 @@
+import { assertWorkspaceActive } from "../admin/suspension.js";
 import { can } from "../authz/permissions.js";
 import type { AppContext } from "../context.js";
 import { nowIso } from "../context.js";
@@ -114,6 +115,7 @@ export async function authenticateToken(ctx: AppContext, apiKey: string | undefi
   const row = apiKey ? await ctx.db.get<TokenRow>("SELECT * FROM tokens WHERE token = ?", apiKey) : undefined;
   if (!row || row.status !== "active") throw unauthorized("Invalid or revoked API key", "INVALID_API_KEY");
   if (!originMatches(origin, row.domain)) throw forbidden("This origin is not allowed for the API key", "ORIGIN_NOT_ALLOWED");
+  await assertWorkspaceActive(ctx, row.workspace_id);
   await ctx.db.run("UPDATE tokens SET last_used_at = ? WHERE id = ?", nowIso(ctx), row.id);
   return row;
 }

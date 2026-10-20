@@ -20,6 +20,7 @@ import { authenticateSession, originMatches, verifyOtp, type SessionRow } from "
 import { monitorEventLoopDelay } from "node:perf_hooks";
 import { gcra, type GcraState } from "../ratelimit/algorithms.js";
 import { PermissionDenied } from "../authz/http.js";
+import { workspaceSuspended } from "../admin/suspension.js";
 import { can } from "../authz/permissions.js";
 import { EVENT_ACCESS } from "../authz/routePerms.js";
 import { EVENT_LIMITS } from "../ratelimit/routePolicies.js";
@@ -27,7 +28,7 @@ import { ipKey, resolveClientIp } from "../util/clientIp.js";
 import { isWorkspaceId } from "../util/ids.js";
 import type { RealtimeBus } from "./bus.js";
 
-type TeamData = { kind: "team"; memberId: string; userId: string; workspaceId: string; exp: number; ip: string | null };
+type TeamData = { kind: "team"; memberId: string; userId: string; workspaceId: string; exp: number; ip: string | null; imp?: string };
 type VisitorData = { kind: "visitor"; sessionId: string; contactId: string; workspaceId: string; ip: string | null };
 type SockData = TeamData | VisitorData;
 /** the session row read during the handshake, so joining rooms does not read it again */
@@ -438,7 +439,7 @@ export async function attachSocketServer(httpServer: HttpServer, ctx: AppContext
       const auth = (socket.handshake.auth ?? {}) as { token?: string; session?: string; deviceId?: string };
       if (typeof auth.token === "string") {
         const actor = await actorFromToken(ctx, auth.token, ws);
-        socket.data = { kind: "team", memberId: actor.memberId, userId: actor.userId, workspaceId: ws, exp: decodeExp(auth.token), ip } satisfies TeamData;
+        socket.data = { kind: "team", memberId: actor.memberId, userId: actor.userId, workspaceId: ws, exp: decodeExp(auth.token), ip, imp: actor.impersonatedBy } satisfies TeamData;
       } else if (typeof auth.session === "string") {
         const session = await authenticateSession(ctx, auth.session, { deviceId: auth.deviceId, ip }, ws);
         const token = session.token_id ? await ctx.db.get<{ domain: string; status: string }>("SELECT domain, status FROM tokens WHERE id = ?", session.token_id) : undefined;
@@ -633,6 +634,12 @@ function registerHandlers(ctx: AppContext, socket: Socket, ready: Promise<void>)
         }
         if (only && data.kind !== only) throw new AppError(403, "FORBIDDEN", "Not available for this connection");
         const who: Who = {};
+        if (await workspaceSuspended(ctx, ws)) {
+          setTimeout(() => socket.disconnect(true), 100); // after the ack below has gone out
+          throw new AppError(403, "WORKSPACE_SUSPENDED", "This workspace has been suspended. Contact support.");
+        }
+        // a support (impersonation) connection is a read-only window: it receives live updates but may not emit anything that changes state
+        if (data.kind === "team" && data.imp) throw new AppError(403, "IMPERSONATION_READ_ONLY", "Support access is read-only");
         if (data.kind === "team") {
           if (data.exp && data.exp * 1000 < ctx.clock().getTime()) {
             socket.disconnect(true);

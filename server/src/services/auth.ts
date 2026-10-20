@@ -5,12 +5,16 @@ import type { Actor, Role } from "../domain/types.js";
 import { conflict, unauthorized } from "../errors.js";
 import { hashPassword, verifyPassword } from "../util/crypto.js";
 import { newId } from "../util/ids.js";
+import { getAdmin } from "../admin/auth.js";
+import { assertWorkspaceActive } from "../admin/suspension.js";
 import { actorFromRow, findMember, memberDto } from "./members.js";
 import { workspaceDto } from "./workspaces.js";
 import { mfaChallengeToken, sessionLive, startSession, userHasMfa, type SessionMeta } from "./accounts.js";
 import { recordAudit } from "./audit.js";
 
 const ISSUER = "conversations";
+/** What a support (impersonation) token can see, whatever the impersonated seat can do. No write permission is ever in this list. */
+export const SUPPORT_VIEW = ["conversations:read", "contacts:read", "members:read", "settings:read", "analytics:read"];
 // Compared against when the email is unknown so login timing does not reveal which emails exist.
 const DUMMY_HASH = "scrypt$00000000000000000000000000000000$" + "00".repeat(64);
 
@@ -21,15 +25,17 @@ interface Claims {
   role: Role;
   /** auth session id (absent on tokens minted without a session, e.g. by tests) */
   sid?: string;
+  /** platform admin id on a support (impersonation) token */
+  imp?: string;
 }
 
-export async function signAccessToken(ctx: AppContext, a: Pick<Actor, "userId" | "memberId" | "workspaceId" | "role">, sid?: string): Promise<string> {
-  return await new SignJWT({ mid: a.memberId, wid: a.workspaceId, role: a.role, ...(sid ? { sid } : {}) })
+export async function signAccessToken(ctx: AppContext, a: Pick<Actor, "userId" | "memberId" | "workspaceId" | "role">, sid?: string, opts: { imp?: string; ttlSeconds?: number } = {}): Promise<string> {
+  return await new SignJWT({ mid: a.memberId, wid: a.workspaceId, role: a.role, ...(sid ? { sid } : {}), ...(opts.imp ? { imp: opts.imp } : {}) })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(a.userId)
     .setIssuer(ISSUER)
     .setIssuedAt(Math.floor(ctx.clock().getTime() / 1000))
-    .setExpirationTime(Math.floor(ctx.clock().getTime() / 1000) + ctx.config.ACCESS_TOKEN_TTL_SECONDS)
+    .setExpirationTime(Math.floor(ctx.clock().getTime() / 1000) + (opts.ttlSeconds ?? ctx.config.ACCESS_TOKEN_TTL_SECONDS))
     .sign(new TextEncoder().encode(ctx.config.JWT_SECRET));
 }
 
@@ -41,7 +47,7 @@ export async function verifyAccessToken(ctx: AppContext, token: string): Promise
       currentDate: ctx.clock(),
     });
     if (typeof payload.sub !== "string" || typeof payload.mid !== "string" || typeof payload.wid !== "string") throw new Error("claims");
-    return { sub: payload.sub, mid: payload.mid, wid: payload.wid, role: payload.role as Role, sid: typeof payload.sid === "string" ? payload.sid : undefined };
+    return { sub: payload.sub, mid: payload.mid, wid: payload.wid, role: payload.role as Role, sid: typeof payload.sid === "string" ? payload.sid : undefined, imp: typeof payload.imp === "string" ? payload.imp : undefined };
   } catch {
     throw unauthorized("Invalid or expired token", "INVALID_TOKEN");
   }
@@ -53,9 +59,16 @@ export async function actorFromToken(ctx: AppContext, token: string, expectedWor
   if (expectedWorkspaceId && c.wid !== expectedWorkspaceId) throw unauthorized("Token belongs to another workspace", "WRONG_WORKSPACE");
   const row = await findMember(ctx, c.wid, c.mid);
   if (!row || row.user_id !== c.sub) throw unauthorized("Seat no longer exists", "INVALID_TOKEN");
+  // checked before the session so a suspended workspace is told why, instead of seeing its sessions as merely revoked
+  await assertWorkspaceActive(ctx, c.wid);
   // a revoked session (logout, password change, refresh-token reuse) stops working at once, not when the access token expires
   if (c.sid && !(await sessionLive(ctx, c.sid))) throw unauthorized("Session ended", "SESSION_REVOKED");
-  return actorFromRow(row);
+  const actor = actorFromRow(row);
+  if (!c.imp) return actor;
+  // support access: only while the admin who minted it is still an active admin, and strictly read-only
+  const admin = await getAdmin(ctx, c.imp);
+  if (!admin || admin.disabled_at) throw unauthorized("Support access ended", "SESSION_REVOKED");
+  return { ...actor, impersonatedBy: c.imp, permissions: new Set(SUPPORT_VIEW.filter((p) => actor.permissions.has(p))) };
 }
 
 export async function register(ctx: AppContext, input: { email: string; password: string; name: string; workspace_name: string }, meta: SessionMeta = {}) {
@@ -83,6 +96,7 @@ export async function login(ctx: AppContext, input: { email: string; password: s
   );
   const pick = input.workspace_id ? seats.find((s) => s.workspace_id === input.workspace_id) : seats[0];
   if (!pick) throw unauthorized("No access to this workspace", "NO_WORKSPACE");
+  await assertWorkspaceActive(ctx, pick.workspace_id);
   // second factor: the password alone is not enough for an account that enabled it
   if (await userHasMfa(ctx, user.id)) return { mfa_required: true as const, mfa_token: await mfaChallengeToken(ctx, user.id, pick.workspace_id) };
   const out = await startSession(ctx, (await findMember(ctx, pick.workspace_id, pick.id))!, meta);

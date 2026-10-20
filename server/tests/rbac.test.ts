@@ -36,7 +36,7 @@ describe("authorisation declaration", () => {
 
   it("every permission in the catalogue guards something", () => {
     const used = new Set<string>(Object.values(EVENT_ACCESS).filter((v) => v !== "authed" && v !== "visitor-only"));
-    for (const a of ROUTE_ACCESS.values()) if (a !== "authed" && a !== "public" && a !== "apikey") used.add(a);
+    for (const a of ROUTE_ACCESS.values()) if (a !== "authed" && a !== "public" && a !== "apikey" && a !== "platform") used.add(a);
     for (const k of API_KEY_SCOPES) used.add(k); // permissions that bound the scopes an API key may carry
     for (const p of ALL_PERMISSIONS) expect(used.has(p) || NOT_YET_ROUTED.has(p), `permission ${p} guards nothing`).toBe(true);
     expect(Object.keys(PERMISSIONS)).toEqual(ALL_PERMISSIONS);
@@ -69,7 +69,7 @@ describe("role x route matrix", () => {
     for (const [role, actor] of Object.entries(seats)) {
       const token = await tokenFor(ctx, actor);
       for (const [key, access] of ROUTE_ACCESS) {
-        if (access === "public" || access === "authed" || access === "apikey") continue;
+        if (access === "public" || access === "authed" || access === "apikey" || access === "platform") continue;
         const [method, path] = key.split(" ") as [string, string];
         const res = await app.request(dummy(path), { method, headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: ["GET", "DELETE"].includes(method) ? undefined : "{}" });
         const body = (await res.json().catch(() => ({}))) as { error?: { code?: string } };

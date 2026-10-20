@@ -18,6 +18,7 @@ import { requireAuth, type Env } from "./http.js";
 import { attachmentByKey } from "./services/attachments.js";
 import { authRoutes } from "./routes/auth.js";
 import { publicRoutes } from "./routes/public.js";
+import { adminRoutes } from "./routes/admin.js";
 import { analyticsApiRoutes } from "./routes/analyticsApi.js";
 import { analyticsRoutes } from "./routes/analytics.js";
 import { billingRoutes } from "./routes/billing.js";
@@ -99,6 +100,7 @@ export function createApp(ctx: AppContext): Hono {
   });
 
   app.route("/api/auth", authRoutes(ctx));
+  app.route("/admin/api", adminRoutes(ctx)); // platform-admin authenticated (own token type), unrelated to workspace sessions
   app.route("/api/v1/analytics", analyticsApiRoutes(ctx)); // API-key authenticated, must come before the session-authenticated /api group
   const api = new Hono<Env>();
   api.use("*", requireAuth(ctx));
