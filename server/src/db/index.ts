@@ -322,9 +322,12 @@ export async function openDb(o: DbOptions | string): Promise<Db> {
 }
 
 /** Applies `migrations/*.sql` once each. On PostgreSQL a transaction-scoped advisory lock makes concurrent boots of several nodes safe. */
-export async function migrate(db: Db, dir = resolve(dirname(fileURLToPath(import.meta.url)), "migrations")): Promise<string[]> {
+export async function migrate(db: Db, dir = resolve(dirname(fileURLToPath(import.meta.url)), "migrations"), opts: { hashPartitions?: number } = {}): Promise<string[]> {
   return db.tx(async () => {
-    if (db.dialect === "postgres") await db.exec("SELECT pg_advisory_xact_lock(727274)");
+    if (db.dialect === "postgres") {
+      await db.exec("SELECT pg_advisory_xact_lock(727274)");
+      if (opts.hashPartitions) await db.exec(`SELECT set_config('conv.hash_partitions', '${Math.trunc(opts.hashPartitions)}', true)`);
+    }
     await db.exec("CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)");
     const done = new Set((await db.all<{ name: string }>("SELECT name FROM _migrations")).map((r) => r.name));
     const applied: string[] = [];

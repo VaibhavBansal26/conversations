@@ -51,8 +51,8 @@ export interface ContextOverrides {
 export async function createContext(config: Config, o: ContextOverrides = {}): Promise<AppContext> {
   const log = o.log ?? createLogger(config.LOG_LEVEL);
   const db = await openDb({ url: config.DATABASE_URL, path: config.DATABASE_PATH, poolMax: config.DATABASE_POOL_MAX });
-  await migrate(db);
-  await ensureMessagePartitions(db);
+  await migrate(db, undefined, { hashPartitions: config.MESSAGE_HASH_PARTITIONS });
+  await ensureMessagePartitions(db, config.MESSAGE_PARTITION_MONTHS_AHEAD);
   const bus = o.bus ?? new RecordingBus();
   const nodeId = config.NODE_ID ?? `${hostname()}-${randomBytes(3).toString("hex")}`;
   const hub = config.REDIS_URL && !o.noRedis ? new RedisHub(config.REDIS_URL, log, config.REDIS_PREFIX) : null;

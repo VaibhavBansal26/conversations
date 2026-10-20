@@ -10,6 +10,9 @@ const schema = z.object({
   DATABASE_PATH: z.string().default("./data/conversations.db"),
   /** postgres://... selects PostgreSQL (multi-node); unset keeps the embedded SQLite file above */
   DATABASE_URL: z.string().optional(),
+  /** hash partitions of the messages table; only read when the partitioning migration first runs (cannot be changed afterwards without a rebuild) */
+  MESSAGE_HASH_PARTITIONS: z.coerce.number().int().min(1).max(256).default(16),
+  MESSAGE_PARTITION_MONTHS_AHEAD: z.coerce.number().int().min(0).max(24).default(3),
   DATABASE_POOL_MAX: z.coerce.number().int().positive().default(10),
   DATA_DIR: z.string().default("./data"),
   WEB_DIST: z.string().optional(),

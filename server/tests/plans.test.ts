@@ -76,7 +76,7 @@ async function expectIndexed(ctx: AppContext, label: string, statements: { sql: 
       if (opts.noSort?.test(sql)) expect(plan, `${label}: temp b-tree sort in\n${sql}\n${plan}`).not.toMatch(/TEMP B-TREE FOR ORDER BY/);
     } else {
       expect(plan, `${label}: sequential scan in\n${sql}\n${plan}`).not.toMatch(/Seq Scan/);
-      if (opts.noSort?.test(sql)) expect(plan, `${label}: explicit sort in\n${sql}\n${plan}`).not.toMatch(/\bSort\b/);
+      if (opts.noSort?.test(sql)) expect(plan, `${label}: explicit sort in\n${sql}\n${plan}`).not.toMatch(/^\s*(->\s+)?(Incremental )?Sort\s+\(/m);
     }
   }
 }
