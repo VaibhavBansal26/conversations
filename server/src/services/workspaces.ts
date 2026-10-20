@@ -2,6 +2,8 @@ import type { AppContext } from "../context.js";
 import { nowIso } from "../context.js";
 import { mergeSettings, parseSettings, WorkspaceSettingsPatchSchema, type WorkspaceSettings } from "../domain/settings.js";
 import { notFound, paymentRequired } from "../errors.js";
+import { assertNotLocked } from "../billing/state.js";
+import { onBalanceChanged } from "../billing/credits.js";
 import { newId } from "../util/ids.js";
 import type { z } from "zod";
 
@@ -41,6 +43,7 @@ export const creditCost = (ctx: AppContext, kind: "sms" | "email"): number => (k
 
 /** Throws 402 when credits are enforced and the balance cannot cover the send. */
 export async function verifyBalance(ctx: AppContext, workspaceId: string, kind: "sms" | "email"): Promise<void> {
+  await assertNotLocked(ctx, workspaceId, kind === "sms" ? "send SMS" : "send email");
   const w = await getWorkspace(ctx, workspaceId);
   if (!parseSettings(w.settings).credits_enforced) return;
   if (w.credit_balance < creditCost(ctx, kind)) {
@@ -48,24 +51,53 @@ export async function verifyBalance(ctx: AppContext, workspaceId: string, kind: 
   }
 }
 
-/** Append a ledger entry and move the balance in one statement pair. delta is negative for usage. */
-export async function recordUsage(ctx: AppContext, workspaceId: string, kind: string, delta: number, ref?: string): Promise<number> {
-  return await ctx.db.tx(async () => {
-    await ctx.db.run("UPDATE workspaces SET credit_balance = credit_balance + ? WHERE id = ?", delta, workspaceId);
-    const bal = (await ctx.db.get<{ credit_balance: number }>("SELECT credit_balance FROM workspaces WHERE id = ?", workspaceId))!.credit_balance;
-    await ctx.db.run(
-      "INSERT INTO usage_ledger(id, workspace_id, kind, delta, balance_after, ref, created_at) VALUES (?,?,?,?,?,?,?)",
-      newId("led"),
-      workspaceId,
-      kind,
-      delta,
-      bal,
-      ref ?? null,
-      nowIso(ctx),
-    );
-    return bal;
-  });
+/**
+ * Append a ledger entry and move the balance in one transaction. delta is negative for usage.
+ * With `idemKey` the entry is applied at most once per (workspace, key): a Stripe event delivered twice, or a webhook racing the job that
+ * made the same charge, adds the credits once (`applied: false` on the repeat). The unique index is the backstop for a true race.
+ */
+export async function applyLedger(
+  ctx: AppContext,
+  workspaceId: string,
+  kind: string,
+  delta: number,
+  opts: { ref?: string; idemKey?: string } = {},
+): Promise<{ balance: number; applied: boolean }> {
+  const run = () =>
+    ctx.db.tx(async () => {
+      if (opts.idemKey) {
+        const prior = await ctx.db.get<{ balance_after: number }>("SELECT balance_after FROM usage_ledger WHERE workspace_id = ? AND idem_key = ?", workspaceId, opts.idemKey);
+        if (prior) return { balance: prior.balance_after, applied: false };
+      }
+      await ctx.db.run("UPDATE workspaces SET credit_balance = credit_balance + ? WHERE id = ?", delta, workspaceId);
+      const bal = (await ctx.db.get<{ credit_balance: number }>("SELECT credit_balance FROM workspaces WHERE id = ?", workspaceId))!.credit_balance;
+      await ctx.db.run(
+        "INSERT INTO usage_ledger(id, workspace_id, kind, delta, balance_after, ref, created_at, idem_key) VALUES (?,?,?,?,?,?,?,?)",
+        newId("led"),
+        workspaceId,
+        kind,
+        delta,
+        bal,
+        opts.ref ?? null,
+        nowIso(ctx),
+        opts.idemKey ?? null,
+      );
+      return { balance: bal, applied: true };
+    });
+  let res: { balance: number; applied: boolean };
+  try {
+    res = await run();
+  } catch (e) {
+    if (!opts.idemKey) throw e;
+    const prior = await ctx.db.get<{ balance_after: number }>("SELECT balance_after FROM usage_ledger WHERE workspace_id = ? AND idem_key = ?", workspaceId, opts.idemKey);
+    if (!prior) throw e;
+    return { balance: prior.balance_after, applied: false };
+  }
+  if (res.applied) ctx.background.run(() => onBalanceChanged(ctx, workspaceId, res.balance));
+  return res;
 }
+
+export const recordUsage = async (ctx: AppContext, workspaceId: string, kind: string, delta: number, ref?: string): Promise<number> => (await applyLedger(ctx, workspaceId, kind, delta, { ref })).balance;
 
 export const listLedger = (ctx: AppContext, workspaceId: string, limit = 50) =>
   ctx.db.all(

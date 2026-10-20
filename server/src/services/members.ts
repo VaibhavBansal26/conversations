@@ -1,5 +1,6 @@
 import type { AppContext } from "../context.js";
 import { nowIso } from "../context.js";
+import { assertSeatAvailable } from "../billing/state.js";
 import { DEFAULT_PREFS, type Actor, type Availability, type InboxVisibility, type NotificationPrefs, type Role } from "../domain/types.js";
 import { conflict, forbidden, notFound, unprocessable } from "../errors.js";
 import { hashPassword } from "../util/crypto.js";
@@ -105,6 +106,7 @@ export async function addMember(
   actor: Actor,
   input: { email: string; name: string; password?: string; role: Role; live_seat?: boolean; inbox_visibility?: InboxVisibility },
 ) {
+  if (input.live_seat ?? true) await assertSeatAvailable(ctx, actor.workspaceId);
   if (input.role === "owner" || (input.role === "manager" && actor.role !== "owner")) {
     throw forbidden("Only an owner can create owners or managers");
   }

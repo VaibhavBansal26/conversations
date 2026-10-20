@@ -16,13 +16,13 @@ const GROUPS: [RouteAccess, string[]][] = [
     "GET /api/auth/invitations/:token", "POST /api/auth/invitations/accept",
     "GET /public/widget/config", "POST /public/sessions", "GET /public/session", "GET /public/rooms", "POST /public/rooms", "GET /public/rooms/:id/messages", "POST /public/rooms/:id/messages",
     "POST /public/rooms/:id/read", "POST /public/rooms/:id/csat", "POST /public/otp/send", "POST /public/otp/verify",
-    "POST /webhooks/twilio/sms", "POST /webhooks/twilio/status", "POST /webhooks/sendgrid/inbound", "POST /webhooks/sendgrid/events",
+    "POST /webhooks/stripe", "POST /webhooks/stripe/connect", "POST /webhooks/twilio/sms", "POST /webhooks/twilio/status", "POST /webhooks/sendgrid/inbound", "POST /webhooks/sendgrid/events",
     "GET /files/*", "GET /widget.js", "GET /widget-demo.html",
   ]],
   ["apikey", ["GET /api/v1/analytics/overview", "GET /api/v1/analytics/timeseries", "GET /api/v1/analytics/schema", "GET /api/v1/analytics/identity-pepper", "GET /api/v1/analytics/export/rooms", "GET /api/v1/analytics/export/messages-meta"]],
   ["authed", ["GET /api/auth/me", "GET /api/auth/sessions", "DELETE /api/auth/sessions/:id", "POST /api/auth/password/change", "POST /api/auth/mfa/setup", "POST /api/auth/mfa/enable", "POST /api/auth/mfa/disable", "GET /api/members/me", "PATCH /api/members/me", "PATCH /api/members/:id", "GET /api/notifications", "POST /api/notifications/read-all", "POST /api/notifications/:id/read", "GET /api/ai/status"]],
   ["conversations:read", [
-    "GET /api/dashboard/counts", "GET /api/inboxes", "GET /api/inboxes/counts", "GET /api/inboxes/:id", "GET /api/rooms", "GET /api/rooms/:id", "GET /api/rooms/:id/messages", "GET /api/messages/search",
+    "GET /api/dashboard/counts", "GET /api/inboxes", "GET /api/inboxes/counts", "GET /api/inboxes/:id", "GET /api/rooms", "GET /api/rooms/:id", "GET /api/rooms/:id/messages", "GET /api/rooms/:id/payment-requests", "GET /api/messages/search",
     "PUT /api/rooms/:id/favorite", "DELETE /api/rooms/:id/favorite", "POST /api/rooms/:id/read", "GET /api/templates",
   ]],
   ["conversations:reply", [
@@ -44,7 +44,11 @@ const GROUPS: [RouteAccess, string[]][] = [
   ["analytics_identity:manage", ["GET /api/analytics/identity-pepper", "POST /api/analytics/identity-pepper/rotate"]],
   ["settings:read", ["GET /api/workspace", "GET /api/credits", "GET /api/sms-numbers", "GET /api/email-senders", "GET /api/inbound-addresses"]],
   ["settings:write", ["PATCH /api/workspace"]],
-  ["billing:manage", ["POST /api/credits/grant"]],
+  ["billing:manage", [
+    "POST /api/credits/grant", "GET /api/billing", "POST /api/billing/checkout/subscription", "POST /api/billing/checkout/topup", "POST /api/billing/portal", "PATCH /api/billing/automation",
+    "POST /api/billing/connect/onboard", "POST /api/billing/connect/refresh",
+  ]],
+  ["payments:request", ["POST /api/rooms/:id/payment-requests", "POST /api/payment-requests/:id/cancel"]],
   ["channels:manage", ["POST /api/sms-numbers", "POST /api/sms-numbers/:id/default", "DELETE /api/sms-numbers/:id", "POST /api/email-senders", "PATCH /api/email-senders/:id", "DELETE /api/email-senders/:id", "POST /api/inbound-addresses", "DELETE /api/inbound-addresses/:address"]],
   ["tokens:manage", ["GET /api/tokens", "POST /api/tokens", "POST /api/tokens/:id/rotate", "DELETE /api/tokens/:id"]],
   ["templates:manage", ["POST /api/templates", "PATCH /api/templates/:id", "DELETE /api/templates/:id"]],

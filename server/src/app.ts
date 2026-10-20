@@ -20,6 +20,7 @@ import { authRoutes } from "./routes/auth.js";
 import { publicRoutes } from "./routes/public.js";
 import { analyticsApiRoutes } from "./routes/analyticsApi.js";
 import { analyticsRoutes } from "./routes/analytics.js";
+import { billingRoutes } from "./routes/billing.js";
 import { roleRoutes } from "./routes/roles.js";
 import { invitationRoutes } from "./routes/invitations.js";
 import { roomRoutes } from "./routes/rooms.js";
@@ -106,6 +107,7 @@ export function createApp(ctx: AppContext): Hono {
   api.route("/", settingsRoutes(ctx));
   api.route("/", roleRoutes(ctx));
   api.route("/", analyticsRoutes(ctx));
+  api.route("/", billingRoutes(ctx));
   api.route("/", invitationRoutes(ctx));
   app.route("/api", api);
 

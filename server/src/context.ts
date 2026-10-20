@@ -13,6 +13,7 @@ import type { Metrics } from "./metrics.js";
 import type { WorkerPool } from "./workers/pool.js";
 import type { EmailProvider, SmsProvider, Storage } from "./providers/types.js";
 import type { AiProvider } from "./ai/provider.js";
+import type { BillingProvider } from "./billing/types.js";
 
 /** Everything a service needs, passed explicitly. Tests build one with fakes (see tests/helpers). */
 export interface AppContext {
@@ -27,6 +28,8 @@ export interface AppContext {
   email: EmailProvider;
   storage: Storage;
   ai: AiProvider;
+  /** Stripe behind an interface: the real SDK, a fake in tests, or a stub that answers 503 when no key is configured */
+  billing: BillingProvider;
   ratelimit: RateLimiter;
   /** domain event bus fed by the transactional outbox (Redis Streams when REDIS_URL is set, in-process otherwise) */
   eventBus: EventBus;

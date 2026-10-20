@@ -69,6 +69,11 @@ const GROUPS: { spec: RouteSpec; routes: string[] }[] = [
 
   { spec: { post: ["analytics.read", "analytics.workspace"] }, routes: ["GET /api/v1/analytics/overview", "GET /api/v1/analytics/timeseries", "GET /api/v1/analytics/schema", "GET /api/v1/analytics/identity-pepper"] },
   { spec: { post: ["analytics.export", "analytics.workspace"], inHandler: ["analytics.concurrency"] }, routes: ["GET /api/v1/analytics/export/rooms", "GET /api/v1/analytics/export/messages-meta"] },
+  { spec: { post: ["billing.checkout", "api.workspace"] }, routes: ["POST /api/billing/checkout/subscription", "POST /api/billing/checkout/topup", "POST /api/billing/portal", "POST /api/billing/connect/onboard", "POST /api/billing/connect/refresh"] },
+  { spec: { post: ["api.read", "api.workspace"] }, routes: ["GET /api/billing", "GET /api/rooms/:id/payment-requests"] },
+  { spec: { post: ["api.write", "api.workspace"] }, routes: ["PATCH /api/billing/automation", "POST /api/payment-requests/:id/cancel"] },
+  { spec: { post: ["api.write", "api.workspace"], inHandler: ["payments.workspace"] }, routes: ["POST /api/rooms/:id/payment-requests"] },
+  { spec: { pre: ["webhook.stripe"], inHandler: ["webhook.badsig"] }, routes: ["POST /webhooks/stripe", "POST /webhooks/stripe/connect"] },
   { spec: { pre: ["public.config"] }, routes: ["GET /public/widget/config"] },
   { spec: { pre: ["public.session"] }, routes: ["POST /public/sessions"] },
   { spec: { post: ["public.query"] }, routes: ["GET /public/session", "GET /public/rooms", "GET /public/rooms/:id/messages"] },

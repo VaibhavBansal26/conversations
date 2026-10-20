@@ -60,8 +60,13 @@ export const POLICIES: Policy[] = [
   P({ id: "analytics.workspace", description: "Analytics API calls per workspace per minute, by plan", keyBy: "workspace", algo: "window", limit: 120, windowSec: 60, tiers: { free: 120, pro: 600, business: 3000 }, onFail: "open" }),
   P({ id: "analytics.concurrency", description: "Concurrent exports per API key", keyBy: "apiKey", algo: "concurrency", limit: 2, windowSec: 60, ttlMs: 60_000, onFail: "open" }),
 
+  // ---- billing ----
+  P({ id: "billing.checkout", description: "Creating Stripe checkout/portal/onboarding sessions, per user (each is a paid API call to Stripe)", keyBy: "user", algo: "gcra", limit: 10, windowSec: 60, burst: 5, onFail: "open" }),
+  P({ id: "payments.workspace", description: "Customer payment requests per workspace per hour, by plan", keyBy: "workspace", algo: "window", limit: 20, windowSec: 3600, tiers: { free: 20, pro: 300, business: 3000 }, onFail: "open" }),
+
   // ---- provider webhooks ----
   P({ id: "webhook.provider", description: "Provider webhooks (Twilio, SendGrid), per IP", keyBy: "ip", algo: "gcra", limit: 300, windowSec: 60, burst: 300, onFail: "closed" }),
+  P({ id: "webhook.stripe", description: "Stripe webhooks (platform and Connect), per IP. Signature-verified; Stripe retries what is delayed", keyBy: "ip", algo: "gcra", limit: 600, windowSec: 60, burst: 600, onFail: "open" }),
   P({ id: "webhook.badsig", description: "Webhook signature failures per IP: 10 in 10 min block the IP, escalating", keyBy: "ip", algo: "strike", limit: 10, windowSec: 600, onFail: "closed" }),
 
   // ---- outbound sends (pacing, not rejection) ----

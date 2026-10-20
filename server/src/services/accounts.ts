@@ -14,6 +14,7 @@ import { actorFromRow, findMember, invalidateMember, memberDto, type MemberRow }
 import { signAccessToken } from "./auth.js";
 import { workspaceDto } from "./workspaces.js";
 import { addMinutes } from "../util/time.js";
+import { assertSeatAvailable } from "../billing/state.js";
 
 /* ===================================================================================================================================== *
  * Sessions and refresh-token rotation
@@ -288,6 +289,7 @@ export async function changePassword(ctx: AppContext, actor: Actor, sessionId: s
 const INVITE_TTL_DAYS = 7;
 
 export async function inviteMember(ctx: AppContext, actor: Actor, input: { email: string; name?: string; role_id: string }) {
+  await assertSeatAvailable(ctx, actor.workspaceId);
   const email = input.email.trim().toLowerCase();
   const role = await ctx.db.get<{ id: string; key: string; permissions: string }>("SELECT id, key, permissions FROM roles WHERE id = ? AND (workspace_id IS NULL OR workspace_id = ?)", input.role_id, actor.workspaceId);
   if (!role) throw notFound("Role");

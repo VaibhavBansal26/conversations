@@ -110,6 +110,22 @@ const schema = z.object({
   CREDIT_COST_SMS: z.coerce.number().int().min(0).default(1),
   CREDIT_COST_EMAIL: z.coerce.number().int().min(0).default(1),
 
+  /** Stripe. Without STRIPE_SECRET_KEY billing is off: the app runs, checkout endpoints answer 503 BILLING_NOT_CONFIGURED */
+  STRIPE_SECRET_KEY: z.string().optional(),
+  /** signing secret of the platform webhook endpoint (/webhooks/stripe) */
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  /** signing secret of the Connect webhook endpoint (/webhooks/stripe/connect): events from customers' connected accounts */
+  STRIPE_CONNECT_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_PRICE_PRO: z.string().optional(),
+  STRIPE_PRICE_BUSINESS: z.string().optional(),
+  /** days a workspace keeps working after a failed subscription payment before it is soft-locked (applies when PLAN_ENFORCEMENT=true) */
+  BILLING_GRACE_DAYS: z.coerce.number().int().min(0).max(60).default(7),
+  /** price of one credit in the smallest currency unit (cents); credit packs are priced from it */
+  CREDIT_PRICE_CENTS: z.coerce.number().min(0.01).default(2),
+  BILLING_CURRENCY: z.string().length(3).toLowerCase().default("usd"),
+  /** Connect: fee kept by the platform on payment requests, in basis points (100 = 1%) */
+  CONNECT_APPLICATION_FEE_BPS: z.coerce.number().int().min(0).max(5000).default(0),
+
   ANTHROPIC_API_KEY: z.string().optional(),
   ANTHROPIC_MODEL: z.string().default("claude-sonnet-5-5"),
   AI_TIMEOUT_MS: z.coerce.number().int().positive().default(20000),
@@ -158,6 +174,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   if (cfg.SMS_PROVIDER === "twilio" && !(cfg.TWILIO_ACCOUNT_SID && cfg.TWILIO_AUTH_TOKEN)) {
     throw new Error("SMS_PROVIDER=twilio requires TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN");
   }
+  if (cfg.STRIPE_SECRET_KEY && !cfg.STRIPE_WEBHOOK_SECRET) throw new Error("STRIPE_SECRET_KEY requires STRIPE_WEBHOOK_SECRET (webhooks are how subscriptions and top-ups are confirmed)");
   if (cfg.EMAIL_PROVIDER === "sendgrid" && !cfg.SENDGRID_API_KEY) {
     throw new Error("EMAIL_PROVIDER=sendgrid requires SENDGRID_API_KEY");
   }

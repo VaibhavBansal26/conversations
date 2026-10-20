@@ -22,7 +22,8 @@ export const PERMISSIONS = {
   "templates:manage": "Manage reply templates",
   "kb:manage": "Manage the knowledge base",
   "ai:use": "Use AI assistance",
-  "billing:manage": "See and change plan, credits and payment methods",
+  "billing:manage": "See and change plan, credits and payment methods, connect a Stripe account",
+  "payments:request": "Send payment requests to customers in a conversation",
   "analytics:read": "See analytics",
   "analytics:export": "Export analytics data",
   "analytics_identity:manage": "View or rotate the analytics identity pepper",
@@ -61,7 +62,7 @@ export const SYSTEM_ROLES: SystemRole[] = [
     name: "Agent",
     description: "Works conversations assigned to them (and their inboxes)",
     baseRole: "agent",
-    permissions: ["conversations:read", "conversations:reply", "contacts:read", "contacts:write", "members:read", "settings:read", "ai:use"],
+    permissions: ["conversations:read", "conversations:reply", "contacts:read", "contacts:write", "members:read", "settings:read", "ai:use", "payments:request"],
   },
   {
     id: "role_viewer",

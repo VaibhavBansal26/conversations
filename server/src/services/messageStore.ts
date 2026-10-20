@@ -287,8 +287,8 @@ function publicMeta(m: MessageRow) {
 /** Fields the visitor widget may see: notes never reach it, internal meta (triage) is stripped. */
 export function visitorMessageDto(ctx: AppContext, m: MessageRow, visitorReadSeq: number, refs?: RefMap) {
   const dto = messageDto(ctx, m, { visitorReadSeq, refs });
-  const { sub_type, ai, status } = dto.meta as Record<string, unknown>;
-  return { ...dto, subject: m.source === "email" ? dto.subject : null, from_addr: undefined, meta: { sub_type, ai, status }, failure_reason: null };
+  const { sub_type, ai, status, card } = dto.meta as Record<string, unknown>;
+  return { ...dto, subject: m.source === "email" ? dto.subject : null, from_addr: undefined, meta: { sub_type, ai, status, ...(card ? { card } : {}) }, failure_reason: null };
 }
 
 export async function visitorMessageDtos(ctx: AppContext, rows: MessageRow[], visitorReadSeq: number) {

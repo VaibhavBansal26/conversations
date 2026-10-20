@@ -11,12 +11,14 @@ import { wakeDueRooms, wakeRoom } from "../services/rooms.js";
 import { nowIso } from "../context.js";
 import { ensureMessagePartitions } from "../db/partitions.js";
 import { retentionSweep } from "../services/archive.js";
+import { runAutoRecharge } from "../billing/credits.js";
 import { enqueueJob, runDueJobs, type JobHandler } from "./queue.js";
 
 export const jobHandlers: Record<string, JobHandler> = {
   send_retry: async (ctx, p: { message_id: string }) => void (await retryDelivery(ctx, p.message_id)),
   paced_send: async (ctx, p: { message_id: string }) => void (await deliverMessage(ctx, p.message_id, { paced: true })),
   notify_email: (ctx, p) => sendNotificationEmail(ctx, p),
+  auto_recharge: async (ctx, p: { workspace_id: string; bucket: number }) => void (await runAutoRecharge(ctx, p)),
   digest_email: (ctx, p) => sendDigestEmail(ctx, p),
   wake_room: async (ctx, p: { room_id: string; until: string }) => {
     const r = await ctx.db.get<RoomRow>("SELECT * FROM rooms WHERE id = ? AND archived = 0", p.room_id);

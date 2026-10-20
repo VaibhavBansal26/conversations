@@ -6,6 +6,7 @@ import { clientIp } from "../http.js";
 import { guardStrikes } from "../ratelimit/http.js";
 import { ipKey } from "../util/clientIp.js";
 import { handleInboundEmail, handleInboundSms, handleSendgridEvents, handleTwilioStatus, type SendgridEvent } from "../services/inbound.js";
+import { handleStripeEvent } from "../billing/webhooks.js";
 import { requireSendgridEvents, requireSharedSecret, requireTwilio } from "../webhooks/signatures.js";
 
 const TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
@@ -44,6 +45,17 @@ export function webhookRoutes(ctx: AppContext) {
     await handleTwilioStatus(ctx, { MessageSid: p.MessageSid, MessageStatus: p.MessageStatus, ErrorCode: p.ErrorCode });
     return c.body(null, 204);
   });
+
+  // Stripe: the signature is checked over the exact raw bytes, then the event is applied once (stripe_events journal). 2xx = done or ignorable,
+  // anything else makes Stripe retry with backoff.
+  for (const [path, kind] of [["/stripe", "platform"], ["/stripe/connect", "connect"]] as const) {
+    r.post(path, async (c) => {
+      const raw = await c.req.text();
+      const event = ctx.billing.verifyWebhook(raw, c.req.header("stripe-signature"), kind);
+      const result = await handleStripeEvent(ctx, event, kind);
+      return c.json({ received: true, result });
+    });
+  }
 
   r.post("/sendgrid/inbound", async (c) => {
     requireSharedSecret(ctx, c.req.query("secret") ?? c.req.header("x-webhook-secret"));

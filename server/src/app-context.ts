@@ -2,6 +2,8 @@ import { hostname } from "node:os";
 import { randomBytes } from "node:crypto";
 import { resolve } from "node:path";
 import { createAiProvider, type AiProvider } from "./ai/provider.js";
+import { createBilling } from "./billing/stripe.js";
+import type { BillingProvider } from "./billing/types.js";
 import type { Config } from "./config.js";
 import { BackgroundTracker, type AppContext } from "./context.js";
 import { migrate, openDb } from "./db/index.js";
@@ -35,6 +37,7 @@ export interface ContextOverrides {
   email?: EmailProvider;
   storage?: Storage;
   ai?: AiProvider;
+  billing?: BillingProvider;
   clock?: () => Date;
   presence?: PresenceService;
   /** inject a rate-limit store (tests); defaults to Redis when REDIS_URL is set, memory otherwise */
@@ -72,6 +75,7 @@ export async function createContext(config: Config, o: ContextOverrides = {}): P
     email: o.email ?? (config.EMAIL_PROVIDER === "sendgrid" ? new SendGridEmailProvider(config.SENDGRID_API_KEY!) : new ConsoleEmailProvider(log)),
     storage: o.storage ?? new LocalDiskStorage(resolve(config.DATA_DIR, "uploads"), config.PUBLIC_URL, config.JWT_SECRET, () => ctxRef.clock().getTime()),
     ai: o.ai ?? createAiProvider(config),
+    billing: o.billing ?? createBilling(config),
     ratelimit: undefined as never,
     eventBus: hub ? new RedisStreamsBus(hub) : new MemoryBus(),
     cache,
