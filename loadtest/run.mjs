@@ -433,6 +433,7 @@ async function fault() {
     LOST: fin.sendUnique - stored,
     DUPLICATED_IN_DB: stored - distinct,
     per_room_seq_gaps_in_db: gaps,
+    send_error_kinds: fin.sendErrorKinds,
     client_seq_gaps_live: fin.gap,
     server_resync_signals_received_by_clients: fin.resyncSignals,
     client_duplicates_received: fin.dup,

@@ -5,7 +5,7 @@ import { io } from "socket.io-client";
 
 const sockets = []; // {s, kind, rooms, last: Map<room, {seq,id}>, item}
 const ctr = {
-  connected: 0, connectErrors: 0, connectErrorSamples: {}, disconnects: 0, reconnects: 0,
+  sendErrorKinds: {}, connected: 0, connectErrors: 0, connectErrorSamples: {}, disconnects: 0, reconnects: 0,
   recv: 0, recvTeam: 0, recvVisitor: 0, auditMissing: 0, dup: 0, gap: 0, gapMsgs: 0, recovered: 0, resyncRequests: 0, resyncFailed: 0,
   resyncSignals: 0, sendUnique: 0, resent: 0, failovers: 0, sendOk: 0, sendErr: 0, sendCreatedFalse: 0, acksTimeout: 0, drained: 0, slowKicked: 0,
 };
@@ -135,7 +135,14 @@ function emitSend(rec, roomId, body, cid) {
   if (!rec.s.connected) return;
   const at = Date.now();
   rec.s.emit("message:send", { room_id: roomId, content: body, client_msg_id: cid }, (ack) => {
-    if (ack?.ok === false || ack?.error) { ctr.sendErr++; return; }
+    if (ack?.ok === false || ack?.error) {
+      ctr.sendErr++;
+      const code = String(ack?.error?.code ?? ack?.error ?? "?").slice(0, 40);
+      ctr.sendErrorKinds[code] = (ctr.sendErrorKinds[code] ?? 0) + 1;
+      // a real client shows "failed, retry" or retries by itself; do the latter with the same client id and a jittered delay
+      if (rec.pending.has(cid)) setTimeout(() => { ctr.resent++; emitSend(rec, roomId, body, cid); }, 1000 + Math.random() * 2000);
+      return;
+    }
     rec.pending.delete(cid);
     ctr.sendOk++;
     if (ack && ack.created === false) ctr.sendCreatedFalse++;
@@ -197,7 +204,7 @@ function pauseReading(n) {
 
 function snapshot(reset) {
   const lat = (a) => { const s = [...a].sort((x, y) => x - y); const p = (q) => (s.length ? s[Math.min(s.length - 1, Math.floor(q * s.length))] : null); return { n: s.length, p50: p(0.5), p90: p(0.9), p99: p(0.99), max: s.length ? s[s.length - 1] : null }; };
-  const out = { ...ctr, connectErrorSamples: { ...ctr.connectErrorSamples }, open: sockets.filter((r) => r.s.connected).length, total: sockets.length, delivery: lat(deliveryLat), ack: lat(ackLat), connect: lat(connectLat), deliveryRaw: reset ? deliveryLat : undefined };
+  const out = { ...ctr, connectErrorSamples: { ...ctr.connectErrorSamples }, sendErrorKinds: { ...ctr.sendErrorKinds }, open: sockets.filter((r) => r.s.connected).length, total: sockets.length, delivery: lat(deliveryLat), ack: lat(ackLat), connect: lat(connectLat), deliveryRaw: reset ? deliveryLat : undefined };
   if (reset) {
     deliveryLat = [];
     ackLat = [];
