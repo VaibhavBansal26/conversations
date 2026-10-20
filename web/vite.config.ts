@@ -28,7 +28,7 @@ export default defineConfig({
         manualChunks(id: string) {
           if (!id.includes("node_modules")) return undefined;
           if (/socket\.io|engine\.io/.test(id)) return "vendor-socket";
-          if (/@tanstack/.test(id)) return "vendor-query";
+          if (/@tanstack\/react-query/.test(id)) return "vendor-query";
           if (/react-router/.test(id)) return "vendor-router";
           if (/node_modules\/(react|react-dom|scheduler)\//.test(id)) return "vendor-react";
           return undefined;

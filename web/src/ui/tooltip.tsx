@@ -18,6 +18,7 @@ interface Props {
 /** Hover/focus hint. The trigger keeps its own accessible name: this is supplementary text. */
 export function Tooltip({ content, children, side = "top", shortcut }: Props) {
   return (
+    <TooltipPrimitive.Provider delayDuration={350} skipDelayDuration={150}>
     <TooltipPrimitive.Root>
       <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
       <TooltipPrimitive.Portal>
@@ -31,5 +32,6 @@ export function Tooltip({ content, children, side = "top", shortcut }: Props) {
         </TooltipPrimitive.Content>
       </TooltipPrimitive.Portal>
     </TooltipPrimitive.Root>
+    </TooltipPrimitive.Provider>
   );
 }

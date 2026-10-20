@@ -12,7 +12,7 @@ export function useShortcuts(handlers: Handlers): void {
       const action = shortcutFor(e);
       const handler = action ? ref.current[action] : undefined;
       if (!action || !handler) return;
-      if (action !== "escape" && document.querySelector('[aria-modal="true"]')) return;
+      if (action !== "escape" && document.querySelector('[role="dialog"], [role="menu"], [aria-modal="true"]')) return;
       e.preventDefault();
       handler();
     };

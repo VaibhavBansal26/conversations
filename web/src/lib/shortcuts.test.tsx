@@ -10,6 +10,12 @@ describe("shortcutFor", () => {
     ["e", "toggle_status"],
     ["a", "open_assign"],
     ["c", "focus_composer"],
+    ["/", "focus_search"],
+    ["n", "new_conversation"],
+    ["i", "toggle_panel"],
+    ["p", "toggle_priority"],
+    ["f", "toggle_favorite"],
+    ["s", "open_snooze"],
     ["?", "help"],
     ["Escape", "escape"],
   ])("maps %s to %s", (key, action) => {

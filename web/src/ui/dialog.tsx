@@ -11,12 +11,22 @@ export function DialogOverlay({ className, ...props }: ComponentProps<typeof Dia
   return <DialogPrimitive.Overlay className={cn("fixed inset-0 z-50 animate-fade-in bg-overlay backdrop-blur-[2px]", className)} {...props} />;
 }
 
-export function DialogContent({ className, children, ...props }: ComponentProps<typeof DialogPrimitive.Content>) {
+export function DialogContent({ className, children, onOpenAutoFocus, ...props }: ComponentProps<typeof DialogPrimitive.Content>) {
   return (
     <DialogPrimitive.Portal>
       <DialogOverlay />
       <DialogPrimitive.Content
         aria-describedby={undefined}
+        onOpenAutoFocus={(e) => {
+          onOpenAutoFocus?.(e);
+          if (e.defaultPrevented) return;
+          // `data-autofocus` marks the control that should receive focus first (otherwise Radix picks the first tabbable: the close button)
+          const target = (e.currentTarget as HTMLElement).querySelector<HTMLElement>("[data-autofocus]");
+          if (target) {
+            e.preventDefault();
+            target.focus();
+          }
+        }}
         className={cn(
           "fixed left-1/2 top-1/2 z-50 flex max-h-[min(90dvh,820px)] w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 animate-pop-in flex-col rounded-xl border border-border bg-surface shadow-lg focus:outline-none",
           className,

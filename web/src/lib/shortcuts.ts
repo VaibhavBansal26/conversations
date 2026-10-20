@@ -1,4 +1,17 @@
-export type ShortcutAction = "next_room" | "prev_room" | "toggle_status" | "open_assign" | "focus_composer" | "help" | "escape";
+export type ShortcutAction =
+  | "next_room"
+  | "prev_room"
+  | "toggle_status"
+  | "open_assign"
+  | "focus_composer"
+  | "focus_search"
+  | "new_conversation"
+  | "toggle_panel"
+  | "toggle_priority"
+  | "toggle_favorite"
+  | "open_snooze"
+  | "help"
+  | "escape";
 
 export interface KeyInfo {
   key: string;
@@ -14,6 +27,12 @@ const KEYS: Record<string, ShortcutAction> = {
   e: "toggle_status",
   a: "open_assign",
   c: "focus_composer",
+  "/": "focus_search",
+  n: "new_conversation",
+  i: "toggle_panel",
+  p: "toggle_priority",
+  f: "toggle_favorite",
+  s: "open_snooze",
   "?": "help",
 };
 
@@ -32,12 +51,51 @@ export function shortcutFor(e: KeyInfo): ShortcutAction | null {
   return KEYS[e.key] ?? null;
 }
 
-export const SHORTCUT_HELP: { keys: string; label: string }[] = [
-  { keys: "j / k", label: "Next / previous conversation" },
-  { keys: "e", label: "Close or reopen conversation" },
-  { keys: "a", label: "Open assign menu" },
-  { keys: "c", label: "Focus the composer" },
-  { keys: "?", label: "Show this help" },
-  { keys: "Esc", label: "Close menus and dialogs" },
-  { keys: "Enter", label: "Send message (Shift+Enter for a new line)" },
+export interface ShortcutGroup {
+  title: string;
+  items: { keys: string[]; label: string }[];
+}
+
+export const MOD_KEY = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl";
+
+export const SHORTCUT_GROUPS: ShortcutGroup[] = [
+  {
+    title: "Navigate",
+    items: [
+      { keys: [MOD_KEY, "K"], label: "Command palette: jump to a conversation or run an action" },
+      { keys: ["j", "k"], label: "Next / previous conversation" },
+      { keys: ["/"], label: "Search conversations" },
+      { keys: ["n"], label: "New conversation" },
+    ],
+  },
+  {
+    title: "Conversation",
+    items: [
+      { keys: ["e"], label: "Close or reopen" },
+      { keys: ["a"], label: "Open the assign menu" },
+      { keys: ["s"], label: "Snooze" },
+      { keys: ["p"], label: "Toggle priority" },
+      { keys: ["f"], label: "Toggle favorite" },
+      { keys: ["i"], label: "Show or hide contact details" },
+      { keys: ["c"], label: "Focus the composer" },
+    ],
+  },
+  {
+    title: "Composer",
+    items: [
+      { keys: ["Enter"], label: "Send (Shift + Enter for a new line)" },
+      { keys: ["/"], label: "At the start of a reply: pick a template" },
+      { keys: ["@"], label: "In a note: mention a teammate" },
+    ],
+  },
+  {
+    title: "General",
+    items: [
+      { keys: ["?"], label: "Show this help" },
+      { keys: ["Esc"], label: "Close menus and dialogs" },
+    ],
+  },
 ];
+
+/** Flat list kept for tests and docs generators. */
+export const SHORTCUT_HELP = SHORTCUT_GROUPS.flatMap((g) => g.items.map((i) => ({ keys: i.keys.join(" + "), label: i.label })));

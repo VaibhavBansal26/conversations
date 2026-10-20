@@ -2,39 +2,13 @@ import { CheckCircle2, Info, X, XCircle } from "lucide-react";
 import { Toast as ToastPrimitive } from "radix-ui";
 import { useSyncExternalStore } from "react";
 import { cn } from "./cn";
-
-type Tone = "default" | "success" | "error";
-interface ToastItem {
-  id: number;
-  title: string;
-  description?: string;
-  tone: Tone;
-}
-
-let items: ToastItem[] = [];
-let nextId = 1;
-const listeners = new Set<() => void>();
-const emit = () => listeners.forEach((l) => l());
-
-/** Imperative toast: `toast({ title: "Saved", tone: "success" })`. Rendered by <Toaster />. */
-export function toast(t: { title: string; description?: string; tone?: Tone }): void {
-  items = [...items, { id: nextId++, title: t.title, description: t.description, tone: t.tone ?? "default" }];
-  emit();
-}
-const dismiss = (id: number) => {
-  items = items.filter((i) => i.id !== id);
-  emit();
-};
-const subscribe = (l: () => void) => {
-  listeners.add(l);
-  return () => listeners.delete(l);
-};
+import { dismissToast as dismiss, getToasts, subscribeToasts as subscribe } from "./toast-store";
 
 const ICON = { default: Info, success: CheckCircle2, error: XCircle } as const;
 const TONE = { default: "text-primary-text", success: "text-success", error: "text-danger-text" } as const;
 
 export function Toaster() {
-  const list = useSyncExternalStore(subscribe, () => items);
+  const list = useSyncExternalStore(subscribe, getToasts);
   return (
     <ToastPrimitive.Provider swipeDirection="right" duration={4500} label="Notifications">
       {list.map((t) => {
