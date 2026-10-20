@@ -4,10 +4,8 @@ import { api } from "../../api/client";
 import type { Contact } from "../../api/types";
 import { fieldErrors } from "../../lib/apiError";
 import { keys } from "../../state/keys";
-import { ErrorNotice } from "../../ui";
-import { Field } from "../../ui";
-import { Icon } from "../../ui";
-import { Switch } from "../../ui";
+import { Plus, X } from "lucide-react";
+import { Button, ErrorNotice, Field, Input, Switch, toast } from "../../ui";
 
 type Attr = { key: string; value: string };
 
@@ -35,6 +33,7 @@ export function ContactForm({ contact }: { contact: Contact }) {
         sms_opt_out: optOut,
       }),
     onSuccess: (c) => {
+      toast({ title: "Contact saved", tone: "success" });
       qc.setQueryData(keys.contact(contact.id), c);
       void qc.invalidateQueries({ queryKey: keys.rooms });
       void qc.invalidateQueries({ queryKey: ["room"] });
@@ -50,43 +49,46 @@ export function ContactForm({ contact }: { contact: Contact }) {
 
   return (
     <form
-      className="contact-form"
+      className="flex flex-col gap-3"
       onSubmit={(e) => {
         e.preventDefault();
         save.mutate();
       }}
     >
       <Field label="Name" error={errors.name}>
-        <input value={name} onChange={(e) => setName(e.target.value)} maxLength={200} />
+        <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={200} />
       </Field>
       <Field label="Email" error={errors.email}>
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
       </Field>
       <Field label="Phone" hint="International format, e.g. +14155550123" error={errors.phone}>
-        <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        <Input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
       </Field>
       <Switch label="Opted out of SMS" hint="Set when the contact replies STOP. Texts are blocked while on." checked={optOut} onChange={setOptOut} />
 
-      <fieldset className="tags">
-        <legend>Tags</legend>
-        <ul className="chip-row">
-          {tags.map((t) => (
-            <li key={t} className="chip">
-              {t}
-              <button type="button" className="icon-btn sm" aria-label={`Remove tag ${t}`} onClick={() => setTags(tags.filter((x) => x !== t))}>
-                <Icon name="x" size={12} />
-              </button>
-            </li>
-          ))}
-        </ul>
-        <div className="row">
+      <fieldset className="space-y-2">
+        <legend className="mb-1 text-[13px] font-medium">Tags</legend>
+        {tags.length > 0 && (
+          <ul className="flex flex-wrap gap-1.5">
+            {tags.map((t) => (
+              <li key={t} className="flex items-center gap-1 rounded-full bg-primary-soft py-0.5 pl-2.5 pr-1 text-xs font-medium text-primary-text">
+                {t}
+                <button type="button" className="grid size-4 place-items-center rounded-full hover:bg-primary/15" aria-label={`Remove tag ${t}`} onClick={() => setTags(tags.filter((x) => x !== t))}>
+                  <X className="size-3" aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex gap-2">
           <label className="sr-only" htmlFor="tag-draft">
             Add tag
           </label>
-          <input
+          <Input
             id="tag-draft"
             value={tagDraft}
             placeholder="Add tag"
+            className="h-8"
             onChange={(e) => setTagDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
@@ -95,32 +97,32 @@ export function ContactForm({ contact }: { contact: Contact }) {
               }
             }}
           />
-          <button type="button" className="btn btn-ghost btn-sm" onClick={addTag}>
+          <Button variant="outline" size="sm" onClick={addTag}>
             Add
-          </button>
+          </Button>
         </div>
       </fieldset>
 
-      <fieldset className="attrs">
-        <legend>Custom attributes</legend>
+      <fieldset className="space-y-2">
+        <legend className="mb-1 text-[13px] font-medium">Custom attributes</legend>
         {attrs.map((a, i) => (
-          <div className="row" key={i}>
-            <input aria-label={`Attribute ${i + 1} name`} placeholder="name" value={a.key} onChange={(e) => setAttrs(attrs.map((x, j) => (j === i ? { ...x, key: e.target.value } : x)))} />
-            <input aria-label={`Attribute ${i + 1} value`} placeholder="value" value={a.value} onChange={(e) => setAttrs(attrs.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))} />
-            <button type="button" className="icon-btn sm" aria-label={`Remove attribute ${a.key || i + 1}`} onClick={() => setAttrs(attrs.filter((_, j) => j !== i))}>
-              <Icon name="x" size={12} />
-            </button>
+          <div className="flex gap-1.5" key={i}>
+            <Input className="h-8" aria-label={`Attribute ${i + 1} name`} placeholder="name" value={a.key} onChange={(e) => setAttrs(attrs.map((x, j) => (j === i ? { ...x, key: e.target.value } : x)))} />
+            <Input className="h-8" aria-label={`Attribute ${i + 1} value`} placeholder="value" value={a.value} onChange={(e) => setAttrs(attrs.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))} />
+            <Button variant="ghost" size="icon-sm" aria-label={`Remove attribute ${a.key || i + 1}`} onClick={() => setAttrs(attrs.filter((_, j) => j !== i))}>
+              <X />
+            </Button>
           </div>
         ))}
-        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setAttrs([...attrs, { key: "", value: "" }])}>
-          <Icon name="plus" size={14} /> Add attribute
-        </button>
+        <Button variant="ghost" size="sm" onClick={() => setAttrs([...attrs, { key: "", value: "" }])}>
+          <Plus aria-hidden="true" /> Add attribute
+        </Button>
       </fieldset>
 
       {save.isError && <ErrorNotice error={save.error} compact />}
-      <button type="submit" className="btn btn-primary btn-sm" disabled={save.isPending}>
+      <Button type="submit" size="sm" loading={save.isPending}>
         {save.isPending ? "Saving…" : save.isSuccess ? "Saved" : "Save contact"}
-      </button>
+      </Button>
     </form>
   );
 }
