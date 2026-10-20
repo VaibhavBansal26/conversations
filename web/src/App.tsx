@@ -6,8 +6,10 @@ import { InboxPage } from "./pages/InboxPage";
 import { LoginPage } from "./pages/LoginPage";
 import { AcceptInvitationPage, ForgotPasswordPage, ResetPasswordPage } from "./pages/PasswordPages";
 import { RegisterPage } from "./pages/RegisterPage";
+import { ImpersonatePage } from "./pages/ImpersonatePage";
 import { SettingsLayout } from "./pages/settings/SettingsLayout";
 
+const AdminApp = lazy(() => import("./admin/AdminApp"));
 const AiSettings = lazy(() => import("./pages/settings/AiSettings").then((m) => ({ default: m.AiSettings })));
 const ChannelSettings = lazy(() => import("./pages/settings/ChannelSettings").then((m) => ({ default: m.ChannelSettings })));
 const GeneralSettings = lazy(() => import("./pages/settings/GeneralSettings").then((m) => ({ default: m.GeneralSettings })));
@@ -27,6 +29,8 @@ const WidgetSettings = lazy(() => import("./pages/settings/WidgetSettings").then
 export function App() {
   return (
     <Routes>
+      <Route path="/admin/*" element={<Suspense fallback={null}><AdminApp /></Suspense>} />
+      <Route path="/impersonate" element={<ImpersonatePage />} />
       <Route element={<RedirectIfAuthed />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />

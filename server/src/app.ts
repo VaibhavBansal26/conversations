@@ -157,7 +157,7 @@ export function createApp(ctx: AppContext): Hono {
   if (existsSync(webDist)) {
     app.get("*", (c) => {
       const p = new URL(c.req.url).pathname;
-      if (p.startsWith("/api/") || p.startsWith("/public/") || p.startsWith("/webhooks/") || p.startsWith("/socket.io")) return c.notFound();
+      if (p.startsWith("/api/") || p.startsWith("/admin/api/") || p.startsWith("/public/") || p.startsWith("/webhooks/") || p.startsWith("/socket.io")) return c.notFound();
       return serveSpa(webDist, c) ?? c.notFound();
     });
   }

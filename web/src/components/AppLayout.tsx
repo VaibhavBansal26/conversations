@@ -4,9 +4,30 @@ import { useCounts } from "../api/hooks";
 import { SocketProvider } from "../realtime/SocketProvider";
 import { documentTitle } from "../lib/unread";
 import { Link } from "react-router";
-import { useSession } from "../auth/AuthContext";
+import { useAuth, useSession } from "../auth/AuthContext";
 import { Icon } from "./ui/Icon";
 import { ReconnectBanner } from "./inbox/ReconnectBanner";
+
+/** The token's own `imp` claim says this is a platform support view: read-only, ends by itself. */
+export const isSupportToken = (token: string | null): boolean => {
+  try {
+    const payload = JSON.parse(atob((token ?? "").split(".")[1]!.replace(/-/g, "+").replace(/_/g, "/"))) as { imp?: string };
+    return typeof payload.imp === "string";
+  } catch {
+    return false;
+  }
+};
+
+function SupportBanner() {
+  const { token } = useAuth();
+  if (!isSupportToken(token)) return null;
+  return (
+    <div className="banner billing" role="status">
+      <Icon name="lock" size={14} />
+      Support access: read-only view, ends automatically after 15 minutes.
+    </div>
+  );
+}
 
 /** Every member is told when billing is overdue (the workspace is about to be, or is, soft-locked); only billing admins can fix it. */
 function BillingBanner() {
@@ -38,6 +59,7 @@ export function AppLayout() {
       </a>
       <ReconnectBanner />
       <BillingBanner />
+      <SupportBanner />
       <TitleSync />
       <Outlet />
     </SocketProvider>

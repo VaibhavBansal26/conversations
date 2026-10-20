@@ -298,3 +298,12 @@
 .chart-data summary { cursor: pointer; font-size: 13px; color: var(--text-2); margin-top: 4px; }
 .chart-data table { border-collapse: collapse; margin-top: 6px; font-size: 13px; }
 .chart-data th, .chart-data td { text-align: left; padding: 2px 12px 2px 0; }
+
+/* platform console */
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0; }
+.stat-grid > div { border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; background: var(--surface); }
+.stat-grid dt { color: var(--text-2); font-size: 13px; }
+.stat-grid dd { margin: 2px 0 0; font-size: 22px; font-weight: 650; }
+.row.wrap { flex-wrap: wrap; }
+ul.plain { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+pre.code { overflow: auto; max-height: 360px; padding: 10px; background: var(--surface-3); border-radius: var(--radius-sm); font-size: 12px; }

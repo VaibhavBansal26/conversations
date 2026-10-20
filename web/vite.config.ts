@@ -11,6 +11,7 @@ export default defineConfig({
     fs: { allow: [".."] },
     proxy: {
       "/api": target,
+      "/admin/api": target,
       "/public": target,
       "/files": target,
       "/widget.js": target,
