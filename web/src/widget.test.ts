@@ -491,7 +491,7 @@ describe("form card in the widget", () => {
     withForm(formMsg({ answered: "submitted" }));
     submitForm();
     await flush(); await flush(); await flush();
-    expect(calls.find((c) => c.path === "/public/rooms/room_1/forms/msg_form")!.body).toEqual({ values: { email: "pat@example.test", phone: "07911 123456" }, consent: true, country: "GB" });
+    expect(calls.find((c) => c.path === "/public/rooms/room_1/forms/msg_form")!.body).toMatchObject({ values: { email: "pat@example.test", phone: "07911 123456" }, consent: true, country: "GB" });
     expect(shadow().querySelector(".cform")).toBeNull();
   });
 

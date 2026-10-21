@@ -11,6 +11,8 @@ const LEGAL: [CallState, CallEvent, CallState][] = [
   ["connecting", "end", "ended"],
   ["connecting", "fail", "failed"],
   ["connecting", "connect_timeout", "failed"],
+  ["connecting", "no_answer", "missed"],
+  ["connecting", "busy", "declined"],
   ["active", "end", "ended"],
   ["active", "fail", "failed"],
   ["active", "connected", "active"],

@@ -1733,6 +1733,10 @@
                     "minLength": 2,
                     "maxLength": 2
                   },
+                  "timezone": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
                   "website": {
                     "type": "string",
                     "maxLength": 300

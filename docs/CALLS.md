@@ -3,7 +3,7 @@
 Two ways for a team member to talk to a visitor, both off until a manager switches them on and both without recording:
 
 1. **Browser calls** (WebRTC): voice and video between the inbox and the visitor's page (the embedded widget, the hosted chat or a mobile web view). Built and tested; real-network behaviour is not verified (see [What is verified](#what-is-verified)).
-2. **Phone calls** (Twilio Voice click-to-call): the app rings the agent's phone and then bridges the visitor's phone. See [Phone calls](#phone-calls).
+2. **Phone calls** (Twilio Voice click-to-call): the app rings the agent's phone and then bridges the visitor's phone. Built and tested against a mocked Twilio only. See [Phone calls](#phone-calls).
 
 Decisions: [ADR 0031](adr/0031-calls-signalling-over-sockets.md).
 
@@ -108,4 +108,31 @@ Browsers only allow the microphone and camera on HTTPS pages. A site that embeds
 
 ## Phone calls
 
-Not built yet in this revision: see the status table in [AI-AGENTS.md](AI-AGENTS.md).
+Click-to-call through the workspace's **own** Twilio account (there is no platform fallback: without a verified Twilio connection nothing is called). The design is "call my phone, then connect the visitor": the app asks Twilio to ring the team member's phone from the workspace's caller ID; when they answer, Twilio fetches instructions from the app (`POST /webhooks/c/:id/twilio/voice/connect?call=...`) and the app answers TwiML that says "Connecting you to the customer" and dials the contact's number with `answerOnBridge`, a time limit and the same caller ID. Both legs report progress to `.../voice/status?call=...&leg=agent|visitor`. The team member needs no browser audio; the thread card follows the call (`Phone call: calling the agent's phone`, `calling the contact`, `Phone call, 3 min, ended by the visitor`, `Missed phone call`, ...), and the inbox shows a small status panel with a hang-up button. Placing one: Call by phone in the conversation header (needs `calls:make`), your own number is asked each time and remembered only in your browser.
+
+**Webhooks** are verified like the SMS ones: the connection id in the URL selects the workspace's Twilio credentials and the `X-Twilio-Signature` is checked over the exact URL (the call id is in the query string, so it is signed); unknown ids, bad signatures and a missing call id answer the same refusal and count toward the IP block. A call id of another workspace gets a "no longer available" hang-up TwiML, never a connection. Repeats are dropped by event key, out-of-order callbacks are harmless (every transition is a compare-and-set), and a status callback whose call sid is not the agent's leg or a child of it is ignored.
+
+**What has to be true before a call is placed** (each refusal has its own code and a sentence for the agent; Twilio is not contacted when any fails):
+
+| Guard | Code |
+| --- | --- |
+| phone calls switched on in Settings > Calls | `PHONE_CALLS_DISABLED` |
+| the workspace has its own verified Twilio connection | `NO_TWILIO` |
+| a caller ID is chosen, and it is one of the workspace's imported numbers (checked when saved) | `NO_CALLER_ID`, `UNKNOWN_CALLER_ID` |
+| the contact has a phone number | `CONTACT_NO_PHONE` |
+| **explicit consent recorded before calling**: the contact agreed, in the chat, to be called on that exact number (`attrs.call_consent = {at, phone, text}`; a changed number needs a new agreement) | `NO_CALL_CONSENT` |
+| the contact did not opt out: STOP or unsubscribed (the existing opt-out flags) | `DO_NOT_CALL` |
+| destination country is on the workspace's allow-list (empty list = nothing is called), and the number is not premium-rate, shared-cost, UAN, personal, pager or voicemail (libphonenumber types) | `DESTINATION_BLOCKED` |
+| not night for the contact: quiet hours (default 21:00 to 08:00) in their browser's time zone, kept on the contact when they answer a form, else the office-hours zone | `QUIET_HOURS` |
+| the agent's own number is valid and differs from the contact's | `INVALID_AGENT_PHONE` |
+| per-agent limit of 10 phone calls an hour (fails closed if the limiter store is down) | `429` |
+| per-workspace daily limit (setting, default 50, UTC day): the call row is written first and the day's calls are counted up to it, so parallel requests can only over-refuse, never over-spend; refused attempts do not count | `DAILY_LIMIT` |
+| one live call per conversation | `CALL_IN_PROGRESS` |
+
+**Consent** is collected with the callback form card (AI-AGENTS.md section 4): "Ask the visitor to agree" in the call dialog posts a card that shows the number to confirm (pre-filled when known), a required checkbox "I agree that you may call me on this number." and the visitor's time zone is sent with the answer. A number the visitor types that already belongs to another contact is never used as a call target.
+
+**Time limits** (every node, every 5 s): an agent who does not pick up within 45 s fails the call (`agent_no_answer`) and Twilio is asked to hang up; a bridge that has not completed 90 s after the agent answered fails (`connect_timeout`); `max_duration_s` (default 30 min) is passed to Twilio as the dial time limit. Outcomes of the contact's phone map to the same states as browser calls: no answer is missed, busy is declined, unreachable is failed.
+
+**Privacy and cost**: full numbers are not written to the audit log, ticket events or the call row (last four digits only); Twilio sees them, necessarily. Relayed media of browser calls and the minutes of phone calls are billed by Twilio to the workspace's account, not by this app, and credits are not charged. Twilio's own geo-permissions must also allow the destination, and a trial account only calls verified numbers (the refusal text from Twilio is shown).
+
+**Not verified**: any real Twilio call. Tested with a mocked Twilio (request bodies, signatures, TwiML, every callback status, races and guards). The TwiML attributes (`answerOnBridge`, `timeLimit`, `<Number statusCallbackEvent>`) follow Twilio's documentation but were not run against Twilio. Voice-capable caller IDs are not checked (Twilio refuses a number without voice and the message is shown). No browser-based Twilio Voice SDK for the agent side (optional in the design).

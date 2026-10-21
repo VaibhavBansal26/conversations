@@ -17,6 +17,7 @@ import type { SessionRow } from "../services/visitors.js";
 import { getSettings } from "../services/workspaces.js";
 import { canDo, isLive, next, IllegalTransition, type CallEvent, type CallState } from "./machine.js";
 import { iceConfig, type IceConfig } from "./turn.js";
+import { sweepPhone } from "./phone.js";
 
 /**
  * Calls between a team member and a visitor (docs/CALLS.md). This service owns the database row and the thread card; the sockets carry the
@@ -67,7 +68,7 @@ export const callDto = (c: CallRow) => ({
   end_reason: c.end_reason,
 });
 /** What a visitor may know of a call: no member ids. */
-export const visitorCallDto = (c: CallRow, agentName: string) => ({ id: c.id, room_id: c.room_id, kind: c.kind, state: c.state, duration_s: c.duration_s, ended_by: c.ended_by, end_reason: c.end_reason, agent_name: agentName });
+export const visitorCallDto = (c: CallRow, agentName: string) => ({ id: c.id, room_id: c.room_id, transport: c.transport, kind: c.kind, state: c.state, duration_s: c.duration_s, ended_by: c.ended_by, end_reason: c.end_reason, agent_name: agentName });
 
 const getCall = async (ctx: AppContext, id: string): Promise<CallRow> => {
   const c = await ctx.db.get<CallRow>("SELECT * FROM calls WHERE id = ?", id);
@@ -83,13 +84,13 @@ export async function callSettings(ctx: AppContext, ws: string) {
 /* ---------- the card in the thread ---------- */
 
 const KIND_LABEL = { voice: "Voice call", video: "Video call" } as const;
-export function cardText(c: Pick<CallRow, "kind" | "state" | "duration_s" | "ended_by" | "end_reason">): string {
-  const k = KIND_LABEL[c.kind];
+export function cardText(c: Pick<CallRow, "kind" | "state" | "duration_s" | "ended_by" | "end_reason"> & { transport?: "webrtc" | "phone" }): string {
+  const k = c.transport === "phone" ? "Phone call" : KIND_LABEL[c.kind];
   switch (c.state) {
     case "ringing":
-      return `${k}: ringing`;
+      return c.transport === "phone" ? `${k}: calling the agent's phone` : `${k}: ringing`;
     case "connecting":
-      return `${k}: connecting`;
+      return c.transport === "phone" ? `${k}: calling the contact` : `${k}: connecting`;
     case "active":
       return `${k} in progress`;
     case "declined":
@@ -108,6 +109,9 @@ export function cardText(c: Pick<CallRow, "kind" | "state" | "duration_s" | "end
   }
 }
 
+export async function postCardFor(ctx: AppContext, room: RoomRow, c: CallRow): Promise<string> {
+  return postCard(ctx, room, c);
+}
 async function postCard(ctx: AppContext, room: RoomRow, c: CallRow): Promise<string> {
   const r = await insertMessage(ctx, {
     workspaceId: room.workspace_id,
@@ -133,14 +137,14 @@ async function updateCard(ctx: AppContext, c: CallRow): Promise<void> {
 }
 
 /** Tell everybody who may see the room (team) and the visitor that the state changed. Never carries signalling. */
-async function publish(ctx: AppContext, c: CallRow): Promise<void> {
+export async function publish(ctx: AppContext, c: CallRow): Promise<void> {
   const agentName = await nameOf(ctx, c.workspace_id, c.initiated_by);
   ctx.bus.toRoom(c.workspace_id, c.room_id, "call:state", { call: callDto(c) }, { visitor: { call: visitorCallDto(c, agentName) } });
 }
 
 /* ---------- transitions ---------- */
 
-interface Patch {
+export interface Patch {
   agent_socket?: string | null;
   visitor_socket?: string | null;
   ended_by?: string;
@@ -148,6 +152,19 @@ interface Patch {
 }
 
 /** Move a call by one event with a compare-and-set on its current state. Throws IllegalTransition (as 409) when the call already moved. */
+export const stepCall = (ctx: AppContext, c: CallRow, event: CallEvent, patch: Patch = {}) => step(ctx, c, event, patch);
+
+/** Phone calls end through provider callbacks that may repeat or arrive late: a call that already moved is not an error. */
+export async function finishPhone(ctx: AppContext, c: CallRow, event: CallEvent, patch: Patch = {}): Promise<CallRow | null> {
+  try {
+    const fresh = (await ctx.db.get<CallRow>("SELECT * FROM calls WHERE id = ?", c.id)) ?? c;
+    return await step(ctx, fresh, event, patch);
+  } catch (e) {
+    if (e instanceof IllegalTransition || (e instanceof AppError && (e.code === "CALL_STATE_CHANGED" || e.code === "CALL_STATE"))) return null;
+    throw e;
+  }
+}
+
 async function step(ctx: AppContext, c: CallRow, event: CallEvent, patch: Patch = {}): Promise<CallRow> {
   const to = next(c.state, event);
   if (to === c.state) return c; // a repeated `connected`
@@ -184,10 +201,10 @@ const asAppError = (e: unknown): never => {
 
 async function afterCall(ctx: AppContext, c: CallRow): Promise<void> {
   const ticket = c.ticket_id ? await ctx.db.get<import("../services/tickets.js").TicketRow>("SELECT * FROM tickets WHERE id = ?", c.ticket_id) : undefined;
-  if (ticket) await recordTicketEvent(ctx, ticket, c.state === "ended" ? "call_ended" : `call_${c.state}`, { type: "member", id: c.initiated_by }, { call_id: c.id, kind: c.kind, duration_s: c.duration_s, reason: c.end_reason });
+  if (ticket) await recordTicketEvent(ctx, ticket, c.state === "ended" ? "call_ended" : `call_${c.state}`, { type: "member", id: c.initiated_by }, { call_id: c.id, kind: c.transport === "phone" ? "phone" : c.kind, duration_s: c.duration_s, reason: c.end_reason });
   await recordAudit(ctx, { workspaceId: c.workspace_id, actor: { type: "member", id: c.initiated_by }, action: `call.${c.state}`, target: c.id, detail: { room_id: c.room_id, kind: c.kind, transport: c.transport, duration_s: c.duration_s, reason: c.end_reason } });
   // a call nobody took leaves a way to reach the visitor: the callback form
-  if ((c.state === "missed" || c.state === "declined") && ticket) {
+  if ((c.state === "missed" || c.state === "declined") && ticket && c.transport === "webrtc") {
     await requestVisitorInfo(ctx, ticket.id, "callback", { text: c.state === "missed" ? "Sorry we missed each other. Leave a number and we will call you back." : "No problem. If you would like us to call you back later, leave a number." }).catch(() => null);
   }
 }
@@ -405,6 +422,10 @@ export async function sweepCalls(ctx: AppContext): Promise<{ missed: number; fai
   const ringByWs = new Map<string, number>();
   for (const c of rows) {
     try {
+      if (c.transport === "phone") {
+        if ((await sweepPhone(ctx, c)) === "ended") out.failed++;
+        continue;
+      }
       if (c.state === "ringing") {
         let ring = ringByWs.get(c.workspace_id);
         if (ring === undefined) ringByWs.set(c.workspace_id, (ring = (await callSettings(ctx, c.workspace_id)).ring_seconds));

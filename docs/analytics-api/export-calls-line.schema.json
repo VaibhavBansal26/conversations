@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "export-calls-line.schema.json",
+  "description": "One NDJSON line of GET /export/calls. No phone numbers, names or media (nothing is recorded).",
+  "type": "object",
+  "required": [
+    "id",
+    "room_id",
+    "ticket_id",
+    "ts",
+    "transport",
+    "kind",
+    "state",
+    "duration_s",
+    "ended_by",
+    "end_reason",
+    "agent_key"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "room_id": {
+      "type": "string"
+    },
+    "ticket_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "ts": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "transport": {
+      "enum": [
+        "webrtc",
+        "phone"
+      ]
+    },
+    "kind": {
+      "enum": [
+        "voice",
+        "video"
+      ]
+    },
+    "state": {
+      "enum": [
+        "ringing",
+        "connecting",
+        "active",
+        "declined",
+        "missed",
+        "ended",
+        "failed"
+      ]
+    },
+    "duration_s": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "ended_by": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "end_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "agent_key": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$"
+    }
+  }
+}

@@ -1,0 +1,319 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "support.schema.json",
+  "description": "GET /support: tickets, AI agents, departments and calls in the range. Extra endpoint (additive in v1). agent_key is an opaque keyed hash, never an id or a name.",
+  "type": "object",
+  "required": [
+    "from",
+    "to",
+    "tickets",
+    "by_department",
+    "ai_agents",
+    "calls"
+  ],
+  "properties": {
+    "from": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "to": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tickets": {
+      "type": "object",
+      "required": [
+        "opened",
+        "resolved",
+        "by_resolution",
+        "containment_rate",
+        "handoff_rate",
+        "handoff_reasons",
+        "wait_for_human_p50_s",
+        "sla_first_response_breaches",
+        "sla_resolution_breaches",
+        "csat",
+        "queue_length_now"
+      ],
+      "properties": {
+        "opened": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "resolved": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "by_resolution": {
+          "type": "object",
+          "required": [
+            "bot_resolved",
+            "human_resolved",
+            "abandoned",
+            "auto_closed",
+            "merged"
+          ],
+          "properties": {
+            "bot_resolved": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "human_resolved": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "abandoned": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "auto_closed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "merged": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "containment_rate": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Of the tickets an AI agent worked on, the share it resolved without a person; null when no ticket had an AI agent."
+        },
+        "handoff_rate": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Share of opened tickets that were handed to a person."
+        },
+        "handoff_reasons": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "reason",
+              "count"
+            ],
+            "properties": {
+              "reason": {
+                "type": "string"
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        },
+        "wait_for_human_p50_s": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "sla_first_response_breaches": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sla_resolution_breaches": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "csat": {
+          "type": "object",
+          "required": [
+            "bot_avg",
+            "bot_count",
+            "human_avg",
+            "human_count"
+          ],
+          "properties": {
+            "bot_avg": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "bot_count": {
+              "type": "integer"
+            },
+            "human_avg": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "human_count": {
+              "type": "integer"
+            }
+          }
+        },
+        "queue_length_now": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "by_department": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "department_id",
+          "tickets",
+          "handoffs",
+          "resolved",
+          "csat_avg",
+          "sla_breaches"
+        ],
+        "properties": {
+          "department_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tickets": {
+            "type": "integer"
+          },
+          "handoffs": {
+            "type": "integer"
+          },
+          "resolved": {
+            "type": "integer"
+          },
+          "csat_avg": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "sla_breaches": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    "ai_agents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "agent_key",
+          "turns",
+          "answered",
+          "handoffs",
+          "resolved",
+          "refused",
+          "helpful",
+          "not_helpful"
+        ],
+        "properties": {
+          "agent_key": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$"
+          },
+          "turns": {
+            "type": "integer"
+          },
+          "answered": {
+            "type": "integer"
+          },
+          "handoffs": {
+            "type": "integer"
+          },
+          "resolved": {
+            "type": "integer"
+          },
+          "refused": {
+            "type": "integer"
+          },
+          "helpful": {
+            "type": "integer"
+          },
+          "not_helpful": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    "calls": {
+      "type": "object",
+      "required": [
+        "total",
+        "answered",
+        "missed",
+        "declined",
+        "failed",
+        "total_duration_s",
+        "avg_duration_s",
+        "by_transport",
+        "by_kind"
+      ],
+      "properties": {
+        "total": {
+          "type": "integer"
+        },
+        "answered": {
+          "type": "integer"
+        },
+        "missed": {
+          "type": "integer"
+        },
+        "declined": {
+          "type": "integer"
+        },
+        "failed": {
+          "type": "integer"
+        },
+        "total_duration_s": {
+          "type": "integer"
+        },
+        "avg_duration_s": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "by_transport": {
+          "type": "object",
+          "required": [
+            "webrtc",
+            "phone"
+          ],
+          "properties": {
+            "webrtc": {
+              "type": "integer"
+            },
+            "phone": {
+              "type": "integer"
+            }
+          }
+        },
+        "by_kind": {
+          "type": "object",
+          "required": [
+            "voice",
+            "video"
+          ],
+          "properties": {
+            "voice": {
+              "type": "integer"
+            },
+            "video": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    }
+  }
+}

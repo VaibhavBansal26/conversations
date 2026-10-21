@@ -61,6 +61,13 @@
         "bot",
         "system"
       ]
+    },
+    "ticket_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Extra field (additive in v1): the ticket the message belongs to; null for messages written before tickets existed."
     }
   }
 }

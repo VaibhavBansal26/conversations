@@ -381,6 +381,7 @@
     var c = m ? m[1].toUpperCase() : (state.config && state.config.default_region) || "US";
     return COUNTRIES.some(function (x) { return x[0] === c; }) ? c : ((state.config && state.config.default_region) || "US");
   }
+  function zone() { try { return global.Intl.DateTimeFormat().resolvedOptions().timeZone || undefined; } catch (e) { return undefined; } }
   function renderContactForm(m, card) {
     var form = h("form", { class: "cform", "aria-label": t("form_label"), novalidate: true, "data-form": m.id });
     var inputs = {}, errs = {}, country = null;
@@ -393,7 +394,7 @@
       if (f.type === "select") input = h("select", { name: f.key }, [h("option", { value: "", text: "" })].concat((f.options || []).map(function (o) { return h("option", { value: o, text: o }); })));
       else input = h("input", { type: f.type === "email" ? "email" : f.type === "tel" ? "tel" : "text", name: f.key, autocomplete: f.key === "name" ? "name" : f.key === "email" ? "email" : f.key === "phone" ? "tel" : "off", maxlength: "200", inputmode: f.type === "tel" ? "tel" : null, "aria-required": f.required ? "true" : null });
       inputs[f.key] = input;
-      if (draft[f.key]) input.value = draft[f.key];
+      if (draft[f.key]) input.value = draft[f.key]; else if (f.prefill) input.value = f.prefill;
       input.addEventListener("input", function () { draft[f.key] = input.value; });
       input.addEventListener("change", function () { draft[f.key] = input.value; });
       var control = input;
@@ -450,7 +451,7 @@
       var values = {};
       card.fields.forEach(function (f) { var v = (inputs[f.key].value || "").trim(); if (v) values[f.key] = v; });
       go.disabled = true;
-      api("/public/rooms/" + state.room.id + "/forms/" + m.id, { method: "POST", body: { values: values, consent: !!(consent && consent.checked), country: country ? country.value : undefined, website: hp.value || undefined } }).then(function () {
+      api("/public/rooms/" + state.room.id + "/forms/" + m.id, { method: "POST", body: { values: values, consent: !!(consent && consent.checked), country: country ? country.value : undefined, website: hp.value || undefined, timezone: zone() } }).then(function () {
         emit("contact_info_submitted", { room_id: state.room.id, fields: Object.keys(values) });
         return loadMessages().then(function () { renderMessages(); });
       }).catch(function (ex) {

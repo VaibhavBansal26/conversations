@@ -31,7 +31,10 @@ Base `/api/v1/analytics`, `Authorization: Bearer ca_live_...`. Every response is
 | `GET /timeseries?metric=` | `analytics:read` | zero-filled points for `rooms_opened`, `messages_in`, `messages_out`, `first_response_p50`, `resolution_p50`, `backlog` |
 | `GET /schema` | `analytics:read` | the JSON Schemas and `schema_version` |
 | `GET /export/rooms` | `analytics:export` | NDJSON, one room per line |
-| `GET /export/messages-meta` | `analytics:export` | NDJSON, one message per line, **no content** |
+| `GET /export/messages-meta` | `analytics:export` | NDJSON, one message per line, **no content**; each line also carries `ticket_id` (additive, null before tickets existed) |
+| `GET /support` | `analytics:read` | tickets, AI agents, departments and calls (below) |
+| `GET /export/tickets` | `analytics:export` | NDJSON, one ticket per line (below) |
+| `GET /export/calls` | `analytics:export` | NDJSON, one call per line (below) |
 | `GET /identity-pepper` | session with `analytics_identity:manage` + `analytics:export`, **or** an API key with the scopes `analytics:export` + `analytics_identity:manage` | `{pepper, version, algorithm: "HMAC-SHA256", fingerprint, rotatedAt}` |
 | `PUT /identity-pepper` | session with `analytics_identity:manage` + `analytics:export` (never an API key) | import a pepper chosen elsewhere; same response; see [Sharing the pepper between apps](#sharing-the-pepper-between-apps) |
 | `POST /identity-pepper/rotate` | session, as `PUT` | replace it with a new random one; same response |
@@ -42,6 +45,27 @@ Query parameters: `from`, `to` (ISO date or datetime, default the last 30 days, 
 curl -s -H "Authorization: Bearer $KEY" "http://localhost:3000/api/v1/analytics/overview?from=2026-03-01&to=2026-03-31&tz=Europe/Berlin"
 curl -s -H "Authorization: Bearer $KEY" "http://localhost:3000/api/v1/analytics/export/rooms?limit=1000" -D - -o rooms.ndjson   # follow X-Next-Cursor
 ```
+
+## Support analytics: tickets, AI agents, departments, calls
+
+Additive within API v1 (new endpoints and one new optional field; `schema_version` stays 1, consumers ignore what they do not know). The dashboard shows the same numbers under Analytics > Support (`GET /api/analytics/support`, `analytics:read`).
+
+`GET /api/v1/analytics/support?from&to` returns:
+
+| Field | Meaning |
+| --- | --- |
+| `tickets.opened`, `resolved`, `by_resolution` | tickets opened in the range; tickets resolved in it; opened tickets by how they ended (`bot_resolved`, `human_resolved`, `abandoned`, `auto_closed`, `merged`) |
+| `tickets.containment_rate` | of the tickets an AI agent worked on (it has at least one turn), the share it resolved without a person; `null` when none |
+| `tickets.handoff_rate`, `handoff_reasons` | share of opened tickets handed to a person, and the reasons with counts (`customer_requested_human`, `no_answer`, `sensitive_topic`, ...) |
+| `tickets.wait_for_human_p50_s` | median seconds from the hand-off to the first reply of a person (nearest rank, over up to 5000 tickets) |
+| `tickets.sla_first_response_breaches`, `sla_resolution_breaches` | tickets of the range that breached their department's service levels |
+| `tickets.csat` | average rating and count, for AI-resolved and for person-resolved tickets |
+| `tickets.queue_length_now` | tickets waiting for a person right now (not range-bound) |
+| `by_department` | per department: tickets, hand-offs, resolved, average rating, tickets with a breach |
+| `ai_agents` | per AI agent (`agent_key`, a keyed hash): turns and their outcomes, helpful and not-helpful votes of visitors and team |
+| `calls` | totals, answered (ended), missed, declined, failed, total and average duration of answered calls, by transport (`webrtc`, `phone`) and kind |
+
+`GET /export/tickets` lines: `id, number, room_id, created_at, closed_at, status, handler_type (bot|human|null), handler_key, department_id, priority, resolution, handoff_reason, channel, contact_key, first_response_s, wait_for_human_s, resolution_s, csat, sla_first_response_breached, sla_resolution_breached, bot_turns, calls, hour_of_day_created, dow_created`. **Never** the subject, the summary, notes, message text, names, emails or phone numbers: a person is `contact_key` (the same pepper hash as the room export, so records join), a seat or an AI agent is `handler_key` (keyed hash). `GET /export/calls` lines: `id, room_id, ticket_id, ts, transport, kind, state, duration_s, ended_by, end_reason, agent_key`; no phone numbers (a call row keeps the last four digits internally, the export has none). Both exports are keyset paged by `(created_at, id)`, resumable with `X-Next-Cursor`, gzip-able, limited to 5000 lines a page and two concurrent exports per key like the others.
 
 ## API keys
 

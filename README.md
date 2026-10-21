@@ -22,6 +22,7 @@ Requires Node >= 22.13 (developed on 24) and npm.
 ```bash
 npm run setup          # install server/, web/ and e2e/ dependencies
 npm run seed           # optional: demo workspace (demo@example.test / demo-password-123), dev only
+                       # SEED_AI=1 npm run seed adds departments, an AI agent that is on and calls (docs/AI-AGENTS.md)
 npm run dev            # API on http://localhost:3000, web app on http://localhost:5173
 ```
 

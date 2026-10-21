@@ -110,6 +110,7 @@ test("a declined call tells the agent and offers the visitor a callback form tha
   const form = w.visitor.getByRole("form", { name: "Your details" });
   await expect(form).toBeVisible();
   await form.getByLabel(/^Phone number/).fill("415 555 2671");
+  await form.getByLabel(/may call me on this number/).check();
   await form.getByRole("button", { name: "Send" }).click();
   await expect(form).toBeHidden();
   await expect.poll(async () => JSON.stringify(await w.api.get("/contacts", { search: w.name }))).toContain("+14155552671");

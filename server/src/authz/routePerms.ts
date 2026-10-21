@@ -19,7 +19,7 @@ const GROUPS: [RouteAccess, string[]][] = [
     "DELETE /public/session", "POST /public/session/attributes", "POST /public/attachments",
     "GET /chat", "GET /chat/bridge-test", "GET /chat/assets/:file",
     "POST /webhooks/stripe", "POST /webhooks/stripe/connect", "POST /webhooks/twilio/sms", "POST /webhooks/twilio/status", "POST /webhooks/sendgrid/inbound", "POST /webhooks/sendgrid/events",
-    "POST /webhooks/c/:id/twilio/sms", "POST /webhooks/c/:id/twilio/status", "POST /webhooks/c/:id/sendgrid/inbound", "POST /webhooks/c/:id/sendgrid/events",
+    "POST /webhooks/c/:id/twilio/sms", "POST /webhooks/c/:id/twilio/status", "POST /webhooks/c/:id/twilio/voice/connect", "POST /webhooks/c/:id/twilio/voice/status", "POST /webhooks/c/:id/sendgrid/inbound", "POST /webhooks/c/:id/sendgrid/events",
     "GET /files/*", "GET /widget.js", "GET /widget-demo.html", "GET /widget-preview", "GET /runtime-config.json",
   ]],
   ["platform", [
@@ -27,7 +27,7 @@ const GROUPS: [RouteAccess, string[]][] = [
     "GET /admin/api/audit", "GET /admin/api/ratelimit", "GET /admin/api/admins", "POST /admin/api/workspaces/:id/impersonate", "POST /admin/api/workspaces/:id/suspend", "POST /admin/api/workspaces/:id/unsuspend",
     "POST /admin/api/workspaces/:id/credits", "PUT /admin/api/workspaces/:id/tier", "PUT /admin/api/workspaces/:id/region", "POST /admin/api/monitoring/test", "POST /admin/api/ratelimit/:kind", "DELETE /admin/api/ratelimit/:kind/:entity", "POST /admin/api/admins/:id/disable", "POST /admin/api/admins/:id/enable",
   ]],
-  ["apikey", ["GET /api/v1/analytics/overview", "GET /api/v1/analytics/timeseries", "GET /api/v1/analytics/schema", "GET /api/v1/analytics/identity-pepper", "PUT /api/v1/analytics/identity-pepper", "POST /api/v1/analytics/identity-pepper/rotate", "GET /api/v1/analytics/export/rooms", "GET /api/v1/analytics/export/messages-meta"]],
+  ["apikey", ["GET /api/v1/analytics/overview", "GET /api/v1/analytics/timeseries", "GET /api/v1/analytics/schema", "GET /api/v1/analytics/identity-pepper", "PUT /api/v1/analytics/identity-pepper", "POST /api/v1/analytics/identity-pepper/rotate", "GET /api/v1/analytics/export/rooms", "GET /api/v1/analytics/export/messages-meta", "GET /api/v1/analytics/support", "GET /api/v1/analytics/export/tickets", "GET /api/v1/analytics/export/calls"]],
   ["authed", ["GET /api/auth/me", "GET /api/auth/sessions", "DELETE /api/auth/sessions/:id", "POST /api/auth/password/change", "POST /api/auth/mfa/setup", "POST /api/auth/mfa/enable", "POST /api/auth/mfa/disable", "GET /api/members/me", "PATCH /api/members/me", "PATCH /api/members/:id", "GET /api/notifications", "POST /api/notifications/read-all", "POST /api/notifications/:id/read", "GET /api/ai/status"]],
   ["conversations:read", [
     "GET /api/dashboard/counts", "GET /api/inboxes", "GET /api/inboxes/counts", "GET /api/inboxes/:id", "GET /api/rooms", "GET /api/rooms/:id", "GET /api/rooms/:id/messages", "GET /api/rooms/:id/payment-requests", "GET /api/messages/search",
@@ -40,7 +40,7 @@ const GROUPS: [RouteAccess, string[]][] = [
   ["conversations:delete", ["DELETE /api/rooms/:id"]],
   ["tickets:read", ["GET /api/tickets", "GET /api/tickets/counts", "GET /api/tickets/:id", "GET /api/rooms/:id/tickets", "GET /api/contacts/:id/tickets", "GET /api/department-status"]],
   ["tickets:write", ["PATCH /api/tickets/:id", "POST /api/tickets/:id/reopen", "POST /api/tickets/:id/claim", "POST /api/tickets/:id/hand-back", "POST /api/tickets/:id/transfer"]],
-  ["calls:make", ["GET /api/calls/config"]],
+  ["calls:make", ["GET /api/calls/config", "POST /api/rooms/:id/phone-call", "POST /api/rooms/:id/phone-call/consent", "POST /api/calls/:id/hangup"]],
   ["calls:settings", ["PATCH /api/calls/settings"]],
   ["agents:manage", ["GET /api/agents", "POST /api/agents", "GET /api/agents/turns", "GET /api/agents/unanswered", "GET /api/agents/:id", "PATCH /api/agents/:id", "DELETE /api/agents/:id", "POST /api/agents/:id/sandbox"]],
   ["departments:manage", [
@@ -68,7 +68,7 @@ const GROUPS: [RouteAccess, string[]][] = [
   ["roles:manage", ["POST /api/roles", "PATCH /api/roles/:id", "DELETE /api/roles/:id", "PUT /api/members/:id/role"]],
   ["audit:read", ["GET /api/audit"]],
   ["api_keys:manage", ["GET /api/v1/api-keys", "POST /api/v1/api-keys", "DELETE /api/v1/api-keys/:id"]],
-  ["analytics:read", ["GET /api/analytics/overview", "GET /api/analytics/timeseries"]],
+  ["analytics:read", ["GET /api/analytics/overview", "GET /api/analytics/timeseries", "GET /api/analytics/support"]],
   ["analytics_identity:manage", ["GET /api/analytics/identity-pepper", "PUT /api/analytics/identity-pepper", "POST /api/analytics/identity-pepper/rotate"]],
   ["settings:read", ["GET /api/getting-started", "GET /api/workspace", "GET /api/credits", "GET /api/sms-numbers", "GET /api/email-senders", "GET /api/inbound-addresses"]],
   ["settings:write", ["PATCH /api/workspace"]],

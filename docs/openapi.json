@@ -1151,6 +1151,60 @@
                               "static",
                               "twilio"
                             ]
+                          },
+                          "phone": {
+                            "type": "object",
+                            "properties": {
+                              "enabled": {
+                                "type": "boolean"
+                              },
+                              "caller_id": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "pattern": "^\\+[1-9]\\d{6,14}$"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "daily_limit": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 1000
+                              },
+                              "allowed_countries": {
+                                "maxItems": 60,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 2,
+                                  "maxLength": 2
+                                }
+                              },
+                              "max_duration_s": {
+                                "type": "integer",
+                                "minimum": 60,
+                                "maximum": 7200
+                              },
+                              "quiet_hours": {
+                                "type": "object",
+                                "properties": {
+                                  "enabled": {
+                                    "type": "boolean"
+                                  },
+                                  "start": {
+                                    "type": "string",
+                                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                                  },
+                                  "end": {
+                                    "type": "string",
+                                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                                  }
+                                }
+                              }
+                            }
                           }
                         }
                       },
@@ -5835,10 +5889,251 @@
                       "static",
                       "twilio"
                     ]
+                  },
+                  "phone": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean"
+                      },
+                      "caller_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^\\+[1-9]\\d{6,14}$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "daily_limit": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1000
+                      },
+                      "allowed_countries": {
+                        "maxItems": 60,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 2,
+                          "maxLength": 2
+                        }
+                      },
+                      "max_duration_s": {
+                        "type": "integer",
+                        "minimum": 60,
+                        "maximum": 7200
+                      },
+                      "quiet_hours": {
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "start": {
+                            "type": "string",
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                          },
+                          "end": {
+                            "type": "string",
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                          }
+                        }
+                      }
+                    }
                   }
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/rooms/{id}/phone-call": {
+      "post": {
+        "tags": [
+          "Calls"
+        ],
+        "summary": "Click-to-call: Twilio rings your phone (`agent_phone`), then the contact's number from the workspace's caller ID. Refused with a reason when phone calls are off, Twilio is not connected, the contact has no number or has not agreed to be called on it (`NO_CALL_CONSENT`), opted out (`DO_NOT_CALL`), is in a country that is not allowed or has a premium-rate number (`DESTINATION_BLOCKED`), it is night for the visitor (`QUIET_HOURS`), or a limit is reached (`DAILY_LIMIT`, per-agent hourly limit)",
+        "operationId": "post_api_rooms_id_phone_call",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "calls:make",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": [
+            "calls.phone.agent"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "agent_phone": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 40
+                  }
+                },
+                "required": [
+                  "agent_phone"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rooms/{id}/phone-call/consent": {
+      "post": {
+        "tags": [
+          "Calls"
+        ],
+        "summary": "Ask the visitor, with a form card in the thread, to confirm their number and agree to be called on it",
+        "operationId": "post_api_rooms_id_phone_call_consent",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "calls:make",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/calls/{id}/hangup": {
+      "post": {
+        "tags": [
+          "Calls"
+        ],
+        "summary": "Hang up a phone call you placed (or cancel it while your own phone rings)",
+        "operationId": "post_api_calls_id_hangup",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "calls:make",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           }
         }
       }
@@ -12320,6 +12615,88 @@
         }
       }
     },
+    "/api/analytics/support": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Dashboard of tickets, AI agents, departments and calls (same definitions as the API)",
+        "operationId": "get_api_analytics_support",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "analytics:read",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.read",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tz",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "interval",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
     "/api/analytics/overview": {
       "get": {
         "tags": [
@@ -13889,6 +14266,287 @@
         }
       }
     },
+    "/api/v1/analytics/support": {
+      "get": {
+        "tags": [
+          "Analytics API"
+        ],
+        "summary": "Tickets, AI agents, departments and calls: containment rate, handoff rate and reasons, median wait for a person, SLA breaches, CSAT of bot and human resolutions, per department and per AI agent (keyed), call counts and durations (API key, `analytics:read`)",
+        "operationId": "get_api_v1_analytics_support",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "x-access": "apikey",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "analytics.read",
+            "analytics.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tz",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "interval",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/export/tickets": {
+      "get": {
+        "tags": [
+          "Analytics API"
+        ],
+        "summary": "NDJSON export of tickets (no subject, summary or names; people are keyed hashes), keyset paged",
+        "operationId": "get_api_v1_analytics_export_tickets",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "x-access": "apikey",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "analytics.export",
+            "analytics.workspace"
+          ],
+          "in_handler": [
+            "analytics.concurrency"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tz",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "interval",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 1000,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5000
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 500
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/x-ndjson": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/export/calls": {
+      "get": {
+        "tags": [
+          "Analytics API"
+        ],
+        "summary": "NDJSON export of calls (when, kind, transport, outcome, duration; no numbers), keyset paged",
+        "operationId": "get_api_v1_analytics_export_calls",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "x-access": "apikey",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "analytics.export",
+            "analytics.workspace"
+          ],
+          "in_handler": [
+            "analytics.concurrency"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tz",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "interval",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 1000,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5000
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 500
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/x-ndjson": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
     "/api/v1/analytics/export/messages-meta": {
       "get": {
         "tags": [
@@ -15027,6 +15685,10 @@
                     "type": "string",
                     "minLength": 2,
                     "maxLength": 2
+                  },
+                  "timezone": {
+                    "type": "string",
+                    "maxLength": 64
                   },
                   "website": {
                     "type": "string",
@@ -16988,6 +17650,91 @@
         ],
         "summary": "SMS delivery status for one workspace's Twilio account (that workspace's signature)",
         "operationId": "post_webhooks_c_id_twilio_status",
+        "security": [],
+        "x-access": "public",
+        "x-rate-limit": {
+          "pre": [
+            "webhook.provider"
+          ],
+          "post": [],
+          "in_handler": [
+            "webhook.connection",
+            "webhook.badsig"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/webhooks/c/{id}/twilio/voice/connect": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Phone calls: Twilio asks for instructions when the agent answers their phone; answers TwiML that dials the visitor's number (that workspace's signature, `call` in the query)",
+        "operationId": "post_webhooks_c_id_twilio_voice_connect",
+        "security": [],
+        "x-access": "public",
+        "x-rate-limit": {
+          "pre": [
+            "webhook.provider"
+          ],
+          "post": [],
+          "in_handler": [
+            "webhook.connection",
+            "webhook.badsig"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/webhooks/c/{id}/twilio/voice/status": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Phone calls: progress of the agent's leg and the visitor's leg (that workspace's signature); repeats are harmless",
+        "operationId": "post_webhooks_c_id_twilio_voice_status",
         "security": [],
         "x-access": "public",
         "x-rate-limit": {

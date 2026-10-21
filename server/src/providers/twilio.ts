@@ -108,6 +108,26 @@ export class TwilioSmsProvider implements SmsProvider {
     return { iceServers, ttl: Number(json.ttl) > 0 ? Number(json.ttl) : ttlSeconds };
   }
 
+  /**
+   * Voice: place the first leg of a click-to-call (to the agent). When the agent answers Twilio fetches `url` for TwiML; progress comes back
+   * to `statusCallback`. The idempotency token makes a retried request create one call.
+   */
+  async createCall(i: { to: string; from: string; url: string; statusCallback: string; timeoutS: number; idempotencyKey: string }): Promise<{ sid: string }> {
+    const body = new URLSearchParams({ To: i.to, From: i.from, Url: i.url, Method: "POST", StatusCallback: i.statusCallback, StatusCallbackMethod: "POST", Timeout: String(i.timeoutS) });
+    for (const e of ["initiated", "ringing", "answered", "completed"]) body.append("StatusCallbackEvent", e);
+    const { res, json } = await this.call("/Calls.json", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", "I-Twilio-Idempotency-Token": i.idempotencyKey }, body });
+    if (!res.ok) throw this.fail(res.status, json);
+    if (typeof json.sid !== "string") throw new ProviderError("Twilio answered without a call id", false, res.status, "malformed_response", "Twilio returned an unexpected answer. Check the Twilio Console call log.");
+    return { sid: json.sid };
+  }
+
+  /** Hang up (`completed`) or cancel a call that has not been answered. */
+  async endCall(sid: string): Promise<void> {
+    const { res, json } = await this.call(`/Calls/${encodeURIComponent(sid)}.json`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ Status: "completed" }) });
+    // 404 and 21220 (already completed) mean the call is over, which is what was wanted
+    if (!res.ok && res.status !== 404 && json.code !== 21220) throw this.fail(res.status, json);
+  }
+
   async fetchStatus(id: string): Promise<{ state: ProviderDeliveryState; error?: string }> {
     const { res, json: j } = await this.call(`/Messages/${encodeURIComponent(id)}.json`);
     if (!res.ok) return { state: "unknown" };

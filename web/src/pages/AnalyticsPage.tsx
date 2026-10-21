@@ -5,6 +5,7 @@ import { Link } from "react-router";
 import { api } from "../api/client";
 import { useCan } from "../auth/AuthContext";
 import { BarChart, LineChart, Sparkline } from "../components/charts/Charts";
+import { SupportAnalytics } from "./SupportAnalytics";
 import { Avatar, Card, CardContent, CardHeader, CardTitle, EmptyState, ErrorNotice, Skeleton, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Tabs, TabsList, TabsTrigger, cn } from "../ui";
 
 interface Overview {
@@ -195,6 +196,8 @@ export function AnalyticsPage() {
             </CardContent>
           </Card>
         )}
+
+        <SupportAnalytics range={range} days={days} />
 
         {o && o.by_agent.length > 0 && (
           <section aria-label="By teammate" className="flex flex-col gap-3">

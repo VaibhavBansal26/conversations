@@ -69,6 +69,9 @@ export const POLICIES: Policy[] = [
   P({ id: "ai.workspace", description: "AI calls per workspace per day, by plan", keyBy: "workspace", algo: "window", limit: 200, windowSec: 86400, tiers: { free: 200, pro: 5000, business: 50000 }, onFail: "open" }),
   P({ id: "ai.concurrency", description: "Concurrent AI calls per workspace", keyBy: "workspace", algo: "concurrency", limit: 4, windowSec: 60, ttlMs: 60_000, onFail: "open" }),
 
+  // ---- phone calls (click-to-call costs money: every limit fails closed) ----
+  P({ id: "calls.phone.agent", description: "Phone calls a team member may place per hour (spend guard; the workspace's daily limit is a setting)", keyBy: "composite", algo: "window", limit: 10, windowSec: 3600, onFail: "closed" }),
+
   // ---- analytics API (API keys) ----
   P({ id: "analytics.read", description: "Analytics API reads, per API key (60 per minute)", keyBy: "apiKey", algo: "gcra", limit: 60, windowSec: 60, burst: 60, onFail: "open" }),
   P({ id: "analytics.export", description: "Analytics exports, per API key (10 per minute)", keyBy: "apiKey", algo: "gcra", limit: 10, windowSec: 60, burst: 10, cost: 1, onFail: "open" }),

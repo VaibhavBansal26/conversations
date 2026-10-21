@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { RateLimitedError, overloaded } from "../ratelimit/http.js";
 import type { AppContext } from "../context.js";
 import { can } from "../authz/permissions.js";
+import { assertCallerId } from "../calls/phone.js";
 import { forbidden } from "../errors.js";
 import { parseBody, parseQuery, requireLiveSeat, requireManager, type Env } from "../http.js";
 import { CreditGrant, ContactBody, ContactPatch, InboxBody, InboxPatch, MemberCreate, MemberPatch, WorkspacePatch } from "../schemas.js";
@@ -32,6 +33,7 @@ export function teamRoutes(ctx: AppContext) {
     const body = await parseBody(c, WorkspacePatch);
     // call settings (switching calls on, the TURN provider, the phone limits) need their own permission
     if (body.settings?.calls && !can(c.get("actor"), "calls:settings")) throw forbidden("You need the call settings permission", "PERMISSION_DENIED");
+    await assertCallerId(ctx, c.get("actor").workspaceId, body.settings?.calls?.phone?.caller_id);
     return c.json(await updateWorkspace(ctx, c.get("actor").workspaceId, body));
   });
   r.get("/credits", async (c) => {

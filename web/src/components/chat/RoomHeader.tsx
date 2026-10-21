@@ -1,5 +1,5 @@
 // Adapted from the legacy UI (see docs/PROVENANCE.md): assignee, status, priority and snooze controls in the conversation header.
-import { ArrowLeft, Check, Phone, CircleDollarSign, Flag, Inbox as InboxIcon, MoreHorizontal, PanelRight, RotateCcw, Search, Share2, Sparkles, Star, UserRound, Video } from "lucide-react";
+import { ArrowLeft, Check, Phone, PhoneOutgoing, CircleDollarSign, Flag, Inbox as InboxIcon, MoreHorizontal, PanelRight, RotateCcw, Search, Share2, Sparkles, Star, UserRound, Video } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
 import { useInboxes, useMembers, useRoomActions } from "../../api/hooks";
@@ -7,6 +7,7 @@ import type { Room } from "../../api/types";
 import { useCan, useSession } from "../../auth/AuthContext";
 import { snoozePresets, toApiTimestamp } from "../../lib/snooze";
 import { useCalls } from "../../calls/CallProvider";
+import { PhoneCallDialog } from "../../calls/PhoneCall";
 import { useSocket } from "../../realtime/SocketProvider";
 import { isSnoozed } from "../../state/roomCache";
 import {
@@ -55,6 +56,7 @@ export function RoomHeader({ room, backTo, assignOpen, onAssignOpen, snoozeOpen,
   const calls = useCalls();
   const [sharing, setSharing] = useState(false);
   const [paying, setPaying] = useState(false);
+  const [phoning, setPhoning] = useState(false);
   const [summary, setSummary] = useState(false);
   const name = room.contact?.name || room.contact?.email || room.contact?.phone || "Unknown contact";
   const closed = room.status === "closed";
@@ -150,6 +152,11 @@ export function RoomHeader({ room, backTo, assignOpen, onAssignOpen, snoozeOpen,
               <Video className="size-[18px]" aria-hidden="true" />
             </IconToggle>
           )}
+          {canCall && calls!.config?.phone?.ready && (
+            <IconToggle label="Call by phone" onClick={() => setPhoning(true)}>
+              <PhoneOutgoing className="size-[18px]" aria-hidden="true" />
+            </IconToggle>
+          )}
           {canRequestPayment && (
             <IconToggle label="Request payment" onClick={() => setPaying(true)}>
               <CircleDollarSign className="size-[18px]" aria-hidden="true" />
@@ -223,6 +230,7 @@ export function RoomHeader({ room, backTo, assignOpen, onAssignOpen, snoozeOpen,
           <PanelRight className="size-5" aria-hidden="true" />
         </IconToggle>
       </div>
+      {phoning && <PhoneCallDialog room={room} onClose={() => setPhoning(false)} />}
       {paying && <RequestPaymentDialog roomId={room.id} currency={workspace.currency} onClose={() => setPaying(false)} />}
       {sharing && <ShareToTeamDialog roomId={room.id} onClose={() => setSharing(false)} />}
       <div className="@2xl:hidden">

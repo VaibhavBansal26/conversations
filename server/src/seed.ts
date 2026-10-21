@@ -5,6 +5,8 @@ import { RecordingBus } from "./realtime/bus.js";
 import { register } from "./services/auth.js";
 import { createContact, type ContactInput } from "./services/contacts.js";
 import { addMember, getMember, actorFromRow } from "./services/members.js";
+import { createAgent, AgentBodySchema } from "./agents/config.js";
+import { updateDepartment } from "./services/departments.js";
 import { createInbox } from "./services/inboxes.js";
 import { sendAgentMessage } from "./services/messages.js";
 import { insertMessage } from "./services/messageStore.js";
@@ -24,13 +26,13 @@ export async function seed(env: Record<string, string | undefined> = process.env
   if (config.NODE_ENV === "production") throw new Error("Refusing to seed in production");
   const ctx = await createContext(config, { bus: new RecordingBus() });
   try {
-    await seedWorkspace(ctx);
+    await seedWorkspace(ctx, env.SEED_AI === "1");
   } finally {
     await closeContext(ctx); // stops the rate limiter, metrics, queue and event bus timers as well as the database: the process can end
   }
 }
 
-async function seedWorkspace(ctx: Awaited<ReturnType<typeof createContext>>) {
+async function seedWorkspace(ctx: Awaited<ReturnType<typeof createContext>>, withAi = false) {
   if (await ctx.db.get("SELECT 1 FROM users WHERE email = ?", DEMO_EMAIL)) {
     console.log(`Already seeded. Log in as ${DEMO_EMAIL} / ${DEMO_PASSWORD}`);
     return;
@@ -166,8 +168,37 @@ async function seedWorkspace(ctx: Awaited<ReturnType<typeof createContext>>) {
   const frank = await room({ name: "Frank Lopez", email: "frank@example.test" }, null);
   await says(frank.id, "Hello? Is anyone there?");
 
+  if (withAi) await seedAiDemo(ctx, ws, owner, { sales: sales.id, support: support.id, members: [maya.memberId, sam.memberId, priya.memberId] });
+
   console.log(`Seeded demo workspace "Demo Co" (${ws}).\nLogin: ${DEMO_EMAIL} / ${DEMO_PASSWORD}  (also maya@, sam@, priya@example.test with the same password)`);
   await ctx.background.settle();
+}
+
+/**
+ * `SEED_AI=1 npm run seed`: what it takes to try the AI agent in a minute. Three departments (Sales, Billing, Technical support), knowledge-base
+ * entries in collections with links, an AI agent ("Aria") that is ON, browser calls on, and email asked for when a conversation goes to a person.
+ * Open "Try it now" (Settings > Chat widget): ask how to reset a password, ask for a refund (a person is asked for), tap "Talk to a person", request a call.
+ * Off by default so the plain demo (and the browser tests that rely on it) never has an AI answering visitors.
+ */
+async function seedAiDemo(ctx: Awaited<ReturnType<typeof createContext>>, ws: string, owner: Actor, ids: { sales: string; support: string; members: string[] }) {
+  const billing = await createInbox(ctx, owner, { name: "Billing", icon: "wallet", member_ids: ids.members.slice(0, 2), live_routing_visibility: true });
+  await updateDepartment(ctx, owner, ids.sales, { description: "Prices, plans and quotes", routing_mode: "round_robin", live_routing_visibility: true });
+  await updateDepartment(ctx, owner, ids.support, { description: "Technical support: errors, bugs, login problems and how-to questions", routing_mode: "least_busy", live_routing_visibility: true });
+  await updateDepartment(ctx, owner, billing.id, { description: "Invoices, payments, refunds and subscriptions", routing_mode: "least_busy" });
+  for (const k of [
+    { question: "How can I download my invoice?", answer: "Open Billing, select the invoice and press Download PDF.", collection: "billing", url: "https://help.demo.example.test/invoices" },
+    { question: "How do I update my payment method?", answer: "Open Billing, choose Payment method and enter the new card. It is used from the next invoice.", collection: "billing", url: "https://help.demo.example.test/payment-method" },
+    { question: "What does the Pro plan include?", answer: "Pro includes unlimited conversations, five seats and the AI assistant. See the pricing page for the current price.", collection: "sales", url: "https://demo.example.test/pricing" },
+    { question: "Why can I not log in?", answer: "Check the email address, use Forgot password on the sign-in page, and make sure your browser accepts cookies.", collection: "technical", url: "https://help.demo.example.test/login" },
+  ])
+    await createKb(ctx, owner, k);
+  await createAgent(ctx, owner, AgentBodySchema.parse({ name: "Aria", enabled: true, persona: "You help customers of Demo Co. Be brief and friendly.", greeting: "Hi, I am Aria, Demo Co's AI assistant.", tone: "friendly" }));
+  await updateWorkspace(ctx, ws, {
+    settings: {
+      calls: { browser: { enabled: true, voice: true, video: true, screen_share: true } },
+      widget: { visitor_info: { fields: { name: "off", email: "ask_when_needed", phone: "off" }, custom_fields: [], moments: { handoff: true, no_agent: true, callback: true, after: false }, consent: { enabled: false, text: "I agree that you may contact me about this conversation.", privacy_url: null } } },
+    },
+  });
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

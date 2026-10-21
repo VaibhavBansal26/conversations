@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router";
 import { CallSettings } from "./CallSettings";
 
 let allowed = new Set(["calls:settings"]);
@@ -20,7 +21,9 @@ function mount(warning: string | null = null) {
   );
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <CallSettings />
+      <MemoryRouter>
+        <CallSettings />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -41,7 +44,18 @@ describe("CallSettings", () => {
     await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(calls.some((c) => c.method === "PATCH")).toBe(true));
     expect(calls.find((c) => c.method === "PATCH")!.path).toBe("/api/calls/settings");
-    expect(JSON.parse(calls.find((c) => c.method === "PATCH")!.body!)).toEqual({ browser: { enabled: true, voice: true, video: false, screen_share: true }, ring_seconds: 45, turn_provider: "none" });
+    expect(JSON.parse(calls.find((c) => c.method === "PATCH")!.body!)).toMatchObject({ browser: { enabled: true, voice: true, video: false, screen_share: true }, ring_seconds: 45, turn_provider: "none", phone: { enabled: false, caller_id: null, allowed_countries: [] } });
+  });
+
+  it("phone calls: shows what is missing, and saves countries upper-cased with the limits", async () => {
+    mount();
+    await userEvent.click(screen.getByRole("switch", { name: /Phone calls/ }));
+    await userEvent.type(screen.getByLabelText(/Countries that may be called/), "us, gb");
+    await userEvent.clear(screen.getByLabelText("Calls per day"));
+    await userEvent.type(screen.getByLabelText("Calls per day"), "5");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(calls.some((c) => c.method === "PATCH")).toBe(true));
+    expect(JSON.parse(calls.find((c) => c.method === "PATCH")!.body!).phone).toMatchObject({ enabled: true, allowed_countries: ["US", "GB"], daily_limit: 5, quiet_hours: { enabled: true, start: "21:00", end: "08:00" } });
   });
 
   it("warns, in plain words, when there is no relay", async () => {

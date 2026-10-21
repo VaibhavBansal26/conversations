@@ -439,14 +439,16 @@ export interface MessageMetaLine {
   length_chars: number;
   delivery_status: string;
   sender_type: string;
+  /** the ticket the message belongs to (additive in v1); null for messages from before tickets existed */
+  ticket_id: string | null;
 }
 
 /** Message metadata only: ids, time, direction, channel, size and delivery state. Content is never selected. */
 export async function exportMessagesMeta(ctx: AppContext, workspaceId: string, r: RangeQuery, o: { cursor?: string; limit: number }): Promise<Page<MessageMetaLine>> {
   const limit = Math.min(Math.max(o.limit, 1), EXPORT_MAX_LIMIT);
   const c = decodeCursor(o.cursor, 2);
-  const rows = await ctx.db.read().all<{ id: string; room_id: string; created_at: string; sender_type: string; kind: string; source: string; delivery: string; len: number }>(
-    `SELECT id, room_id, created_at, sender_type, kind, source, delivery, LENGTH(content_text) AS len FROM messages
+  const rows = await ctx.db.read().all<{ id: string; room_id: string; created_at: string; sender_type: string; kind: string; source: string; delivery: string; ticket_id: string | null; len: number }>(
+    `SELECT id, room_id, created_at, sender_type, kind, source, delivery, ticket_id, LENGTH(content_text) AS len FROM messages
      WHERE workspace_id = ? AND created_at >= ? AND created_at < ? AND deleted_at IS NULL AND kind != 'note' AND sender_type != 'system' ${c ? "AND (created_at > ? OR (created_at = ? AND id > ?))" : ""}
      ORDER BY created_at, id LIMIT ?`,
     workspaceId,
@@ -468,6 +470,7 @@ export async function exportMessagesMeta(ctx: AppContext, workspaceId: string, r
       length_chars: Number(m.len ?? 0),
       delivery_status: m.delivery,
       sender_type: m.sender_type,
+      ticket_id: m.ticket_id ?? null,
     })),
     next_cursor: rows.length > limit && last ? encodeCursor([last.created_at, last.id]) : null,
   };

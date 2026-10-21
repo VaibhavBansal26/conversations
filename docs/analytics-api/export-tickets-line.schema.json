@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "export-tickets-line.schema.json",
+  "description": "One NDJSON line of GET /export/tickets. No subject, summary, notes or names; contact_key and handler_key are keyed hashes.",
+  "type": "object",
+  "required": [
+    "id",
+    "number",
+    "room_id",
+    "created_at",
+    "closed_at",
+    "status",
+    "handler_type",
+    "handler_key",
+    "department_id",
+    "priority",
+    "resolution",
+    "handoff_reason",
+    "channel",
+    "contact_key",
+    "first_response_s",
+    "wait_for_human_s",
+    "resolution_s",
+    "csat",
+    "sla_first_response_breached",
+    "sla_resolution_breached",
+    "bot_turns",
+    "calls",
+    "hour_of_day_created",
+    "dow_created"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "number": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "room_id": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "closed_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "status": {
+      "enum": [
+        "new",
+        "bot_handling",
+        "waiting_for_human",
+        "open",
+        "pending_customer",
+        "resolved",
+        "closed"
+      ]
+    },
+    "handler_type": {
+      "enum": [
+        "bot",
+        "human",
+        null
+      ]
+    },
+    "handler_key": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{32}$"
+    },
+    "department_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "priority": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3
+    },
+    "resolution": {
+      "enum": [
+        "bot_resolved",
+        "human_resolved",
+        "abandoned",
+        "auto_closed",
+        "merged",
+        null
+      ]
+    },
+    "handoff_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "channel": {
+      "enum": [
+        "dm",
+        "sms",
+        "email"
+      ]
+    },
+    "contact_key": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "first_response_s": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "wait_for_human_s": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "resolution_s": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "csat": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1,
+      "maximum": 5
+    },
+    "sla_first_response_breached": {
+      "type": "boolean"
+    },
+    "sla_resolution_breached": {
+      "type": "boolean"
+    },
+    "bot_turns": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "calls": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "hour_of_day_created": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 23
+    },
+    "dow_created": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 6
+    }
+  }
+}

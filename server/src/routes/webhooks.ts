@@ -10,6 +10,7 @@ import { handleStripeEvent } from "../billing/webhooks.js";
 import { claimEvent, requireSendgridEvents, requireSharedSecret, requireTwilio, verifySendgridSignature, verifyTwilioSignature } from "../webhooks/signatures.js";
 import { enforce } from "../ratelimit/http.js";
 import { openCredentials, type ConnectionRow, type TwilioCredentials } from "../providers/registry.js";
+import { voiceConnect, voiceStatus } from "../calls/phone.js";
 import { recordChannelEvent } from "../services/channelConnections.js";
 import { safeEqual, sha256 } from "../util/crypto.js";
 import { parseJson } from "../util/json.js";
@@ -90,6 +91,32 @@ export function webhookRoutes(ctx: AppContext) {
     if (!p.MessageSid || !p.MessageStatus) throw badRequest("VALIDATION_ERROR", "MessageSid and MessageStatus are required");
     const res = await handleTwilioStatus(ctx, { MessageSid: p.MessageSid, MessageStatus: p.MessageStatus, ErrorCode: p.ErrorCode }, { workspaceId: row.workspace_id });
     await recordChannelEvent(ctx, row.workspace_id, "sms", "twilio_status", res === "updated" ? "processed" : res, `${p.MessageStatus}`);
+    return c.body(null, 204);
+  });
+
+  // phone calls (click-to-call): the agent's leg asks for instructions when it is answered, and both legs report their progress. The call id is in the
+  // query string, which the signature covers, so it cannot be swapped; the call must belong to this connection's workspace.
+  const voiceRow = async (c: Context) => {
+    const row = await connection(c, "twilio");
+    const p = await formParams(c);
+    const url = new URL(c.req.url);
+    const creds = openCredentials<TwilioCredentials>(ctx, row);
+    if (!verifyTwilioSignature(creds.auth_token, ctx.config.PUBLIC_URL.replace(/\/$/, "") + url.pathname + url.search, p, c.req.header("x-twilio-signature"))) await reject(row, "twilio_voice", "signature does not match this workspace's auth token");
+    const call = url.searchParams.get("call");
+    if (!call) throw badRequest("VALIDATION_ERROR", "call is required");
+    return { row, p, call, url };
+  };
+  r.post("/c/:id/twilio/voice/connect", async (c) => {
+    const { row, p, call } = await voiceRow(c);
+    const twiml = await voiceConnect(ctx, row, call, p);
+    await recordChannelEvent(ctx, row.workspace_id, "sms", "twilio_voice", "processed", "agent answered");
+    return c.body(twiml, 200, { "Content-Type": "text/xml" });
+  });
+  r.post("/c/:id/twilio/voice/status", async (c) => {
+    const { row, p, call, url } = await voiceRow(c);
+    const leg = url.searchParams.get("leg") === "visitor" ? "visitor" : "agent";
+    const res = await voiceStatus(ctx, row, call, leg, p);
+    await recordChannelEvent(ctx, row.workspace_id, "sms", "twilio_voice", res === "processed" ? "processed" : res, `${leg} ${p.CallStatus ?? ""}`);
     return c.body(null, 204);
   });
 

@@ -28,6 +28,8 @@ export interface CardField {
   type: "text" | "email" | "tel" | "select";
   required: boolean;
   options?: string[];
+  /** a value the contact already has, shown for confirmation (the phone number a visitor is asked to agree to be called on) */
+  prefill?: string;
 }
 export interface ContactFormCard {
   type: "contact_form";
@@ -89,6 +91,10 @@ export function fieldsToAsk(info: VisitorInfoSettings, contact: ContactRow, mome
       if (out.length > before) Object.assign(out[out.length - 1]!, { label: c.label, type: c.type === "select" ? "select" : "text", options: c.type === "select" ? c.options : undefined });
     }
   }
+  // a callback needs the visitor's agreement to be called on the number we hold: confirm it even when it is already known
+  if (moment === "callback" && !out.some((f) => f.key === "phone") && contact.phone && !parseJson<{ call_consent?: { phone?: string } }>(contact.attrs, {}).call_consent?.phone) {
+    out.unshift({ key: "phone", label: BASE_LABELS.phone, type: "tel", required: true, prefill: contact.phone });
+  }
   return out.filter((f) => f.label);
 }
 
@@ -102,30 +108,32 @@ async function botLine(ctx: AppContext, room: RoomRow, text: string, meta: Recor
  * Put a form card in the thread if the settings ask for it at this moment and the contact lacks something. At most once per moment per ticket
  * (`tickets.meta.info_asked`), so a visitor is never asked twice for the same thing and a repeated handoff does not repeat the card.
  */
-export async function requestVisitorInfo(ctx: AppContext, ticketId: string, moment: Moment, opts: { only?: string[]; text?: string } = {}): Promise<MessageRow | null> {
+export async function requestVisitorInfo(ctx: AppContext, ticketId: string, moment: Moment, opts: { only?: string[]; text?: string; force?: boolean } = {}): Promise<MessageRow | null> {
   const ticket = await ctx.db.get<TicketRow>("SELECT * FROM tickets WHERE id = ?", ticketId);
   if (!ticket) return null;
   if (moment !== "after" && (ticket.status === "resolved" || ticket.status === "closed")) return null;
   const meta = parseJson<{ info_asked?: string[] }>(ticket.meta, {});
-  if ((meta.info_asked ?? []).includes(moment)) return null;
+  if ((meta.info_asked ?? []).includes(moment) && !opts.force) return null;
   const info = await effectiveInfo(ctx, ticket.workspace_id, ticket.department_id);
   if (moment !== "agent" && !info.moments[moment]) return null;
   const contact = await getContact(ctx, ticket.workspace_id, ticket.contact_id);
   const fields = fieldsToAsk(info, contact, moment, opts.only);
   if (!fields.length) return null;
   // claim the moment first: two concurrent callers send one card
-  const asked = [...(meta.info_asked ?? []), moment];
+  const asked = [...new Set([...(meta.info_asked ?? []), moment])];
   const claimed = await ctx.db.run("UPDATE tickets SET meta = ? WHERE id = ? AND meta = ?", JSON.stringify({ ...meta, info_asked: asked }), ticket.id, ticket.meta);
   if (!claimed.changes) return null;
   const room = await getRoomRow(ctx, ticket.workspace_id, ticket.room_id);
-  const askConsent = info.consent.enabled && fields.some((f) => f.key !== "name");
+  // a callback always asks to be called on that number, in words that say so, whatever the workspace's general consent setting is
+  const askConsent = moment === "callback" ? fields.some((f) => f.key === "phone") : info.consent.enabled && fields.some((f) => f.key !== "name");
+  const consentText = moment === "callback" ? "I agree that you may call me on this number." : info.consent.text;
   const card: ContactFormCard = {
     type: "contact_form",
     id: newId("frm"),
     moment,
     fields,
     skippable: !fields.some((f) => f.required),
-    consent: askConsent ? { text: info.consent.text, privacy_url: info.consent.privacy_url } : null,
+    consent: askConsent ? { text: consentText, privacy_url: info.consent.privacy_url } : null,
   };
   const msg = await botLine(ctx, room, opts.text ?? PROMPTS[moment], { card, sub_type: "contact_form" });
   await recordTicketEvent(ctx, ticket, "info_requested", { type: "system" }, { moment, fields: fields.map((f) => f.key) });
@@ -139,6 +147,8 @@ export const FormSubmission = z.object({
   consent: z.boolean().default(false),
   /** ISO 3166 region the visitor picked for the phone number (default: the workspace's region) */
   country: z.string().length(2).toUpperCase().optional(),
+  /** the visitor's IANA time zone (their browser's): quiet hours for phone calls are judged in it */
+  timezone: z.string().max(64).optional(),
   /** honeypot: a real visitor never sees or fills this */
   website: z.string().max(300).optional(),
 });
@@ -199,7 +209,7 @@ export async function submitContactForm(ctx: AppContext, session: SessionRow, ro
   await closeCard(ctx, room, m, meta, card, "submitted");
 
   const contact = await getContact(ctx, room.workspace_id, room.contact_id);
-  const saved = await applyToContact(ctx, contact, card, clean, input.consent, nowIso(ctx));
+  const saved = await applyToContact(ctx, contact, card, clean, input.consent, nowIso(ctx), validZone(input.timezone));
   await recordAudit(ctx, { workspaceId: room.workspace_id, actor: { type: "system" }, action: "contact.info_submitted", target: contact.id, detail: { moment: card.moment, fields: saved } });
   const label = saved.length ? saved.join(", ") : "nothing";
   await visitorSend(ctx, session, room.id, { content: `Shared my details: ${label}`, client_msg_id: `form-${m.id.slice(-24)}`.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64) }, { meta: { form_submission: { message_id: m.id, fields: saved } } });
@@ -227,7 +237,17 @@ export async function skipContactForm(ctx: AppContext, session: SessionRow, room
  * address that belongs to someone else does not get that person's history (and learns nothing about whether it exists); the value is kept on the
  * visitor's own contact as `unverified_email` / `unverified_phone` for the team, and merging stays with the existing identity checks (OTP).
  */
-async function applyToContact(ctx: AppContext, contact: ContactRow, card: ContactFormCard, values: Record<string, string>, consent: boolean, now: string): Promise<string[]> {
+const validZone = (z: string | undefined): string | null => {
+  if (!z) return null;
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: z });
+    return z;
+  } catch {
+    return null;
+  }
+};
+
+async function applyToContact(ctx: AppContext, contact: ContactRow, card: ContactFormCard, values: Record<string, string>, consent: boolean, now: string, timezone: string | null): Promise<string[]> {
   const saved: string[] = [];
   const attrs: Record<string, unknown> = {};
   const patch: { name?: string; email?: string; phone?: string } = {};
@@ -240,8 +260,17 @@ async function applyToContact(ctx: AppContext, contact: ContactRow, card: Contac
   if (values.phone && !contact.phone) {
     const other = await findByPhone(ctx, contact.workspace_id, values.phone);
     if (other && other.id !== contact.id) (attrs.unverified_phone = values.phone, saved.push("phone"));
-    else (patch.phone = values.phone, saved.push("phone"));
-  }
+    else {
+      patch.phone = values.phone;
+      saved.push("phone");
+      // agreeing to be called is recorded with the number it was given for: a call goes only to a number with a matching agreement
+      if (consent && card.consent && card.moment === "callback") attrs.call_consent = { at: now, phone: values.phone, text: card.consent.text };
+    }
+  } else if (values.phone && contact.phone === values.phone && consent && card.consent && card.moment === "callback") {
+    attrs.call_consent = { at: now, phone: contact.phone, text: card.consent.text };
+    saved.push("call consent");
+  } else if (values.phone && contact.phone && contact.phone !== values.phone) attrs.unverified_phone = values.phone;
+  if (timezone) attrs.timezone = timezone;
   for (const f of card.fields) if (!["name", "email", "phone"].includes(f.key) && values[f.key]) (attrs[f.key] = values[f.key], saved.push(f.label));
   if (consent && card.consent) attrs.contact_consent = { at: now, text: card.consent.text };
   if (!Object.keys(patch).length && !Object.keys(attrs).length) return saved;

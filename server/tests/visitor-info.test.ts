@@ -239,7 +239,10 @@ describe("visitor details: answering", () => {
     await say(w2, v2, "How do I reset my password?");
     const cb = (await form(w2, v2))!;
     expect((await w2.http.post(`/public/rooms/${v2.roomId}/forms/${cb.id}/skip`, {}, undefined, v2.headers)).body.error.code).toBe("NOT_SKIPPABLE");
-    expect((await submit(w2, v2, cb.id, { values: { phone: "+14155552671" } })).status).toBe(200);
+    // a callback always asks to be called on that number: without the box ticked nothing is saved
+    expect((await submit(w2, v2, cb.id, { values: { phone: "+14155552671" } })).body.error.details.errors.consent).toBe("Please agree to continue");
+    expect((await submit(w2, v2, cb.id, { values: { phone: "+14155552671" }, consent: true })).status).toBe(200);
+    expect(JSON.parse((await contactOf(w2, v2)).attrs).call_consent).toMatchObject({ phone: "+14155552671", text: "I agree that you may call me on this number." });
     const ev = await w2.ctx.db.all<{ type: string }>("SELECT type FROM ticket_events WHERE ticket_id = ?", (await ticketOf(w2, v2.roomId)).id);
     expect(ev.map((e) => e.type)).toContain("callback_requested");
   });

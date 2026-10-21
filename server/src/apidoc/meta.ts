@@ -1,6 +1,7 @@
 import type { ZodType } from "zod";
 import * as S from "../schemas.js";
 import * as calls from "../domain/settings.js";
+import * as phone from "../calls/phoneSchemas.js";
 import * as formR from "../services/visitorInfo.js";
 import * as authR from "../routes/auth.js";
 import * as billingR from "../routes/billing.js";
@@ -122,6 +123,9 @@ const rows: [string, string, string, Opt?][] = [
   ["GET /api/tickets", "Tickets", "List tickets in your scope (a ticket follows the visibility of its conversation): filter by `status` (`live`, `all` or a comma list), `handler` (`bot`, `human`, `unassigned`, `me`, `bot:<id>`, `human:<id>`), `department_id`, `priority_min`, `contact_id`, `room_id`, `q` (number or subject); keyset paged", { query: S.TicketQuery }],
   ["GET /api/calls/config", "Calls", "Whether browser calls are on and which kinds, the ring time, the TURN provider and the one warning worth showing before the first call (`calls:make`). Calls themselves are placed and answered over the socket (`call:invite`, `call:accept`, ..., see REALTIME.md)", { returns: "`{browser: {enabled, voice, video, screen_share}, ring_seconds, turn_provider, warning}`" }],
   ["PATCH /api/calls/settings", "Calls", "Change the call settings: browser calls on or off, voice, video, screen sharing, ring time (15 to 120 s) and the TURN provider (`calls:settings`). Send only what changes", { body: calls.CallsPatchSchema }],
+  ["POST /api/rooms/:id/phone-call", "Calls", "Click-to-call: Twilio rings your phone (`agent_phone`), then the contact's number from the workspace's caller ID. Refused with a reason when phone calls are off, Twilio is not connected, the contact has no number or has not agreed to be called on it (`NO_CALL_CONSENT`), opted out (`DO_NOT_CALL`), is in a country that is not allowed or has a premium-rate number (`DESTINATION_BLOCKED`), it is night for the visitor (`QUIET_HOURS`), or a limit is reached (`DAILY_LIMIT`, per-agent hourly limit)", { body: phone.PhoneCallBody, status: 200 }],
+  ["POST /api/rooms/:id/phone-call/consent", "Calls", "Ask the visitor, with a form card in the thread, to confirm their number and agree to be called on it"],
+  ["POST /api/calls/:id/hangup", "Calls", "Hang up a phone call you placed (or cancel it while your own phone rings)"],
   ["GET /api/rooms/:id/calls", "Calls", "The calls of a conversation, newest first (state, kind, duration, who ended it)", { returns: "`{data: Call[]}`" }],
   ["GET /api/tickets/counts", "Tickets", "Live tickets per status in your scope", { returns: "`{new, bot_handling, waiting_for_human, open, pending_customer, resolved, closed, total_live}`" }],
   ["POST /api/tickets/bulk", "Tickets", "Resolve or close up to 100 tickets; each result is reported on its own", { body: S.TicketBulk }],
@@ -218,6 +222,7 @@ const rows: [string, string, string, Opt?][] = [
   ["POST /api/ai/rephrase", "AI", "Rewrite a draft in a tone", { body: S.RephraseBody }],
 
   // ---- analytics (session) and API keys
+  ["GET /api/analytics/support", "Analytics", "Dashboard of tickets, AI agents, departments and calls (same definitions as the API)", { query: anR.Range }],
   ["GET /api/analytics/overview", "Analytics", "Dashboard overview (same definitions as the API)", { query: anR.Range }],
   ["GET /api/analytics/timeseries", "Analytics", "Dashboard time series", { query: anR.Range.extend({ metric: anApiR.TsQ.shape.metric }) }],
   ["GET /api/analytics/identity-pepper", "Analytics", "View the workspace identity pepper"],
@@ -247,6 +252,9 @@ const rows: [string, string, string, Opt?][] = [
   ["PUT /api/v1/analytics/identity-pepper", "Analytics API", "Set (import) the identity pepper (session with `analytics_identity:manage` only; audited; bumps `version`)", { body: anR.PepperBody }],
   ["POST /api/v1/analytics/identity-pepper/rotate", "Analytics API", "Replace the pepper with a new random one (session with `analytics_identity:manage` only; audited)"],
   ["GET /api/v1/analytics/export/rooms", "Analytics API", "NDJSON export of rooms, keyset paged (`X-Next-Cursor`)", { query: anApiR.ExportQ, media: "application/x-ndjson" }],
+  ["GET /api/v1/analytics/support", "Analytics API", "Tickets, AI agents, departments and calls: containment rate, handoff rate and reasons, median wait for a person, SLA breaches, CSAT of bot and human resolutions, per department and per AI agent (keyed), call counts and durations (API key, `analytics:read`)", { query: anApiR.Range }],
+  ["GET /api/v1/analytics/export/tickets", "Analytics API", "NDJSON export of tickets (no subject, summary or names; people are keyed hashes), keyset paged", { query: anApiR.ExportQ, media: "application/x-ndjson" }],
+  ["GET /api/v1/analytics/export/calls", "Analytics API", "NDJSON export of calls (when, kind, transport, outcome, duration; no numbers), keyset paged", { query: anApiR.ExportQ, media: "application/x-ndjson" }],
   ["GET /api/v1/analytics/export/messages-meta", "Analytics API", "NDJSON export of message metadata, no content", { query: anApiR.ExportQ, media: "application/x-ndjson" }],
 
   // ---- public widget
@@ -306,6 +314,8 @@ const rows: [string, string, string, Opt?][] = [
   ["POST /webhooks/sendgrid/events", "Webhooks", "Email events (delivered, bounce, open) from SendGrid (signature)"],
   ["POST /webhooks/c/:id/twilio/sms", "Webhooks", "Inbound SMS for one workspace's Twilio account; `:id` is the connection's webhook id; verified with that workspace's auth token", { media: "text/xml" }],
   ["POST /webhooks/c/:id/twilio/status", "Webhooks", "SMS delivery status for one workspace's Twilio account (that workspace's signature)", { status: 204 }],
+  ["POST /webhooks/c/:id/twilio/voice/connect", "Webhooks", "Phone calls: Twilio asks for instructions when the agent answers their phone; answers TwiML that dials the visitor's number (that workspace's signature, `call` in the query)", { status: 200 }],
+  ["POST /webhooks/c/:id/twilio/voice/status", "Webhooks", "Phone calls: progress of the agent's leg and the visitor's leg (that workspace's signature); repeats are harmless", { status: 204 }],
   ["POST /webhooks/c/:id/sendgrid/inbound", "Webhooks", "Inbound Parse for one workspace's SendGrid account (the connection's `secret` query parameter)"],
   ["POST /webhooks/c/:id/sendgrid/events", "Webhooks", "Event webhook for one workspace's SendGrid account (the connection's verification key, else its `secret`)"],
   ["GET /files/*", "Files", "Signed attachment download (`exp` and `sig` query parameters)", { media: "application/octet-stream" }],

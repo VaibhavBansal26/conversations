@@ -53,3 +53,4 @@ Domain terms as used in this repository, and how they map to the legacy ("Suppor
 | **Rules agent** | the offline, deterministic answerer used when no model is configured, the model fails or the AI budget is used up | heuristic provider |
 | **Call** | a voice or video call between a team member and a visitor, in the browser (WebRTC) or on the phone; it has a state (ringing, connecting, active, declined, missed, ended, failed) and leaves a card in the thread ([CALLS.md](CALLS.md)) | (none) |
 | **TURN relay** | a server that forwards call media when two browsers cannot reach each other directly; credentials are issued per call | (none) |
+| **Call consent** | the visitor's recorded agreement, on the callback form, to be called on one specific number; without it (or after the number changes) no phone call is placed | (none) |

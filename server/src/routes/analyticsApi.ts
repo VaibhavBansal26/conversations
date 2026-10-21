@@ -13,6 +13,7 @@ import { actorFromToken } from "../services/auth.js";
 import { RateLimitedError, applyPrincipalLimits, overloaded } from "../ratelimit/http.js";
 import { authenticateApiKey, type AuthenticatedKey } from "../services/apiKeys.js";
 import { EXPORT_MAX_LIMIT, TIMESERIES_METRICS, exportMessagesMeta, exportRooms, getPepper, overview, parseRange, rotatePepper, setPepper, timeseries } from "../services/analytics.js";
+import { exportCalls, exportTickets, supportOverview } from "../services/supportAnalytics.js";
 import { ipKey } from "../util/clientIp.js";
 
 type KeyEnv = { Variables: { apiKey: AuthenticatedKey; actor?: Actor } };
@@ -28,6 +29,9 @@ export const KEY_SCOPES: Record<string, string> = {
   "GET /api/v1/analytics/schema": "analytics:read",
   "GET /api/v1/analytics/export/rooms": "analytics:export",
   "GET /api/v1/analytics/export/messages-meta": "analytics:export",
+  "GET /api/v1/analytics/support": "analytics:read",
+  "GET /api/v1/analytics/export/tickets": "analytics:export",
+  "GET /api/v1/analytics/export/calls": "analytics:export",
   "GET /api/v1/analytics/identity-pepper": "analytics:export",
   "PUT /api/v1/analytics/identity-pepper": "analytics:export",
   "POST /api/v1/analytics/identity-pepper/rotate": "analytics:export",
@@ -62,6 +66,8 @@ export function analyticsApiRoutes(ctx: AppContext) {
   });
 
   r.get("/overview", async (c) => c.json(await overview(ctx, c.get("apiKey").workspaceId, parseRange(ctx, parseQuery(c, Range)))));
+
+  r.get("/support", async (c) => c.json(await supportOverview(ctx, c.get("apiKey").workspaceId, parseRange(ctx, parseQuery(c, Range)))));
 
   r.get("/timeseries", async (c) => {
     const q = parseQuery(c, TsQ);
@@ -109,6 +115,8 @@ export function analyticsApiRoutes(ctx: AppContext) {
     }
   };
   r.get("/export/rooms", exporter((ws, q) => exportRooms(ctx, ws, parseRange(ctx, q), { cursor: q.cursor, limit: q.limit })));
+  r.get("/export/tickets", exporter((ws, q) => exportTickets(ctx, ws, parseRange(ctx, q), { cursor: q.cursor, limit: q.limit })));
+  r.get("/export/calls", exporter((ws, q) => exportCalls(ctx, ws, parseRange(ctx, q), { cursor: q.cursor, limit: q.limit })));
   r.get("/export/messages-meta", exporter((ws, q) => exportMessagesMeta(ctx, ws, parseRange(ctx, q), { cursor: q.cursor, limit: q.limit })));
 
   r.all("*", () => {

@@ -460,6 +460,8 @@
       var call = p && p.call;
       if (!call || (o.getRoomId && call.room_id !== o.getRoomId())) return;
       emit("call_state", { room_id: call.room_id, call_id: call.id, state: call.state, kind: call.kind });
+      // a phone call rings the visitor's phone, not this page: the thread card is the only thing to show
+      if (call.transport === "phone") return;
       if (S.call && S.call.id !== call.id) return; // a state of some other call
       if (call.state === "ringing" && !S.call) {
         S.call = call;

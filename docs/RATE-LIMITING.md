@@ -115,9 +115,9 @@ Generated from `policies.ts` and `routePolicies.ts` (`npm run docs:ratelimit`; `
 | `team.workspace` | workspace | window | 20000 per 1 h | free 20000, pro 200000, business 2000000 | fail-open | Team chat messages per workspace per hour, by plan (POST /api/team/channels/:id/messages, socket team:message:send) |
 | `team.search` | user | gcra | 20 per 1 min, burst 10 | - | fail-open | Team chat searches, per member (20 per minute) (GET /api/team/search) |
 | `team.create` | workspace | window | 100 per 1 h | - | fail-open | Channel and group message creation per workspace per hour (POST /api/team/channels, POST /api/team/dms) |
-| `api.read` | user | gcra | 20 per 1 s, burst 100 | - | fail-open + lease | Authenticated reads, per user (64 entry points) |
-| `api.write` | user | gcra | 10 per 1 s, burst 50 | - | fail-open + lease | Authenticated writes, per user (118 entry points) |
-| `api.workspace` | workspace | window | 1200 per 1 min | free 1200, pro 6000, business 30000 | fail-open | All API calls per workspace per minute, by plan (195 entry points) |
+| `api.read` | user | gcra | 20 per 1 s, burst 100 | - | fail-open + lease | Authenticated reads, per user (65 entry points) |
+| `api.write` | user | gcra | 10 per 1 s, burst 50 | - | fail-open + lease | Authenticated writes, per user (121 entry points) |
+| `api.workspace` | workspace | window | 1200 per 1 min | free 1200, pro 6000, business 30000 | fail-open | All API calls per workspace per minute, by plan (199 entry points) |
 | `api.send` | user | gcra | 120 per 1 min, burst 60 | - | fail-open | Agent message sends, per user (POST /api/rooms/:id/messages) |
 | `api.upload` | user | gcra | 30 per 1 min, burst 30 | - | fail-open | Uploads, per user (POST /api/attachments, POST /api/team/attachments) |
 | `api.import` | workspace | gcra | 10 per 10 min, burst 10 | - | fail-open | CSV imports (cost 5 of a small bucket), per workspace (POST /api/contacts/import) |
@@ -125,18 +125,19 @@ Generated from `policies.ts` and `routePolicies.ts` (`npm run docs:ratelimit`; `
 | `ai.minute` | user | gcra | 30 per 1 min, burst 20 | - | fail-open | AI calls, per user (4 entry points) |
 | `ai.workspace` | workspace | window | 200 per 1 d | free 200, pro 5000, business 50000 | fail-open | AI calls per workspace per day, by plan (4 entry points) |
 | `ai.concurrency` | workspace | concurrency | 4 concurrent | - | fail-open | Concurrent AI calls per workspace (4 entry points) |
-| `analytics.read` | apiKey | gcra | 60 per 1 min, burst 60 | - | fail-open | Analytics API reads, per API key (60 per minute) (4 entry points) |
-| `analytics.export` | apiKey | gcra | 10 per 1 min, burst 10 | - | fail-open | Analytics exports, per API key (10 per minute) (GET /api/v1/analytics/export/rooms, GET /api/v1/analytics/export/messages-meta) |
-| `analytics.workspace` | workspace | window | 120 per 1 min | free 120, pro 600, business 3000 | fail-open | Analytics API calls per workspace per minute, by plan (6 entry points) |
-| `analytics.concurrency` | apiKey | concurrency | 2 concurrent | - | fail-open | Concurrent exports per API key (GET /api/v1/analytics/export/rooms, GET /api/v1/analytics/export/messages-meta) |
+| `calls.phone.agent` | composite | window | 10 per 1 h | - | fail-closed | Phone calls a team member may place per hour (spend guard; the workspace's daily limit is a setting) (POST /api/rooms/:id/phone-call) |
+| `analytics.read` | apiKey | gcra | 60 per 1 min, burst 60 | - | fail-open | Analytics API reads, per API key (60 per minute) (5 entry points) |
+| `analytics.export` | apiKey | gcra | 10 per 1 min, burst 10 | - | fail-open | Analytics exports, per API key (10 per minute) (4 entry points) |
+| `analytics.workspace` | workspace | window | 120 per 1 min | free 120, pro 600, business 3000 | fail-open | Analytics API calls per workspace per minute, by plan (9 entry points) |
+| `analytics.concurrency` | apiKey | concurrency | 2 concurrent | - | fail-open | Concurrent exports per API key (4 entry points) |
 | `billing.checkout` | user | gcra | 10 per 1 min, burst 10 | - | fail-open | Creating Stripe checkout/portal/onboarding sessions, per user (each is a paid API call to Stripe) (5 entry points) |
 | `payments.workspace` | workspace | window | 20 per 1 h | free 20, pro 300, business 3000 | fail-open | Customer payment requests per workspace per hour, by plan (POST /api/rooms/:id/payment-requests) |
 | `channels.verify` | user | gcra | 6 per 1 min, burst 6 | - | fail-open | Credential checks and number/sender imports (read-only provider calls), per user (POST /api/channels/:channel/verify, POST /api/channels/sms/numbers/import, POST /api/channels/email/senders/import) |
 | `channels.test` | workspace | window | 10 per 1 h | - | fail-closed | Test texts and test emails per workspace per hour (they cost the workspace money at its provider) (POST /api/channels/:channel/test) |
-| `webhook.connection` | composite | gcra | 20 per 1 s, burst 100 | - | fail-open | Inbound provider events per workspace connection (its webhook id), 20/s with a burst of 100 (4 entry points) |
-| `webhook.provider` | ip | gcra | 300 per 1 min, burst 300 | - | fail-closed | Provider webhooks (Twilio, SendGrid), per IP (8 entry points) |
+| `webhook.connection` | composite | gcra | 20 per 1 s, burst 100 | - | fail-open | Inbound provider events per workspace connection (its webhook id), 20/s with a burst of 100 (6 entry points) |
+| `webhook.provider` | ip | gcra | 300 per 1 min, burst 300 | - | fail-closed | Provider webhooks (Twilio, SendGrid), per IP (10 entry points) |
 | `webhook.stripe` | ip | gcra | 600 per 1 min, burst 600 | - | fail-open | Stripe webhooks (platform and Connect), per IP. Signature-verified; Stripe retries what is delayed (POST /webhooks/stripe, POST /webhooks/stripe/connect) |
-| `webhook.badsig` | ip | strike | 10 failures / 10 min | - | fail-closed | Webhook signature failures per IP: 10 in 10 min block the IP, escalating (10 entry points) |
+| `webhook.badsig` | ip | strike | 10 failures / 10 min | - | fail-closed | Webhook signature failures per IP: 10 in 10 min block the IP, escalating (12 entry points) |
 | `sms.number` | composite | gcra | 1 per 1 s, burst 1 | - | fail-open | SMS pacing per sending number (carrier-friendly: 1 message/s, queue instead of reject) (POST /api/rooms/:id/messages, socket message:send) |
 | `email.sender` | composite | gcra | 10 per 1 s, burst 10 | - | fail-open | Email pacing per sender address (10/s, queue instead of reject) (POST /api/rooms/:id/messages, socket message:send) |
 | `sms.workspace` | workspace | window | 100 per 1 d | free 100, pro 2000, business 20000 | fail-open | SMS sends per workspace per day, by plan (rejected with 429 once exceeded) (POST /api/rooms/:id/messages, socket message:send) |

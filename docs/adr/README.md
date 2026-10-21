@@ -33,3 +33,4 @@ Short records of decisions that shaped the system. Add one when you make a decis
 * [0029](./0029-ai-agent-pipeline.md) The AI agent is a read-only decision followed by a write, with a rules agent underneath
 * [0030](./0030-forms-in-the-thread.md) Details are collected with form cards in the thread, and never merge contacts
 * [0031](./0031-calls-signalling-over-sockets.md) Calls: signalling over the existing sockets, a pure state machine, and the database as arbiter
+* [0032](./0032-phone-calls-through-the-workspaces-twilio.md) Phone calls: the workspace's own Twilio, agent first, consent before the first ring

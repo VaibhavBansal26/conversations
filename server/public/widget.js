@@ -357,6 +357,7 @@
       return COUNTRIES.some(function (x) { return x[0] === c; }) ? c : ((state.config && state.config.default_region) || "US");
     }
     /* a form card: the server asked for details; every value is validated here for speed and again by the server */
+    function zone() { try { return win.Intl.DateTimeFormat().resolvedOptions().timeZone || undefined; } catch (e) { return undefined; } }
     function renderContactForm(m, card) {
       var form = h(doc, "form", { class: "cform", "aria-label": "Your details", novalidate: true, "data-form": m.id });
       var inputs = {}, errs = {};
@@ -373,7 +374,7 @@
           input = h(doc, "input", { type: f.type === "email" ? "email" : f.type === "tel" ? "tel" : "text", name: f.key, autocomplete: f.key === "name" ? "name" : f.key === "email" ? "email" : f.key === "phone" ? "tel" : "off", maxlength: "200", "aria-required": f.required ? "true" : null });
         }
         inputs[f.key] = input;
-        if (draft[f.key]) input.value = draft[f.key];
+        if (draft[f.key]) input.value = draft[f.key]; else if (f.prefill) input.value = f.prefill;
         input.addEventListener("input", function () { draft[f.key] = input.value; });
         input.addEventListener("change", function () { draft[f.key] = input.value; });
         var control = input;
@@ -430,7 +431,7 @@
         var values = {};
         card.fields.forEach(function (f) { var v = (inputs[f.key].value || "").trim(); if (v) values[f.key] = v; });
         go.disabled = true;
-        api("/public/rooms/" + state.room.id + "/forms/" + m.id, { method: "POST", body: { values: values, consent: !!(consent && consent.checked), country: country ? country.value : undefined, website: hp.value || undefined } }).then(function () {
+        api("/public/rooms/" + state.room.id + "/forms/" + m.id, { method: "POST", body: { values: values, consent: !!(consent && consent.checked), country: country ? country.value : undefined, website: hp.value || undefined, timezone: zone() } }).then(function () {
           return loadMessages().then(renderMessages);
         }).catch(function (ex) {
           go.disabled = false;

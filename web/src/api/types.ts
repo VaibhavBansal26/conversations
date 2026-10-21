@@ -86,8 +86,17 @@ export interface DepartmentVisitorInfo {
 
 export type AiTone = "friendly" | "professional" | "concise" | "empathetic";
 
+export interface PhoneCallSettings {
+  enabled: boolean;
+  caller_id: string | null;
+  daily_limit: number;
+  allowed_countries: string[];
+  max_duration_s: number;
+  quiet_hours: { enabled: boolean; start: string; end: string };
+}
 export interface CallSettings {
   browser: { enabled: boolean; voice: boolean; video: boolean; screen_share: boolean };
+  phone?: PhoneCallSettings;
   ring_seconds: number;
   turn_provider: "none" | "static" | "twilio";
 }

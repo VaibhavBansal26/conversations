@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { AppContext } from "../context.js";
 import { parseBody, parseQuery, type Env } from "../http.js";
+import { supportOverview } from "../services/supportAnalytics.js";
 import { getPepper, overview, parseRange, rotatePepper, setPepper, timeseries, type TimeseriesMetric } from "../services/analytics.js";
 import { createApiKey, listApiKeys, revokeApiKey } from "../services/apiKeys.js";
 
@@ -18,6 +19,7 @@ export const KeyBody = z.object({
 export function analyticsRoutes(ctx: AppContext) {
   const r = new Hono<Env>();
   r.get("/analytics/overview", async (c) => c.json(await overview(ctx, c.get("actor").workspaceId, parseRange(ctx, parseQuery(c, Range)), { withNames: true })));
+  r.get("/analytics/support", async (c) => c.json(await supportOverview(ctx, c.get("actor").workspaceId, parseRange(ctx, parseQuery(c, Range)))));
   r.get("/analytics/timeseries", async (c) => {
     const q = parseQuery(c, Range.extend({ metric: z.string() }));
     return c.json(await timeseries(ctx, c.get("actor").workspaceId, q.metric as TimeseriesMetric, parseRange(ctx, q)));

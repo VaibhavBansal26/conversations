@@ -85,6 +85,24 @@ export const CallSettingsSchema = z.object({
       screen_share: z.boolean().default(true),
     })
     .default(() => ({ enabled: false, voice: true, video: true, screen_share: true })),
+  /** click-to-call: the app rings the agent's phone, then the visitor's, through the workspace's own Twilio account */
+  phone: z
+    .object({
+      enabled: z.boolean().default(false),
+      /** one of the workspace's imported Twilio numbers; shown to the visitor as the caller */
+      caller_id: z.string().regex(/^\+[1-9]\d{6,14}$/).nullable().default(null),
+      /** at most this many phone calls per workspace per UTC day (spend guard) */
+      daily_limit: z.number().int().min(1).max(1000).default(50),
+      /** ISO 3166-1 alpha-2 codes the visitor's number may be in; empty = none (nothing is called until a manager chooses) */
+      allowed_countries: z.array(z.string().length(2).toUpperCase()).max(60).default([]),
+      /** the bridge ends after this many seconds */
+      max_duration_s: z.number().int().min(60).max(7200).default(1800),
+      /** no calls to a visitor at night in the visitor's time zone (their browser's, else the workspace's office-hours zone) */
+      quiet_hours: z
+        .object({ enabled: z.boolean().default(true), start: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).default("21:00"), end: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).default("08:00") })
+        .default(() => ({ enabled: true, start: "21:00", end: "08:00" })),
+    })
+    .default(() => ({ enabled: false, caller_id: null, daily_limit: 50, allowed_countries: [], max_duration_s: 1800, quiet_hours: { enabled: true, start: "21:00", end: "08:00" } })),
   /** how long a call rings before it counts as missed */
   ring_seconds: z.number().int().min(15).max(120).default(45),
   /** where relay (TURN) credentials come from: none = STUN only (calls fail behind strict NATs), static = the server's TURN_URLS and TURN_SECRET, twilio = the workspace's own Twilio account */
@@ -96,6 +114,17 @@ export const CallsPatchSchema = z.object({
   browser: z.object({ enabled: z.boolean(), voice: z.boolean(), video: z.boolean(), screen_share: z.boolean() }).partial().optional(),
   ring_seconds: z.number().int().min(15).max(120).optional(),
   turn_provider: z.enum(["none", "static", "twilio"]).optional(),
+  phone: z
+    .object({
+      enabled: z.boolean(),
+      caller_id: z.string().regex(/^\+[1-9]\d{6,14}$/).nullable(),
+      daily_limit: z.number().int().min(1).max(1000),
+      allowed_countries: z.array(z.string().length(2).toUpperCase()).max(60),
+      max_duration_s: z.number().int().min(60).max(7200),
+      quiet_hours: z.object({ enabled: z.boolean(), start: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/), end: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/) }).partial(),
+    })
+    .partial()
+    .optional(),
 });
 
 const WidgetShape = z.object({
@@ -188,7 +217,7 @@ export function mergeSettings(cur: WorkspaceSettings, patch: z.infer<typeof Work
     ...rest,
     tickets: { ...cur.tickets, ...(tickets ?? {}) },
     routing: { ...cur.routing, ...(routing ?? {}) },
-    calls: { ...cur.calls, ...(calls ?? {}), browser: { ...cur.calls.browser, ...(calls?.browser ?? {}) } },
+    calls: { ...cur.calls, ...(calls ?? {}), browser: { ...cur.calls.browser, ...(calls?.browser ?? {}) }, phone: { ...cur.calls.phone, ...(calls?.phone ?? {}), quiet_hours: { ...cur.calls.phone.quiet_hours, ...(calls?.phone?.quiet_hours ?? {}) } } },
     widget: { ...cur.widget, ...(widget ?? {}) },
   });
 }

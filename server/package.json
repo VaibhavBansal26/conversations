@@ -21,7 +21,8 @@
     "docs:realtime": "tsx scripts/gen-realtime-doc.ts",
     "docs:check": "tsx scripts/docs-check.ts",
     "docs:ratelimit": "tsx scripts/gen-ratelimit-doc.ts",
-    "docs:analytics-schemas": "tsx scripts/gen-analytics-schemas.ts"
+    "docs:analytics-schemas": "tsx scripts/gen-analytics-schemas.ts",
+    "eval:agent": "EVAL_REPORT=1 vitest run tests/agents.eval.report.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",
