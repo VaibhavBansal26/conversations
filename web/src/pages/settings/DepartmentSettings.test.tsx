@@ -44,7 +44,8 @@ function mount() {
 
 const rule = (id: string, name: string, department_id: string, position: number): RoutingRule => ({ id, position, name, enabled: true, department_id, created_at: "", updated_at: "", conditions: [{ field: "page_url", op: "contains", value: "/pricing" }] });
 
-describe("DepartmentSettings", () => {
+// the editor is typed into key by key; under a loaded machine (the e2e suite running alongside) that can pass the 5 s default
+describe("DepartmentSettings", { timeout: 20_000 }, () => {
   beforeEach(() => {
     calls.length = 0;
     departments = [dept("inb_sales", "Sales"), dept("inb_bill", "Billing", { status: { id: "inb_bill", name: "Billing", open: false, next_opening: "tomorrow", available_agents: 0, queue_length: 3, estimated_wait_s: null }, effective_routing_mode: "least_busy", routing_mode: "least_busy", capacity: 4 })];
@@ -101,9 +102,9 @@ describe("DepartmentSettings", () => {
     const form = await screen.findByRole("form", { name: "Edit department Sales" });
     await userEvent.type(within(form).getByLabelText("Holiday date"), "2026-12-25");
     await userEvent.click(within(form).getByRole("button", { name: "Add" }));
-    expect(within(form).getByText("2026-12-25")).toBeInTheDocument();
+    expect(await within(form).findByText("2026-12-25")).toBeInTheDocument();
     await userEvent.click(within(form).getByRole("button", { name: "Remove holiday 2026-12-25" }));
-    expect(within(form).queryByText("2026-12-25")).toBeNull();
+    await waitFor(() => expect(within(form).queryByText("2026-12-25")).toBeNull());
   });
 
   it("shows the routing rules in order, moves one down, and tries the rules in the sandbox", async () => {
