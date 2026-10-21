@@ -99,6 +99,10 @@ Taken by `npm run shots` (Playwright, the built app, seeded demo data) at 1440x9
 | Settings > Chat widget > Install | `widget-install-*` |
 | Inbox with the Getting started card | `inbox-getting-started-*` |
 | A message stored in test mode, with the composer banner | `conversation-test-mode-*` |
+| AI call: voice with the photo face and captions, video with the photo face, video with the drawn face | `ai-call-voice-*`, `ai-call-video-photo-*`, `ai-call-video-drawn-face-*` |
+| Call link: the join page for the AI and for the team, the one message for an unusable link, the card in the chat | `call-link-page-ai-*`, `call-link-page-team-*`, `call-link-page-unavailable-*`, `call-link-card-widget-*` |
+| Teammate call: the call buttons in a direct message, the incoming screen, calling, in progress | `team-call-dm-header-*`, `team-call-incoming-*`, `team-call-calling-*`, `team-call-active-*` |
+| Settings > Calls (teammates, AI, links) and the agent editor with presets and picture | `calls-settings-full-*`, `calls-settings-links-*`, `ai-agent-presets-*`, `ai-agent-picture-*` |
 
 ### What the screenshot review changed (2026-10-20)
 
@@ -107,3 +111,7 @@ Reviewing the first set at all three sizes in both schemes led to these fixes: t
 ### What the second review changed (2026-10-21)
 
 The team chat, channel connection, widget install and getting started screens were reviewed at 1440, 1024 and 390 px in both schemes (`e2e/tests/shots-team.spec.ts`). Fixes: on a phone the action bar of every team message was visible at once and the bars overlapped (now a tap reveals it, as in the customer thread); at 1024 px the thread panel left the conversation about 320 px wide, so the composer hint wrapped and the header was cramped (the panel now sits beside the conversation from 1280 px and opens as a drawer below that, and the composer hint hides when its own container is narrow); the two "not connected" banners touched the first settings card; the "Send with an API key instead" link ran past the edge of the card on a phone; the embed snippet scrolled sideways instead of wrapping; the Install page content was centred while its tabs were left-aligned; search results for a direct message read "Demo Owner in Demo Owner"; the settings entry for numbers and senders now says "SMS & email". A real bug showed up in the browser run, not in unit tests: the bottom navigation evaluated its second route match only when the first did not match, which changed the hook count and blanked the page when opening a conversation (React error 300); it is covered by `AppNav.test.tsx` and the team end-to-end spec.
+
+### The call screens (2026-10-21)
+
+The screens of AI calls, call links, teammate calls and the related settings were captured at 1440, 1024 and 390 px in both schemes (`e2e/tests/shots-calls.spec.ts`; every picture is a generated placeholder, and the bundled portraits are swapped for placeholders in the browser before they are drawn). Fixes from the review: the AI call's video stage let the "cannot see you" note touch the ring (the stage has more room now); the call-link card in the chat had no border because the system-message rule won (it has its own rule); and the photo avatar did not show on a development server because only https addresses were accepted (a local http address of this app is accepted too). Left as they are: the call panel covers the composer on a phone while a call runs, and the direct message's header truncates the member's name next to the call buttons at 390 px.

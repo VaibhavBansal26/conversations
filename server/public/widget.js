@@ -149,6 +149,7 @@
     ".pay .st{font-size:12px;color:var(--muted);display:block;margin:2px 0 8px}",
     ".pay.paid{border-color:#16a34a}.pay.paid .st{color:#15803d}",
     "@media (prefers-color-scheme:dark){.root:not([data-theme=light]) .pay.paid .st{color:#86efac}}.root[data-theme=dark] .pay.paid .st{color:#86efac}",
+    ".m.pay.calllink{background:var(--in);color:var(--fg);border:1px solid var(--line);padding:12px 14px;font-size:14px;min-width:220px;white-space:normal}.pay.calllink .amt{font-size:16px}.pay.calllink.used,.pay.calllink.revoked,.pay.calllink.expired{opacity:.75}",
     ".pay a.btn{display:inline-block;background:var(--c);color:var(--t);padding:8px 14px;border-radius:calc(var(--r,16px)*.6);text-decoration:none;font-weight:600}",
     ".m.sys{align-self:center;background:transparent;border:0;color:var(--muted);font-size:12px;text-align:center}",
     ".typing{font-size:12px;color:var(--muted);padding:0 16px 6px;min-height:20px;flex:none}",
@@ -266,7 +267,7 @@
     function avatarSrc(u) {
       if (!u) return null;
       if (/^\/avatars\/[a-z0-9._-]+$/i.test(u)) return base + u;
-      return /^https:\/\//i.test(u) ? u : null;
+      return /^https:\/\//i.test(u) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/avatars\//i.test(u) ? u : null;
     }
     function renderHeader() {
       var w = state.config.widget;

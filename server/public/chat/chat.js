@@ -268,7 +268,7 @@
   function avatarSrc(u) {
     if (!u) return null;
     if (/^\/avatars\/[a-z0-9._-]+$/i.test(u)) return global.location.origin + u;
-    return /^https:\/\//i.test(u) ? u : null;
+    return /^https:\/\//i.test(u) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/avatars\//i.test(u) ? u : null;
   }
   function renderHeader() {
     var w = state.config.widget;

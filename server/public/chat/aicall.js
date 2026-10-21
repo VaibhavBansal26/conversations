@@ -74,7 +74,7 @@
     ".aicall .ai-name{font-size:16px;font-weight:600}",
     ".aicall .ai-badge{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;background:#2a2f3a;font-size:12px;font-weight:600;color:#cfd5df}",
     ".aicall .ai-sub{display:block;font-size:12.5px;opacity:.85;margin-top:3px;font-variant-numeric:tabular-nums}",
-    ".aicall .ai-stage{position:relative;display:flex;align-items:center;justify-content:center;min-height:132px;padding:10px 0 6px;flex:0 0 auto}",
+    ".aicall .ai-stage{position:relative;display:flex;align-items:center;justify-content:center;min-height:132px;padding:16px 0 18px;flex:0 0 auto}",
     ".aicall .face{position:relative;width:104px;height:104px;--lvl:0;--c:#6b7280}",
     ".aicall[data-kind=video] .face{width:176px;height:176px}",
     ".aicall .face[data-state=listening]{--c:#4ade80}.aicall .face[data-state=thinking]{--c:#facc15}.aicall .face[data-state=speaking]{--c:#60a5fa}",
@@ -479,7 +479,7 @@
     function photoUrl(u) {
       if (!u) return null;
       if (/^\/avatars\/[a-z0-9._-]+$/i.test(u)) return (o.apiBase != null ? o.apiBase : (win && win.location ? win.location.origin : "")) + u;
-      return /^https:\/\//i.test(u) ? u : null;
+      return /^https:\/\//i.test(u) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/avatars\//i.test(u) ? u : null;
     }
     function renderStage() {
       var u = build();
