@@ -30,6 +30,7 @@ import { settingsRoutes } from "./routes/settings.js";
 import { teamRoutes } from "./routes/team.js";
 import { webhookRoutes } from "./routes/webhooks.js";
 import { compressed, readPublicFile, serveSpa } from "./static.js";
+import { demoRedirectPage, previewExpiredPage, previewPage, verifyPreview } from "./services/widgetPreview.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 // `src/` and `dist/` both sit next to `public/`
@@ -72,7 +73,7 @@ export function createApp(ctx: AppContext): Hono {
   );
   app.use(
     "/public/*",
-    cors({ origin: (o) => o, allowHeaders: ["content-type", "x-api-key", "x-device-id", "x-support-session"], allowMethods: ["GET", "POST", "OPTIONS"], maxAge: 600 }),
+    cors({ origin: (o) => o, allowHeaders: ["content-type", "x-api-key", "x-device-id", "x-support-session", "x-preview"], allowMethods: ["GET", "POST", "OPTIONS"], maxAge: 600 }),
   );
 
   const jsonLimit = bodyLimit({
@@ -150,9 +151,17 @@ export function createApp(ctx: AppContext): Hono {
       "Cross-Origin-Resource-Policy": "cross-origin",
     }, "widget.js");
   });
-  app.get("/widget-demo.html", (c) => {
-    const f = readPublicFile(PUBLIC_DIR, "widget-demo.html");
-    return f ? c.body(new Uint8Array(f), 200, { "Content-Type": "text/html; charset=utf-8" }) : c.notFound();
+  // the old demo needed an embed token typed by hand and could not load from its own origin; it now points at the in-app preview
+  app.get("/widget-demo.html", (c) => c.html(demoRedirectPage()));
+  // "Try it now": the real widget on the app's own origin, bound to one token by a short-lived signed flag (services/widgetPreview.ts)
+  app.get("/widget-preview", (c) => {
+    const flag = c.req.query("p") ?? "";
+    try {
+      verifyPreview(ctx, flag);
+    } catch {
+      return c.html(previewExpiredPage(), 403, { "Cache-Control": "no-store" });
+    }
+    return c.html(previewPage(flag), 200, { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
   });
 
   const webDist = ctx.config.WEB_DIST ?? resolve(here, "../../web/dist");

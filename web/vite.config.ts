@@ -17,6 +17,7 @@ export default defineConfig({
       "/files": target,
       "/widget.js": target,
       "/widget-demo.html": target,
+      "/widget-preview": target,
       "/socket.io": { target, ws: true },
     },
   },

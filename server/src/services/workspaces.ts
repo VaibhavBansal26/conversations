@@ -29,7 +29,7 @@ export async function workspaceDto(ctx: AppContext, id: string) {
   const w = await getWorkspace(ctx, id);
   const s = await accountState(ctx, id);
   // plan and billing access are shown to every member (a locked workspace explains itself to all of them); amounts and cards stay with billing:manage
-  return { id: w.id, name: w.name, created_at: w.created_at, settings: parseSettings(w.settings), credit_balance: w.credit_balance, plan: s.plan, billing_access: s.state, billing_grace_until: s.graceUntil, currency: ctx.config.BILLING_CURRENCY };
+  return { id: w.id, name: w.name, created_at: w.created_at, settings: parseSettings(w.settings), credit_balance: w.credit_balance, plan: s.plan, billing_access: s.state, billing_grace_until: s.graceUntil, currency: ctx.config.BILLING_CURRENCY, public_url: ctx.config.PUBLIC_URL.replace(/\/$/, "") };
 }
 
 export async function updateWorkspace(ctx: AppContext, id: string, patch: { name?: string; settings?: z.infer<typeof WorkspaceSettingsPatchSchema> }) {

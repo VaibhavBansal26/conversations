@@ -18,7 +18,7 @@ const GROUPS: [RouteAccess, string[]][] = [
     "POST /public/rooms/:id/read", "POST /public/rooms/:id/csat", "POST /public/otp/send", "POST /public/otp/verify",
     "POST /webhooks/stripe", "POST /webhooks/stripe/connect", "POST /webhooks/twilio/sms", "POST /webhooks/twilio/status", "POST /webhooks/sendgrid/inbound", "POST /webhooks/sendgrid/events",
     "POST /webhooks/c/:id/twilio/sms", "POST /webhooks/c/:id/twilio/status", "POST /webhooks/c/:id/sendgrid/inbound", "POST /webhooks/c/:id/sendgrid/events",
-    "GET /files/*", "GET /widget.js", "GET /widget-demo.html",
+    "GET /files/*", "GET /widget.js", "GET /widget-demo.html", "GET /widget-preview",
   ]],
   ["platform", [
     "POST /admin/api/login", "POST /admin/api/mfa/setup", "POST /admin/api/mfa/enable", "POST /admin/api/mfa/verify", "GET /admin/api/me", "GET /admin/api/stats", "GET /admin/api/workspaces", "GET /admin/api/workspaces/:id",
@@ -60,7 +60,7 @@ const GROUPS: [RouteAccess, string[]][] = [
     "POST /api/channels/:channel/verify", "GET /api/channels/sms/numbers", "POST /api/channels/sms/numbers/import", "POST /api/channels/email/senders/import",
     "POST /api/channels/email/webhook-secret/rotate", "POST /api/channels/:channel/test", "GET /api/channels/:channel/events",
     "POST /api/sms-numbers", "POST /api/sms-numbers/:id/default", "DELETE /api/sms-numbers/:id", "POST /api/email-senders", "PATCH /api/email-senders/:id", "DELETE /api/email-senders/:id", "POST /api/inbound-addresses", "DELETE /api/inbound-addresses/:address"]],
-  ["tokens:manage", ["GET /api/tokens", "POST /api/tokens", "POST /api/tokens/:id/rotate", "DELETE /api/tokens/:id"]],
+  ["tokens:manage", ["GET /api/tokens", "POST /api/tokens", "POST /api/tokens/:id/rotate", "POST /api/tokens/:id/preview", "DELETE /api/tokens/:id"]],
   ["templates:manage", ["POST /api/templates", "PATCH /api/templates/:id", "DELETE /api/templates/:id"]],
   ["kb:manage", ["GET /api/kb", "POST /api/kb", "PUT /api/kb/:id", "DELETE /api/kb/:id"]],
   ["ai:use", ["POST /api/ai/suggest-replies", "POST /api/ai/summary", "POST /api/ai/rephrase"]],

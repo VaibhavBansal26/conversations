@@ -16,7 +16,7 @@ import { canSeeRoom } from "../services/roomStore.js";
 import type { RoomRow } from "../services/roomStore.js";
 import { assignRoom, markRead, roomBaseDto, setPriority, setStatus, setSubject, snoozeRoom, startConversation, unsnoozeRoom } from "../services/rooms.js";
 import { visitorMarkRead, visitorRoomDto, visitorRooms, visitorSend, visitorStartRoom } from "../services/visitorChat.js";
-import { authenticateSession, originMatches, verifyOtp, type SessionRow } from "../services/visitors.js";
+import { authenticateSession, sessionOriginAllowed, verifyOtp, type SessionRow } from "../services/visitors.js";
 import { monitorEventLoopDelay } from "node:perf_hooks";
 import { gcra, type GcraState } from "../ratelimit/algorithms.js";
 import { PermissionDenied } from "../authz/http.js";
@@ -442,9 +442,9 @@ export async function attachSocketServer(httpServer: HttpServer, ctx: AppContext
         socket.data = { kind: "team", memberId: actor.memberId, userId: actor.userId, workspaceId: ws, exp: decodeExp(auth.token), ip, imp: actor.impersonatedBy } satisfies TeamData;
       } else if (typeof auth.session === "string") {
         const session = await authenticateSession(ctx, auth.session, { deviceId: auth.deviceId, ip }, ws);
-        const token = session.token_id ? await ctx.db.get<{ domain: string; status: string }>("SELECT domain, status FROM tokens WHERE id = ?", session.token_id) : undefined;
+        const token = session.token_id ? await ctx.db.get<{ domain: string; status: "active" | "revoked" }>("SELECT domain, status FROM tokens WHERE id = ?", session.token_id) : undefined;
         const origin = socket.handshake.headers.origin;
-        if (token && (token.status !== "active" || (origin !== undefined && !originMatches(origin, token.domain)))) throw unauthorized("Origin not allowed", "ORIGIN_NOT_ALLOWED");
+        if (token && (token.status !== "active" || (origin !== undefined && !sessionOriginAllowed(ctx, session, token, origin)))) throw unauthorized("Origin not allowed", "ORIGIN_NOT_ALLOWED");
         handshakeSession.set(socket, session);
         socket.data = { kind: "visitor", sessionId: session.id, contactId: session.contact_id, workspaceId: ws, ip } satisfies VisitorData;
       } else throw unauthorized("Missing credentials", "UNAUTHORIZED");

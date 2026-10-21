@@ -199,7 +199,7 @@ describe("static assets and widget delivery", () => {
     expect(await js.text()).toContain("ConversationsWidget");
     const demo = await app.request("/widget-demo.html");
     expect(demo.headers.get("content-type")).toContain("text/html");
-    expect(await demo.text()).toContain("widget.js");
+    expect(await demo.text()).toContain("/settings/widget"); // the demo now points at the in-app preview
   });
   it("serves a built web app with SPA fallback, without shadowing API or webhook paths", async () => {
     const dist = mkdtempSync(join(tmpdir(), "dist-"));

@@ -8,7 +8,8 @@ import { useSession } from "../../auth/AuthContext";
 import { contrastRatio, isHex, passesAA, readableOn } from "../../components/settings/contrast";
 import { SaveBar } from "../../components/settings/SettingsSection";
 import { WidgetPreview } from "../../components/settings/WidgetPreview";
-import { Button, cn, ErrorNotice, Field, Input, Select, Switch, Textarea } from "../../ui";
+import { Button, cn, ErrorNotice, Field, Input, Select, SegmentedList, SegmentedTrigger, Switch, Tabs, TabsContent, Textarea } from "../../ui";
+import { WidgetInstall } from "./WidgetInstall";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const REQUIRED: Widget["required_info"] = ["name", "email", "phone"];
@@ -118,7 +119,7 @@ const LAUNCHERS: { id: Widget["launcher_style"]; label: string; hint: string }[]
   { id: "icon", label: "Square", hint: "Rounded icon button" },
 ];
 
-export function WidgetSettings() {
+function WidgetCustomiser() {
   const saved = useSession().workspace.settings.widget;
   const inboxes = useInboxes().data ?? [];
   const save = useSaveWorkspace();
@@ -347,5 +348,24 @@ export function WidgetSettings() {
       </aside>
     </div>
     </div>
+  );
+}
+
+/** Settings > Chat widget: install it (embed token, snippet per platform, live check, preview) or customise how it looks. `?tab=install` opens the first. */
+export function WidgetSettings() {
+  const [tab, setTab] = useState<"install" | "customise">(() => (new URLSearchParams(window.location.search).get("tab") === "install" ? "install" : "customise"));
+  return (
+    <Tabs value={tab} onValueChange={(v) => setTab(v as "install" | "customise")}>
+      <SegmentedList aria-label="Chat widget" className="mb-5">
+        <SegmentedTrigger value="install">Install</SegmentedTrigger>
+        <SegmentedTrigger value="customise">Customise</SegmentedTrigger>
+      </SegmentedList>
+      <TabsContent value="install">
+        <WidgetInstall />
+      </TabsContent>
+      <TabsContent value="customise">
+        <WidgetCustomiser />
+      </TabsContent>
+    </Tabs>
   );
 }

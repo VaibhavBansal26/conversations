@@ -1,3 +1,4 @@
+import { ownOrigin, PREVIEW_SESSION_HOURS, verifyPreview } from "./widgetPreview.js";
 import { workspaceFromAddress } from "./channelConnections.js";
 import { assertWorkspaceActive } from "../admin/suspension.js";
 import { can } from "../authz/permissions.js";
@@ -26,6 +27,8 @@ export interface TokenRow {
   created_by: string | null;
   status: "active" | "revoked";
   last_used_at: string | null;
+  last_seen_origin: string | null;
+  last_seen_at: string | null;
   created_at: string;
 }
 
@@ -70,6 +73,9 @@ export const tokenDto = (t: TokenRow) => ({
   token: t.token,
   status: t.status,
   last_used_at: t.last_used_at,
+  /** the newest widget config request from a real site (never the in-app preview) and the Origin it came from */
+  last_seen_origin: t.last_seen_origin,
+  last_seen_at: t.last_seen_at,
   created_at: t.created_at,
 });
 
@@ -111,13 +117,31 @@ export async function revokeToken(ctx: AppContext, actor: Actor, id: string): Pr
 export const listTokens = (ctx: AppContext, workspaceId: string) =>
   ctx.db.all<TokenRow>("SELECT * FROM tokens WHERE workspace_id = ? AND status = 'active' ORDER BY created_at, id", workspaceId);
 
-/** x-api-key + Origin -> the token (and thereby the workspace). 401 for unknown/revoked keys, 403 for a foreign origin. */
-export async function authenticateToken(ctx: AppContext, apiKey: string | undefined, origin: string | undefined): Promise<TokenRow> {
+/**
+ * x-api-key + Origin -> the token (and thereby the workspace). 401 for unknown/revoked keys, 403 for a foreign origin.
+ * `preview` (the signed flag of the in-app preview) replaces the key and the domain check by "this exact token, from the app's own origin".
+ */
+export async function authenticateToken(
+  ctx: AppContext,
+  apiKey: string | undefined,
+  origin: string | undefined,
+  opts: { seen?: boolean; preview?: string } = {},
+): Promise<TokenRow & { preview?: boolean }> {
+  if (opts.preview) {
+    const claim = verifyPreview(ctx, opts.preview);
+    const t = await ctx.db.get<TokenRow>("SELECT * FROM tokens WHERE id = ? AND workspace_id = ?", claim.tokenId, claim.workspaceId);
+    if (!t || t.status !== "active") throw unauthorized("Invalid or revoked API key", "INVALID_API_KEY");
+    // the flag opens the app's own origin only; a same-origin GET has no Origin header, a POST has the app's
+    if (origin !== undefined && origin !== ownOrigin(ctx)) throw forbidden("This origin is not allowed for the API key", "ORIGIN_NOT_ALLOWED");
+    await assertWorkspaceActive(ctx, t.workspace_id);
+    return { ...t, preview: true };
+  }
   const row = apiKey ? await ctx.db.get<TokenRow>("SELECT * FROM tokens WHERE token = ?", apiKey) : undefined;
   if (!row || row.status !== "active") throw unauthorized("Invalid or revoked API key", "INVALID_API_KEY");
   if (!originMatches(origin, row.domain)) throw forbidden("This origin is not allowed for the API key", "ORIGIN_NOT_ALLOWED");
   await assertWorkspaceActive(ctx, row.workspace_id);
-  await ctx.db.run("UPDATE tokens SET last_used_at = ? WHERE id = ?", nowIso(ctx), row.id);
+  if (opts.seen) await ctx.db.run("UPDATE tokens SET last_used_at = ?, last_seen_at = ?, last_seen_origin = ? WHERE id = ?", nowIso(ctx), nowIso(ctx), origin!.slice(0, 200), row.id);
+  else await ctx.db.run("UPDATE tokens SET last_used_at = ? WHERE id = ?", nowIso(ctx), row.id);
   return row;
 }
 
@@ -138,6 +162,8 @@ export interface SessionRow {
   otp_attempts: number;
   otp_channel: string | null;
   user_info: string;
+  /** minted through the in-app preview: accepted from the app's own origin only */
+  preview: number;
   expires_at: string;
   expired: number;
   created_at: string;
@@ -149,7 +175,13 @@ export interface VisitorInfo {
   phone?: string;
 }
 
-export async function createSession(ctx: AppContext, token: TokenRow, input: { device_id: string; ip?: string | null } & VisitorInfo) {
+/** May a request from `origin` use this session? Normal sessions: the embed token's domain; preview sessions: the app's own origin only. */
+export function sessionOriginAllowed(ctx: AppContext, session: Pick<SessionRow, "preview">, token: Pick<TokenRow, "domain" | "status">, origin: string): boolean {
+  if (token.status !== "active") return false;
+  return session.preview ? origin === ownOrigin(ctx) : originMatches(origin, token.domain);
+}
+
+export async function createSession(ctx: AppContext, token: TokenRow & { preview?: boolean }, input: { device_id: string; ip?: string | null } & VisitorInfo) {
   const ws = token.workspace_id;
   const widget = (await getSettings(ctx, ws)).widget;
   const missing = widget.required_info.filter((k) => !input[k]?.toString().trim());
@@ -186,7 +218,7 @@ export async function createSession(ctx: AppContext, token: TokenRow, input: { d
   const inheritVerified = previous.some((p) => p.verified && p.expires_at > now.toISOString());
   await ctx.db.tx(async () => {
     await ctx.db.run(
-      "INSERT INTO visitor_sessions(id, workspace_id, contact_id, token_id, secret_hash, device_id, ip, verified, user_info, expires_at, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+      "INSERT INTO visitor_sessions(id, workspace_id, contact_id, token_id, secret_hash, device_id, ip, verified, user_info, expires_at, created_at, preview) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
       id,
       ws,
       contact.id,
@@ -196,8 +228,9 @@ export async function createSession(ctx: AppContext, token: TokenRow, input: { d
       input.ip ?? null,
       inheritVerified,
       JSON.stringify({ name: input.name, email: input.email, phone: input.phone }),
-      addSeconds(now, SESSION_TTL_DAYS * 86400).toISOString(),
+      addSeconds(now, token.preview ? PREVIEW_SESSION_HOURS * 3600 : SESSION_TTL_DAYS * 86400).toISOString(),
       now.toISOString(),
+      !!token.preview,
     );
     for (const p of previous) {
       await ctx.db.run("UPDATE visitor_sessions SET expired = 1 WHERE id = ?", p.id);

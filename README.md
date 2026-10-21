@@ -23,7 +23,7 @@ npm run seed           # optional: demo workspace (demo@example.test / demo-pass
 npm run dev            # API on http://localhost:3000, web app on http://localhost:5173
 ```
 
-Open http://localhost:5173 and sign in with the demo user (or register a new workspace). Try the widget: create an embed token for `localhost:3000` in *Settings -> Tokens*, then open http://localhost:3000/widget-demo.html and paste the token (the seed already creates tokens for `localhost:5173` and `localhost:3000`).
+Open http://localhost:5173 and sign in with the demo user (or register a new workspace). Try the widget: create an embed token for `localhost:3000` in *Settings -> Tokens*, or simply open *Settings -> Chat widget -> Install* and press *Try it now* to chat as a visitor in one tab and reply as an agent in another ([docs/WIDGET.md](docs/WIDGET.md)).
 
 ### Production-style run
 

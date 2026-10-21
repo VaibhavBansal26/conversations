@@ -87,6 +87,8 @@ export interface Workspace {
   billing_access?: "ok" | "grace" | "locked";
   billing_grace_until?: string | null;
   currency?: string;
+  /** the address this deployment is reached at (PUBLIC_URL): what embed snippets and webhook URLs must contain */
+  public_url?: string;
 }
 
 export interface Session {
@@ -297,6 +299,9 @@ export interface EmbedToken {
   token: string;
   status: string;
   last_used_at: string | null;
+  /** newest widget config request from a real site (the in-app preview does not count) */
+  last_seen_origin?: string | null;
+  last_seen_at?: string | null;
   created_at: string;
 }
 

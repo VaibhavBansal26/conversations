@@ -103,8 +103,8 @@ export function TokenSettings() {
                   <Button variant="ghost" size="sm" aria-pressed={shown} onClick={() => toggle(t.id)}>
                     {shown ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />} {shown ? "Hide token" : "Reveal token"}
                   </Button>
-                  <a className="ml-auto text-[13px] font-medium text-primary-text hover:underline" href="/widget-demo.html" target="_blank" rel="noopener noreferrer">
-                    Open widget demo
+                  <a className="ml-auto text-[13px] font-medium text-primary-text hover:underline" href="/settings/widget?tab=install">
+                    Install guide and preview
                   </a>
                 </div>
               </Card>

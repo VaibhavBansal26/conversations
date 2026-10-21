@@ -921,7 +921,7 @@
         "tags": [
           "Workspace"
         ],
-        "summary": "The workspace: settings, credit balance, plan, `billing_access`, currency",
+        "summary": "The workspace: settings, credit balance, plan, `billing_access`, currency, `public_url` (what snippets and webhook URLs must contain)",
         "operationId": "get_api_workspace",
         "security": [
           {
@@ -7402,6 +7402,60 @@
         }
       }
     },
+    "/api/tokens/{id}/preview": {
+      "post": {
+        "tags": [
+          "Widget"
+        ],
+        "summary": "A signed, 10-minute link to a page that runs the real widget on the app's own origin for this token (\"Try it now\"); the domain check for real sites is untouched",
+        "operationId": "post_api_tokens_id_preview",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "tokens:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
     "/api/tokens/{id}": {
       "delete": {
         "tags": [
@@ -10665,8 +10719,39 @@
         "tags": [
           "Files"
         ],
-        "summary": "Widget demo page",
+        "summary": "Pointer to the in-app widget preview (the old token-by-hand demo was replaced)",
         "operationId": "get_widget_demo_html",
+        "security": [],
+        "x-access": "public",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/widget-preview": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "The in-app \"Try it now\" page: the real widget on the app's own origin, bound to one token by the signed `p` flag (10 minutes); 403 when the flag is invalid or expired",
+        "operationId": "get_widget_preview",
         "security": [],
         "x-access": "public",
         "x-rate-limit": {

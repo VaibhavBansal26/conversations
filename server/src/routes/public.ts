@@ -23,7 +23,7 @@ import {
   visitorSend,
   visitorStartRoom,
 } from "../services/visitorChat.js";
-import { authenticateSession, authenticateToken, originMatches, sendOtp, sessionDto, verifyOtp, createSession, type SessionRow } from "../services/visitors.js";
+import { authenticateSession, authenticateToken, sendOtp, sessionOriginAllowed, sessionDto, verifyOtp, createSession, type SessionRow } from "../services/visitors.js";
 import { getSettings, getWorkspace } from "../services/workspaces.js";
 import { getContact } from "../services/contacts.js";
 
@@ -38,10 +38,10 @@ export const Csat = z.object({ score: z.number().int().min(1).max(5), comment: z
 export function publicRoutes(ctx: AppContext) {
   const r = new Hono<PEnv>();
 
-  const tokenAuth = (c: Context) => authenticateToken(ctx, c.req.header("x-api-key"), c.req.header("origin"));
+  const tokenAuth = (c: Context, seen = false) => authenticateToken(ctx, c.req.header("x-api-key"), c.req.header("origin"), { seen, preview: c.req.header("x-preview") });
 
   r.get("/widget/config", async (c) => {
-    const token = await tokenAuth(c);
+    const token = await tokenAuth(c, true);
     const ws = await getWorkspace(ctx, token.workspace_id);
     const widget = (await getSettings(ctx, ws.id)).widget;
     const inboxes = await ctx.db.all<{ id: string; name: string; icon: string }>(
@@ -79,8 +79,8 @@ export function publicRoutes(ctx: AppContext) {
     // browsers always send Origin; if it is present it must still belong to the embed token that created the session
     const origin = c.req.header("origin");
     if (origin && s.token_id) {
-      const t = await ctx.db.get<{ domain: string; status: string }>("SELECT domain, status FROM tokens WHERE id = ?", s.token_id);
-      if (!t || t.status !== "active" || !originMatches(origin, t.domain)) throw forbidden("This origin is not allowed", "ORIGIN_NOT_ALLOWED");
+      const t = await ctx.db.get<{ domain: string; status: "active" | "revoked" }>("SELECT domain, status FROM tokens WHERE id = ?", s.token_id);
+      if (!t || !sessionOriginAllowed(ctx, s, t, origin)) throw forbidden("This origin is not allowed", "ORIGIN_NOT_ALLOWED");
     }
     c.set("session", s);
     await applyPrincipalLimits(ctx, c, { visitorId: s.id, workspaceId: s.workspace_id });

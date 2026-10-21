@@ -4,6 +4,11 @@ All notable user-visible changes. Format: [Keep a Changelog](https://keepachange
 
 ## [Unreleased]
 
+### Added (widget onboarding)
+- **Settings > Chat widget > Install**: choose your website (create the embed token inline), copy a snippet pre-filled with the real `PUBLIC_URL` and token with instructions for plain HTML, WordPress, Shopify, Google Tag Manager and React / Next.js, then watch "Waiting for the widget to load on ..." turn green with the site and time (`last_seen_origin` and `last_seen_at` per token). In-app copy explains the domain allow-list (`www` vs non-www, `*.example.com`) and CSP needs.
+- **Try it now**: `/widget-preview` runs the real widget on the app's own origin through a 10-minute signed flag (`POST /api/tokens/:id/preview`), so you can chat as a visitor in one tab and reply as an agent in another. The production Origin check is unchanged ([ADR 0020](docs/adr/0020-widget-preview-flag.md)). `/widget-demo.html` now points there. `GET /api/workspace` returns `public_url`.
+- [docs/WIDGET.md](docs/WIDGET.md): install guide, domain rules, CSP requirements, troubleshooting table, office hours, OTP.
+
 ### Fixed (widget)
 - **The widget no longer shows the team's internal system lines** ("Olivia assigned this conversation to Sam", closed/reopened, snoozed, SMS consent, unknown kinds). Visitors get only an allow-list of system lines (`create`, `payment`) over REST and sockets; notes were already excluded. The satisfaction prompt is driven by `room.closed_marker` from the server instead of the close line.
 

@@ -26,6 +26,7 @@ import {
 } from "../services/settings.js";
 import { createTemplate, deleteTemplate, listTemplates, renderTemplate, templateDto, updateTemplate } from "../services/templates.js";
 import { createToken, listTokens, revokeToken, rotateToken, tokenDto } from "../services/visitors.js";
+import { createPreviewLink } from "../services/widgetPreview.js";
 
 const snd = (s: { id: string; address: string; display_name: string; verified: number; is_default: number }) => ({
   id: s.id,
@@ -80,6 +81,7 @@ export function settingsRoutes(ctx: AppContext) {
 
   r.get("/tokens", requireManager, async (c) => c.json({ data: (await listTokens(ctx, c.get("actor").workspaceId)).map(tokenDto) }));
   r.post("/tokens", async (c) => c.json(tokenDto(await createToken(ctx, c.get("actor"), (await parseBody(c, TokenBody)).domain)), 201));
+  r.post("/tokens/:id/preview", async (c) => c.json(await createPreviewLink(ctx, c.get("actor"), c.req.param("id")), 201));
   r.post("/tokens/:id/rotate", async (c) => c.json(tokenDto(await rotateToken(ctx, c.get("actor"), c.req.param("id"))), 201));
   r.delete("/tokens/:id", async (c) => {
     await revokeToken(ctx, c.get("actor"), c.req.param("id"));

@@ -1,6 +1,7 @@
 /*!
  * Conversations live-chat widget. Framework-free; renders in a Shadow DOM.
  *   <script src="https://YOUR-HOST/widget.js" data-token="cvt_..." async></script>
+ * The in-app "Try it now" page loads it with data-preview="<signed flag>" instead of a token (see docs/WIDGET.md).
  * Talks to the same origin that served this file: GET /public/widget/config, POST /public/sessions, Socket.IO namespace /ws/<workspaceId>.
  */
 (function (global) {
@@ -152,9 +153,11 @@
     var doc = opts.document || win.document;
     var fetchImpl = opts.fetch || win.fetch.bind(win);
     var base = (opts.apiBase || "").replace(/\/$/, "");
-    var token = opts.token;
+    var token = opts.token || "";
+    var preview = opts.preview || "";
     var store = opts.storage || safeStorage(win);
-    var keyPrefix = "cv_" + token.slice(-8) + "_";
+    // a preview flag changes on every use; keep its sessions apart from the real token's
+    var keyPrefix = preview ? "cv_preview_" : "cv_" + token.slice(-8) + "_";
     var state = {
       config: null, session: null, room: null, messages: [], pending: {}, socket: null, connected: false,
       open: false, view: OPEN_STATE.CHAT, unread: 0, typingTimer: null, pollTimer: null, destroyed: false, lastReadId: null, error: "", info: "",
@@ -168,7 +171,8 @@
     /* ---------- http ---------- */
     function api(path, o) {
       o = o || {};
-      var headers = { "x-api-key": token, "x-device-id": deviceId };
+      var headers = { "x-device-id": deviceId };
+      if (preview) headers["x-preview"] = preview; else headers["x-api-key"] = token;
       if (state.session && !o.noSession) headers["x-support-session"] = state.session.session_token;
       if (o.body !== undefined) headers["content-type"] = "application/json";
       return fetchImpl(base + path, { method: o.method || "GET", headers: headers, body: o.body !== undefined ? JSON.stringify(o.body) : undefined })
@@ -680,16 +684,21 @@
 
   function init(options) {
     var opts = Object.assign({}, options);
-    if (!opts.token) throw new Error("Conversations widget: missing token");
+    if (!opts.token && !opts.preview) throw new Error("Conversations widget: missing token");
     return createWidget(opts);
   }
 
   global.ConversationsWidget = { init: init, version: VERSION };
 
   var script = global.document && global.document.currentScript;
-  if (script && script.getAttribute && script.getAttribute("data-token") && !script.getAttribute("data-manual")) {
+  if (script && script.getAttribute && (script.getAttribute("data-token") || script.getAttribute("data-preview")) && !script.getAttribute("data-manual")) {
     var origin = new URL(script.src, global.location.href).origin;
-    var boot = function () { global.ConversationsWidget.instance = init({ token: script.getAttribute("data-token"), apiBase: origin, theme: script.getAttribute("data-theme") || undefined }); };
+    var boot = function () {
+      var w = init({ token: script.getAttribute("data-token") || undefined, preview: script.getAttribute("data-preview") || undefined, apiBase: origin, theme: script.getAttribute("data-theme") || undefined });
+      global.ConversationsWidget.instance = w;
+      // data-open="true" opens the panel as soon as the widget is ready (used by the in-app preview page)
+      if (script.getAttribute("data-open") === "true") w.ready.then(function () { w.open(); }).catch(function () {});
+    };
     if (global.document.readyState === "loading") global.document.addEventListener("DOMContentLoaded", boot); else boot();
   }
 })(typeof window !== "undefined" ? window : globalThis);

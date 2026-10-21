@@ -6,7 +6,9 @@ Every document under `docs/` is listed here (a check fails otherwise). Generated
 
 | If you want to... | Read |
 | --- | --- |
-| connect Twilio and SendGrid, read the SMS/email setup guide | [CHANNELS.md](CHANNELS.md) |
+| install the chat widget, understand domain rules, fix a widget that does not show | [WIDGET.md](WIDGET.md) |
+| connect Twilio and SendGrid, read the SMS/email setup guide | [WIDGET.md](WIDGET.md) | install guide (HTML, WordPress, Shopify, GTM, React), the in-app preview, domain rules, CSP needs, troubleshooting table, office hours, OTP |
+| [CHANNELS.md](CHANNELS.md) |
 | deploy it for free (Render, GitHub-connected) | [DEPLOY.md](DEPLOY.md) |
 | run it and see it work | [../README.md](../README.md) (quick start), [TESTING.md](TESTING.md) |
 | understand how it is built | [ARCHITECTURE.md](ARCHITECTURE.md), [APPROACH.md](APPROACH.md), [adr/README.md](adr/README.md) |

@@ -50,7 +50,7 @@ const rows: [string, string, string, Opt?][] = [
   ["POST /api/auth/mfa/disable", "Auth", "Turn two-factor off (needs password and a code)", { body: authR.MfaDisable, status: 204 }],
 
   // ---- workspace, team
-  ["GET /api/workspace", "Workspace", "The workspace: settings, credit balance, plan, `billing_access`, currency"],
+  ["GET /api/workspace", "Workspace", "The workspace: settings, credit balance, plan, `billing_access`, currency, `public_url` (what snippets and webhook URLs must contain)"],
   ["PATCH /api/workspace", "Workspace", "Change the name and settings (widget, office hours, retention, AI flags, credits)", { body: S.WorkspacePatch }],
   ["GET /api/credits", "Workspace", "Credit balance and recent ledger"],
   ["POST /api/credits/grant", "Workspace", "Add credits by hand (owners; refused with `CREDIT_GRANT_DISABLED` when Stripe is configured)", { body: S.CreditGrant, status: 201 }],
@@ -149,6 +149,7 @@ const rows: [string, string, string, Opt?][] = [
   ["GET /api/tokens", "Widget", "Widget embed tokens"],
   ["POST /api/tokens", "Widget", "Create an embed token bound to a domain", { body: S.TokenBody, status: 201 }],
   ["POST /api/tokens/:id/rotate", "Widget", "Rotate an embed token"],
+  ["POST /api/tokens/:id/preview", "Widget", "A signed, 10-minute link to a page that runs the real widget on the app's own origin for this token (\"Try it now\"); the domain check for real sites is untouched", { status: 201 }],
   ["DELETE /api/tokens/:id", "Widget", "Revoke an embed token", { status: 204 }],
   ["GET /api/kb", "AI", "Knowledge-base entries"],
   ["POST /api/kb", "AI", "Add an entry", { body: S.KbBody, status: 201 }],
@@ -217,7 +218,8 @@ const rows: [string, string, string, Opt?][] = [
   ["POST /webhooks/c/:id/sendgrid/events", "Webhooks", "Event webhook for one workspace's SendGrid account (the connection's verification key, else its `secret`)"],
   ["GET /files/*", "Files", "Signed attachment download (`exp` and `sig` query parameters)", { media: "application/octet-stream" }],
   ["GET /widget.js", "Files", "The embeddable widget script", { media: "application/javascript" }],
-  ["GET /widget-demo.html", "Files", "Widget demo page", { media: "text/html" }],
+  ["GET /widget-demo.html", "Files", "Pointer to the in-app widget preview (the old token-by-hand demo was replaced)", { media: "text/html" }],
+  ["GET /widget-preview", "Files", "The in-app \"Try it now\" page: the real widget on the app's own origin, bound to one token by the signed `p` flag (10 minutes); 403 when the flag is invalid or expired", { media: "text/html" }],
 
   // ---- platform admin
   ["POST /admin/api/login", "Platform admin", "Password step of an operator sign-in; returns `{mfa_required | mfa_setup_required, mfa_token}`", { body: adminR.Login }],

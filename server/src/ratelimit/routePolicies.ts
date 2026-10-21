@@ -59,7 +59,7 @@ const GROUPS: { spec: RouteSpec; routes: string[] }[] = [
       "POST /api/notifications/read-all", "POST /api/notifications/:id/read", "POST /api/sms-numbers", "POST /api/sms-numbers/:id/default", "DELETE /api/sms-numbers/:id",
       "POST /api/email-senders", "PATCH /api/email-senders/:id", "DELETE /api/email-senders/:id", "POST /api/inbound-addresses", "DELETE /api/inbound-addresses/:address",
       "PUT /api/channels/sms/connection", "PUT /api/channels/email/connection", "PATCH /api/channels/email/connection", "DELETE /api/channels/:channel/connection", "POST /api/channels/email/webhook-secret/rotate",
-      "POST /api/tokens", "POST /api/tokens/:id/rotate", "DELETE /api/tokens/:id", "POST /api/templates", "PATCH /api/templates/:id", "DELETE /api/templates/:id", "POST /api/templates/:id/render",
+      "POST /api/tokens", "POST /api/tokens/:id/rotate", "POST /api/tokens/:id/preview", "DELETE /api/tokens/:id", "POST /api/templates", "PATCH /api/templates/:id", "DELETE /api/templates/:id", "POST /api/templates/:id/render",
       "POST /api/kb", "PUT /api/kb/:id", "DELETE /api/kb/:id", "POST /api/roles", "PATCH /api/roles/:id", "DELETE /api/roles/:id", "PUT /api/members/:id/role", "POST /api/v1/api-keys", "DELETE /api/v1/api-keys/:id", "POST /api/analytics/identity-pepper/rotate", "PUT /api/analytics/identity-pepper", "PUT /api/v1/analytics/identity-pepper", "POST /api/v1/analytics/identity-pepper/rotate",
     ],
   },
@@ -97,7 +97,7 @@ const GROUPS: { spec: RouteSpec; routes: string[] }[] = [
   { spec: { post: ["public.otp.verify"] }, routes: ["POST /public/otp/verify"] },
 
   { spec: { pre: ["webhook.provider"], inHandler: ["webhook.badsig"] }, routes: ["POST /webhooks/twilio/sms", "POST /webhooks/twilio/status", "POST /webhooks/sendgrid/inbound", "POST /webhooks/sendgrid/events"] },
-  { spec: {}, routes: ["GET /files/*", "GET /widget.js", "GET /widget-demo.html"] },
+  { spec: {}, routes: ["GET /files/*", "GET /widget.js", "GET /widget-demo.html", "GET /widget-preview"] },
 ];
 
 export const ROUTE_LIMITS: ReadonlyMap<string, RouteSpec> = (() => {
