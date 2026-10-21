@@ -153,6 +153,14 @@ describe("starting a call with the realtime engine", () => {
     expect((await b.start()).ai.realtime.tools).toContain("resolve_ticket");
   });
 
+  it("the link tool is offered only when call links with the team are on", async () => {
+    reset();
+    const off = await world({ settings: { links: { enabled: false } } });
+    expect((await off.start()).ai.realtime.tools).not.toContain("share_call_link");
+    const on = await world({ settings: { links: { enabled: true, ttl_minutes: 30, allow_ai: true, allow_team: true } }, device: "device-rtm-0003" });
+    expect((await on.start()).ai.realtime.tools).toContain("share_call_link");
+  });
+
   it("the API key and the client secret never reach a browser event, the logs, the audit log or the database", async () => {
     reset();
     logged.length = 0;

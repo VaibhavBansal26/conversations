@@ -86,7 +86,8 @@ export async function negotiateRealtime(ctx: AppContext, o: { call: CallRow; age
   const wsRow = await ctx.db.get<{ name: string }>("SELECT name FROM workspaces WHERE id = ?", ws);
   const inbox = await findAgent(ctx, ws, o.agent.id);
   const departments = inbox ? await departmentChoices(ctx, ws, inbox) : [];
-  const tools = toolsFor(o.agent);
+  // the link tool is only offered when call links with the team are on (the model would otherwise promise a link the server refuses to make)
+  const tools = toolsFor(o.agent).filter((t) => t.name !== "share_call_link" || (s.links.enabled && s.links.allow_team));
   try {
     const secret = await ctx.realtime!.mint({
       model: ctx.config.OPENAI_REALTIME_MODEL!,
