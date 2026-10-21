@@ -1,5 +1,6 @@
 import type { ZodType } from "zod";
 import * as S from "../schemas.js";
+import * as formR from "../services/visitorInfo.js";
 import * as authR from "../routes/auth.js";
 import * as billingR from "../routes/billing.js";
 import * as adminR from "../routes/admin.js";
@@ -261,6 +262,8 @@ const rows: [string, string, string, Opt?][] = [
   ["POST /public/rooms/:id/quick-reply", "Widget (public)", "Tap a quick reply under a bot message (`Yes, thanks` resolves the ticket, `Not quite` lets the AI agent try again or hand over, `Talk to a person`, a department). The tap is stored as the visitor's message; a card can be tapped once (`409 ALREADY_ANSWERED`)", { body: S.QuickReplyBody }],
   ["POST /public/rooms/:id/request-human", "Widget (public)", "\"Talk to a person\": always available, whether or not an AI agent exists. Stores the request and hands the ticket off through the department's routing; repeating it while a person has the ticket changes nothing"],
   ["POST /public/rooms/:id/messages/:messageId/feedback", "Widget (public)", "Thumbs up (1) or down (-1) on an AI answer", { body: S.VisitorFeedback }],
+  ["POST /public/rooms/:id/forms/:messageId", "Widget (public)", "Answer a form card the server put in the thread (name, email, phone, custom fields, consent). Validated here: email syntax, phone parsed to E.164 with the picked `country`, name charset; `422 INVALID_FORM` with per-field `errors`; a card is answered once (`409 ALREADY_ANSWERED`). An email or phone that already belongs to another contact is kept as unverified and never merges that contact's history", { body: formR.FormSubmission }],
+  ["POST /public/rooms/:id/forms/:messageId/skip", "Widget (public)", "Skip an optional form card (`422 NOT_SKIPPABLE` when it has a required field)"],
   ["POST /public/otp/send", "Widget (public)", "Send a one-time code to verify the visitor"],
   ["POST /public/otp/verify", "Widget (public)", "Verify the one-time code", { body: S.OtpVerify }],
 

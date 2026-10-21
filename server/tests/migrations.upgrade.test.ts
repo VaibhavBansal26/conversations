@@ -831,3 +831,99 @@ describe.skipIf(!postgres)("PostgreSQL: AI agent migrations on a populated datab
     }
   });
 });
+
+// ---- department visitor details (migration 033): the release before it is 032 -------------------------------------------------------------
+
+const PRE_VISITOR_INFO = 32;
+
+async function expectVisitorInfoMigration(db: Db, before: Record<string, number>, tables: string[]) {
+  expect(await counts(db, tables)).toEqual(before);
+  // every existing department follows the workspace until someone overrides it
+  expect(await db.get("SELECT visitor_info FROM inboxes WHERE id = 'i1'")).toEqual({ visitor_info: "{}" });
+  await db.run("UPDATE inboxes SET visitor_info = ? WHERE id = 'i1'", '{"fields":{"phone":"required"}}');
+  expect(await db.get("SELECT visitor_info FROM inboxes WHERE id = 'i1'")).toEqual({ visitor_info: '{"fields":{"phone":"required"}}' });
+}
+
+describe("SQLite: visitor details migration on a populated database of the release before them", () => {
+  it("adds the department override without touching a row", async () => {
+    const { dir, path } = await openSqliteFile();
+    const prev = releaseDir(PRE_VISITOR_INFO);
+    try {
+      const old = await openDb(path);
+      await migrate(old, prev);
+      await seedPreviousRelease(old);
+      await seedTickets(old);
+      await seedKb(old);
+      const tables = await userTables(old);
+      const before = await counts(old, tables);
+      await old.close();
+      const db = await openDb(path);
+      const applied = await migrate(db);
+      expect(applied).toEqual(["033_department_visitor_info.sql"]);
+      expect(await db.all("PRAGMA foreign_key_check")).toEqual([]);
+      await expectVisitorInfoMigration(db, before, tables);
+      expect(await migrate(db)).toEqual([]);
+      await db.close();
+    } finally {
+      rmSync(prev, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("schema drift guard: a database upgraded from 032 equals a fresh one", async () => {
+    const fresh = await openDb(":memory:");
+    await migrate(fresh);
+    const { dir, path } = await openSqliteFile();
+    const prev = releaseDir(PRE_VISITOR_INFO);
+    try {
+      const old = await openDb(path);
+      await migrate(old, prev);
+      await seedPreviousRelease(old);
+      await old.close();
+      const upgraded = await openDb(path);
+      await migrate(upgraded);
+      expect(await schemaOf(upgraded)).toEqual(await schemaOf(fresh));
+      await upgraded.close();
+    } finally {
+      await fresh.close();
+      rmSync(prev, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe.skipIf(!postgres)("PostgreSQL: visitor details migration on a populated database of the release before them", () => {
+  it("adds the department override without touching a row and matches a fresh schema", async () => {
+    const mk = async () => {
+      const schema = `u_${Math.random().toString(16).slice(2, 10)}`;
+      const admin = new pg.Client({ connectionString: process.env.TEST_DATABASE_URL });
+      await admin.connect();
+      await admin.query(`CREATE SCHEMA ${schema}`);
+      const u = new URL(process.env.TEST_DATABASE_URL!);
+      u.searchParams.set("options", `-c search_path=${schema}`);
+      const db = await openDb({ url: u.toString(), poolMax: 4 });
+      return { db, drop: async () => (await db.close(), await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`), await admin.end()) };
+    };
+    const a = await mk();
+    const b = await mk();
+    const prev = releaseDir(PRE_VISITOR_INFO);
+    try {
+      await migrate(a.db, undefined, { hashPartitions: 2 });
+      await migrate(b.db, prev, { hashPartitions: 2 });
+      await seedPreviousRelease(b.db);
+      await seedTickets(b.db);
+      await seedKb(b.db);
+      const tables = await userTables(b.db);
+      const before = await counts(b.db, tables);
+      const applied = await migrate(b.db, undefined, { hashPartitions: 2 });
+      expect(applied).toEqual(["033_department_visitor_info.sql"]);
+      expect(await schemaOf(b.db)).toEqual(await schemaOf(a.db));
+      await expectVisitorInfoMigration(b.db, before, tables);
+      expect(await migrate(b.db, undefined, { hashPartitions: 2 })).toEqual([]);
+    } finally {
+      rmSync(prev, { recursive: true, force: true });
+      await a.drop();
+      await b.drop();
+    }
+  });
+});

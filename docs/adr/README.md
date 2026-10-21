@@ -31,3 +31,4 @@ Short records of decisions that shaped the system. Add one when you make a decis
 * [0027](./0027-tickets-inside-rooms.md) Tickets are episodes inside a room, opened by the message path
 * [0028](./0028-departments-are-inboxes.md) Departments are inboxes, and routing decisions hold one workspace lock
 * [0029](./0029-ai-agent-pipeline.md) The AI agent is a read-only decision followed by a write, with a rules agent underneath
+* [0030](./0030-forms-in-the-thread.md) Details are collected with form cards in the thread, and never merge contacts

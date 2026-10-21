@@ -148,3 +148,19 @@ svg { display: block; flex: none; }
 .human { text-align: center; padding: 2px 12px; background: var(--bg); }
 .human[hidden] { display: none; }
 .human button { border: 0; background: transparent; color: var(--muted); text-decoration: underline; font-size: 14px; min-height: 44px; padding: 0 12px; }
+
+.cform { align-self: stretch; margin: 2px 4px 8px; padding: 14px; border: 1px solid var(--line); border-radius: var(--r); background: var(--bg); display: flex; flex-direction: column; gap: 12px; }
+.cform label { font-size: 15px; font-weight: 550; display: flex; flex-direction: column; gap: 5px; color: var(--fg); }
+.cform .opt { font-weight: 400; color: var(--muted); }
+.cform input[type="text"], .cform input[type="email"], .cform input[type="tel"], .cform select { border: 1px solid var(--line); background: var(--bg2); color: var(--fg); border-radius: calc(var(--r) * 0.6); padding: 10px 12px; font-size: 16px; min-height: 44px; inline-size: 100%; }
+.cform .phone { display: flex; gap: 8px; }
+.cform .phone select { inline-size: 42%; flex: none; }
+.cform .consent { flex-direction: row; align-items: flex-start; gap: 10px; font-weight: 400; font-size: 14px; }
+.cform .consent input { margin-block-start: 3px; inline-size: 20px; block-size: 20px; }
+.cform .fe { color: var(--err); font-size: 14px; }
+.cform .fe:empty { display: none; }
+.cform .row { display: flex; gap: 10px; align-items: center; }
+.cform .go { background: var(--c); color: var(--t); border: 0; border-radius: calc(var(--r) * 0.6); padding: 0 20px; min-height: 44px; font-weight: 600; font-size: 16px; }
+.cform .skip { background: transparent; border: 0; color: var(--muted); text-decoration: underline; min-height: 44px; font-size: 15px; }
+.cform .hp { position: absolute; inset-inline-start: -10000px; inline-size: 1px; block-size: 1px; overflow: hidden; }
+.cform input:focus-visible, .cform select:focus-visible, .cform button:focus-visible { outline: 2px solid var(--ring, var(--fg)); outline-offset: 2px; }

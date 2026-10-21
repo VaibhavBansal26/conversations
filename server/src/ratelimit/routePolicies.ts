@@ -110,7 +110,7 @@ const GROUPS: { spec: RouteSpec; routes: string[] }[] = [
   { spec: { post: ["public.query"] }, routes: ["GET /public/session", "GET /public/rooms", "GET /public/rooms/:id/messages"] },
   { spec: { post: ["public.room"] }, routes: ["POST /public/rooms"] },
   { spec: { post: ["public.send"], inHandler: ["msg.room", "msg.workspace"] }, routes: ["POST /public/rooms/:id/messages"] },
-  { spec: { post: ["public.send"], inHandler: ["msg.room", "msg.workspace"] }, routes: ["POST /public/rooms/:id/quick-reply", "POST /public/rooms/:id/request-human"] },
+  { spec: { post: ["public.send"], inHandler: ["msg.room", "msg.workspace"] }, routes: ["POST /public/rooms/:id/quick-reply", "POST /public/rooms/:id/request-human", "POST /public/rooms/:id/forms/:messageId", "POST /public/rooms/:id/forms/:messageId/skip"] },
   { spec: { post: ["public.read"] }, routes: ["POST /public/rooms/:id/messages/:messageId/feedback", "POST /public/rooms/:id/read", "POST /public/rooms/:id/csat", "POST /public/rooms/:id/ticket-csat", "DELETE /public/session", "POST /public/session/attributes"] },
   { spec: { post: ["public.upload"] }, routes: ["POST /public/attachments"] },
   { spec: { pre: ["public.config"] }, routes: ["GET /chat", "GET /chat/bridge-test"] },

@@ -26,6 +26,7 @@ export interface InboxRow {
   overflow_inbox_id: string | null;
   auto_reply_closed: string;
   auto_reply_queued: string;
+  visitor_info: string;
   created_at: string;
 }
 

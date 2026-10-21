@@ -1,3 +1,4 @@
+import { requestVisitorInfo } from "./visitorInfo.js";
 import type { AppContext } from "../context.js";
 import { nowIso } from "../context.js";
 import type { Actor } from "../domain/types.js";
@@ -467,6 +468,8 @@ export async function handoffTicket(ctx: AppContext, ticketId: string, input: Ha
   const noteLines = [`Handoff: ${handoffReasonText(input.reason)}`, r.department ? `Department: ${r.department.name}` : null, r.assignee ? `Assigned to: ${r.assignee.name}` : r.outcome === "closed" ? "Nobody: the department is closed." : "Nobody is available: queued.", input.note].filter(Boolean);
   await postHandoffNote(ctx, room, noteLines.join("\n"), { reason: input.reason, ticket_id: r.ticket.id });
   if (input.tell !== false) await postVisitorLine(ctx, room, visitorHandoffText(r), { reason: input.reason, outcome: r.outcome, department_id: r.department?.id ?? null, ticket_id: r.ticket.id });
+  // the visitor's details, when the settings ask for them at this moment (a form card in the thread, once per ticket)
+  if (input.tell !== false) await requestVisitorInfo(ctx, r.ticket.id, r.outcome === "assigned" ? "handoff" : "no_agent").catch((e) => ctx.log.warn("visitor info request failed", { error: e instanceof Error ? e.message : String(e) }));
   return r;
 }
 

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
-import type { Department, DepartmentHours, DepartmentStatus, RoutingMode, RoutingRule, RuleCondition, RuleTestResult } from "./types";
+import type { Department, DepartmentVisitorInfo, DepartmentHours, DepartmentStatus, RoutingMode, RoutingRule, RuleCondition, RuleTestResult } from "./types";
 import { keys } from "../state/keys";
 
 export interface DepartmentPatch {
@@ -14,6 +14,7 @@ export interface DepartmentPatch {
   auto_reply_closed?: string;
   auto_reply_queued?: string;
   live_routing_visibility?: boolean;
+  visitor_info?: DepartmentVisitorInfo;
   members?: { member_id: string; skills?: string[]; languages?: string[]; capacity?: number | null }[];
 }
 

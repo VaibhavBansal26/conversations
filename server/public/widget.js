@@ -149,6 +149,14 @@
     ".qr{align-self:flex-start;display:flex;flex-wrap:wrap;gap:6px;max-width:92%;margin:2px 0 4px}",
     ".qr button{border:1px solid var(--c);background:var(--bg);color:var(--fg);border-radius:999px;padding:7px 13px;font-size:13.5px;font-weight:550;cursor:pointer;min-height:34px}.qr button:hover,.qr button:focus-visible{background:var(--c);color:var(--t)}",
     ".fb{align-self:flex-start;display:flex;gap:4px;align-items:center;font-size:12px;color:var(--muted);margin:-2px 0 4px 2px}.fb button{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;padding:4px 6px;border-radius:6px}.fb button:hover,.fb button:focus-visible{background:var(--bg);color:var(--fg)}.fb button[aria-pressed=true]{color:var(--c)}",
+    ".cform{align-self:stretch;margin:2px 4px 6px;padding:12px;border:1px solid var(--line);border-radius:calc(var(--r,16px)*.8);background:var(--bg);display:flex;flex-direction:column;gap:10px}",
+    ".cform label{font-size:13px;font-weight:550;display:flex;flex-direction:column;gap:4px;color:var(--fg)}.cform .opt{font-weight:400;color:var(--muted)}",
+    ".cform input[type=text],.cform input[type=email],.cform input[type=tel],.cform select{border:1px solid var(--line);background:var(--bg2);color:var(--fg);border-radius:calc(var(--r,16px)*.6);padding:9px 11px;font-size:14px;min-height:40px;width:100%}",
+    ".cform .phone{display:flex;gap:6px}.cform .phone select{width:42%;flex:none}.cform .consent{flex-direction:row;align-items:flex-start;gap:8px;font-weight:400;font-size:12.5px}.cform .consent input{margin-top:2px}",
+    ".cform .fe{color:var(--err);font-size:12.5px}.cform .fe:empty{display:none}.cform .row{display:flex;gap:8px;align-items:center}",
+    ".cform .go{background:var(--c);color:var(--t);border:0;border-radius:calc(var(--r,16px)*.6);padding:0 16px;min-height:40px;font-weight:600;cursor:pointer}.cform .skip{background:transparent;border:0;color:var(--muted);text-decoration:underline;cursor:pointer;font-size:13px}",
+    ".cform .hp{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}",
+    ".cform input:focus-visible,.cform select:focus-visible,.cform button:focus-visible{outline:2px solid var(--ring);outline-offset:2px}",
     ".human{padding:4px 12px 2px;background:var(--bg);border-top:1px solid var(--line);flex:none;text-align:center}.human[hidden]{display:none}.human button{border:0;background:transparent;color:var(--muted);text-decoration:underline;cursor:pointer;font-size:12.5px;padding:3px 6px}.human button:hover,.human button:focus-visible{color:var(--fg)}",
   ].join("\n");
 
@@ -249,7 +257,14 @@
       els.head.appendChild(closeBtn);
     }
 
+    // a form card being filled in survives the re-renders caused by incoming events: the draft is kept per message and focus is restored
     function renderMessages() {
+      var ae = els.shadow && els.shadow.activeElement, keep = null;
+      if (ae && ae.closest && ae.closest(".cform") && ae.name) { var fm = ae.closest(".cform"); keep = { qid: fm.getAttribute("data-form"), name: ae.name }; }
+      renderMessagesInner();
+      if (keep && els.list) { var again = els.list.querySelector('.cform[data-form="' + keep.qid + '"] [name="' + keep.name + '"]'); if (again && again.focus) again.focus(); }
+    }
+    function renderMessagesInner() {
       if (!els.list) return;
       els.list.textContent = "";
       sorted().forEach(function (m) {
@@ -305,6 +320,9 @@
         });
         els.list.appendChild(row);
       }
+      if (card && card.type === "contact_form" && !card.answered && card.fields && m === lastOf(function (x) { return x.meta && x.meta.card && x.meta.card.type === "contact_form"; })) {
+        els.list.appendChild(renderContactForm(m, card));
+      }
       if (card && card.type === "csat" && state.room && state.room.ticket && state.room.ticket.csat_pending && m === lastOf(function (x) { return x.meta && x.meta.card && x.meta.card.type === "csat"; })) {
         var box = h(doc, "div", { class: "rate", role: "group", "aria-label": "How did we do?" });
         box.appendChild(h(doc, "span", { text: "How did we do?" }));
@@ -331,6 +349,96 @@
         }
         els.list.appendChild(fb);
       }
+    }
+    var COUNTRIES = [["US","United States (+1)"],["CA","Canada (+1)"],["GB","United Kingdom (+44)"],["IE","Ireland (+353)"],["AU","Australia (+61)"],["NZ","New Zealand (+64)"],["DE","Germany (+49)"],["FR","France (+33)"],["ES","Spain (+34)"],["IT","Italy (+39)"],["NL","Netherlands (+31)"],["BE","Belgium (+32)"],["CH","Switzerland (+41)"],["AT","Austria (+43)"],["SE","Sweden (+46)"],["NO","Norway (+47)"],["DK","Denmark (+45)"],["FI","Finland (+358)"],["PL","Poland (+48)"],["PT","Portugal (+351)"],["BR","Brazil (+55)"],["MX","Mexico (+52)"],["IN","India (+91)"],["JP","Japan (+81)"],["SG","Singapore (+65)"],["ZA","South Africa (+27)"],["AE","United Arab Emirates (+971)"]];
+    function defaultCountry() {
+      var m = /[-_]([A-Za-z]{2})\b/.exec((win.navigator && win.navigator.language) || "");
+      var c = m ? m[1].toUpperCase() : (state.config && state.config.default_region) || "US";
+      return COUNTRIES.some(function (x) { return x[0] === c; }) ? c : ((state.config && state.config.default_region) || "US");
+    }
+    /* a form card: the server asked for details; every value is validated here for speed and again by the server */
+    function renderContactForm(m, card) {
+      var form = h(doc, "form", { class: "cform", "aria-label": "Your details", novalidate: true, "data-form": m.id });
+      var inputs = {}, errs = {};
+      state.drafts = state.drafts || {};
+      var draft = state.drafts[m.id] = state.drafts[m.id] || {};
+      var country = null;
+      card.fields.forEach(function (f) {
+        var err = h(doc, "div", { class: "fe", role: "alert" });
+        errs[f.key] = err;
+        var input;
+        if (f.type === "select") {
+          input = h(doc, "select", { name: f.key }, [h(doc, "option", { value: "", text: "" })].concat((f.options || []).map(function (o) { return h(doc, "option", { value: o, text: o }); })));
+        } else {
+          input = h(doc, "input", { type: f.type === "email" ? "email" : f.type === "tel" ? "tel" : "text", name: f.key, autocomplete: f.key === "name" ? "name" : f.key === "email" ? "email" : f.key === "phone" ? "tel" : "off", maxlength: "200", "aria-required": f.required ? "true" : null });
+        }
+        inputs[f.key] = input;
+        if (draft[f.key]) input.value = draft[f.key];
+        input.addEventListener("input", function () { draft[f.key] = input.value; });
+        input.addEventListener("change", function () { draft[f.key] = input.value; });
+        var control = input;
+        if (f.key === "phone") {
+          country = h(doc, "select", { "aria-label": "Country", name: "country" }, COUNTRIES.map(function (c) { return h(doc, "option", { value: c[0], text: c[1] }); }));
+          country.value = draft.__country || defaultCountry();
+          country.addEventListener("change", function () { draft.__country = country.value; });
+          control = h(doc, "div", { class: "phone" }, [country, input]);
+        }
+        form.appendChild(h(doc, "label", null, [f.label + "", f.required ? null : h(doc, "span", { class: "opt", text: " (optional)" }), control, err]));
+      });
+      var consent = null, consentErr = h(doc, "div", { class: "fe", role: "alert" });
+      if (card.consent) {
+        consent = h(doc, "input", { type: "checkbox", name: "consent" });
+        consent.checked = !!draft.__consent;
+        consent.addEventListener("change", function () { draft.__consent = consent.checked; });
+        var text = h(doc, "span", { text: card.consent.text + " " });
+        if (card.consent.privacy_url && /^https?:\/\//.test(card.consent.privacy_url)) text.appendChild(h(doc, "a", { href: card.consent.privacy_url, target: "_blank", rel: "noopener noreferrer", text: "Privacy policy" }));
+        form.appendChild(h(doc, "label", { class: "consent" }, [consent, text]));
+        form.appendChild(consentErr);
+      }
+      var hp = h(doc, "input", { type: "text", name: "website", tabindex: "-1", autocomplete: "off", "aria-hidden": "true" });
+      form.appendChild(h(doc, "div", { class: "hp", "aria-hidden": "true" }, [hp]));
+      var fail = h(doc, "div", { class: "fe", role: "alert" });
+      var go = h(doc, "button", { type: "submit", class: "go", text: "Send" });
+      var row = h(doc, "div", { class: "row" }, [go]);
+      if (card.skippable) row.appendChild(h(doc, "button", { type: "button", class: "skip", "data-skip": "1", text: "Skip", onclick: function () {
+        api("/public/rooms/" + state.room.id + "/forms/" + m.id + "/skip", { method: "POST", body: {} }).catch(function () {}).then(function () { return loadMessages(); }).then(renderMessages);
+      } }));
+      form.appendChild(fail); form.appendChild(row);
+      function localCheck() {
+        var bad = false;
+        card.fields.forEach(function (f) {
+          var v = (inputs[f.key].value || "").trim(), msg = "";
+          if (!v && f.required) msg = "This is required";
+          else if (v && f.key === "email" && !/^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(v)) msg = "Enter a valid email address";
+          errs[f.key].textContent = msg;
+          inputs[f.key].setAttribute("aria-invalid", msg ? "true" : "false");
+          if (msg) bad = true;
+        });
+        if (consent) {
+          var filled = card.fields.some(function (f) { return f.key !== "name" && (inputs[f.key].value || "").trim(); });
+          consentErr.textContent = filled && !consent.checked ? "Please agree to continue" : "";
+          if (consentErr.textContent) bad = true;
+        }
+        return !bad;
+      }
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        fail.textContent = "";
+        if (!localCheck()) { var first = form.querySelector("[aria-invalid=true]"); if (first && first.focus) first.focus(); return; }
+        var values = {};
+        card.fields.forEach(function (f) { var v = (inputs[f.key].value || "").trim(); if (v) values[f.key] = v; });
+        go.disabled = true;
+        api("/public/rooms/" + state.room.id + "/forms/" + m.id, { method: "POST", body: { values: values, consent: !!(consent && consent.checked), country: country ? country.value : undefined, website: hp.value || undefined } }).then(function () {
+          return loadMessages().then(renderMessages);
+        }).catch(function (ex) {
+          go.disabled = false;
+          var d = ex.details && ex.details.errors;
+          if (ex.code === "ALREADY_ANSWERED") return loadMessages().then(renderMessages);
+          if (d) { Object.keys(d).forEach(function (k) { if (errs[k]) errs[k].textContent = d[k]; else if (k === "consent") consentErr.textContent = d[k]; }); return; }
+          fail.textContent = "We could not save that. Please try again.";
+        });
+      });
+      return form;
     }
     function tapQuickReply(m, optionId) {
       // mark it answered locally so the buttons disappear at once; the server's message:updated confirms
@@ -424,8 +532,13 @@
       renderMessages();
     }
 
+    function requiredInfo(w) {
+    var need = w.required_info.slice(), f = (w.visitor_info && w.visitor_info.fields) || {};
+    ["name", "email", "phone"].forEach(function (k) { if (f[k] === "required" && need.indexOf(k) < 0) need.push(k); });
+    return need;
+  }
     function renderForm(w) {
-      var need = w.required_info.slice();
+      var need = requiredInfo(w);
       if (w.chat_type === "sms" && need.indexOf("phone") < 0) need.push("phone");
       var labels = { name: "Your name", email: "Email", phone: "Phone number" };
       var inputs = {};
@@ -483,7 +596,7 @@
 
     function needsForm() {
       var w = state.config.widget;
-      return !state.session && (w.required_info.length > 0 || w.chat_type === "sms");
+      return !state.session && (requiredInfo(w).length > 0 || w.chat_type === "sms");
     }
 
     function ensureSession() {

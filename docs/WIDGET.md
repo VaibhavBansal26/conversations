@@ -60,6 +60,10 @@ Only customer-facing lines: your replies, the welcome and away bot messages, "Co
 
 When an AI agent answers, its messages carry the agent's name and label (default "AI assistant"), the knowledge-base page as a link, a "Yes, thanks / No, I need more help / Talk to a person" row under the latest answer, and thumbs up and down under the newest AI answer. A small "Talk to a person" link above the message box is always there unless a person already has the conversation; it hands the ticket to the team. When a ticket is resolved the visitor gets the closing line and a 1 to 5 rating (once). The state comes from `room.ticket` and the `ticket:updated` event; internal action lines ("set the department to ...") and notes are never sent. The widget is English only; the hosted chat has the same controls in English, Spanish, French, German and Japanese ([AI-AGENTS.md](AI-AGENTS.md)).
 
+### Asking for details
+
+Settings > Visitor details decides which of name, email, phone and custom fields the widget asks for, and when ([AI-AGENTS.md](AI-AGENTS.md) section 4). Required fields appear in the pre-chat form; the others arrive as a form card in the conversation (on handoff, when nobody is available, for a callback, after resolution). Validation runs in the widget and again on the server; a half-filled card is kept when new messages arrive. Nothing is asked that the visitor already gave.
+
 ### Office hours and away behaviour
 
 With office hours enabled, a visitor message outside the hours gets the away message once per cooldown, followed by "We'll be back ..." when the next opening is known. The conversation is still created and answered later. The config response carries `office_open` and `agents_available`.

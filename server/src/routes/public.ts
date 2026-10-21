@@ -1,3 +1,4 @@
+import { FormSubmission, skipContactForm, submitContactForm } from "../services/visitorInfo.js";
 import { Hono } from "hono";
 import type { Context } from "hono";
 import type { AppContext } from "../context.js";
@@ -52,7 +53,8 @@ export function publicRoutes(ctx: AppContext) {
   r.get("/widget/config", async (c) => {
     const token = await tokenAuth(c, true);
     const ws = await getWorkspace(ctx, token.workspace_id);
-    const widget = (await getSettings(ctx, ws.id)).widget;
+    const settings = await getSettings(ctx, ws.id);
+    const widget = settings.widget;
     const inboxes = await ctx.db.all<{ id: string; name: string; icon: string }>(
       "SELECT id, name, icon FROM inboxes WHERE workspace_id = ? AND live_routing_visibility = 1 ORDER BY name",
       ws.id,
@@ -76,6 +78,7 @@ export function publicRoutes(ctx: AppContext) {
     return c.json({
       workspace_id: ws.id,
       workspace_name: ws.name,
+      default_region: settings.default_region,
       widget: publicWidgetConfig(widget),
       office_open: isOpen(widget.office_hours, ctx.clock()),
       live_routing_inboxes: inboxes,
@@ -182,6 +185,9 @@ export function publicRoutes(ctx: AppContext) {
   // "Talk to a person": always available, whatever the workspace has switched on
   r.post("/rooms/:id/request-human", async (c) => c.json(await visitorRequestHuman(ctx, c.get("session"), c.req.param("id"))));
   r.post("/rooms/:id/messages/:messageId/feedback", async (c) => c.json(await visitorFeedback(ctx, c.get("session"), c.req.param("id"), c.req.param("messageId"), await parseBody(c, VisitorFeedback))));
+  // the visitor answers (or skips) a form card in the thread: name, email, phone, consent and custom fields, validated here
+  r.post("/rooms/:id/forms/:messageId", async (c) => c.json(await submitContactForm(ctx, c.get("session"), c.req.param("id"), c.req.param("messageId"), await parseBody(c, FormSubmission))));
+  r.post("/rooms/:id/forms/:messageId/skip", async (c) => c.json(await skipContactForm(ctx, c.get("session"), c.req.param("id"), c.req.param("messageId"))));
   r.post("/otp/verify", async (c) => c.json(await verifyOtp(ctx, c.get("session"), (await parseBody(c, OtpVerify)).code)));
 
   return r;

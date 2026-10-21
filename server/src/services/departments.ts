@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { can } from "../authz/permissions.js";
 import type { AppContext } from "../context.js";
-import { OfficeHoursSchema } from "../domain/settings.js";
+import { DepartmentInfoSchema, OfficeHoursSchema } from "../domain/settings.js";
 import type { Actor } from "../domain/types.js";
 import { forbidden, unprocessable } from "../errors.js";
 import { parseJson } from "../util/json.js";
@@ -178,6 +178,7 @@ export const DepartmentPatchSchema = z.object({
   auto_reply_closed: z.string().max(500).optional(),
   auto_reply_queued: z.string().max(500).optional(),
   live_routing_visibility: z.boolean().optional(),
+  visitor_info: DepartmentInfoSchema.optional(),
   members: z.array(DepartmentMemberInput).max(200).optional(),
 });
 export type DepartmentPatch = z.infer<typeof DepartmentPatchSchema>;
@@ -199,6 +200,7 @@ export async function departmentDto(ctx: AppContext, i: InboxRow) {
     overflow_inbox_id: i.overflow_inbox_id,
     auto_reply_closed: i.auto_reply_closed,
     auto_reply_queued: i.auto_reply_queued,
+    visitor_info: DepartmentInfoSchema.catch({}).parse(parseJson<unknown>(i.visitor_info, {})),
     members: seats.map((s) => ({
       member_id: s.id,
       name: s.name,
@@ -246,7 +248,7 @@ export async function updateDepartment(ctx: AppContext, actor: Actor, id: string
   }
   await ctx.db.tx(async () => {
     await ctx.db.run(
-      `UPDATE inboxes SET description = ?, routing_mode = ?, capacity = ?, hours = ?, sla_first_response_s = ?, sla_resolution_s = ?, overflow_inbox_id = ?, auto_reply_closed = ?, auto_reply_queued = ?, live_routing_visibility = ? WHERE id = ?`,
+      `UPDATE inboxes SET description = ?, routing_mode = ?, capacity = ?, hours = ?, sla_first_response_s = ?, sla_resolution_s = ?, overflow_inbox_id = ?, auto_reply_closed = ?, auto_reply_queued = ?, live_routing_visibility = ?, visitor_info = ? WHERE id = ?`,
       patch.description?.trim() ?? cur.description,
       patch.routing_mode === undefined ? cur.routing_mode : patch.routing_mode,
       patch.capacity ?? cur.capacity,
@@ -257,6 +259,7 @@ export async function updateDepartment(ctx: AppContext, actor: Actor, id: string
       patch.auto_reply_closed?.trim() ?? cur.auto_reply_closed,
       patch.auto_reply_queued?.trim() ?? cur.auto_reply_queued,
       patch.live_routing_visibility ?? !!cur.live_routing_visibility,
+      patch.visitor_info ? JSON.stringify(patch.visitor_info) : cur.visitor_info,
       id,
     );
     for (const m of patch.members ?? []) {

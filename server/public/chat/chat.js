@@ -260,7 +260,14 @@
     }
   }
 
+  // a form card being filled in survives the re-renders caused by incoming events: the draft is kept per message and focus is restored
   function renderMessages(opts) {
+    var ae = doc.activeElement, keep = null;
+    if (ae && ae.closest && ae.closest(".cform") && ae.name) keep = { qid: ae.closest(".cform").getAttribute("data-form"), name: ae.name };
+    renderMessagesInner(opts);
+    if (keep && els.list) { var again = els.list.querySelector('.cform[data-form="' + keep.qid + '"] [name="' + keep.name + '"]'); if (again && again.focus) again.focus(); }
+  }
+  function renderMessagesInner(opts) {
     opts = opts || {};
     var list = els.list;
     if (!list) return;
@@ -337,6 +344,9 @@
       });
       els.list.appendChild(row);
     }
+    if (card && card.type === "contact_form" && !card.answered && card.fields && m === lastOf(function (x) { return x.meta && x.meta.card && x.meta.card.type === "contact_form"; })) {
+      els.list.appendChild(renderContactForm(m, card));
+    }
     if (card && card.type === "csat" && state.room && state.room.ticket && state.room.ticket.csat_pending && m === lastOf(function (x) { return x.meta && x.meta.card && x.meta.card.type === "csat"; })) {
       var box = h("div", { class: "rate", role: "group", "aria-label": t("rate_prompt") });
       box.appendChild(h("span", { text: t("rate_prompt") }));
@@ -363,6 +373,95 @@
       }
       els.list.appendChild(fb);
     }
+  }
+  /* a form card: the server asked for details; validated here for speed and again by the server (same as the widget) */
+  var COUNTRIES = [["US","United States (+1)"],["CA","Canada (+1)"],["GB","United Kingdom (+44)"],["IE","Ireland (+353)"],["AU","Australia (+61)"],["NZ","New Zealand (+64)"],["DE","Germany (+49)"],["FR","France (+33)"],["ES","Spain (+34)"],["IT","Italy (+39)"],["NL","Netherlands (+31)"],["BE","Belgium (+32)"],["CH","Switzerland (+41)"],["AT","Austria (+43)"],["SE","Sweden (+46)"],["NO","Norway (+47)"],["DK","Denmark (+45)"],["FI","Finland (+358)"],["PL","Poland (+48)"],["PT","Portugal (+351)"],["BR","Brazil (+55)"],["MX","Mexico (+52)"],["IN","India (+91)"],["JP","Japan (+81)"],["SG","Singapore (+65)"],["ZA","South Africa (+27)"],["AE","United Arab Emirates (+971)"]];
+  function defaultCountry() {
+    var m = /[-_]([A-Za-z]{2})\b/.exec(state.locale || "");
+    var c = m ? m[1].toUpperCase() : (state.config && state.config.default_region) || "US";
+    return COUNTRIES.some(function (x) { return x[0] === c; }) ? c : ((state.config && state.config.default_region) || "US");
+  }
+  function renderContactForm(m, card) {
+    var form = h("form", { class: "cform", "aria-label": t("form_label"), novalidate: true, "data-form": m.id });
+    var inputs = {}, errs = {}, country = null;
+    state.drafts = state.drafts || {};
+    var draft = state.drafts[m.id] = state.drafts[m.id] || {};
+    card.fields.forEach(function (f) {
+      var err = h("div", { class: "fe", role: "alert" });
+      errs[f.key] = err;
+      var input;
+      if (f.type === "select") input = h("select", { name: f.key }, [h("option", { value: "", text: "" })].concat((f.options || []).map(function (o) { return h("option", { value: o, text: o }); })));
+      else input = h("input", { type: f.type === "email" ? "email" : f.type === "tel" ? "tel" : "text", name: f.key, autocomplete: f.key === "name" ? "name" : f.key === "email" ? "email" : f.key === "phone" ? "tel" : "off", maxlength: "200", inputmode: f.type === "tel" ? "tel" : null, "aria-required": f.required ? "true" : null });
+      inputs[f.key] = input;
+      if (draft[f.key]) input.value = draft[f.key];
+      input.addEventListener("input", function () { draft[f.key] = input.value; });
+      input.addEventListener("change", function () { draft[f.key] = input.value; });
+      var control = input;
+      if (f.key === "phone") {
+        country = h("select", { "aria-label": t("form_country"), name: "country" }, COUNTRIES.map(function (c) { return h("option", { value: c[0], text: c[1] }); }));
+        country.value = draft.__country || defaultCountry();
+        country.addEventListener("change", function () { draft.__country = country.value; });
+        control = h("div", { class: "phone" }, [country, input]);
+      }
+      form.appendChild(h("label", null, [f.label, f.required ? null : h("span", { class: "opt", text: " (" + t("optional") + ")" }), control, err]));
+    });
+    var consent = null, consentErr = h("div", { class: "fe", role: "alert" });
+    if (card.consent) {
+      consent = h("input", { type: "checkbox", name: "consent" });
+      consent.checked = !!draft.__consent;
+      consent.addEventListener("change", function () { draft.__consent = consent.checked; });
+      var text = h("span", { text: card.consent.text + " " });
+      if (card.consent.privacy_url && /^https?:\/\//.test(card.consent.privacy_url)) text.appendChild(h("a", { href: card.consent.privacy_url, "data-cv-link": "message", rel: "noopener noreferrer", text: t("privacy_policy") }));
+      form.appendChild(h("label", { class: "consent" }, [consent, text]));
+      form.appendChild(consentErr);
+    }
+    var hp = h("input", { type: "text", name: "website", tabindex: "-1", autocomplete: "off", "aria-hidden": "true" });
+    form.appendChild(h("div", { class: "hp", "aria-hidden": "true" }, [hp]));
+    var fail = h("div", { class: "fe", role: "alert" });
+    var go = h("button", { type: "submit", class: "go", text: t("form_send") });
+    var row = h("div", { class: "row" }, [go]);
+    if (card.skippable) row.appendChild(h("button", { type: "button", class: "skip", "data-skip": "1", text: t("form_skip"), onclick: function () {
+      api("/public/rooms/" + state.room.id + "/forms/" + m.id + "/skip", { method: "POST", body: {} }).catch(function () {}).then(function () { return loadMessages(); }).then(function () { renderMessages(); });
+    } }));
+    form.appendChild(fail); form.appendChild(row);
+    function localCheck() {
+      var bad = false;
+      card.fields.forEach(function (f) {
+        var v = (inputs[f.key].value || "").trim(), msg = "";
+        if (!v && f.required) msg = t("err_required");
+        else if (v && f.key === "email" && !/^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(v)) msg = t("err_email");
+        errs[f.key].textContent = msg;
+        inputs[f.key].setAttribute("aria-invalid", msg ? "true" : "false");
+        if (msg) bad = true;
+      });
+      if (consent) {
+        var filled = card.fields.some(function (f) { return f.key !== "name" && (inputs[f.key].value || "").trim(); });
+        consentErr.textContent = filled && !consent.checked ? t("err_consent") : "";
+        if (consentErr.textContent) bad = true;
+      }
+      return !bad;
+    }
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      fail.textContent = "";
+      if (!localCheck()) { var first = form.querySelector("[aria-invalid=true]"); if (first && first.focus) first.focus(); return; }
+      var values = {};
+      card.fields.forEach(function (f) { var v = (inputs[f.key].value || "").trim(); if (v) values[f.key] = v; });
+      go.disabled = true;
+      api("/public/rooms/" + state.room.id + "/forms/" + m.id, { method: "POST", body: { values: values, consent: !!(consent && consent.checked), country: country ? country.value : undefined, website: hp.value || undefined } }).then(function () {
+        emit("contact_info_submitted", { room_id: state.room.id, fields: Object.keys(values) });
+        return loadMessages().then(function () { renderMessages(); });
+      }).catch(function (ex) {
+        go.disabled = false;
+        var d = ex.details && ex.details.errors;
+        if (ex.code === "ALREADY_ANSWERED") return loadMessages().then(function () { renderMessages(); });
+        if (d) { Object.keys(d).forEach(function (k) { var msg = k === "phone" ? t("err_phone") : d[k]; if (errs[k]) errs[k].textContent = msg; else if (k === "consent") consentErr.textContent = t("err_consent"); }); return; }
+        fail.textContent = t("err_failed");
+      });
+    });
+    if (!state.formsSeen) state.formsSeen = {};
+    if (!state.formsSeen[m.id]) { state.formsSeen[m.id] = true; emit("form_requested", { room_id: state.room.id, message_id: m.id, moment: card.moment, fields: card.fields.map(function (f) { return f.key; }) }); }
+    return form;
   }
   function tapQuickReply(m, optionId) {
     // mark it answered locally so the buttons disappear at once; the server's message:updated confirms
@@ -529,11 +628,17 @@
     return true;
   }
 
+  function requiredInfo(w) {
+    var need = w.required_info.slice(), f = (w.visitor_info && w.visitor_info.fields) || {};
+    ["name", "email", "phone"].forEach(function (k) { if (f[k] === "required" && need.indexOf(k) < 0) need.push(k); });
+    return need;
+  }
+
   function showForm() {
     state.view = "form";
     clearBody();
     var w = state.config.widget;
-    var need = w.required_info.slice();
+    var need = requiredInfo(w);
     if (w.chat_type === "sms" && need.indexOf("phone") < 0) need.push("phone");
     var labels = { name: t("name"), email: t("email"), phone: t("phone") };
     var inputs = {};
@@ -599,7 +704,7 @@
   function needsForm() {
     var w = state.config.widget, i = state.identity || {};
     if (i.identity_hash) return false;
-    var need = w.required_info.slice();
+    var need = requiredInfo(w);
     if (w.chat_type === "sms" && need.indexOf("phone") < 0) need.push("phone");
     return need.some(function (k) { return !i[k]; });
   }
@@ -738,7 +843,13 @@
     });
     socket.on("message:new", function (p) { onIncoming(p.message); });
     socket.on("room:updated", function (p) { applyRoomState(p && p.room); renderMessages(); });
-    socket.on("ticket:updated", function (p) { if (state.room && p && p.room_id === state.room.id) { state.room.ticket = p.ticket; renderMessages(); } });
+    socket.on("ticket:updated", function (p) {
+      if (!(state.room && p && p.room_id === state.room.id)) return;
+      var before = state.room.ticket && state.room.ticket.status;
+      state.room.ticket = p.ticket;
+      if (p.ticket && (p.ticket.status === "waiting_for_human" || p.ticket.status === "open") && before === "bot_handling") emit("handoff_started", { room_id: state.room.id, status: p.ticket.status });
+      renderMessages();
+    });
     socket.on("message:updated", function (p) { upsert(p.message); renderMessages(); });
     socket.on("message:deleted", function (p) { state.messages = state.messages.filter(function (m) { return m.id !== p.message_id; }); renderMessages(); });
     socket.on("message:receipt", function (p) {
@@ -769,6 +880,7 @@
     var added = upsert(m);
     var near = isNearBottom();
     renderMessages({ newIncoming: !near && state.visible });
+    if (added && m.kind === "system" && m.meta && m.meta.sub_type === "agent_joined" && state.room) emit("agent_joined", { room_id: state.room.id });
     var fromTeam = m.sender && (m.sender.type === "agent" || m.sender.type === "bot");
     if (added && fromTeam) {
       emit("message_received", { message_id: m.id, sender_type: m.sender.type, preview: String(m.content_text || "").slice(0, 140), has_attachments: !!(m.attachments && m.attachments.length), in_foreground: state.visible });

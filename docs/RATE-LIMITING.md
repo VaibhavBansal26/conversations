@@ -100,7 +100,7 @@ Generated from `policies.ts` and `routePolicies.ts` (`npm run docs:ratelimit`; `
 | `public.config` | ip | gcra | 60 per 1 min, burst 60 | - | fail-open | Widget config fetch, per IP (GET /public/widget/config, GET /chat, GET /chat/bridge-test) |
 | `public.session` | composite | gcra | 20 per 1 min, burst 20 | - | fail-closed + penalty box | Visitor session creation, per IP + Origin + embed token (POST /public/sessions) |
 | `public.room` | visitor | gcra | 10 per 50 s, burst 10 | - | fail-open | Visitor starts a conversation (POST /public/rooms) |
-| `public.send` | visitor | gcra | 30 per 30 s, burst 30 | - | fail-open | Visitor sends a message (POST /public/rooms/:id/messages, POST /public/rooms/:id/quick-reply, POST /public/rooms/:id/request-human) |
+| `public.send` | visitor | gcra | 30 per 30 s, burst 30 | - | fail-open | Visitor sends a message (5 entry points) |
 | `public.read` | visitor | gcra | 60 per 30 s, burst 60 | - | fail-open | Visitor read receipts (6 entry points) |
 | `public.query` | visitor | gcra | 10 per 1 s, burst 40 | - | fail-open + lease | Visitor reads (session, rooms, messages) (GET /public/session, GET /public/rooms, GET /public/rooms/:id/messages) |
 | `public.upload` | visitor | gcra | 10 per 1 min, burst 10 | - | fail-closed | Visitor file uploads (camera and photo attachments), 10 per minute per visitor (POST /public/attachments) |
@@ -108,8 +108,8 @@ Generated from `policies.ts` and `routePolicies.ts` (`npm run docs:ratelimit`; `
 | `public.otp.contact` | composite | window | 10 per 1 d | - | fail-closed | OTP sends per contact per day (caps cost of SMS pumping) (POST /public/otp/send) |
 | `public.otp.ip` | ip | window | 30 per 1 h | - | fail-closed | OTP sends per IP per hour (POST /public/otp/send) |
 | `public.otp.verify` | visitor | gcra | 10 per 5 min, burst 10 | - | fail-closed + penalty box | OTP verification attempts per visitor session (POST /public/otp/verify) |
-| `msg.room` | composite | window | 300 per 1 min | - | fail-open | Messages per room (visitor + agents together): stops a runaway client or loop (5 entry points) |
-| `msg.workspace` | workspace | window | 5000 per 1 h | free 5000, pro 50000, business 500000 | fail-open | Messages per workspace per hour, by plan (5 entry points) |
+| `msg.room` | composite | window | 300 per 1 min | - | fail-open | Messages per room (visitor + agents together): stops a runaway client or loop (7 entry points) |
+| `msg.workspace` | workspace | window | 5000 per 1 h | free 5000, pro 50000, business 500000 | fail-open | Messages per workspace per hour, by plan (7 entry points) |
 | `team.send` | user | gcra | 90 per 1 min, burst 40 | - | fail-open | Team chat messages, per member (REST and socket) (POST /api/team/channels/:id/messages, socket team:message:send) |
 | `team.channel` | composite | window | 300 per 1 min | - | fail-open | Team chat messages per channel per minute: stops a runaway client or loop (POST /api/team/channels/:id/messages, socket team:message:send) |
 | `team.workspace` | workspace | window | 20000 per 1 h | free 20000, pro 200000, business 2000000 | fail-open | Team chat messages per workspace per hour, by plan (POST /api/team/channels/:id/messages, socket team:message:send) |

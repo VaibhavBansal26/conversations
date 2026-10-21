@@ -1330,6 +1330,181 @@
                           "department_selector": {
                             "default": false,
                             "type": "boolean"
+                          },
+                          "visitor_info": {
+                            "default": {
+                              "fields": {
+                                "name": "off",
+                                "email": "off",
+                                "phone": "off"
+                              },
+                              "custom_fields": [],
+                              "moments": {
+                                "handoff": true,
+                                "no_agent": true,
+                                "callback": true,
+                                "after": false
+                              },
+                              "consent": {
+                                "enabled": false,
+                                "text": "I agree that you may contact me about this conversation.",
+                                "privacy_url": null
+                              }
+                            },
+                            "type": "object",
+                            "properties": {
+                              "fields": {
+                                "default": {
+                                  "name": "off",
+                                  "email": "off",
+                                  "phone": "off"
+                                },
+                                "type": "object",
+                                "properties": {
+                                  "name": {
+                                    "default": "off",
+                                    "type": "string",
+                                    "enum": [
+                                      "off",
+                                      "optional",
+                                      "required",
+                                      "ask_when_needed"
+                                    ]
+                                  },
+                                  "email": {
+                                    "default": "off",
+                                    "type": "string",
+                                    "enum": [
+                                      "off",
+                                      "optional",
+                                      "required",
+                                      "ask_when_needed"
+                                    ]
+                                  },
+                                  "phone": {
+                                    "default": "off",
+                                    "type": "string",
+                                    "enum": [
+                                      "off",
+                                      "optional",
+                                      "required",
+                                      "ask_when_needed"
+                                    ]
+                                  }
+                                }
+                              },
+                              "custom_fields": {
+                                "default": [],
+                                "maxItems": 5,
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "key": {
+                                      "type": "string",
+                                      "pattern": "^[a-z][a-z0-9_]{0,29}$"
+                                    },
+                                    "label": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 60
+                                    },
+                                    "type": {
+                                      "default": "text",
+                                      "type": "string",
+                                      "enum": [
+                                        "text",
+                                        "select"
+                                      ]
+                                    },
+                                    "options": {
+                                      "default": [],
+                                      "maxItems": 20,
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 60
+                                      }
+                                    },
+                                    "mode": {
+                                      "default": "ask_when_needed",
+                                      "type": "string",
+                                      "enum": [
+                                        "off",
+                                        "optional",
+                                        "required",
+                                        "ask_when_needed"
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "key",
+                                    "label"
+                                  ]
+                                }
+                              },
+                              "moments": {
+                                "default": {
+                                  "handoff": true,
+                                  "no_agent": true,
+                                  "callback": true,
+                                  "after": false
+                                },
+                                "type": "object",
+                                "properties": {
+                                  "handoff": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "no_agent": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "callback": {
+                                    "default": true,
+                                    "type": "boolean"
+                                  },
+                                  "after": {
+                                    "default": false,
+                                    "type": "boolean"
+                                  }
+                                }
+                              },
+                              "consent": {
+                                "default": {
+                                  "enabled": false,
+                                  "text": "I agree that you may contact me about this conversation.",
+                                  "privacy_url": null
+                                },
+                                "type": "object",
+                                "properties": {
+                                  "enabled": {
+                                    "default": false,
+                                    "type": "boolean"
+                                  },
+                                  "text": {
+                                    "default": "I agree that you may contact me about this conversation.",
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 300
+                                  },
+                                  "privacy_url": {
+                                    "default": null,
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "maxLength": 500,
+                                        "format": "uri"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                }
+                              }
+                            }
                           }
                         }
                       }
@@ -8233,6 +8408,60 @@
                   "live_routing_visibility": {
                     "type": "boolean"
                   },
+                  "visitor_info": {
+                    "type": "object",
+                    "properties": {
+                      "fields": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "enum": [
+                              "off",
+                              "optional",
+                              "required",
+                              "ask_when_needed"
+                            ]
+                          },
+                          "email": {
+                            "type": "string",
+                            "enum": [
+                              "off",
+                              "optional",
+                              "required",
+                              "ask_when_needed"
+                            ]
+                          },
+                          "phone": {
+                            "type": "string",
+                            "enum": [
+                              "off",
+                              "optional",
+                              "required",
+                              "ask_when_needed"
+                            ]
+                          }
+                        }
+                      },
+                      "moments": {
+                        "type": "object",
+                        "properties": {
+                          "handoff": {
+                            "type": "boolean"
+                          },
+                          "no_agent": {
+                            "type": "boolean"
+                          },
+                          "callback": {
+                            "type": "boolean"
+                          },
+                          "after": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    }
+                  },
                   "members": {
                     "maxItems": 200,
                     "type": "array",
@@ -14490,6 +14719,154 @@
                 ]
               }
             }
+          }
+        }
+      }
+    },
+    "/public/rooms/{id}/forms/{messageId}": {
+      "post": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "Answer a form card the server put in the thread (name, email, phone, custom fields, consent). Validated here: email syntax, phone parsed to E.164 with the picked `country`, name charset; `422 INVALID_FORM` with per-field `errors`; a card is answered once (`409 ALREADY_ANSWERED`). An email or phone that already belongs to another contact is kept as unverified and never merges that contact's history",
+        "operationId": "post_public_rooms_id_forms_messageId",
+        "security": [],
+        "x-access": "public",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "public.send"
+          ],
+          "in_handler": [
+            "msg.room",
+            "msg.workspace"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "values": {
+                    "default": {},
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "maxLength": 60
+                    },
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 300
+                    }
+                  },
+                  "consent": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "country": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 2
+                  },
+                  "website": {
+                    "type": "string",
+                    "maxLength": 300
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/rooms/{id}/forms/{messageId}/skip": {
+      "post": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "Skip an optional form card (`422 NOT_SKIPPABLE` when it has a required field)",
+        "operationId": "post_public_rooms_id_forms_messageId_skip",
+        "security": [],
+        "x-access": "public",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "public.send"
+          ],
+          "in_handler": [
+            "msg.room",
+            "msg.workspace"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           }
         }
       }

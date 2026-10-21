@@ -1,3 +1,4 @@
+import { requestVisitorInfo } from "./visitorInfo.js";
 import type { AppContext } from "../context.js";
 import { nowIso } from "../context.js";
 import { isUniqueViolation, type Param } from "../db/index.js";
@@ -419,6 +420,7 @@ export async function announceResolved(ctx: AppContext, t: TicketRow): Promise<v
     });
     await emitInserted(ctx, r);
   }
+  await requestVisitorInfo(ctx, t.id, "after").catch((e) => ctx.log.warn("visitor info request failed", { error: e instanceof Error ? e.message : String(e) }));
 }
 
 export async function resolveTicket(ctx: AppContext, actor: Actor, id: string, opts: ResolveOptions = {}): Promise<TicketRow> {

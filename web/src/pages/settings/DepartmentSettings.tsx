@@ -2,7 +2,7 @@ import { ArrowDown, ArrowUp, Building2, Clock, FlaskConical, Pencil, Plus, Trash
 import { useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router";
 import { useDepartments, useRoutingRules, useRuleMutations, useUpdateDepartment, type DepartmentPatch, type RuleDraft } from "../../api/departmentHooks";
-import type { Department, DepartmentHours, RoutingMode, RoutingRule, RuleCondition, RuleField, RuleOp, RuleTestResult } from "../../api/types";
+import type { Department, DepartmentHours, InfoMode, RoutingMode, RoutingRule, RuleCondition, RuleField, RuleOp, RuleTestResult } from "../../api/types";
 import { HoursEditor } from "../../components/settings/HoursEditor";
 import { ConfirmDialog } from "../../components/settings/ConfirmDialog";
 import { EditorPanel, ListRow, RowList, SaveBar, SettingsSection } from "../../components/settings/SettingsSection";
@@ -40,6 +40,7 @@ interface Draft {
   overflow_inbox_id: string;
   auto_reply_closed: string;
   auto_reply_queued: string;
+  info: { name: string; email: string; phone: string };
   members: MemberDraft[];
 }
 
@@ -55,6 +56,7 @@ const toDraft = (d: Department): Draft => ({
   overflow_inbox_id: d.overflow_inbox_id ?? "",
   auto_reply_closed: d.auto_reply_closed,
   auto_reply_queued: d.auto_reply_queued,
+  info: { name: d.visitor_info?.fields?.name ?? "", email: d.visitor_info?.fields?.email ?? "", phone: d.visitor_info?.fields?.phone ?? "" },
   members: d.members.map((m) => ({ member_id: m.member_id, name: m.name, skills: m.skills.join(", "), languages: m.languages.join(", "), capacity: m.capacity === null ? "" : String(m.capacity) })),
 });
 const toPatch = (d: Draft): DepartmentPatch => ({
@@ -68,6 +70,7 @@ const toPatch = (d: Draft): DepartmentPatch => ({
   overflow_inbox_id: d.overflow_inbox_id || null,
   auto_reply_closed: d.auto_reply_closed,
   auto_reply_queued: d.auto_reply_queued,
+  visitor_info: { fields: Object.fromEntries((Object.entries(d.info) as ["name" | "email" | "phone", string][]).filter(([, m]) => m).map(([k, m]) => [k, m as InfoMode])) },
   members: d.members.map((m) => ({ member_id: m.member_id, skills: list(m.skills), languages: list(m.languages), capacity: m.capacity.trim() === "" ? null : Number(m.capacity) })),
 });
 
@@ -105,6 +108,22 @@ function DepartmentEditor({ dept, others, onClose }: { dept: Department; others:
         <Textarea rows={2} maxLength={300} value={d.description} onChange={(e) => set("description", e.target.value)} />
       </Field>
       <Switch label="Offer in the chat widget" hint="Visitors can pick this department before the conversation starts (when the department selector is on in the widget settings)." checked={d.live_routing_visibility} onChange={(v) => set("live_routing_visibility", v)} />
+
+      <fieldset className="flex flex-col gap-3 rounded-lg border border-border p-4">
+        <legend className="px-1 text-[13px] font-semibold">Visitor details</legend>
+        <p className="text-xs text-subtle">Conversations in this department can ask for different details than the workspace default (Settings, Visitor details).</p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {(["name", "email", "phone"] as const).map((k) => (
+            <Field key={k} label={k === "name" ? "Name" : k === "email" ? "Email" : "Phone number"}>
+              <Select
+                value={d.info[k] || "default"}
+                onValueChange={(v) => set("info", { ...d.info, [k]: v === "default" ? "" : v })}
+                options={[{ value: "default", label: "Workspace default" }, { value: "off", label: "Never ask" }, { value: "optional", label: "Ask, visitor may skip" }, { value: "required", label: "Required" }, { value: "ask_when_needed", label: "Ask when needed" }]}
+              />
+            </Field>
+          ))}
+        </div>
+      </fieldset>
 
       <fieldset className="flex flex-col gap-3 rounded-lg border border-border p-4">
         <legend className="px-1 text-[13px] font-semibold">Routing</legend>

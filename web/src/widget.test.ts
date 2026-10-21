@@ -444,3 +444,93 @@ describe("AI agent in the widget", () => {
     expect(shadow().querySelector(".rate")).toBeNull();
   });
 });
+
+describe("form card in the widget", () => {
+  const formMsg = (card: any = {}, o: any = {}) =>
+    mkMsg({ id: "msg_form", seq: 2, sender: { type: "bot", name: "Support assistant" }, content_text: "So our team can follow up, could you share your contact details?", meta: { card: { type: "contact_form", id: "frm_1", moment: "handoff", skippable: true, consent: null, fields: [{ key: "email", label: "Email", type: "email", required: false }, { key: "phone", label: "Phone number", type: "tel", required: false }], ...card } }, ...o });
+  const withForm = (m: any) => { replies["GET /public/rooms/room_1/messages"] = () => ({ json: { data: [m], room: { id: "room_1", status: "open", closed_marker: null, ticket: { id: "t", number: 1, status: "waiting_for_human", resolved: false, csat_pending: false } } } }); };
+  const opened = async () => { widget = await boot(); widget.open(); await flush(); await flush(); await flush(); };
+  const field = (name: string) => shadow().querySelector<HTMLInputElement>(`.cform [name="${name}"]`)!;
+  const submitForm = () => shadow().querySelector<HTMLFormElement>(".cform")!.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+
+  it("renders labelled fields with a country picker, an optional hint, a hidden honeypot and a skip button", async () => {
+    withForm(formMsg());
+    await opened();
+    const form = shadow().querySelector(".cform")!;
+    expect(form.getAttribute("aria-label")).toBe("Your details");
+    const labels = [...form.querySelectorAll("label")].map((l) => l.textContent!);
+    expect(labels[0]).toBe("Email (optional)");
+    expect(labels[1]!.startsWith("Phone number (optional)")).toBe(true);
+    expect(form.querySelector('select[name="country"]')).not.toBeNull();
+    expect(form.querySelector(".hp")!.getAttribute("aria-hidden")).toBe("true");
+    expect(form.querySelector("[data-skip]")).not.toBeNull();
+  });
+
+  it("validates on the client first: required and email syntax, with an error per field and focus on the first", async () => {
+    withForm(formMsg({ skippable: false, fields: [{ key: "email", label: "Email", type: "email", required: true }] }));
+    await opened();
+    submitForm();
+    expect(shadow().querySelector(".cform .fe")!.textContent).toBe("This is required");
+    expect(calls.some((c) => c.path.includes("/forms/"))).toBe(false);
+    field("email").value = "nope";
+    submitForm();
+    expect(shadow().querySelector(".cform .fe")!.textContent).toBe("Enter a valid email address");
+    expect(shadow().querySelector("[data-skip]")).toBeNull();
+  });
+
+  it("posts the values, the picked country and consent, and the card goes away once the server says it is answered", async () => {
+    withForm(formMsg({ consent: { text: "You may email me.", privacy_url: "https://example.test/privacy" } }));
+    await opened();
+    field("email").value = "pat@example.test";
+    field("phone").value = "07911 123456";
+    shadow().querySelector<HTMLSelectElement>('select[name="country"]')!.value = "GB";
+    submitForm();
+    expect(shadow().querySelector(".cform .fe:not(:empty)")!.textContent).toBe("Please agree to continue");
+    field("consent").checked = true;
+    replies["POST /public/rooms/room_1/forms/msg_form"] = () => ({ json: { ok: true, saved: ["email", "phone"] } });
+    withForm(formMsg({ answered: "submitted" }));
+    submitForm();
+    await flush(); await flush(); await flush();
+    expect(calls.find((c) => c.path === "/public/rooms/room_1/forms/msg_form")!.body).toEqual({ values: { email: "pat@example.test", phone: "07911 123456" }, consent: true, country: "GB" });
+    expect(shadow().querySelector(".cform")).toBeNull();
+  });
+
+  it("shows the server's per-field errors and keeps what was typed", async () => {
+    withForm(formMsg());
+    await opened();
+    field("phone").value = "12";
+    replies["POST /public/rooms/room_1/forms/msg_form"] = () => ({ status: 422, json: { error: { code: "INVALID_FORM", message: "x", details: { errors: { phone: "Enter a valid phone number" } } } } });
+    submitForm();
+    await flush(); await flush();
+    expect(shadow().querySelectorAll(".cform .fe")[1]!.textContent).toBe("Enter a valid phone number");
+    expect(field("phone").value).toBe("12");
+  });
+
+  it("keeps a half-filled form when another message arrives", async () => {
+    withForm(formMsg());
+    await opened();
+    field("email").value = "half@example.test";
+    field("email").dispatchEvent(new Event("input", { bubbles: true }));
+    sockets[0]!.fire("message:new", { message: mkMsg({ id: "msg_x", seq: 3, content_text: "Anyone there?" }) });
+    expect(field("email").value).toBe("half@example.test");
+  });
+
+  it("skips an optional card", async () => {
+    withForm(formMsg());
+    await opened();
+    replies["POST /public/rooms/room_1/forms/msg_form/skip"] = () => ({ json: { ok: true } });
+    withForm(formMsg({ answered: "skipped" }));
+    shadow().querySelector<HTMLButtonElement>("[data-skip]")!.click();
+    await flush(); await flush(); await flush();
+    expect(calls.some((c) => c.path === "/public/rooms/room_1/forms/msg_form/skip")).toBe(true);
+    expect(shadow().querySelector(".cform")).toBeNull();
+  });
+
+  it("asks the pre-chat form for a field the workspace marks required", async () => {
+    replies["GET /public/rooms"] = () => ({ json: { data: [] } });
+    widget = await boot({ visitor_info: { fields: { name: "off", email: "required", phone: "off" } } });
+    widget.open();
+    await flush(); await flush();
+    expect(shadow().querySelector("form[aria-label='Your details'] input[name=email]")!.hasAttribute("required")).toBe(true);
+  });
+});

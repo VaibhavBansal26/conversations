@@ -1,3 +1,4 @@
+import { requestVisitorInfo } from "../services/visitorInfo.js";
 import { z } from "zod";
 import type { AppContext } from "../context.js";
 import { nowIso } from "../context.js";
@@ -76,6 +77,16 @@ async function resolveTicket(ctx: AppContext, t: ToolContext): Promise<ToolResul
   await publishTickets(ctx, [row.id]);
   return { ok: true, summary: "resolved the ticket" };
 }
+
+toolHandlers.collect_contact_info = async (ctx, t) => {
+  if (t.action.tool !== "collect_contact_info") return { ok: false, summary: "asked for contact details" };
+  const m = await requestVisitorInfo(ctx, t.ticket.id, "agent", { only: t.action.fields });
+  return m ? { ok: true, summary: `asked the visitor for ${t.action.fields.join(", ")}` } : { ok: false, detail: "nothing to ask", summary: "had nothing to ask: already known, switched off in the settings or already asked" };
+};
+toolHandlers.schedule_callback = async (ctx, t) => {
+  const m = await requestVisitorInfo(ctx, t.ticket.id, "callback");
+  return m ? { ok: true, summary: "asked the visitor for a phone number to call back" } : { ok: false, detail: "nothing to ask", summary: "could not ask for a callback number: known already, switched off or already asked" };
+};
 
 export async function executeTool(ctx: AppContext, t: ToolContext): Promise<ToolResult> {
   try {

@@ -34,6 +34,9 @@ Assets: customer conversations and contact data, workspace credentials, the abil
 | Impersonating a known customer through the chat | optional signed identity: `HMAC_SHA256(secret, external_id\|email)` computed on the customer's server, secret encrypted at rest with `DATA_ENCRYPTION_KEY`, wrong hash is 401, enforcement ignores unsigned identity ([ADR 0025](adr/0025-signed-visitor-identity.md)) | `identity.test.ts` |
 | A hostile page or host on the mobile bridge | strict versioned envelope, 16 KiB limit, 30 commands per 10 s, no `eval`, link allow-list (https, mailto, tel), message origin and source checks in iframe mode, no tokens or session ids ever cross the bridge ([ADR 0026](adr/0026-bridge-protocol-v1.md)) | `bridge.contract.test.ts`, bridge conformance page |
 | Prompt injection through messages | conversation text is wrapped in delimited untrusted blocks (and any delimiter inside is stripped); AI output is treated as text, never executed; offline fallback | [AI.md](AI.md) |
+| An AI agent manipulated by a visitor, or saying what it must not | the agent never sees an injection attempt (rules decide first), untrusted text is delimited, its output is validated with zod, tools are a closed list checked against the agent's allowed actions and audited, answers pass guards (banned claims, ungrounded commitments, links that are not the knowledge-base page's own), and the visitor is always told it is an AI and can ask for a person at any time | [AI-AGENTS.md](AI-AGENTS.md) section 3, [ADR 0029](adr/0029-ai-agent-pipeline.md), `agents.test.ts` |
+| A visitor claiming someone else's email or phone to read their history | a form never merges contacts: an address that belongs to another contact is stored as `unverified_email` on the visitor's own contact, the response does not reveal that it exists, and linking stays with the signed identity and the OTP checks | [AI-AGENTS.md](AI-AGENTS.md) section 4, `visitor-info.test.ts` |
+| Bots filling the details form | server-side validation of every field, a honeypot that stores nothing and shows no error, and the per-visitor rate limits of the public routes | `visitor-info.test.ts` |
 | Spoofed client IP | `TRUST_PROXY` off by default; the client address is the entry `TRUSTED_PROXY_HOPS` from the right of `X-Forwarded-For`; Cloudflare's header believed only with the shared secret | [CLOUDFLARE.md](CLOUDFLARE.md) |
 | Denial of service | admission control and load shedding, per-socket event budgets, slow-consumer eviction, body and upload limits, per-tenant queues | [SCALING.md](SCALING.md), `ratelimit.*.test.ts` |
 | Lost or altered history | database triggers make the audit log append-only; outbox gives at-least-once with idempotent consumers; messages are soft-deleted | [ARCHITECTURE.md](ARCHITECTURE.md) |
@@ -52,6 +55,9 @@ Assets: customer conversations and contact data, workspace credentials, the abil
 * Per-workspace retention (`retention_days`) archives messages to NDJSON.gz and removes them; deleting a contact removes their conversations and messages (partition-key scoped purge); backups follow your database's own retention.
 * Exports for analytics are pseudonymous by construction. The pepper that links them is a per-workspace secret controlled by the workspace.
 * Billing data is limited to Stripe ids and the card's brand and last four digits.
+
+* Visitor details collected by the chat (name, email, phone, custom fields, a consent timestamp and text) are stored on the contact and follow its retention and deletion. They go to a language model only when the workspace does not redact personal data (`ai_redact_pii`), and values are never written to logs or to the audit detail (only field names are).
+* AI agent turns record the visitor's words shortened (masked when the workspace redacts personal data) and are deleted with their ticket.
 
 ## Not covered
 

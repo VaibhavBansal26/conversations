@@ -62,6 +62,26 @@ export interface WidgetSettings {
   office_hours: OfficeHours;
   default_inbox_id: string | null;
   department_selector?: boolean;
+  visitor_info?: VisitorInfo;
+}
+
+export type InfoMode = "off" | "optional" | "required" | "ask_when_needed";
+export interface CustomField {
+  key: string;
+  label: string;
+  type: "text" | "select";
+  options: string[];
+  mode: InfoMode;
+}
+export interface VisitorInfo {
+  fields: { name: InfoMode; email: InfoMode; phone: InfoMode };
+  custom_fields: CustomField[];
+  moments: { handoff: boolean; no_agent: boolean; callback: boolean; after: boolean };
+  consent: { enabled: boolean; text: string; privacy_url: string | null };
+}
+export interface DepartmentVisitorInfo {
+  fields?: Partial<VisitorInfo["fields"]>;
+  moments?: Partial<VisitorInfo["moments"]>;
 }
 
 export type AiTone = "friendly" | "professional" | "concise" | "empathetic";
@@ -384,6 +404,7 @@ export interface Department extends Inbox {
   overflow_inbox_id: string | null;
   auto_reply_closed: string;
   auto_reply_queued: string;
+  visitor_info: DepartmentVisitorInfo;
   members: DepartmentMember[];
   status: DepartmentStatus;
 }

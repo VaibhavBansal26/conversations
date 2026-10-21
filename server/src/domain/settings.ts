@@ -33,6 +33,48 @@ export const RoutingSettingsSchema = z.object({
   require_online: z.boolean().default(true),
 });
 
+/** How a piece of visitor information is handled: never asked, asked and skippable, asked and required, or asked only when something needs it. */
+export const InfoModeSchema = z.enum(["off", "optional", "required", "ask_when_needed"]);
+const InfoFields = z.object({ name: InfoModeSchema.default("off"), email: InfoModeSchema.default("off"), phone: InfoModeSchema.default("off") });
+export const CustomFieldSchema = z
+  .object({
+    key: z.string().regex(/^[a-z][a-z0-9_]{0,29}$/, "Use lower-case letters, digits and underscores"),
+    label: z.string().trim().min(1).max(60),
+    type: z.enum(["text", "select"]).default("text"),
+    options: z.array(z.string().trim().min(1).max(60)).max(20).default([]),
+    mode: InfoModeSchema.default("ask_when_needed"),
+  })
+  .refine((f) => f.type !== "select" || f.options.length >= 2, { message: "A choice field needs at least two options", path: ["options"] });
+const InfoMoments = z.object({
+  /** a ticket goes to a person */
+  handoff: z.boolean().default(true),
+  /** nobody can take it now (department closed or everybody busy) */
+  no_agent: z.boolean().default(true),
+  /** a callback or a call is requested */
+  callback: z.boolean().default(true),
+  /** the conversation was resolved: ask for an email to follow up */
+  after: z.boolean().default(false),
+});
+export const VisitorInfoSchema = z.object({
+  fields: InfoFields.default(() => InfoFields.parse({})),
+  custom_fields: z.array(CustomFieldSchema).max(5).default([]),
+  moments: InfoMoments.default(() => InfoMoments.parse({})),
+  consent: z
+    .object({
+      enabled: z.boolean().default(false),
+      text: z.string().trim().min(1).max(300).default("I agree that you may contact me about this conversation."),
+      privacy_url: z.string().url().max(500).refine((u) => /^https?:\/\//i.test(u), "Use an http or https address").nullable().default(null),
+    })
+    .default(() => ({ enabled: false, text: "I agree that you may contact me about this conversation.", privacy_url: null })),
+});
+export type VisitorInfoSettings = z.infer<typeof VisitorInfoSchema>;
+/** A department may override the fields and the moments (the rest stays the workspace's). */
+export const DepartmentInfoSchema = z.object({
+  fields: z.object({ name: InfoModeSchema.optional(), email: InfoModeSchema.optional(), phone: InfoModeSchema.optional() }).optional(),
+  moments: z.object({ handoff: z.boolean().optional(), no_agent: z.boolean().optional(), callback: z.boolean().optional(), after: z.boolean().optional() }).optional(),
+});
+export type DepartmentInfo = z.infer<typeof DepartmentInfoSchema>;
+
 const WidgetShape = z.object({
   title: z.string().max(80).default("Chat with us"),
   intro: z.string().max(240).default("We usually reply within a few minutes."),
@@ -61,6 +103,8 @@ const WidgetShape = z.object({
   default_inbox_id: z.string().nullable().default(null),
   /** ask the visitor which department they need before the conversation starts (departments marked visible in the widget) */
   department_selector: z.boolean().default(false),
+  /** what the widget asks visitors, and when (docs/AI-AGENTS.md section 4) */
+  visitor_info: VisitorInfoSchema.default(() => VisitorInfoSchema.parse({})),
 });
 
 export const WidgetSettingsSchema = WidgetShape;

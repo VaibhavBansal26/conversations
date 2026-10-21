@@ -212,7 +212,8 @@ export async function createSession(ctx: AppContext, token: TokenRow & { preview
   const ws = token.workspace_id;
   const identity = await decideIdentity(ctx, ws, input);
   const widget = (await getSettings(ctx, ws)).widget;
-  const missing = widget.required_info.filter((k) => !input[k]?.toString().trim());
+  const need = new Set<string>([...widget.required_info, ...((["name", "email", "phone"] as const).filter((k) => widget.visitor_info.fields[k] === "required"))]);
+  const missing = [...need].filter((k) => !(input as unknown as Record<string, unknown>)[k]?.toString().trim());
   if (missing.length) throw unprocessable("REQUIRED_INFO_MISSING", `Please provide: ${missing.join(", ")}`, { missing });
 
   let contact: ContactRow;

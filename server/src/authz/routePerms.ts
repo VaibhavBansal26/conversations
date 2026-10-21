@@ -15,7 +15,7 @@ const GROUPS: [RouteAccess, string[]][] = [
     "POST /api/auth/register", "POST /api/auth/login", "POST /api/auth/refresh", "POST /api/auth/logout", "POST /api/auth/mfa/verify", "POST /api/auth/password/forgot", "POST /api/auth/password/reset",
     "GET /api/auth/invitations/:token", "POST /api/auth/invitations/accept",
     "GET /public/widget/config", "POST /public/sessions", "GET /public/session", "GET /public/rooms", "POST /public/rooms", "GET /public/rooms/:id/messages", "POST /public/rooms/:id/messages",
-    "POST /public/rooms/:id/read", "POST /public/rooms/:id/csat", "POST /public/rooms/:id/ticket-csat", "POST /public/rooms/:id/quick-reply", "POST /public/rooms/:id/request-human", "POST /public/rooms/:id/messages/:messageId/feedback", "POST /public/otp/send", "POST /public/otp/verify",
+    "POST /public/rooms/:id/read", "POST /public/rooms/:id/csat", "POST /public/rooms/:id/ticket-csat", "POST /public/rooms/:id/quick-reply", "POST /public/rooms/:id/request-human", "POST /public/rooms/:id/forms/:messageId", "POST /public/rooms/:id/forms/:messageId/skip", "POST /public/rooms/:id/messages/:messageId/feedback", "POST /public/otp/send", "POST /public/otp/verify",
     "DELETE /public/session", "POST /public/session/attributes", "POST /public/attachments",
     "GET /chat", "GET /chat/bridge-test", "GET /chat/assets/:file",
     "POST /webhooks/stripe", "POST /webhooks/stripe/connect", "POST /webhooks/twilio/sms", "POST /webhooks/twilio/status", "POST /webhooks/sendgrid/inbound", "POST /webhooks/sendgrid/events",

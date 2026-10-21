@@ -8,7 +8,7 @@ import { DepartmentSettings, formatWait } from "./DepartmentSettings";
 const dept = (id: string, name: string, over: Partial<Department> = {}): Department => ({
   id, name, icon: "inbox", algorithm: "manual", live_routing_visibility: true, default_email_inbound: false, default_sms_inbound: false, last_assigned_member_id: null, member_ids: ["mem_1"], created_at: "", description: "Plans and quotes",
   routing_mode: null, effective_routing_mode: "manual_pick", capacity: 0, hours: { enabled: false, timezone: "UTC", days: [], holidays: [] }, sla_first_response_s: null, sla_resolution_s: null, overflow_inbox_id: null,
-  auto_reply_closed: "", auto_reply_queued: "", members: [{ member_id: "mem_1", name: "Olivia Owner", skills: ["billing"], languages: ["en"], capacity: null }],
+  auto_reply_closed: "", auto_reply_queued: "", visitor_info: {}, members: [{ member_id: "mem_1", name: "Olivia Owner", skills: ["billing"], languages: ["en"], capacity: null }],
   status: { id, name, open: true, next_opening: null, available_agents: 1, queue_length: 0, estimated_wait_s: 240 }, ...over,
 });
 let departments: Department[];

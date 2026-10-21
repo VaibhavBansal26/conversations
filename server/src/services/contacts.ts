@@ -163,7 +163,7 @@ export async function findOrCreateContact(ctx: AppContext, ws: string, input: Co
   throw new AppError(409, "CONTACT_EXISTS", "Could not resolve contact");
 }
 
-async function patchContact(ctx: AppContext, ws: string, id: string, patch: ContactInput & { sms_opt_out?: boolean; unsubscribed?: boolean }): Promise<ContactRow> {
+export async function patchContact(ctx: AppContext, ws: string, id: string, patch: ContactInput & { sms_opt_out?: boolean; unsubscribed?: boolean }): Promise<ContactRow> {
   const cur = await getContact(ctx, ws, id);
   const email = patch.email === undefined ? cur.email : normalizeEmail(patch.email);
   const phone = patch.phone === undefined ? cur.phone : (await cleanIdentity(ctx, ws, { phone: patch.phone })).phone;

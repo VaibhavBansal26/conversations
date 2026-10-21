@@ -10,6 +10,10 @@
     { "properties": { "type": { "const": "message_received" }, "payload": { "$ref": "#/$defs/message_received" } } },
     { "properties": { "type": { "const": "conversation_started" }, "payload": { "$ref": "#/$defs/room" } } },
     { "properties": { "type": { "const": "conversation_closed" }, "payload": { "$ref": "#/$defs/room" } } },
+    { "properties": { "type": { "const": "form_requested" }, "payload": { "$ref": "#/$defs/form_requested" } } },
+    { "properties": { "type": { "const": "contact_info_submitted" }, "payload": { "$ref": "#/$defs/contact_info_submitted" } } },
+    { "properties": { "type": { "const": "handoff_started" }, "payload": { "$ref": "#/$defs/handoff_started" } } },
+    { "properties": { "type": { "const": "agent_joined" }, "payload": { "$ref": "#/$defs/room" } } },
     { "properties": { "type": { "const": "link_clicked" }, "payload": { "$ref": "#/$defs/link_clicked" } } },
     { "properties": { "type": { "const": "attachment_requested" }, "payload": { "$ref": "#/$defs/attachment_requested" } } },
     { "properties": { "type": { "const": "auth_required" }, "payload": { "$ref": "#/$defs/auth_required" } } },
@@ -44,6 +48,27 @@
       }
     },
     "room": { "type": "object", "required": ["room_id"], "properties": { "room_id": { "type": "string", "minLength": 1, "maxLength": 64 } } },
+    "form_requested": {
+      "type": "object",
+      "required": ["room_id", "message_id", "moment", "fields"],
+      "properties": {
+        "room_id": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "message_id": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "moment": { "enum": ["handoff", "no_agent", "callback", "after", "agent"] },
+        "fields": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 60 } }
+      }
+    },
+    "contact_info_submitted": {
+      "type": "object",
+      "required": ["room_id", "fields"],
+      "description": "Names of the fields that were shared, never their values.",
+      "properties": { "room_id": { "type": "string", "minLength": 1, "maxLength": 64 }, "fields": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 60 } } }
+    },
+    "handoff_started": {
+      "type": "object",
+      "required": ["room_id", "status"],
+      "properties": { "room_id": { "type": "string", "minLength": 1, "maxLength": 64 }, "status": { "enum": ["waiting_for_human", "open"] } }
+    },
     "link_clicked": {
       "type": "object",
       "required": ["url", "source"],

@@ -1615,6 +1615,234 @@
         ]
       }
     },
+    "/public/rooms/{id}/forms/{messageId}": {
+      "post": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "Answer a form card the server put in the thread (name, email, phone, custom fields, consent). Validated here: email syntax, phone parsed to E.164 with the picked `country`, name charset; `422 INVALID_FORM` with per-field `errors`; a card is answered once (`409 ALREADY_ANSWERED`). An email or phone that already belongs to another contact is kept as unverified and never merges that contact's history",
+        "operationId": "post_public_rooms_id_forms_messageId",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "public.send"
+          ],
+          "in_handler": [
+            "msg.room",
+            "msg.workspace"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^cvt_"
+            },
+            "description": "The embed token (public by design; it is in every website's HTML)"
+          },
+          {
+            "name": "x-hosted-chat",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "const": "1"
+            },
+            "description": "Native apps and same-origin pages send `1` (and no Origin) with a token that has the hosted chat enabled"
+          },
+          {
+            "name": "x-device-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,64}$"
+            }
+          },
+          {
+            "name": "x-support-session",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The `session_token` returned by POST /public/sessions"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "values": {
+                    "default": {},
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "maxLength": 60
+                    },
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 300
+                    }
+                  },
+                  "consent": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "country": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 2
+                  },
+                  "website": {
+                    "type": "string",
+                    "maxLength": 300
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "embedToken": []
+          }
+        ]
+      }
+    },
+    "/public/rooms/{id}/forms/{messageId}/skip": {
+      "post": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "Skip an optional form card (`422 NOT_SKIPPABLE` when it has a required field)",
+        "operationId": "post_public_rooms_id_forms_messageId_skip",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "public.send"
+          ],
+          "in_handler": [
+            "msg.room",
+            "msg.workspace"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^cvt_"
+            },
+            "description": "The embed token (public by design; it is in every website's HTML)"
+          },
+          {
+            "name": "x-hosted-chat",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "const": "1"
+            },
+            "description": "Native apps and same-origin pages send `1` (and no Origin) with a token that has the hosted chat enabled"
+          },
+          {
+            "name": "x-device-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,64}$"
+            }
+          },
+          {
+            "name": "x-support-session",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The `session_token` returned by POST /public/sessions"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "security": [
+          {
+            "embedToken": []
+          }
+        ]
+      }
+    },
     "/public/otp/send": {
       "post": {
         "tags": [
