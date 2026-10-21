@@ -5,6 +5,7 @@ import { BottomNav, NavRail } from "./AppNav";
 
 let teamAllowed = true;
 vi.mock("../../api/hooks", () => ({ useCounts: () => ({ data: { unread_rooms: 2 } }) }));
+vi.mock("../../api/ticketHooks", () => ({ useTicketCounts: () => ({ data: { waiting_for_human: 3 } }) }));
 vi.mock("../../auth/AuthContext", () => ({ useCan: () => teamAllowed }));
 vi.mock("../../team/hooks", () => ({
   useTeamChannels: () => ({ data: [{ id: "c1", unread: 4, mention_unread: 0, muted: false }, { id: "c2", unread: 9, mention_unread: 1, muted: false }] }),
@@ -36,6 +37,8 @@ describe("main navigation", () => {
     expect(screen.getByRole("link", { name: "Team, 1 unread" })).toHaveAttribute("href", "/team");
     expect(screen.getByRole("link", { name: "Inbox, 2 unread" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Analytics" })).toBeInTheDocument();
+    // tickets waiting for a person are what the badge counts
+    expect(screen.getByRole("link", { name: "Tickets, 3 unread" })).toHaveAttribute("href", "/tickets");
   });
 
   it("hides Team from roles without team_chat:use", () => {
@@ -46,6 +49,7 @@ describe("main navigation", () => {
       </MemoryRouter>,
     );
     expect(screen.queryByRole("link", { name: /^Team/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: /^Tickets/ })).toBeNull(); // the mock gives every permission the same answer
   });
 
   it("the bottom navigation hides inside a conversation or a channel and comes back, without breaking hook order", async () => {

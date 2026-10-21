@@ -1,5 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
-import type { MessageEventPayload, NotificationList, ReceiptPayload, Room, RoomPatch } from "../api/types";
+import type { MessageEventPayload, NotificationList, ReceiptPayload, Room, RoomPatch, Ticket } from "../api/types";
 import { countsAsUnread } from "../lib/unread";
 import { keys, type RoomListFilters } from "./keys";
 import { applyReceipt, removeMessage, upsertMessage, type Thread } from "./messageCache";
@@ -115,4 +115,16 @@ export function onNotificationRead(qc: QueryClient, payload: { id?: string; all?
       data: cur.data.map((n) => (payload.all || n.id === payload.id ? { ...n, read_at: n.read_at ?? at } : n)),
     };
   });
+}
+
+/** A ticket changed: the conversation's ticket chip follows it, and every ticket list, count and history refetches. */
+export function onTicketUpdated(qc: QueryClient, ticket: Ticket, ctx: BridgeContext): void {
+  const live = ticket.status !== "closed";
+  patchRoomEverywhere(
+    qc,
+    ticket.room_id,
+    { id: ticket.room_id, ticket: live ? { id: ticket.id, number: ticket.number, status: ticket.status, handler: ticket.handler, department_id: ticket.department_id, priority: ticket.priority, subject: ticket.subject } : null },
+    nowOf(ctx),
+  );
+  void qc.invalidateQueries({ queryKey: keys.tickets });
 }

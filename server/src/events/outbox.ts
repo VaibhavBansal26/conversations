@@ -13,6 +13,8 @@ export interface MessageEvent {
   sender_type: string;
   kind: string;
   source: string;
+  /** additive: the ticket the message belongs to (null before tickets existed or outside an issue) */
+  ticket_id?: string | null;
   created_at: string;
 }
 

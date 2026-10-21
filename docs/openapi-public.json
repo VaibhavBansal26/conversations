@@ -1140,6 +1140,121 @@
         ]
       }
     },
+    "/public/rooms/{id}/ticket-csat": {
+      "post": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "Rating (1 to 5) of the latest resolved ticket, once; `409 CSAT_NOT_AVAILABLE` when nothing is waiting for one",
+        "operationId": "post_public_rooms_id_ticket_csat",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "public.read"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^cvt_"
+            },
+            "description": "The embed token (public by design; it is in every website's HTML)"
+          },
+          {
+            "name": "x-hosted-chat",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "const": "1"
+            },
+            "description": "Native apps and same-origin pages send `1` (and no Origin) with a token that has the hosted chat enabled"
+          },
+          {
+            "name": "x-device-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,64}$"
+            }
+          },
+          {
+            "name": "x-support-session",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The `session_token` returned by POST /public/sessions"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "score": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5
+                  },
+                  "comment": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "ticket_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "score"
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "embedToken": []
+          }
+        ]
+      }
+    },
     "/public/otp/send": {
       "post": {
         "tags": [

@@ -15,6 +15,7 @@ import { ShareToTeamDialog } from "../../team/Dialogs";
 import { RequestPaymentDialog } from "./RequestPaymentDialog";
 import { SnoozeMenu } from "./SnoozeMenu";
 import { SummaryPopover } from "./SummaryPopover";
+import { TicketMenu } from "../tickets/TicketMenu";
 
 interface Props {
   room: Room;
@@ -76,6 +77,12 @@ export function RoomHeader({ room, backTo, assignOpen, onAssignOpen, snoozeOpen,
             {closed && <span className="ml-1.5 rounded bg-surface-3 px-1.5 py-px font-medium text-muted-foreground">Closed</span>}
           </p>
         </div>
+
+        {room.ticket && (
+          <div className="shrink-0">
+            <TicketMenu ticket={room.ticket} />
+          </div>
+        )}
 
         <DropdownMenuRoot open={assignOpen} onOpenChange={onAssignOpen}>
           <DropdownMenuTrigger

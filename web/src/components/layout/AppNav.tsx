@@ -1,6 +1,7 @@
-import { BarChart3, Inbox, MessageCircle, MessagesSquare, Settings, type LucideIcon } from "lucide-react";
+import { BarChart3, Inbox, MessageCircle, MessagesSquare, Settings, Ticket, type LucideIcon } from "lucide-react";
 import { Link, useMatch } from "react-router";
 import { useCounts } from "../../api/hooks";
+import { useTicketCounts } from "../../api/ticketHooks";
 import { useCan } from "../../auth/AuthContext";
 import { totalUnread } from "../../team/cache";
 import { useTeamChannels } from "../../team/hooks";
@@ -19,10 +20,13 @@ interface Item {
 function useItems(): Item[] {
   const unread = useCounts().data?.unread_rooms ?? 0;
   const canTeam = useCan("team_chat:use");
+  const canTickets = useCan("tickets:read");
+  const waiting = useTicketCounts(canTickets).data?.waiting_for_human ?? 0;
   // the channel list is only fetched for people who may use team chat; a mention counts more than plain unread
   const team = totalUnread(useTeamChannels({ enabled: canTeam }).data);
   return [
     { to: "/inbox", label: "Inbox", icon: Inbox, badge: unread },
+    ...(canTickets ? [{ to: "/tickets", label: "Tickets", icon: Ticket, badge: waiting }] : []),
     ...(canTeam ? [{ to: "/team", label: "Team", icon: MessagesSquare, badge: team.mentions || team.unread }] : []),
     { to: "/analytics", label: "Analytics", icon: BarChart3 },
     { to: "/settings", label: "Settings", icon: Settings },

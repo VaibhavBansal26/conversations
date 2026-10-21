@@ -1,5 +1,5 @@
 // Adapted from the legacy UI (see docs/PROVENANCE.md): grouped settings navigation.
-import { Bell, Bot, ChevronLeft, ChevronRight, CreditCard, FileUp, Inbox, KeyRound, LayoutTemplate, Library, MessageSquareText, Phone, Settings2, ShieldCheck, UserCog, Users, type LucideIcon } from "lucide-react";
+import { Bell, Bot, ChevronLeft, ChevronRight, CreditCard, FileUp, Inbox, KeyRound, LayoutTemplate, Library, MessageSquareText, Phone, Settings2, ShieldCheck, Ticket, UserCog, Users, type LucideIcon } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 import { Link, NavLink, Navigate, Outlet, useLocation } from "react-router";
 import { useIsManager } from "../../auth/AuthContext";
@@ -24,6 +24,7 @@ export const SETTINGS_PAGES: readonly SettingsPageDef[] = [
   { path: "tokens", label: "Embed tokens", managerOnly: true, group: "Channels & inboxes", icon: KeyRound },
   { path: "members", label: "Members & seats", managerOnly: true, group: "Team", icon: Users },
   { path: "roles", label: "Roles & invitations", managerOnly: true, group: "Team", icon: UserCog },
+  { path: "tickets", label: "Tickets", managerOnly: true, group: "Automation & AI", icon: Ticket },
   { path: "templates", label: "Templates", managerOnly: true, group: "Automation & AI", icon: LayoutTemplate },
   { path: "knowledge-base", label: "Knowledge base", managerOnly: true, group: "Automation & AI", icon: Library },
   { path: "ai", label: "AI assistant", managerOnly: true, group: "Automation & AI", icon: Bot },

@@ -9,6 +9,8 @@ import { Accordion, AccordionSection, Avatar, Badge, Button, ErrorNotice, Skelet
 import { Lightbox } from "../chat/Lightbox";
 import { ContactForm } from "./ContactForm";
 import { ContactNotes } from "./ContactNotes";
+import { ContactTickets } from "./ContactTickets";
+import { useCan } from "../../auth/AuthContext";
 
 interface Props {
   room: Room;
@@ -40,6 +42,7 @@ export function ContactPanel({ room, onClose }: Props) {
   const members = useMembers().data ?? [];
   const thread = useThread(room.id);
   const [viewer, setViewer] = useState<number | null>(null);
+  const canTickets = useCan("tickets:read");
   const followers = members.filter((m) => contact.data?.followers.includes(m.id));
   const images = useMemo(() => (thread.data?.messages ?? []).flatMap((m) => m.attachments).filter((a) => a.content_type.startsWith("image/")), [thread.data]);
   const files = useMemo(() => (thread.data?.messages ?? []).flatMap((m) => m.attachments).filter((a) => !a.content_type.startsWith("image/") && !a.content_type.startsWith("audio/")), [thread.data]);
@@ -104,6 +107,11 @@ export function ContactPanel({ room, onClose }: Props) {
                 <p className="text-[13px] text-subtle">Nobody follows this contact.</p>
               )}
             </AccordionSection>
+            {canTickets && (
+              <AccordionSection value="tickets" title="Tickets">
+                <ContactTickets roomId={room.id} />
+              </AccordionSection>
+            )}
             <AccordionSection value="notes" title="Notes">
               <ContactNotes contactId={contact.data.id} />
             </AccordionSection>

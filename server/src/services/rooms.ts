@@ -14,6 +14,7 @@ import { findInbox, nextRoundRobinAssignee } from "./inboxes.js";
 import { findMember } from "./members.js";
 import { closedMarker, emitMessage, lastBriefOf, lastMessageBrief, postSystemMessage, type MessageRow } from "./messageStore.js";
 import { assigneeIds, canSeeRoom, getRoomRow, getVisibleRoom, roomVisibility, type RoomRow } from "./roomStore.js";
+import { liveTicketsByRoom, onRoomClosed, ticketConditions } from "./tickets.js";
 
 export type RoomSort = "newest" | "oldest" | "waiting_longest" | "priority_first";
 export type RoomStatusFilter = "open" | "closed" | "snoozed" | "all";
@@ -27,6 +28,10 @@ export interface RoomFilters {
   favorites?: boolean;
   inbox_id?: string;
   contact_id?: string;
+  /** filters on the live ticket of the room (docs/AI-AGENTS.md) */
+  ticket_status?: string;
+  ticket_handler?: string;
+  department_id?: string;
   search?: string;
   sort?: RoomSort;
   /** keyset cursor from a previous page (newest / oldest / priority_first); preferred over `page` */
@@ -75,6 +80,7 @@ async function hydrate(ctx: AppContext, rows: (RoomRow & Partial<ListRow>)[]) {
   )) {
     assignees.set(a.room_id, [...(assignees.get(a.room_id) ?? []), a.member_id]);
   }
+  const tickets = await liveTicketsByRoom(ctx, ids);
   const contacts = new Map(
     (await ctx.db.read().all<ContactRow>(`SELECT * FROM contacts WHERE id IN (${rows.map(() => "?").join(",")})`, ...rows.map((r) => r.contact_id))).map((c) => [c.id, c]),
   );
@@ -103,6 +109,7 @@ async function hydrate(ctx: AppContext, rows: (RoomRow & Partial<ListRow>)[]) {
       unread_count: r.unread_count ?? 0,
       favorite: !!r.favorite,
       bot_paused: !!r.bot_paused,
+      ticket: tickets.get(r.id) ?? null,
       triage: parseJson<Record<string, unknown>>(r.meta, {}),
       created_at: r.created_at,
       updated_at: r.updated_at,
@@ -177,6 +184,11 @@ export async function listRooms(ctx: AppContext, actor: Actor, f: RoomFilters) {
   if (f.contact_id) {
     where.push("r.contact_id = ?");
     params.push(f.contact_id);
+  }
+  if (f.ticket_status || f.ticket_handler || f.department_id) {
+    const tc = ticketConditions(ctx, actor, { status: f.ticket_status ?? "live", handler: f.ticket_handler, department_id: f.department_id });
+    where.push(`EXISTS (SELECT 1 FROM tickets t WHERE t.room_id = r.id AND ${tc.where.join(" AND ")})`);
+    params.push(...tc.params);
   }
   if (f.search?.trim()) {
     const l = like(f.search.trim());
@@ -412,6 +424,7 @@ export async function setStatus(ctx: AppContext, actor: Actor, roomId: string, s
     actor_id: actor.memberId,
     reason: "agent_action",
   });
+  if (status === "closed") await onRoomClosed(ctx, room, { type: "member", id: actor.memberId });
   const fresh = await getRoomRow(ctx, actor.workspaceId, roomId);
   await publishRoomUpdated(ctx, fresh);
   return fresh;

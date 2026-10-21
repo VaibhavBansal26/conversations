@@ -20,12 +20,14 @@ const ContactSettings = lazy(() => import("./pages/settings/ContactSettings").th
 const KnowledgeBaseSettings = lazy(() => import("./pages/settings/KnowledgeBaseSettings").then((m) => ({ default: m.KnowledgeBaseSettings })));
 const MemberSettings = lazy(() => import("./pages/settings/MemberSettings").then((m) => ({ default: m.MemberSettings })));
 const NotificationSettings = lazy(() => import("./pages/settings/NotificationSettings").then((m) => ({ default: m.NotificationSettings })));
+const TicketSettings = lazy(() => import("./pages/settings/TicketSettings").then((m) => ({ default: m.TicketSettings })));
 const TemplateSettings = lazy(() => import("./pages/settings/TemplateSettings").then((m) => ({ default: m.TemplateSettings })));
 const TokenSettings = lazy(() => import("./pages/settings/TokenSettings").then((m) => ({ default: m.TokenSettings })));
 const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage").then((m) => ({ default: m.AnalyticsPage })));
 const SecuritySettings = lazy(() => import("./pages/settings/SecuritySettings").then((m) => ({ default: m.SecuritySettings })));
 const BillingSettings = lazy(() => import("./pages/settings/BillingSettings").then((m) => ({ default: m.BillingSettings })));
 const RoleSettings = lazy(() => import("./pages/settings/RoleSettings").then((m) => ({ default: m.RoleSettings })));
+const TicketsPage = lazy(() => import("./pages/TicketsPage").then((m) => ({ default: m.TicketsPage })));
 const TeamPage = lazy(() => import("./pages/TeamPage").then((m) => ({ default: m.TeamPage })));
 const WidgetSettings = lazy(() => import("./pages/settings/WidgetSettings").then((m) => ({ default: m.WidgetSettings })));
 
@@ -49,6 +51,7 @@ export function App() {
         <Route element={<Suspense fallback={<PageFallback />}><AppLayout /></Suspense>}>
           <Route path="/inbox" element={<Suspense fallback={<PageFallback />}><InboxPage /></Suspense>} />
           <Route path="/inbox/:roomId" element={<Suspense fallback={<PageFallback />}><InboxPage /></Suspense>} />
+          <Route path="/tickets" element={<Suspense fallback={<PageFallback />}><TicketsPage /></Suspense>} />
           <Route path="/team" element={<Suspense fallback={<PageFallback />}><TeamPage /></Suspense>} />
           <Route path="/team/:channelId" element={<Suspense fallback={<PageFallback />}><TeamPage /></Suspense>} />
           <Route path="/analytics" element={<Suspense fallback={null}><AnalyticsPage /></Suspense>} />
@@ -59,6 +62,7 @@ export function App() {
             <Route path="members" element={<MemberSettings />} />
             <Route path="tokens" element={<TokenSettings />} />
             <Route path="channels" element={<ChannelSettings />} />
+            <Route path="tickets" element={<TicketSettings />} />
             <Route path="templates" element={<TemplateSettings />} />
             <Route path="contacts" element={<ContactSettings />} />
             <Route path="knowledge-base" element={<KnowledgeBaseSettings />} />

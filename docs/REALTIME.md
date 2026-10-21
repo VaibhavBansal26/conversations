@@ -59,6 +59,7 @@ Internal chat between workspace members uses the same namespace and the same aut
 | `room:new` | members who can now see it | `{room}` | conversation created or became visible |
 | `room:updated` | room audience | `{room, reason?}` | status, assignment, snooze, priority, subject, unread |
 | `room:deleted` | members who lost it | `{room_id}` | archived or no longer visible |
+| `ticket:updated` | room audience (visitor gets a minimal copy) | `{ticket}` / visitor `{room_id, ticket: {id, number, status, resolved, csat_pending}}` | a ticket opened, was answered, taken over, resolved, rated, reopened, merged or closed |
 | `room:unread` | the member | `{room_id, unread_count}` | unread count changed |
 | `typing` | room audience | `{room_id, typing, who}` | typing indicator (coalesced) |
 | `presence:update` | workspace | `{member_id, online}` | team presence |

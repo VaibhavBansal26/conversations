@@ -4,6 +4,7 @@ import type { AppContext } from "../context.js";
 import { nowIso } from "../context.js";
 import { newId } from "../util/ids.js";
 import { notFound } from "../errors.js";
+import { purgeTickets } from "./tickets.js";
 
 /**
  * Tiering, retention and erasure for the (large) messages table.
@@ -17,7 +18,7 @@ import { notFound } from "../errors.js";
 const COLS = [
   "id", "workspace_id", "room_id", "seq", "client_msg_id", "sender_type", "sender_id", "sender_name", "kind", "source", "content", "content_text", "subject",
   "ref_message_id", "attachments", "meta", "delivery", "failure_reason", "provider_message_id", "rfc_message_id", "in_reply_to", "references_hdr", "from_addr",
-  "to_addr", "retry_count", "delivered_at", "opened_at", "edited_at", "deleted_at", "deleted_by", "created_at",
+  "to_addr", "retry_count", "delivered_at", "opened_at", "edited_at", "deleted_at", "deleted_by", "ticket_id", "created_at",
 ] as const;
 
 type Row = Record<(typeof COLS)[number], string | number | null>;
@@ -98,6 +99,7 @@ export async function purgeWorkspaceMessages(ctx: AppContext, workspaceId: strin
     });
     total += ids.length;
   }
+  await purgeTickets(ctx, workspaceId);
   await ctx.db.run("DELETE FROM message_qids WHERE room_id IN (SELECT id FROM rooms WHERE workspace_id = ?)", workspaceId);
   await ctx.db.run("UPDATE rooms SET last_brief = NULL, last_message_id = NULL WHERE workspace_id = ?", workspaceId);
   return total;
@@ -115,8 +117,10 @@ export async function retentionSweep(ctx: AppContext): Promise<Record<string, nu
       /* ignore unparsable settings */
     }
     if (days <= 0) continue;
-    const r = await archiveMessages(ctx, w.id, new Date(ctx.clock().getTime() - days * 86400_000));
+    const cutoff = new Date(ctx.clock().getTime() - days * 86400_000);
+    const r = await archiveMessages(ctx, w.id, cutoff);
     if (r.rows) out[w.id] = r.rows;
+    await purgeTickets(ctx, w.id, cutoff);
   }
   // idempotency keys only need to outlive the client retry window
   await ctx.db.run("DELETE FROM message_qids WHERE created_at < ?", new Date(ctx.clock().getTime() - 30 * 86400_000).toISOString());

@@ -2,11 +2,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMatch } from "react-router";
 import { io, type Socket } from "socket.io-client";
-import type { MessageEventPayload, NotificationItem, ReceiptPayload, Room, TypingEvent } from "../api/types";
+import type { MessageEventPayload, NotificationItem, ReceiptPayload, Room, Ticket, TypingEvent } from "../api/types";
 import { getToken, refreshAccess } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import {
-  onMessageDeleted, onMessageNew, onMessageUpdated, onNotificationNew, onNotificationRead, onReceipt, onRoomDeleted, onRoomNew, onRoomUnread, onRoomUpdated,
+  onMessageDeleted, onMessageNew, onMessageUpdated, onNotificationNew, onNotificationRead, onReceipt, onRoomDeleted, onRoomNew, onRoomUnread, onRoomUpdated, onTicketUpdated,
   type BridgeContext,
 } from "../state/events";
 import { keys } from "../state/keys";
@@ -82,6 +82,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         // Events were missed while offline: resync instead of guessing.
         void qc.invalidateQueries({ queryKey: keys.rooms });
         void qc.invalidateQueries({ queryKey: keys.counts });
+        void qc.invalidateQueries({ queryKey: keys.tickets });
         void qc.invalidateQueries({ queryKey: ["thread"] });
         void qc.invalidateQueries({ queryKey: ["team"] });
       }
@@ -100,6 +101,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     socket.on("server:resync", () => {
       void qc.invalidateQueries({ queryKey: keys.rooms });
       void qc.invalidateQueries({ queryKey: keys.counts });
+      void qc.invalidateQueries({ queryKey: keys.tickets });
       void qc.invalidateQueries({ queryKey: ["thread"] });
       void qc.invalidateQueries({ queryKey: ["team"] });
     });
@@ -124,6 +126,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     socket.on("message:receipt", (p: ReceiptPayload) => onReceipt(qc, p));
     socket.on("room:new", (p: { room: Room }) => onRoomNew(qc, p.room, ctx));
     socket.on("room:updated", (p: { room: Room }) => onRoomUpdated(qc, p.room, ctx));
+    socket.on("ticket:updated", (p: { ticket: Ticket }) => onTicketUpdated(qc, p.ticket, ctx));
     socket.on("room:deleted", (p: { room_id: string }) => onRoomDeleted(qc, p.room_id));
     socket.on("room:unread", (p: { room_id: string; unread_count: number }) => onRoomUnread(qc, p.room_id, p.unread_count, ctx));
     socket.on("notification:new", (p: { notification: NotificationItem; unread_count: number }) => onNotificationNew(qc, p));

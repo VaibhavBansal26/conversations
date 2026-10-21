@@ -12,7 +12,8 @@ import { recordCsat } from "../services/roomMetrics.js";
 import { knownIp, parseBody, parseQuery } from "../http.js";
 import { applyPrincipalLimits, enforce } from "../ratelimit/http.js";
 import { ipKey } from "../util/clientIp.js";
-import { MessageListQuery, OtpVerify, ReadBody, SessionAttributes, SessionBody, VisitorSend } from "../schemas.js";
+import { MessageListQuery, OtpVerify, ReadBody, SessionAttributes, SessionBody, TicketCsat, VisitorSend } from "../schemas.js";
+import { rateTicket, visitorTicketDto } from "../services/tickets.js";
 import { listMemberRows } from "../services/members.js";
 import { loadRefs, visitorMessageDto } from "../services/messageStore.js";
 import { isOpen } from "../services/office.js";
@@ -149,6 +150,14 @@ export function publicRoutes(ctx: AppContext) {
     const room = await getVisitorRoom(ctx, c.get("session"), c.req.param("id"));
     if (!(await recordCsat(ctx, room, body.score, body.comment))) throw new AppError(409, "CSAT_NOT_AVAILABLE", "The conversation must be closed and not yet rated");
     return c.json({ ok: true });
+  });
+  // rating of the latest ended ticket (or the one named); the room csat above stays for closed conversations
+  r.post("/rooms/:id/ticket-csat", async (c) => {
+    const body = await parseBody(c, TicketCsat);
+    const room = await getVisitorRoom(ctx, c.get("session"), c.req.param("id"));
+    const t = await rateTicket(ctx, room, body.score, body.comment, body.ticket_id);
+    if (!t) throw new AppError(409, "CSAT_NOT_AVAILABLE", "There is no resolved ticket waiting for a rating");
+    return c.json({ ok: true, ticket: visitorTicketDto(t) });
   });
   r.post("/otp/verify", async (c) => c.json(await verifyOtp(ctx, c.get("session"), (await parseBody(c, OtpVerify)).code)));
 

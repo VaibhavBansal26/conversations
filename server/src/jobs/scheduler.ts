@@ -11,6 +11,7 @@ import { wakeDueRooms, wakeRoom } from "../services/rooms.js";
 import { nowIso } from "../context.js";
 import { ensureMessagePartitions } from "../db/partitions.js";
 import { retentionSweep } from "../services/archive.js";
+import { ticketSweep } from "../services/tickets.js";
 import { teamRetentionSweep } from "../services/teamChat.js";
 import { runAutoRecharge } from "../billing/credits.js";
 import { enqueueJob, runDueJobs, type JobHandler } from "./queue.js";
@@ -69,12 +70,13 @@ export async function reconcileDeliveries(ctx: AppContext, opts: { minAgeMinutes
 }
 
 /** One scheduler pass; exposed so tests (and a manual `kick`) can drive time explicitly. */
-export async function tick(ctx: AppContext, parts: { snooze?: boolean; jobs?: boolean; digest?: boolean; reconcile?: boolean } = { snooze: true, jobs: true }) {
-  const out = { woken: 0, jobs: 0, digests: 0, reconciled: 0 };
+export async function tick(ctx: AppContext, parts: { snooze?: boolean; jobs?: boolean; digest?: boolean; reconcile?: boolean; tickets?: boolean } = { snooze: true, jobs: true }) {
+  const out = { woken: 0, jobs: 0, digests: 0, reconciled: 0, tickets: { resolved: 0, closed: 0 } };
   if (parts.snooze) out.woken = await wakeDueRooms(ctx, notifySnoozeEnded.bind(null, ctx));
   if (parts.digest) out.digests = (await collectDigests(ctx)).queued;
   if (parts.jobs) out.jobs = (await runDueJobs(ctx, jobHandlers)).ran;
   if (parts.reconcile) out.reconciled = await reconcileDeliveries(ctx);
+  if (parts.tickets) out.tickets = await ticketSweep(ctx);
   return out;
 }
 
@@ -100,7 +102,7 @@ export async function startScheduler(ctx: AppContext): Promise<() => void> {
   const pull = setInterval(guard(async () => (ctx.queue.kind === "db" ? await runDueJobs(ctx, jobHandlers) : undefined)), 5_000);
   const sweep = setInterval(
     guard(async () => {
-      await ctx.locks.withLock("scheduler-sweep", 50_000, () => tick(ctx, { snooze: true, digest: true, reconcile: true }));
+      await ctx.locks.withLock("scheduler-sweep", 50_000, () => tick(ctx, { snooze: true, digest: true, reconcile: true, tickets: true }));
     }),
     60_000,
   );

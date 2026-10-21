@@ -101,7 +101,7 @@ Generated from `policies.ts` and `routePolicies.ts` (`npm run docs:ratelimit`; `
 | `public.session` | composite | gcra | 20 per 1 min, burst 20 | - | fail-closed + penalty box | Visitor session creation, per IP + Origin + embed token (POST /public/sessions) |
 | `public.room` | visitor | gcra | 10 per 50 s, burst 10 | - | fail-open | Visitor starts a conversation (POST /public/rooms) |
 | `public.send` | visitor | gcra | 30 per 30 s, burst 30 | - | fail-open | Visitor sends a message (POST /public/rooms/:id/messages) |
-| `public.read` | visitor | gcra | 60 per 30 s, burst 60 | - | fail-open | Visitor read receipts (4 entry points) |
+| `public.read` | visitor | gcra | 60 per 30 s, burst 60 | - | fail-open | Visitor read receipts (5 entry points) |
 | `public.query` | visitor | gcra | 10 per 1 s, burst 40 | - | fail-open + lease | Visitor reads (session, rooms, messages) (GET /public/session, GET /public/rooms, GET /public/rooms/:id/messages) |
 | `public.upload` | visitor | gcra | 10 per 1 min, burst 10 | - | fail-closed | Visitor file uploads (camera and photo attachments), 10 per minute per visitor (POST /public/attachments) |
 | `public.otp.send` | visitor | gcra | 5 per 10 min, burst 5 | - | fail-closed + penalty box | OTP sends per visitor session (5 per 10 min) (POST /public/otp/send) |
@@ -115,9 +115,9 @@ Generated from `policies.ts` and `routePolicies.ts` (`npm run docs:ratelimit`; `
 | `team.workspace` | workspace | window | 20000 per 1 h | free 20000, pro 200000, business 2000000 | fail-open | Team chat messages per workspace per hour, by plan (POST /api/team/channels/:id/messages, socket team:message:send) |
 | `team.search` | user | gcra | 20 per 1 min, burst 10 | - | fail-open | Team chat searches, per member (20 per minute) (GET /api/team/search) |
 | `team.create` | workspace | window | 100 per 1 h | - | fail-open | Channel and group message creation per workspace per hour (POST /api/team/channels, POST /api/team/dms) |
-| `api.read` | user | gcra | 20 per 1 s, burst 100 | - | fail-open + lease | Authenticated reads, per user (49 entry points) |
-| `api.write` | user | gcra | 10 per 1 s, burst 50 | - | fail-open + lease | Authenticated writes, per user (98 entry points) |
-| `api.workspace` | workspace | window | 1200 per 1 min | free 1200, pro 6000, business 30000 | fail-open | All API calls per workspace per minute, by plan (159 entry points) |
+| `api.read` | user | gcra | 20 per 1 s, burst 100 | - | fail-open + lease | Authenticated reads, per user (54 entry points) |
+| `api.write` | user | gcra | 10 per 1 s, burst 50 | - | fail-open + lease | Authenticated writes, per user (104 entry points) |
+| `api.workspace` | workspace | window | 1200 per 1 min | free 1200, pro 6000, business 30000 | fail-open | All API calls per workspace per minute, by plan (170 entry points) |
 | `api.send` | user | gcra | 120 per 1 min, burst 60 | - | fail-open | Agent message sends, per user (POST /api/rooms/:id/messages) |
 | `api.upload` | user | gcra | 30 per 1 min, burst 30 | - | fail-open | Uploads, per user (POST /api/attachments, POST /api/team/attachments) |
 | `api.import` | workspace | gcra | 10 per 10 min, burst 10 | - | fail-open | CSV imports (cost 5 of a small bucket), per workspace (POST /api/contacts/import) |

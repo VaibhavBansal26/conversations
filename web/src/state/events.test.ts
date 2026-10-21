@@ -1,7 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
-import type { MessageEventPayload, NotificationList, Room } from "../api/types";
+import type { MessageEventPayload, NotificationList, Room, Ticket } from "../api/types";
 import { FIXED_NOW, makeMessage, makeRoom, roomPages } from "../test/factories";
-import { onMessageDeleted, onMessageNew, onMessageUpdated, onNotificationNew, onNotificationRead, onReceipt, onRoomDeleted, onRoomNew, onRoomUnread, onRoomUpdated, type BridgeContext } from "./events";
+import { onMessageDeleted, onMessageNew, onMessageUpdated, onNotificationNew, onNotificationRead, onReceipt, onRoomDeleted, onRoomNew, onRoomUnread, onRoomUpdated, onTicketUpdated, type BridgeContext } from "./events";
 import { keys, type RoomListFilters } from "./keys";
 import type { Thread } from "./messageCache";
 import { flattenRooms, type RoomListData } from "./roomCache";
@@ -146,5 +146,28 @@ describe("socket -> cache bridge", () => {
     const after = qc.getQueryData<NotificationList>(keys.notifications)!;
     expect(after.unread_count).toBe(0);
     expect(after.data[0]?.read_at).not.toBeNull();
+  });
+});
+
+describe("ticket events", () => {
+  const brief = { id: "tkt_1", number: 7, status: "waiting_for_human" as const, handler: null, department_id: null, priority: 1 as const, subject: "Where is my parcel" };
+  const full: Ticket = { ...brief, room_id: "room_a", contact_id: "con_1", subject_set_by: "auto", resolution: null, channel: "dm", opened_at: "", first_response_at: null, handoff_at: null, first_human_response_at: null, resolved_at: null, closed_at: null, csat: null, csat_comment: null, tags: [], summary: "", handoff_reason: null, merged_into_id: null, last_activity_at: "", created_at: "", updated_at: "" };
+
+  it("ticket:updated puts the live ticket on the room in every list and the single-room cache, and refetches ticket views", () => {
+    const { qc } = setup();
+    qc.setQueryData(keys.room("room_a"), makeRoom({ id: "room_a" }));
+    const spy = vi.spyOn(qc, "invalidateQueries");
+    onTicketUpdated(qc, { ...full }, ctx());
+    expect(room(qc, "room_a")?.ticket).toEqual(brief);
+    expect(qc.getQueryData<Room>(keys.room("room_a"))?.ticket).toEqual(brief);
+    expect(room(qc, "room_b")?.ticket).toBeUndefined();
+    expect(spy).toHaveBeenCalledWith({ queryKey: keys.tickets });
+  });
+
+  it("a closed ticket leaves the room without one", () => {
+    const { qc } = setup();
+    onTicketUpdated(qc, { ...full }, ctx());
+    onTicketUpdated(qc, { ...full, status: "closed" }, ctx());
+    expect(room(qc, "room_a")?.ticket).toBeNull();
   });
 });

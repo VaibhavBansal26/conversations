@@ -28,3 +28,4 @@ Short records of decisions that shaped the system. Add one when you make a decis
 * [0024](./0024-hosted-chat-origin-model.md) The hosted chat uses a per-token flag and the app's own origin
 * [0025](./0025-signed-visitor-identity.md) Signed visitor identity (HMAC over external id and email)
 * [0026](./0026-bridge-protocol-v1.md) The page-to-host bridge: one envelope, versioned, command and event sets
+* [0027](./0027-tickets-inside-rooms.md) Tickets are episodes inside a room, opened by the message path

@@ -10,6 +10,7 @@ import { closedMarker, emitInserted, insertMessage, visitorMessageDtos, type Mes
 import { pageMessages, processContent } from "./messages.js";
 import { onContactMessage, postBotMessage } from "./postProcess.js";
 import { findOrCreateRoom, markVisitorRead } from "./rooms.js";
+import { visitorTicketDto, type TicketRow } from "./tickets.js";
 import { type RoomRow } from "./roomStore.js";
 import type { SessionRow } from "./visitors.js";
 
@@ -48,10 +49,12 @@ export async function visitorRoomDto(ctx: AppContext, room: RoomRow) {
     room.visitor_read_seq,
   ))!.n;
   const last = await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE room_id = ? AND kind != 'system' AND kind != 'note' AND deleted_at IS NULL ORDER BY seq DESC LIMIT 1", room.id);
+  const ticket = await ctx.db.get<TicketRow>("SELECT * FROM tickets WHERE room_id = ? ORDER BY opened_at DESC, id DESC LIMIT 1", room.id);
   return {
     id: room.id,
     status: room.status,
     closed_marker: await closedMarker(ctx, room),
+    ticket: ticket ? visitorTicketDto(ticket) : null,
     created_at: room.created_at,
     unread_count: unread,
     last_message: last ? { snippet: last.content_text.slice(0, 120), created_at: last.created_at, sender_type: last.sender_type } : null,

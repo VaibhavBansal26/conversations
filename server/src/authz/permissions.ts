@@ -32,6 +32,10 @@ export const PERMISSIONS = {
   "team_chat:use": "Use team chat: read and write in channels you belong to and direct messages, join public channels, react, search",
   "team_chat:manage_channels": "Create, rename and archive team channels and manage who is in them",
   "team_chat:moderate": "Delete other people's team chat messages",
+  "tickets:read": "See tickets (episodes of support) of the conversations in scope",
+  "tickets:write": "Edit tickets (subject, priority, tags, status), reopen them and take them over from the AI agent",
+  "tickets:close": "Resolve and close tickets, one by one or in bulk",
+  "tickets:merge": "Merge duplicate tickets of one conversation",
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -65,7 +69,7 @@ export const SYSTEM_ROLES: SystemRole[] = [
     name: "Agent",
     description: "Works conversations assigned to them (and their inboxes)",
     baseRole: "agent",
-    permissions: ["conversations:read", "conversations:reply", "contacts:read", "contacts:write", "members:read", "settings:read", "ai:use", "payments:request", "team_chat:use"],
+    permissions: ["conversations:read", "conversations:reply", "contacts:read", "contacts:write", "members:read", "settings:read", "ai:use", "payments:request", "team_chat:use", "tickets:read", "tickets:write", "tickets:close"],
   },
   {
     id: "role_viewer",
@@ -73,7 +77,7 @@ export const SYSTEM_ROLES: SystemRole[] = [
     name: "Viewer",
     description: "Read-only access to conversations, contacts and analytics",
     baseRole: "manager",
-    permissions: ["conversations:read", "contacts:read", "members:read", "settings:read", "analytics:read", "team_chat:use"],
+    permissions: ["conversations:read", "contacts:read", "members:read", "settings:read", "analytics:read", "team_chat:use", "tickets:read"],
   },
 ];
 

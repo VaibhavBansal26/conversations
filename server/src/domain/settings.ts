@@ -11,6 +11,22 @@ export const OfficeHoursSchema = z.object({
 
 export const RequiredInfoSchema = z.enum(["name", "email", "phone"]);
 
+/** Ticket lifecycle (docs/AI-AGENTS.md). Minutes and hours are wall-clock; 0 turns the matching automation off. */
+export const TicketSettingsSchema = z.object({
+  /** a reply to a resolved ticket reopens it within this many hours, otherwise it opens a new ticket (0 = always a new ticket) */
+  reopen_hours: z.number().int().min(0).max(720).default(72),
+  /** a ticket the AI agent is handling, quiet for this long, is resolved as abandoned (0 = off; otherwise at least 5) */
+  bot_idle_minutes: z.union([z.literal(0), z.number().int().min(5).max(1440)]).default(30),
+  /** a ticket waiting on the customer, quiet for this long, is resolved as abandoned (0 = off) */
+  pending_idle_hours: z.number().int().min(0).max(720).default(72),
+  /** resolved tickets are closed after this many hours without a reply */
+  close_resolved_hours: z.number().int().min(1).max(720).default(72),
+  /** ask the visitor for a rating when a ticket is resolved */
+  csat_prompt: z.boolean().default(true),
+  closing_message: z.string().max(500).default("This conversation has been marked as resolved. If you need anything else, just reply here."),
+});
+export type TicketSettings = z.infer<typeof TicketSettingsSchema>;
+
 const WidgetShape = z.object({
   title: z.string().max(80).default("Chat with us"),
   intro: z.string().max(240).default("We usually reply within a few minutes."),
@@ -53,6 +69,7 @@ export const WorkspaceSettingsSchema = z.object({
   ai_autoresponder_enabled: z.boolean().default(false),
   ai_redact_pii: z.boolean().default(false),
   ai_tone: z.enum(["friendly", "professional", "concise", "empathetic"]).default("friendly"),
+  tickets: TicketSettingsSchema.default(() => TicketSettingsSchema.parse({})),
   widget: WidgetShape.default(() => WidgetShape.parse({})),
 });
 
@@ -70,6 +87,7 @@ export const WorkspaceSettingsPatchSchema = z.object({
   ai_autoresponder_enabled: z.boolean().optional(),
   ai_redact_pii: z.boolean().optional(),
   ai_tone: WorkspaceSettingsSchema.shape.ai_tone.optional(),
+  tickets: TicketSettingsSchema.partial().optional(),
   widget: WidgetShape.partial().optional(),
 });
 
@@ -85,10 +103,11 @@ export function parseSettings(raw: string | null | undefined): WorkspaceSettings
 }
 
 export function mergeSettings(cur: WorkspaceSettings, patch: z.infer<typeof WorkspaceSettingsPatchSchema>): WorkspaceSettings {
-  const { widget, ...rest } = patch;
+  const { widget, tickets, ...rest } = patch;
   return WorkspaceSettingsSchema.parse({
     ...cur,
     ...rest,
+    tickets: { ...cur.tickets, ...(tickets ?? {}) },
     widget: { ...cur.widget, ...(widget ?? {}) },
   });
 }

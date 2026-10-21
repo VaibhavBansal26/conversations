@@ -6,6 +6,15 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import pg from "pg";
 import { migrate, openDb, type Db } from "../src/db/index.js";
+import { ALL_PERMISSIONS, SYSTEM_ROLES } from "../src/authz/permissions.js";
+import { insertMessage } from "../src/services/messageStore.js";
+import { liveTicketOf } from "../src/services/tickets.js";
+import { trackCtx, testConfig } from "./helpers.js";
+import { createContext } from "../src/app-context.js";
+import { HeuristicProvider } from "../src/ai/heuristic.js";
+import { silentLogger } from "../src/logger.js";
+import { FakeEmailProvider, FakeSmsProvider } from "../src/providers/fake.js";
+import { RecordingBus } from "../src/realtime/bus.js";
 
 /**
  * Upgrade tests: the failure that reached production (migration 020 edited sqlite_master, which a defensive SQLite build forbids) only
@@ -156,7 +165,11 @@ async function seedPreviousRelease(db: Db) {
 const MUST_BE_SEEDED = ["workspaces", "users", "members", "roles", "contacts", "rooms", "messages", "message_mentions", "notifications", "attachments", "tokens", "visitor_sessions", "usage_ledger", "jobs", "payment_requests", "message_qids", "message_refs"];
 
 async function messageRows(db: Db) {
-  return db.all("SELECT * FROM messages ORDER BY id");
+  // `ticket_id` (migration 027) is the only column a later migration added to messages; old rows carry NULL
+  return (await db.all<Record<string, unknown>>("SELECT * FROM messages ORDER BY id")).map(({ ticket_id, ...row }) => {
+    if (ticket_id !== undefined) expect(ticket_id).toBeNull();
+    return row;
+  });
 }
 
 /** Migration 026 (mobile): additive columns carry their defaults on old rows and the new unique index and table work. */
@@ -439,6 +452,142 @@ describe.skipIf(!postgres)("PostgreSQL: upgrading a database created by the prev
       await seedPreviousRelease(b.db);
       await migrate(b.db, undefined, { hashPartitions: 2 });
       expect(await schemaOf(b.db)).toEqual(await schemaOf(a.db));
+    } finally {
+      rmSync(prev, { recursive: true, force: true });
+      await a.drop();
+      await b.drop();
+    }
+  });
+});
+
+// ---- tickets (migrations 027 and 028): the release before them is 026 ---------------------------------------------------------------------
+
+const PRE_TICKETS = 26;
+const roleList = async (db: Db, id: string) => JSON.parse((await db.get<{ permissions: string }>("SELECT permissions FROM roles WHERE id = ?", id))!.permissions) as string[];
+
+/** What 027 and 028 must leave on a populated database, on either backend. */
+async function expectTicketsMigration(db: Db, before: Record<string, number>, tables: string[], msgsBefore: unknown[]) {
+  expect(await counts(db, tables)).toEqual(before); // nothing lost anywhere
+  expect(await messageRows(db)).toEqual(msgsBefore);
+  expect((await db.get<{ n: number }>("SELECT COUNT(*) AS n FROM messages WHERE ticket_id IS NOT NULL"))!.n).toBe(0); // no backfill: old messages belong to no ticket
+  expect((await db.get<{ n: number }>("SELECT COUNT(*) AS n FROM tickets"))!.n).toBe(0);
+  // the live-ticket index arbitrates, closed tickets pile up, numbers are unique per workspace, FKs cascade from rooms
+  const ins = (id: string, room: string, n: number, status: string) =>
+    db.run("INSERT INTO tickets(id, workspace_id, room_id, contact_id, number, status, opened_at, last_activity_at, created_at, updated_at) VALUES (?, 'w1', ?, 'c1', ?, ?, ?, ?, ?, ?)", id, room, n, status, T(40), T(40), T(40), T(40));
+  await ins("tk1", "r1", 1, "open");
+  await expect(ins("tk2", "r1", 2, "new")).rejects.toThrow(/UNIQUE|duplicate key/i);
+  await ins("tk3", "r1", 3, "closed");
+  await expect(ins("tk4", "r2", 3, "new")).rejects.toThrow(/UNIQUE|duplicate key/i); // number 3 is taken in w1
+  await expect(db.run("INSERT INTO tickets(id, workspace_id, room_id, contact_id, number, status, opened_at, last_activity_at, created_at, updated_at) VALUES ('bad', 'w1', 'r2', 'c2', 9, 'bogus', ?, ?, ?, ?)", T(40), T(40), T(40), T(40))).rejects.toThrow(/CHECK|check constraint/i);
+  await db.run("UPDATE messages SET ticket_id = 'tk1' WHERE room_id = 'r1' AND seq = 1");
+  expect((await db.get<{ n: number }>("SELECT COUNT(*) AS n FROM messages WHERE ticket_id = 'tk1'"))!.n).toBe(1);
+  await db.run("INSERT INTO ticket_events(id, workspace_id, ticket_id, type, actor_type, created_at) VALUES ('ev1', 'w1', 'tk1', 'opened', 'contact', ?)", T(40));
+  await db.run("DELETE FROM tickets WHERE id IN ('tk1','tk3')");
+  await db.run("UPDATE messages SET ticket_id = NULL WHERE ticket_id = 'tk1'");
+  expect((await db.get<{ n: number }>("SELECT COUNT(*) AS n FROM ticket_events"))!.n).toBe(0); // events cascade with their ticket
+
+  // permissions: system roles equal the catalogue, custom roles keep what they had
+  for (const r of SYSTEM_ROLES) expect((await roleList(db, r.id)).sort(), r.id).toEqual([...r.permissions].sort());
+  expect(await roleList(db, "role_agent")).toEqual(expect.arrayContaining(["tickets:read", "tickets:write", "tickets:close"]));
+  expect(await roleList(db, "role_agent")).not.toContain("tickets:merge");
+  expect(await roleList(db, "role_viewer")).toContain("tickets:read");
+  expect(await roleList(db, "role_viewer")).not.toContain("tickets:close");
+  expect(await roleList(db, "role_owner")).toEqual(expect.arrayContaining(["tickets:merge"]));
+  expect(await roleList(db, "role_custom_reader")).toEqual(["conversations:read", "tickets:read", "contacts:read"]); // read, not write
+  expect(await roleList(db, "role_custom_none")).toEqual(["billing:manage"]);
+  expect(ALL_PERMISSIONS).toContain("tickets:merge");
+  await expect(db.run("UPDATE roles SET name = 'hacked' WHERE id = 'role_owner'")).rejects.toThrow(/immutable/); // the guard trigger is back
+}
+
+describe("SQLite: tickets migrations on a populated database of the release before them", () => {
+  it("adds tickets without touching a row, grants the new permissions, leaves old rooms ticket-less until their next message", async () => {
+    const { dir, path } = await openSqliteFile();
+    const prev = releaseDir(PRE_TICKETS);
+    try {
+      const old = await openDb(path);
+      await migrate(old, prev);
+      await seedPreviousRelease(old);
+      const tables = await userTables(old);
+      const before = await counts(old, tables);
+      const msgsBefore = await messageRows(old);
+      expect(await old.all("SELECT name FROM sqlite_master WHERE name = 'tickets'")).toEqual([]);
+      await old.close();
+
+      const db = await openDb(path);
+      const applied = await migrate(db);
+      expect(applied.slice(0, 2)).toEqual(["027_tickets.sql", "028_roles_tickets.sqlite.sql"]);
+      expect(await db.all("PRAGMA foreign_key_check")).toEqual([]);
+      await expectTicketsMigration(db, before, tables, msgsBefore);
+      expect(await migrate(db)).toEqual([]);
+      await db.close();
+
+      // the application on that file: an old room opens its first ticket with its next message
+      const ctx = await createContext(testConfig({ DATABASE_PATH: path }), { log: silentLogger, bus: new RecordingBus(), sms: new FakeSmsProvider(), email: new FakeEmailProvider(), ai: new HeuristicProvider() });
+      trackCtx(ctx);
+      await ctx.db.run("UPDATE rooms SET next_seq = 12 WHERE id = 'r1'"); // the seed writes messages without advancing the room's counter
+      const room = (await ctx.db.get<{ id: string; workspace_id: string; contact_id: string }>("SELECT id, workspace_id, contact_id FROM rooms WHERE id = 'r1'"))!;
+      expect(await liveTicketOf(ctx, "r1")).toBeUndefined();
+      const m = await insertMessage(ctx, { workspaceId: room.workspace_id, roomId: "r1", senderType: "contact", senderId: room.contact_id, kind: "text", source: "dm", content: "back again" });
+      const t = (await liveTicketOf(ctx, "r1"))!;
+      expect(t.number).toBe(1);
+      expect(m.message.ticket_id).toBe(t.id);
+      expect((await ctx.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM messages WHERE room_id = 'r1' AND ticket_id IS NULL"))!.n).toBe(12); // the history stays outside any ticket
+    } finally {
+      rmSync(prev, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("schema drift guard: a database upgraded from 026 equals a fresh one", async () => {
+    const fresh = await openDb(":memory:");
+    await migrate(fresh);
+    const { dir, path } = await openSqliteFile();
+    const prev = releaseDir(PRE_TICKETS);
+    try {
+      const old = await openDb(path);
+      await migrate(old, prev);
+      await seedPreviousRelease(old);
+      await old.close();
+      const upgraded = await openDb(path);
+      await migrate(upgraded);
+      expect(await schemaOf(upgraded)).toEqual(await schemaOf(fresh));
+      await upgraded.close();
+    } finally {
+      await fresh.close();
+      rmSync(prev, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe.skipIf(!postgres)("PostgreSQL: tickets migrations on a populated database of the release before them", () => {
+  async function schemaDb(): Promise<{ db: Db; drop: () => Promise<void> }> {
+    const schema = `u_${Math.random().toString(16).slice(2, 10)}`;
+    const admin = new pg.Client({ connectionString: process.env.TEST_DATABASE_URL });
+    await admin.connect();
+    await admin.query(`CREATE SCHEMA ${schema}`);
+    const u = new URL(process.env.TEST_DATABASE_URL!);
+    u.searchParams.set("options", `-c search_path=${schema}`);
+    const db = await openDb({ url: u.toString(), poolMax: 4 });
+    return { db, drop: async () => (await db.close(), await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`), await admin.end()) };
+  }
+
+  it("adds tickets without touching a row (messages is partitioned), grants the permissions, matches a fresh schema", async () => {
+    const a = await schemaDb();
+    const b = await schemaDb();
+    const prev = releaseDir(PRE_TICKETS);
+    try {
+      await migrate(a.db, undefined, { hashPartitions: 2 });
+      await migrate(b.db, prev, { hashPartitions: 2 });
+      await seedPreviousRelease(b.db);
+      const tables = await userTables(b.db);
+      const before = await counts(b.db, tables);
+      const msgsBefore = await messageRows(b.db);
+      const applied = await migrate(b.db, undefined, { hashPartitions: 2 });
+      expect(applied.slice(0, 2)).toEqual(["027_tickets.sql", "028_roles_tickets.pg.sql"]);
+      expect(await schemaOf(b.db)).toEqual(await schemaOf(a.db));
+      await expectTicketsMigration(b.db, before, tables, msgsBefore);
+      expect(await migrate(b.db, undefined, { hashPartitions: 2 })).toEqual([]);
     } finally {
       rmSync(prev, { recursive: true, force: true });
       await a.drop();

@@ -110,6 +110,19 @@ const rows: [string, string, string, Opt?][] = [
   ["DELETE /api/templates/:id", "Templates", "Delete a template", { status: 204 }],
   ["POST /api/templates/:id/render", "Templates", "Render a template for a contact or room", { body: S.TemplateRender }],
 
+  // ---- tickets
+  ["GET /api/tickets", "Tickets", "List tickets in your scope (a ticket follows the visibility of its conversation): filter by `status` (`live`, `all` or a comma list), `handler` (`bot`, `human`, `unassigned`, `me`, `bot:<id>`, `human:<id>`), `department_id`, `priority_min`, `contact_id`, `room_id`, `q` (number or subject); keyset paged", { query: S.TicketQuery }],
+  ["GET /api/tickets/counts", "Tickets", "Live tickets per status in your scope", { returns: "`{new, bot_handling, waiting_for_human, open, pending_customer, resolved, closed, total_live}`" }],
+  ["POST /api/tickets/bulk", "Tickets", "Resolve or close up to 100 tickets; each result is reported on its own", { body: S.TicketBulk }],
+  ["GET /api/tickets/:id", "Tickets", "One ticket with its event timeline (opened, handed off, taken over, resolved, rated, merged)"],
+  ["PATCH /api/tickets/:id", "Tickets", "Edit subject, priority, tags, summary, or set `open` / `pending_customer`", { body: S.TicketPatch }],
+  ["POST /api/tickets/:id/resolve", "Tickets", "Resolve a ticket; the customer sees the closing message and a rating card (`tickets.closing_message`, `tickets.csat_prompt`)"],
+  ["POST /api/tickets/:id/close", "Tickets", "Close a ticket (resolves it first when needed). The conversation itself stays open"],
+  ["POST /api/tickets/:id/reopen", "Tickets", "Reopen a resolved ticket, or a closed one when the conversation has no live ticket"],
+  ["POST /api/tickets/:id/merge", "Tickets", "Merge a duplicate into another ticket of the same conversation: its messages move over and it closes as `merged`", { body: S.TicketMerge }],
+  ["GET /api/rooms/:id/tickets", "Tickets", "Every ticket of a conversation, newest first"],
+  ["GET /api/contacts/:id/tickets", "Tickets", "Ticket history of a contact (the contact panel)"],
+
   // ---- contacts
   ["GET /api/contacts", "Contacts", "List contacts (search, keyset cursor)"],
   ["POST /api/contacts", "Contacts", "Create a contact", { body: S.ContactBody, status: 201 }],
@@ -210,6 +223,7 @@ const rows: [string, string, string, Opt?][] = [
   ["POST /public/attachments", "Widget (public)", "Upload a picture or PDF (multipart field `file`); returns an attachment id to pass in `attachment_ids` of a message", { status: 201 }],
   ["POST /public/rooms/:id/read", "Widget (public)", "Visitor read receipt", { body: S.ReadBody }],
   ["POST /public/rooms/:id/csat", "Widget (public)", "Satisfaction score after the conversation is closed", { body: pubR.Csat }],
+  ["POST /public/rooms/:id/ticket-csat", "Widget (public)", "Rating (1 to 5) of the latest resolved ticket, once; `409 CSAT_NOT_AVAILABLE` when nothing is waiting for one", { body: S.TicketCsat }],
   ["POST /public/otp/send", "Widget (public)", "Send a one-time code to verify the visitor"],
   ["POST /public/otp/verify", "Widget (public)", "Verify the one-time code", { body: S.OtpVerify }],
 

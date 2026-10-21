@@ -76,6 +76,10 @@ export const RoomQuery = Pagination.extend({
   filter: z.enum(["all", "assigned_to_me", "unassigned", "mentions", "priority", "favorites"]).optional(),
   inbox_id: id.optional(),
   contact_id: id.optional(),
+  /** filters on the live ticket of the room: a status (or comma list), a handler (`bot`, `human`, `unassigned`, `me`, `bot:<id>`, `human:<id>`), a department */
+  ticket_status: z.string().max(120).optional(),
+  ticket_handler: z.string().max(80).optional(),
+  department_id: id.optional(),
   search: z.string().max(200).optional(),
   sort: z.enum(["newest", "oldest", "waiting_longest", "priority_first"]).default("newest"),
   cursor: z.string().max(300).optional(),
@@ -227,3 +231,27 @@ export const TeamSocketSend = TeamSendBody.extend({ channel_id: id });
 export const TeamSocketTyping = z.object({ channel_id: id, typing: z.boolean(), thread_root_id: id.optional() });
 export const TeamSocketRead = TeamReadBody.extend({ channel_id: id });
 export const TeamSocketReaction = TeamReactionBody.extend({ message_id: id });
+
+/* ---- tickets ---- */
+export const TicketQuery = z.object({
+  status: z.string().max(120).optional(),
+  handler: z.string().max(80).optional(),
+  department_id: id.optional(),
+  priority_min: z.coerce.number().int().min(0).max(3).optional(),
+  contact_id: id.optional(),
+  room_id: id.optional(),
+  q: z.string().max(200).optional(),
+  sort: z.enum(["activity", "opened"]).default("activity"),
+  cursor: z.string().max(300).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(30),
+});
+export const TicketPatch = z.object({
+  subject: z.string().trim().min(1).max(300).optional(),
+  priority: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)]).optional(),
+  tags: z.array(z.string().max(50)).max(20).optional(),
+  status: z.enum(["open", "pending_customer"]).optional(),
+  summary: z.string().max(2000).optional(),
+});
+export const TicketBulk = z.object({ ticket_ids: z.array(id).min(1).max(100), action: z.enum(["resolve", "close"]) });
+export const TicketMerge = z.object({ into_id: id });
+export const TicketCsat = z.object({ score: z.number().int().min(1).max(5), comment: z.string().max(500).optional(), ticket_id: id.optional() });

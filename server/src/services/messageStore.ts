@@ -8,6 +8,7 @@ import { newId } from "../util/ids.js";
 import { parseJson } from "../util/json.js";
 import { snippet } from "../util/html.js";
 import { type RoomRow, getRoomRow } from "./roomStore.js";
+import { publishTickets, ticketOnMessage } from "./tickets.js";
 
 export interface MessageRow {
   id: string;
@@ -40,6 +41,8 @@ export interface MessageRow {
   edited_at: string | null;
   deleted_at: string | null;
   deleted_by: string | null;
+  /** the ticket (episode of support) the message belongs to; NULL for messages written before tickets existed or outside any issue */
+  ticket_id: string | null;
   created_at: string;
 }
 
@@ -66,6 +69,8 @@ export interface NewMessage {
   fromAddr?: string | null;
   toAddr?: string | null;
   mentions?: string[];
+  /** set by `insertMessage` from the ticket state machine; callers do not pass it */
+  ticketId?: string | null;
 }
 
 export interface InsertResult {
@@ -75,6 +80,8 @@ export interface InsertResult {
   unsnoozed: boolean;
   /** system rows written alongside (status change), already persisted */
   extra: MessageRow[];
+  /** tickets whose state this message changed (opened, reopened, taken over): published after commit by `emitInserted` */
+  tickets: string[];
 }
 
 async function rawInsert(ctx: AppContext, m: NewMessage, now: string): Promise<MessageRow> {
@@ -85,8 +92,8 @@ async function rawInsert(ctx: AppContext, m: NewMessage, now: string): Promise<M
   if (m.clientMsgId) await ctx.db.run("INSERT INTO message_qids(room_id, client_msg_id, message_id, created_at) VALUES (?,?,?,?)", m.roomId, m.clientMsgId, id, now);
   const row = await ctx.db.get<MessageRow>(
     `INSERT INTO messages(id, workspace_id, room_id, seq, client_msg_id, sender_type, sender_id, sender_name, kind, source, content, content_text, subject,
-       ref_message_id, attachments, meta, delivery, provider_message_id, rfc_message_id, in_reply_to, references_hdr, from_addr, to_addr, created_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING *`,
+       ref_message_id, attachments, meta, delivery, provider_message_id, rfc_message_id, in_reply_to, references_hdr, from_addr, to_addr, ticket_id, created_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING *`,
     id,
     m.workspaceId,
     m.roomId,
@@ -110,6 +117,7 @@ async function rawInsert(ctx: AppContext, m: NewMessage, now: string): Promise<M
     m.referencesHdr ?? null,
     m.fromAddr ?? null,
     m.toAddr ?? null,
+    m.ticketId ?? null,
     now,
   );
   const mentioned = [...new Set(m.mentions ?? [])];
@@ -135,6 +143,7 @@ async function rawInsert(ctx: AppContext, m: NewMessage, now: string): Promise<M
     sender_type: m.senderType,
     kind: m.kind,
     source: m.source,
+    ticket_id: m.ticketId ?? null,
     created_at: now,
   } satisfies MessageEvent);
   return row!;
@@ -152,6 +161,8 @@ export async function insertMessage(ctx: AppContext, m: NewMessage): Promise<Ins
     const now = nowIso(ctx);
     const before = await getRoomRow(ctx, m.workspaceId, m.roomId);
     const extra: MessageRow[] = [];
+    // the ticket state machine runs in this transaction: the message is stored with the ticket it belongs to, or opens one
+    const attach = await ticketOnMessage(ctx, before, { senderType: m.senderType, senderId: m.senderId, kind: m.kind, source: m.source, text: m.contentText ?? m.content }, now);
     const reopens = (m.senderType === "contact" || m.senderType === "agent") && before.status === "closed";
     if (reopens) {
       const reason = m.senderType === "contact" ? "contact_message" : m.kind === "note" ? "note" : "agent_message";
@@ -166,12 +177,13 @@ export async function insertMessage(ctx: AppContext, m: NewMessage): Promise<Ins
             source: "dm",
             content: "Conversation reopened",
             meta: { sub_type: "status", status: "open", reason, actor_id: m.senderId ?? null },
+            ticketId: attach.ticketId,
           },
           now,
         ),
       );
     }
-    const message = await rawInsert(ctx, m, now);
+    const message = await rawInsert(ctx, { ...m, ticketId: attach.ticketId }, now);
     const unsnoozed = m.senderType !== "system" && before.snooze_until !== null;
     // status/assignment lines are not "the last message" shown in lists
     const isSystem = m.senderType === "system";
@@ -203,7 +215,7 @@ export async function insertMessage(ctx: AppContext, m: NewMessage): Promise<Ins
     );
     if (unsnoozed) await metricsUnsnoozed(ctx, m.workspaceId, m.roomId, now);
     await metricsMessage(ctx, before, message, reopens, now);
-    return { message, room: await getRoomRow(ctx, m.workspaceId, m.roomId), reopened: reopens, unsnoozed, extra };
+    return { message, room: await getRoomRow(ctx, m.workspaceId, m.roomId), reopened: reopens, unsnoozed, extra, tickets: attach.touched };
   });
 }
 
@@ -252,6 +264,7 @@ export function messageDto(ctx: AppContext, m: MessageRow, opts: DtoOptions = {}
   return {
     id: m.id,
     room_id: m.room_id,
+    ticket_id: m.ticket_id ?? null,
     seq: m.seq,
     client_msg_id: m.client_msg_id,
     sender: { type: m.sender_type, id: m.sender_id, name: m.sender_name },
@@ -289,7 +302,7 @@ function publicMeta(m: MessageRow) {
  * "Conversation started" and payment confirmations are about the customer; assignment, status, priority, snooze, SMS consent and
  * reopen/close markers describe the team's work and name agents, so they stay in the team views.
  */
-export const VISITOR_SYSTEM_SUBTYPES = ["create", "payment"] as const;
+export const VISITOR_SYSTEM_SUBTYPES = ["create", "payment", "ticket_resolved"] as const;
 /** SQL predicate over `messages` columns for what a visitor may be shown (notes and internal system lines excluded). meta is compact JSON written by this server. */
 export const VISITOR_VISIBLE_SQL = `kind != 'note' AND (kind != 'system' OR ${VISITOR_SYSTEM_SUBTYPES.map((s) => `meta LIKE '%"sub_type":"${s}"%'`).join(" OR ")})`;
 export function visibleToVisitor(m: Pick<MessageRow, "kind" | "meta">): boolean {
@@ -401,4 +414,5 @@ export async function refreshLastMessage(ctx: AppContext, roomId: string): Promi
 export async function emitInserted(ctx: AppContext, r: InsertResult): Promise<void> {
   for (const e of r.extra) await emitMessage(ctx, r.room, e);
   await emitMessage(ctx, r.room, r.message);
+  if (r.tickets.length) await publishTickets(ctx, r.tickets);
 }

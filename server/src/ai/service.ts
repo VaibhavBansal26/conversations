@@ -11,6 +11,7 @@ import { emitMessage, insertMessage, emitInserted, type MessageRow } from "../se
 import { getRoomRow, getVisibleRoom, type RoomRow } from "../services/roomStore.js";
 import { publishRoomUpdated } from "../services/rooms.js";
 import { getSettings } from "../services/workspaces.js";
+import { raiseTicketPriority } from "../services/tickets.js";
 import { AiOutputError, AiUnavailableError, type AiRequest } from "./provider.js";
 import { Bm25Index, type KbDoc, type KbHit } from "./retrieval.js";
 import { buildTranscript, parseModelJson, redactPii, SAFETY_RULES, unsupportedCommitment, untrusted, type TranscriptLine } from "./text.js";
@@ -190,6 +191,7 @@ export async function triageMessage(ctx: AppContext, room: RoomRow, message: Mes
     nowIso(ctx),
     room.id,
   );
+  if (result.urgency >= 0.8) await raiseTicketPriority(ctx, room.id, 2);
   await metricsTriage(ctx, room.id, { intent: result.intent, sentiment: (result as { sentiment?: string }).sentiment, urgency: result.urgency });
   await publishRoomUpdated(ctx, fresh);
   const m2 = (await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE room_id = ? AND id = ?", message.room_id, message.id))!;

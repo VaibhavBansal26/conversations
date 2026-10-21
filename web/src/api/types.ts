@@ -73,6 +73,7 @@ export interface WorkspaceSettings {
   ai_autoresponder_enabled: boolean;
   ai_redact_pii: boolean;
   ai_tone: AiTone;
+  tickets: TicketSettings;
   widget: WidgetSettings;
 }
 
@@ -144,6 +145,71 @@ export interface LastMessage {
   created_at: string;
 }
 
+export type TicketStatus = "new" | "bot_handling" | "waiting_for_human" | "open" | "pending_customer" | "resolved" | "closed";
+export type TicketResolution = "bot_resolved" | "human_resolved" | "abandoned" | "auto_closed" | "merged";
+export type TicketPriority = 0 | 1 | 2 | 3;
+
+/** What a conversation row and the thread header need to know about the live ticket. */
+export interface TicketBrief {
+  id: string;
+  number: number;
+  status: TicketStatus;
+  /** `bot:<agent id>` or `human:<member id>` */
+  handler: string | null;
+  department_id: string | null;
+  priority: TicketPriority;
+  subject: string;
+}
+
+export interface Ticket extends TicketBrief {
+  room_id: string;
+  contact_id: string;
+  subject_set_by: "auto" | "agent";
+  resolution: TicketResolution | null;
+  channel: Channel;
+  opened_at: string;
+  first_response_at: string | null;
+  handoff_at: string | null;
+  first_human_response_at: string | null;
+  resolved_at: string | null;
+  closed_at: string | null;
+  csat: number | null;
+  csat_comment: string | null;
+  tags: string[];
+  summary: string;
+  handoff_reason: string | null;
+  merged_into_id: string | null;
+  last_activity_at: string;
+  created_at: string;
+  updated_at: string;
+  contact?: { id: string; name: string; email: string | null } | null;
+}
+
+export interface TicketEvent {
+  id: string;
+  type: string;
+  actor_type: "contact" | "member" | "bot" | "system";
+  actor_id: string | null;
+  detail: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface TicketPage {
+  data: Ticket[];
+  pagination: { limit: number; has_more: boolean; next_cursor: string | null };
+}
+
+export type TicketCounts = Record<TicketStatus | "total_live", number>;
+
+export interface TicketSettings {
+  reopen_hours: number;
+  bot_idle_minutes: number;
+  pending_idle_hours: number;
+  close_resolved_hours: number;
+  csat_prompt: boolean;
+  closing_message: string;
+}
+
 export interface Room {
   id: string;
   contact: ContactBrief | null;
@@ -164,6 +230,8 @@ export interface Room {
   unread_count: number;
   favorite: boolean;
   bot_paused: boolean;
+  /** the live ticket of the conversation (null while nothing is open) */
+  ticket?: TicketBrief | null;
   triage: Record<string, unknown>;
   created_at: string;
   updated_at: string;
