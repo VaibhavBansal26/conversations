@@ -59,3 +59,17 @@ Domain terms as used in this repository, and how they map to the legacy ("Suppor
 | **Preset** | a ready-made AI agent (Aria, vb) with persona, greeting, disclosure and a bundled portrait | (none) |
 | **TURN relay** | a server that forwards call media when two browsers cannot reach each other directly; credentials are issued per call | (none) |
 | **Call consent** | the visitor's recorded agreement, on the callback form, to be called on one specific number; without it (or after the number changes) no phone call is placed | (none) |
+| **Group call** | a voice or video call of up to four teammates started from a channel or group message; every pair of browsers is connected directly (a *mesh*), with a live card in the channel while it runs ([CALLS.md](CALLS.md#group-calls), [ADR 0038](adr/0038-group-calls-mesh.md)) | (none) |
+| **Mesh** | a call topology in which each participant sends media to each other participant, with no media server; upload grows with every person, hence the cap of four | (none) |
+| **Web Push** | a notification a browser shows while the app is closed, sent through the browser vendor's push service, encrypted for that device ([NOTIFICATIONS.md](NOTIFICATIONS.md)) | (none) |
+| **Push subscription / device** | one browser on one device that a member turned push on for, with its own events; at most 10 per member | (none) |
+| **VAPID** | the key pair that identifies this server to push services (RFC 8292); generated with `npm run vapid --prefix server` | (none) |
+| **Photoreal avatar** | an optional realistic talking video of the AI assistant in AI video calls, made by a hosted provider (D-ID) that a workspace connects with its own key; the built-in face is used whenever it is off or fails ([ADR 0039](adr/0039-optional-photoreal-avatar.md)) | (none) |
+| **Avatar provider** | the `AvatarProvider` interface behind which the D-ID adapter (and a fake for tests) sits | (none) |
+| **Presenter** | D-ID's name for the person shown by a photoreal avatar: a stock presenter id, or a photo address used with recorded consent | (none) |
+| **Transcript (copy by email)** | a copy of a conversation, as the visitor saw it, emailed to the confirmed address of the conversation's own contact ([TRANSCRIPTS.md](TRANSCRIPTS.md)) | (none) |
+| **Confirmed address** | an email the contact proved by a one-time code, or gave with consent in a form card; the only address a transcript goes to | (none) |
+| **Pre-chat form** | the form shown before the first message; holds required fields and optional custom fields, and the consent box when consent is on | pre-chat survey |
+| **Custom field** | one of up to five workspace-defined visitor details (text, choice or checkbox), stored on the contact under `attrs` | custom attributes |
+| **Channel style (AI)** | how an AI agent's answer is shaped for SMS or email: plain text, disclosure, numbered options, segment or length limits | (none) |
+| **Auto-reply loop protection** | the checks that stop an AI agent answering out-of-office replies, bounces, lists, short codes and other bots | (none) |
