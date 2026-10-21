@@ -64,6 +64,8 @@ export interface TeamMessage {
   deleted: boolean;
   created_at: string;
   share: TeamShare | null;
+  /** a card of a group call: who is in it now and whether it can still be joined */
+  group_call?: { id: string; kind: "voice" | "video"; state: string; joined: number; max: number } | null;
   /** client only: not confirmed by the server yet */
   local?: { status: "sending" | "failed"; error?: string; attachmentIds?: string[] };
 }

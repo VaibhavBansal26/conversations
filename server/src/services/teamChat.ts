@@ -485,7 +485,7 @@ async function loadExtras(ctx: AppContext, channelId: string, rows: TeamMessageR
 
 function messageBase(ctx: AppContext, m: TeamMessageRow, ex: Extras) {
   const deleted = !!m.deleted_at;
-  const meta = parseJson<{ room_id?: string; mention_all?: boolean }>(m.meta, {});
+  const meta = parseJson<{ room_id?: string; mention_all?: boolean; sub_type?: string; call?: { id: string; kind: "voice" | "video"; state: string; joined: number; max: number } }>(m.meta, {});
   return {
     id: m.id,
     channel_id: m.channel_id,
@@ -508,6 +508,8 @@ function messageBase(ctx: AppContext, m: TeamMessageRow, ex: Extras) {
     deleted,
     created_at: m.created_at,
     share: null as null | { room_id: string; available: boolean; title?: string; status?: string },
+    // the card of a group call: only what the card needs (the call itself is read through gcall events)
+    group_call: meta.sub_type === "group_call" && meta.call ? { id: meta.call.id, kind: meta.call.kind, state: meta.call.state, joined: meta.call.joined, max: meta.call.max } : null,
   };
 }
 

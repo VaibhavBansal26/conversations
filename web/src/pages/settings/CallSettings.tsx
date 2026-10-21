@@ -15,7 +15,7 @@ import { ErrorNotice, Field, Input, Select, Switch } from "../../ui";
 
 const PHONE: PhoneCallSettings = { enabled: false, caller_id: null, daily_limit: 50, allowed_countries: [], max_duration_s: 1800, quiet_hours: { enabled: true, start: "21:00", end: "08:00" } };
 const AI: AiCallSettings = { enabled: false, voice: true, video: true, max_duration_s: 600, idle_timeout_s: 120, max_concurrent: 3, daily_limit: 100, realtime_minutes_daily: 30, realtime_max_concurrent: 2 };
-const INTERNAL = { enabled: false, voice: true, video: true, screen_share: true, ring_seconds: 30 };
+const INTERNAL = { enabled: false, voice: true, video: true, screen_share: true, ring_seconds: 30, group: true, group_max: 4 };
 const LINKS = { enabled: false, ttl_minutes: 30, allow_ai: true, allow_team: true };
 const DEFAULTS: Settings = { links: LINKS, internal: INTERNAL, browser: { enabled: false, voice: true, video: true, screen_share: true }, ai: AI, ai_engine: "browser", ring_seconds: 45, turn_provider: "none", phone: PHONE };
 const TURN = {
@@ -75,7 +75,7 @@ export function CallSettings() {
         </Field>
         <fieldset className="flex flex-col gap-3 rounded-lg border border-border p-4" disabled={!canEdit}>
           <legend className="px-1 text-[13px] font-semibold">Calls between teammates</legend>
-          <Switch label="Let teammates call each other" hint="A voice or video call between the two people of a direct message in team chat, from the conversation or the member list. The other person's screen rings wherever they are in the app; people who are offline, on do-not-disturb or in another call are not rung. Not recorded. Group calls are not available." checked={internal.enabled} onChange={(enabled) => setInternal({ enabled })} />
+          <Switch label="Let teammates call each other" hint="A voice or video call between the two people of a direct message in team chat, from the conversation or the member list. The other person's screen rings wherever they are in the app; people who are offline, on do-not-disturb or in another call are not rung. Not recorded." checked={internal.enabled} onChange={(enabled) => setInternal({ enabled })} />
           {internal.enabled && (
             <>
               <Switch label="Voice" checked={internal.voice} onChange={(voice) => setInternal({ voice })} />
@@ -84,6 +84,12 @@ export function CallSettings() {
               <Field label="Ring time (seconds)" hint="Then the call counts as missed and leaves a card in the conversation." error={errors["settings.calls.internal.ring_seconds"]}>
                 <Input type="number" min={10} max={90} value={internal.ring_seconds} onChange={(e) => setInternal({ ring_seconds: Number(e.target.value) })} />
               </Field>
+              <Switch label="Group calls" hint="A call of up to four people from a group message or a channel. Every person's device sends audio and video to every other person (a mesh, not a media server), so quality drops with weak connections and the limit is four." checked={internal.group ?? true} onChange={(group) => setInternal({ group })} />
+              {(internal.group ?? true) && (
+                <Field label="Most people in a group call" hint="2 to 4, the host included." error={errors["settings.calls.internal.group_max"]}>
+                  <Input type="number" min={2} max={4} value={internal.group_max ?? 4} onChange={(e) => setInternal({ group_max: Number(e.target.value) })} />
+                </Field>
+              )}
               <p className="text-xs text-subtle">Needs the "calls with teammates" permission, which the Owner, Manager and Agent roles have. Custom roles must be given it under Roles.</p>
             </>
           )}

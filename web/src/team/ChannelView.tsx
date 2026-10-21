@@ -5,6 +5,7 @@ import { Link, useSearchParams } from "react-router";
 import { api } from "../api/client";
 import { useCan, useSession } from "../auth/AuthContext";
 import { useTeamCalls } from "../calls/TeamCallProvider";
+import { GroupCallButtons } from "../calls/GroupCallProvider";
 import { useMediaQuery } from "../lib/useMediaQuery";
 import { useSocket } from "../realtime/SocketProvider";
 import { Avatar, Button, ErrorNotice, Sheet, Skeleton, Tooltip } from "../ui";
@@ -112,6 +113,7 @@ export function ChannelView({ channel }: { channel: TeamChannel }) {
             {channel.topic && <p className="truncate text-xs text-muted-foreground">{channel.topic}</p>}
           </div>
           {dmOther && channel.kind === "dm" && dmOther !== member.id && <DmCallButtons peerId={dmOther} peerName={channel.title} channelId={channel.id} online={socket.onlineMembers.has(dmOther)} />}
+          {channel.kind !== "dm" && <GroupCallButtons channel={channel} />}
           <Tooltip content="Search this conversation">
             <Button variant="ghost" size="icon-sm" aria-label="Search this conversation" onClick={() => setSearch(true)}>
               <Search />

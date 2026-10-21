@@ -7,6 +7,7 @@ import { documentTitle } from "../lib/unread";
 import { useShortcuts } from "../lib/useShortcuts";
 import { CallProvider } from "../calls/CallProvider";
 import { TeamCallProvider } from "../calls/TeamCallProvider";
+import { GroupCallProvider } from "../calls/GroupCallProvider";
 import { SocketProvider } from "../realtime/SocketProvider";
 import { BottomNav, NavRail } from "./layout/AppNav";
 import { ReconnectBanner } from "./layout/ReconnectBanner";
@@ -92,9 +93,11 @@ export function AppLayout() {
     <SocketProvider>
       <CallProvider>
         <TeamCallProvider>
-          <CommandPaletteProvider>
-            <Shell />
-          </CommandPaletteProvider>
+          <GroupCallProvider>
+            <CommandPaletteProvider>
+              <Shell />
+            </CommandPaletteProvider>
+          </GroupCallProvider>
         </TeamCallProvider>
       </CallProvider>
     </SocketProvider>

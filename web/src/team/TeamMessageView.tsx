@@ -1,4 +1,5 @@
 import { Copy, ExternalLink, FileText, Lock, MessageSquareReply, MoreHorizontal, Pencil, Pin, PinOff, RefreshCw, SmilePlus, Trash2 } from "lucide-react";
+import { GroupCallCard } from "../calls/GroupCallProvider";
 import { memo, useEffect, useState } from "react";
 import { RichText } from "../components/chat/RichText";
 import { formatClock } from "../lib/time";
@@ -179,6 +180,7 @@ function TeamMessageViewImpl({ message: m, selfId, first, online, inThread, canM
               </p>
             )}
             {m.share && <ShareCard share={m.share} mine={mine} />}
+            {m.group_call && <GroupCallCard call={m.group_call} text={m.content_text} />}
             <Attachments items={m.attachments} />
           </>
         )}

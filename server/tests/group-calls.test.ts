@@ -39,7 +39,6 @@ async function world(over: Record<string, unknown> = {}) {
   const start = (kind: "voice" | "video" = "voice", over2: Record<string, unknown> = {}) => ack(sock.olivia, "gcall:start", { channel_id: group.id, kind, ...over2 });
   return { wsId, owner, ben, cleo, dan, eve, sock, rec, group, ops, people, start };
 }
-type W = Awaited<ReturnType<typeof world>>;
 const row = (id: string) => srv.ctx.db.get<any>("SELECT * FROM group_calls WHERE id = ?", id);
 const joinedIds = async (id: string) => (await srv.ctx.db.all<{ member_id: string }>("SELECT member_id FROM group_call_participants WHERE call_id = ? AND status = 'joined'", id)).map((r) => r.member_id);
 const cardOf = (channelId: string) => srv.ctx.db.get<{ content_text: string; meta: string }>("SELECT content_text, meta FROM team_messages WHERE channel_id = ? AND kind = 'system' ORDER BY seq DESC", channelId);
