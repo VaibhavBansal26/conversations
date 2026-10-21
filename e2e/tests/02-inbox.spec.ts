@@ -122,7 +122,7 @@ test.describe("inbox: reading and replying", () => {
     await expect(page.getByRole("list", { name: "Attachments" }).getByText("one.png")).toBeVisible();
     await expect(page.getByRole("list", { name: "Attachments" }).getByText("two.png")).toBeVisible();
     await composer(page).fill(`Photos ${stamp}`);
-    await page.getByRole("button", { name: "Send" }).click();
+    await page.getByRole("button", { name: "Send", exact: true }).click();
     const first = log(page).getByRole("button", { name: "View one.png" }).last();
     await first.click();
     const dialog = page.getByRole("dialog");
