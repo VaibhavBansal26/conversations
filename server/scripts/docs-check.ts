@@ -140,7 +140,7 @@ export async function checkConfig(problems: string[]): Promise<void> {
 }
 
 export async function checkApi(problems: string[]): Promise<void> {
-  const { buildOpenApi, renderApiDoc } = await import("./gen-api-doc.js");
+  const { buildOpenApi, buildPublicOpenApi, renderApiDoc } = await import("./gen-api-doc.js");
   const { API_META } = await import("../src/apidoc/meta.js");
   const { ROUTE_ACCESS } = await import("../src/authz/routePerms.js");
   const { createContext, closeContext } = await import("../src/app-context.js");
@@ -163,6 +163,7 @@ export async function checkApi(problems: string[]): Promise<void> {
   const intro = readFileSync(join(server, "src", "apidoc", "intro.md"), "utf8");
   if (renderApiDoc(intro) !== apiDoc) problems.push("docs/API.md is stale (run `npm run docs:api`)");
   if (JSON.stringify(buildOpenApi(), null, 2) + "\n" !== readFileSync(join(root, "docs", "openapi.json"), "utf8")) problems.push("docs/openapi.json is stale (run `npm run docs:api`)");
+  if (JSON.stringify(buildPublicOpenApi(), null, 2) + "\n" !== readFileSync(join(root, "docs", "openapi-public.json"), "utf8")) problems.push("docs/openapi-public.json is stale (run `npm run docs:api`)");
 }
 
 export async function checkRealtime(problems: string[]): Promise<void> {

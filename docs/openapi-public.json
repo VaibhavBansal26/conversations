@@ -1,0 +1,1395 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Conversations public (visitor) API",
+    "version": "1.0.0",
+    "description": "The REST subset a native app can call directly instead of using the hosted chat web view. Real time is Socket.IO (namespace `/ws/<workspace_id>`, see docs/REALTIME.md). Guide: docs/MOBILE-API.md. Generated; do not edit."
+  },
+  "servers": [
+    {
+      "url": "https://YOUR-APP.example.com"
+    }
+  ],
+  "paths": {
+    "/public/widget/config": {
+      "get": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "Widget configuration for an embed token (`x-api-key`, `Origin`)",
+        "operationId": "get_public_widget_config",
+        "x-rate-limit": {
+          "pre": [
+            "public.config"
+          ],
+          "post": [],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "security": [
+          {
+            "embedToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^cvt_"
+            },
+            "description": "The embed token (public by design; it is in every website's HTML)"
+          },
+          {
+            "name": "x-hosted-chat",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "const": "1"
+            },
+            "description": "Native apps and same-origin pages send `1` (and no Origin) with a token that has the hosted chat enabled"
+          }
+        ]
+      }
+    },
+    "/public/sessions": {
+      "post": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "Create a visitor session. With `external_id` + `identity_hash` the session is identified and verified (no code); see docs/MOBILE-BRIDGE.md",
+        "operationId": "post_public_sessions",
+        "x-rate-limit": {
+          "pre": [
+            "public.session"
+          ],
+          "post": [],
+          "in_handler": []
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  "email": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 254,
+                        "format": "email",
+                        "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                      },
+                      {
+                        "type": "string",
+                        "const": ""
+                      }
+                    ]
+                  },
+                  "phone": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      {
+                        "type": "string",
+                        "const": ""
+                      }
+                    ]
+                  },
+                  "external_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "identity_hash": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "embedToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^cvt_"
+            },
+            "description": "The embed token (public by design; it is in every website's HTML)"
+          },
+          {
+            "name": "x-hosted-chat",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "const": "1"
+            },
+            "description": "Native apps and same-origin pages send `1` (and no Origin) with a token that has the hosted chat enabled"
+          },
+          {
+            "name": "x-device-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,64}$"
+            }
+          }
+        ]
+      }
+    },
+    "/public/session": {
+      "get": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "The current visitor session",
+        "operationId": "get_public_session",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "public.query"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "security": [
+          {
+            "embedToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^cvt_"
+            },
+            "description": "The embed token (public by design; it is in every website's HTML)"
+          },
+          {
+            "name": "x-hosted-chat",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "const": "1"
+            },
+            "description": "Native apps and same-origin pages send `1` (and no Origin) with a token that has the hosted chat enabled"
+          },
+          {
+            "name": "x-device-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,64}$"
+            }
+          },
+          {
+            "name": "x-support-session",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The `session_token` returned by POST /public/sessions"
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "End the visitor session (the host app's log-out); the session secret stops working at once",
+        "operationId": "delete_public_session",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "public.read"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "security": [
+          {
+            "embedToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^cvt_"
+            },
+            "description": "The embed token (public by design; it is in every website's HTML)"
+          },
+          {
+            "name": "x-hosted-chat",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "const": "1"
+            },
+            "description": "Native apps and same-origin pages send `1` (and no Origin) with a token that has the hosted chat enabled"
+          },
+          {
+            "name": "x-device-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,64}$"
+            }
+          },
+          {
+            "name": "x-support-session",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The `session_token` returned by POST /public/sessions"
+          }
+        ]
+      }
+    },
+    "/public/rooms": {
+      "get": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "The visitor's conversations",
+        "operationId": "get_public_rooms",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "public.query"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "security": [
+          {
+            "embedToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^cvt_"
+            },
+            "description": "The embed token (public by design; it is in every website's HTML)"
+          },
+          {
+            "name": "x-hosted-chat",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "const": "1"
+            },
+            "description": "Native apps and same-origin pages send `1` (and no Origin) with a token that has the hosted chat enabled"
+          },
+          {
+            "name": "x-device-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,64}$"
+            }
+          },
+          {
+            "name": "x-support-session",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The `session_token` returned by POST /public/sessions"
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "Start a conversation",
+        "operationId": "post_public_rooms",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "public.room"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "security": [
+          {
+            "embedToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^cvt_"
+            },
+            "description": "The embed token (public by design; it is in every website's HTML)"
+          },
+          {
+            "name": "x-hosted-chat",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "const": "1"
+            },
+            "description": "Native apps and same-origin pages send `1` (and no Origin) with a token that has the hosted chat enabled"
+          },
+          {
+            "name": "x-device-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,64}$"
+            }
+          },
+          {
+            "name": "x-support-session",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The `session_token` returned by POST /public/sessions"
+          }
+        ]
+      }
+    },
+    "/public/rooms/{id}/messages": {
+      "get": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "Messages of the visitor's conversation: no notes and only customer-facing system lines (conversation started, payments); `room` states the status and the close marker the rating prompt needs",
+        "operationId": "get_public_rooms_id_messages",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "public.query"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^cvt_"
+            },
+            "description": "The embed token (public by design; it is in every website's HTML)"
+          },
+          {
+            "name": "x-hosted-chat",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "const": "1"
+            },
+            "description": "Native apps and same-origin pages send `1` (and no Origin) with a token that has the hosted chat enabled"
+          },
+          {
+            "name": "x-device-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,64}$"
+            }
+          },
+          {
+            "name": "x-support-session",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The `session_token` returned by POST /public/sessions"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "security": [
+          {
+            "embedToken": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "Visitor sends a message",
+        "operationId": "post_public_rooms_id_messages",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "public.send"
+          ],
+          "in_handler": [
+            "msg.room",
+            "msg.workspace"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^cvt_"
+            },
+            "description": "The embed token (public by design; it is in every website's HTML)"
+          },
+          {
+            "name": "x-hosted-chat",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "const": "1"
+            },
+            "description": "Native apps and same-origin pages send `1` (and no Origin) with a token that has the hosted chat enabled"
+          },
+          {
+            "name": "x-device-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,64}$"
+            }
+          },
+          {
+            "name": "x-support-session",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The `session_token` returned by POST /public/sessions"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "content": {
+                    "type": "string",
+                    "maxLength": 4000
+                  },
+                  "attachment_ids": {
+                    "maxItems": 4,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    }
+                  },
+                  "client_msg_id": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 64,
+                    "pattern": "^[A-Za-z0-9_-]+$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "embedToken": []
+          }
+        ]
+      }
+    },
+    "/public/session/attributes": {
+      "post": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "Attach up to 20 host-app attributes (plan, app version) to the contact, stored under `attrs.app`; visitor-supplied, so treat as untrusted",
+        "operationId": "post_public_session_attributes",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "public.read"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "attributes": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9_]{0,39}$"
+                    },
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 200
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "attributes"
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "embedToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^cvt_"
+            },
+            "description": "The embed token (public by design; it is in every website's HTML)"
+          },
+          {
+            "name": "x-hosted-chat",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "const": "1"
+            },
+            "description": "Native apps and same-origin pages send `1` (and no Origin) with a token that has the hosted chat enabled"
+          },
+          {
+            "name": "x-device-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,64}$"
+            }
+          },
+          {
+            "name": "x-support-session",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The `session_token` returned by POST /public/sessions"
+          }
+        ]
+      }
+    },
+    "/public/attachments": {
+      "post": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "Upload a picture or PDF (multipart field `file`); returns an attachment id to pass in `attachment_ids` of a message",
+        "operationId": "post_public_attachments",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "public.upload"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "security": [
+          {
+            "embedToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^cvt_"
+            },
+            "description": "The embed token (public by design; it is in every website's HTML)"
+          },
+          {
+            "name": "x-hosted-chat",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "const": "1"
+            },
+            "description": "Native apps and same-origin pages send `1` (and no Origin) with a token that has the hosted chat enabled"
+          },
+          {
+            "name": "x-device-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,64}$"
+            }
+          },
+          {
+            "name": "x-support-session",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The `session_token` returned by POST /public/sessions"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "PNG, JPEG, GIF, WebP or PDF; the content is sniffed, the extension must match"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/rooms/{id}/read": {
+      "post": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "Visitor read receipt",
+        "operationId": "post_public_rooms_id_read",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "public.read"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^cvt_"
+            },
+            "description": "The embed token (public by design; it is in every website's HTML)"
+          },
+          {
+            "name": "x-hosted-chat",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "const": "1"
+            },
+            "description": "Native apps and same-origin pages send `1` (and no Origin) with a token that has the hosted chat enabled"
+          },
+          {
+            "name": "x-device-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,64}$"
+            }
+          },
+          {
+            "name": "x-support-session",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The `session_token` returned by POST /public/sessions"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "message_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "message_id"
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "embedToken": []
+          }
+        ]
+      }
+    },
+    "/public/rooms/{id}/csat": {
+      "post": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "Satisfaction score after the conversation is closed",
+        "operationId": "post_public_rooms_id_csat",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "public.read"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^cvt_"
+            },
+            "description": "The embed token (public by design; it is in every website's HTML)"
+          },
+          {
+            "name": "x-hosted-chat",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "const": "1"
+            },
+            "description": "Native apps and same-origin pages send `1` (and no Origin) with a token that has the hosted chat enabled"
+          },
+          {
+            "name": "x-device-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,64}$"
+            }
+          },
+          {
+            "name": "x-support-session",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The `session_token` returned by POST /public/sessions"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "score": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5
+                  },
+                  "comment": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "score"
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "embedToken": []
+          }
+        ]
+      }
+    },
+    "/public/otp/send": {
+      "post": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "Send a one-time code to verify the visitor",
+        "operationId": "post_public_otp_send",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "public.otp.send"
+          ],
+          "in_handler": [
+            "public.otp.contact",
+            "public.otp.ip"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "security": [
+          {
+            "embedToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^cvt_"
+            },
+            "description": "The embed token (public by design; it is in every website's HTML)"
+          },
+          {
+            "name": "x-hosted-chat",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "const": "1"
+            },
+            "description": "Native apps and same-origin pages send `1` (and no Origin) with a token that has the hosted chat enabled"
+          },
+          {
+            "name": "x-device-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,64}$"
+            }
+          },
+          {
+            "name": "x-support-session",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The `session_token` returned by POST /public/sessions"
+          }
+        ]
+      }
+    },
+    "/public/otp/verify": {
+      "post": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "Verify the one-time code",
+        "operationId": "post_public_otp_verify",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "public.otp.verify"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "pattern": "^\\d{5}$"
+                  }
+                },
+                "required": [
+                  "code"
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "embedToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^cvt_"
+            },
+            "description": "The embed token (public by design; it is in every website's HTML)"
+          },
+          {
+            "name": "x-hosted-chat",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "const": "1"
+            },
+            "description": "Native apps and same-origin pages send `1` (and no Origin) with a token that has the hosted chat enabled"
+          },
+          {
+            "name": "x-device-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,64}$"
+            }
+          },
+          {
+            "name": "x-support-session",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The `session_token` returned by POST /public/sessions"
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "embedToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key",
+        "description": "Embed token `cvt_...`. Requests from a native app have no browser Origin; use the hosted chat's origin rules or a token created for the app (docs/MOBILE-API.md#tokens-and-origin)."
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "error"
+              ],
+              "properties": {
+                "error": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "Rate limited. `Retry-After` (seconds) and `RateLimit` and `X-RateLimit-*` headers say when to retry.",
+        "headers": {
+          "Retry-After": {
+            "schema": {
+              "type": "integer"
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "const": "RATE_LIMITED"
+                    },
+                    "policy": {
+                      "type": "string"
+                    },
+                    "retry_after_s": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
