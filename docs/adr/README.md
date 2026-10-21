@@ -19,3 +19,4 @@ Short records of decisions that shaped the system. Add one when you make a decis
 * [0015](./0015-soft-delete-and-append-only-audit.md) Soft delete for messages and append-only audit
 * [0016](./0016-analytics-pseudonymous-keys.md) Analytics exports are pseudonymous: HMAC keys from a per-workspace pepper
 * [0017](./0017-tailwind-and-headless-primitives.md) Tailwind CSS v4 with owned components on headless primitives
+* [0018](./0018-test-mode-delivery.md) Messages stored while a channel is not connected are `not_sent_test_mode`

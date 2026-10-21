@@ -45,7 +45,7 @@ const GROUPS: { spec: RouteSpec; routes: string[] }[] = [
       "GET /api/auth/me", "GET /api/auth/sessions", "GET /api/invitations", "GET /api/workspace", "GET /api/credits", "GET /api/dashboard/counts", "GET /api/members", "GET /api/members/me", "GET /api/presence",
       "GET /api/inboxes", "GET /api/inboxes/counts", "GET /api/inboxes/:id", "GET /api/contacts", "GET /api/contacts/:id", "GET /api/contacts/:id/notes", "GET /api/contacts/:id/rooms",
       "GET /api/rooms", "GET /api/rooms/:id", "GET /api/rooms/:id/messages", "GET /api/messages/search", "GET /api/notifications", "GET /api/sms-numbers", "GET /api/email-senders",
-      "GET /api/inbound-addresses", "GET /api/tokens", "GET /api/templates", "GET /api/kb", "GET /api/ai/status", "GET /api/roles", "GET /api/audit", "GET /api/v1/api-keys", "GET /api/analytics/overview", "GET /api/analytics/timeseries", "GET /api/analytics/identity-pepper",
+      "GET /api/inbound-addresses", "GET /api/channels/status", "GET /api/tokens", "GET /api/templates", "GET /api/kb", "GET /api/ai/status", "GET /api/roles", "GET /api/audit", "GET /api/v1/api-keys", "GET /api/analytics/overview", "GET /api/analytics/timeseries", "GET /api/analytics/identity-pepper",
     ],
   },
   {

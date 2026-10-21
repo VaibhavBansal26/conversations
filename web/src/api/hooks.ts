@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
 import type {
-  Contact, ContactNote, Counts, EmailSender, Inbox, InboundAddress, Member, MessagePage, NotificationList, Room, RoomPage, RoomPatch, SmsNumber, Template,
+  ChannelStatuses, Contact, ContactNote, Counts, EmailSender, Inbox, InboundAddress, Member, MessagePage, NotificationList, Room, RoomPage, RoomPatch, SmsNumber, Template,
 } from "./types";
 import { keys, type RoomListFilters } from "../state/keys";
 import { prependOlder, threadFromPage, type Thread } from "../state/messageCache";
@@ -16,6 +16,7 @@ export const useTemplates = () => useQuery({ queryKey: keys.templates, queryFn: 
 export const useEmailSenders = () => useQuery({ queryKey: keys.senders, queryFn: async () => (await api.get<{ data: EmailSender[] }>("/email-senders")).data, staleTime: 60_000 });
 export const useSmsNumbers = () => useQuery({ queryKey: keys.smsNumbers, queryFn: async () => (await api.get<{ data: SmsNumber[] }>("/sms-numbers")).data });
 export const useInboundAddresses = () => useQuery({ queryKey: keys.inbound, queryFn: async () => (await api.get<{ data: InboundAddress[] }>("/inbound-addresses")).data });
+export const useChannelStatus = () => useQuery({ queryKey: keys.channelStatus, queryFn: () => api.get<ChannelStatuses>("/channels/status"), staleTime: 30_000 });
 export const useNotifications = () => useQuery({ queryKey: keys.notifications, queryFn: () => api.get<NotificationList>("/notifications", { limit: 30 }) });
 export const useContact = (id: string | undefined) =>
   useQuery({ queryKey: keys.contact(id ?? ""), queryFn: () => api.get<Contact>(`/contacts/${id}`), enabled: !!id });

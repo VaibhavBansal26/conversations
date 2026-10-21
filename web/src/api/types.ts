@@ -4,7 +4,8 @@ export type InboxVisibility = "assigned" | "assigned_inbox";
 export type Channel = "dm" | "sms" | "email";
 export type MessageKind = "text" | "image" | "voice" | "gif" | "attachment" | "ref" | "note" | "system";
 export type SenderType = "agent" | "contact" | "bot" | "system";
-export type Delivery = "pending" | "sent" | "delivered" | "failed";
+/** `not_sent_test_mode`: stored while the SMS/email provider was the console one, nothing left the server */
+export type Delivery = "pending" | "sent" | "delivered" | "failed" | "not_sent_test_mode";
 export type RoomStatus = "open" | "closed";
 export type RoomStatusTab = "open" | "closed" | "snoozed";
 export type RoomFilter = "assigned_to_me" | "unassigned" | "mentions" | "priority" | "favorites";
@@ -371,4 +372,21 @@ export interface LedgerEntry {
   delta: number;
   balance_after: number;
   created_at: string;
+}
+
+export interface ChannelStatus {
+  channel: "sms" | "email";
+  mode: "live" | "test";
+  connected: boolean;
+  provider: string;
+  source: "platform" | "workspace" | "none";
+  summary: string;
+  details: Record<string, unknown>;
+  last_error: { message: string; code: string | null; at: string } | null;
+  last_ok_at: string | null;
+}
+export interface ChannelStatuses {
+  sms: ChannelStatus;
+  email: ChannelStatus;
+  system_email: { mode: "live" | "test"; provider: string };
 }

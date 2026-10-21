@@ -4,7 +4,8 @@ export type InboxVisibility = "assigned" | "assigned_inbox";
 export type MessageKind = "text" | "image" | "voice" | "gif" | "attachment" | "ref" | "note" | "system";
 export type MessageSource = "dm" | "sms" | "email";
 export type SenderType = "agent" | "contact" | "bot" | "system";
-export type Delivery = "pending" | "sent" | "delivered" | "failed";
+/** `not_sent_test_mode`: the active provider is the console/fake one, the message was stored but nothing left the server */
+export type Delivery = "pending" | "sent" | "delivered" | "failed" | "not_sent_test_mode";
 
 export interface NotificationPrefs {
   assigned_to_you: boolean;

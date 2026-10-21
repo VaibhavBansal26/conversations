@@ -50,7 +50,8 @@
         "pending",
         "sent",
         "delivered",
-        "failed"
+        "failed",
+        "not_sent_test_mode"
       ]
     },
     "sender_type": {

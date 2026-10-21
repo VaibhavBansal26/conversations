@@ -15,7 +15,7 @@ export const threadFromPage = (page: MessagePage): Thread => ({
   beforeCursor: page.pagination.before_cursor,
 });
 
-const DELIVERY_RANK = { pending: 0, sent: 1, delivered: 2, failed: 1 } as const;
+const DELIVERY_RANK = { pending: 0, sent: 1, delivered: 2, failed: 1, not_sent_test_mode: 1 } as const;
 
 /** Unconfirmed local messages sort after everything the server has stored. */
 function order(a: Message, b: Message): number {

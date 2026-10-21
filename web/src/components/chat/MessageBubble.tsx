@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Message } from "../../api/types";
 import { formatClock } from "../../lib/time";
 import { Avatar, Button, cn, Textarea, Tooltip, toast } from "../../ui";
+import { SettingsLink } from "../channels/SettingsLink";
 import { Attachments } from "./Attachments";
 import { DeliveryStatus } from "./DeliveryStatus";
 import { COLLAPSE_FROM, EmailBody } from "./EmailBody";
@@ -142,6 +143,24 @@ export function MessageBubble({ message: m, selfMemberId, contactName, contactSe
             {outgoing && !isNote && <DeliveryStatus message={m} />}
           </div>
         </div>
+        {m.delivery === "not_sent_test_mode" && !m.local && (
+          <p className="mt-1 max-w-full text-xs text-warning-text" data-testid="test-mode-note">
+            Test mode: not sent. {m.source === "email" ? "Email" : "SMS"} is not connected, so this message was only saved.{" "}
+            <SettingsLink to="/settings/channels" className="font-medium underline underline-offset-2">
+              Connect {m.source === "email" ? "SendGrid" : "Twilio"}
+            </SettingsLink>
+            {onRetry && (
+              <>
+                {" "}
+                or{" "}
+                <button type="button" className="font-medium underline underline-offset-2" onClick={() => onRetry(m)}>
+                  send it now
+                </button>{" "}
+                once connected.
+              </>
+            )}
+          </p>
+        )}
         {failed && (
           <div className="mt-1 flex items-center gap-2 text-xs text-danger-text" role="alert">
             <span>Failed to send: {reason}</span>

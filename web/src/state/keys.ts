@@ -31,4 +31,5 @@ export const keys = {
   aiStatus: ["ai-status"] as const,
   credits: ["credits"] as const,
   billing: ["billing"] as const,
+  channelStatus: ["channel-status"] as const,
 };

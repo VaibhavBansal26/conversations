@@ -101,7 +101,7 @@ const rows: [string, string, string, Opt?][] = [
   ["GET /api/messages/search", "Messages", "Search message text you can see", { query: S.SearchQuery }],
   ["PATCH /api/messages/:id", "Messages", "Edit your message inside the edit window", { body: S.EditMessageBody }],
   ["DELETE /api/messages/:id", "Messages", "Delete a message (soft delete)", { status: 204 }],
-  ["POST /api/messages/:id/retry", "Messages", "Retry a failed delivery"],
+  ["POST /api/messages/:id/retry", "Messages", "Retry a failed delivery, or send a message that was stored in test mode (`not_sent_test_mode`)"],
   ["POST /api/attachments", "Messages", "Upload an attachment (multipart `file`); returns an id to reference when sending", { status: 201 }],
   ["GET /api/templates", "Templates", "Reply templates"],
   ["POST /api/templates", "Templates", "Create a template", { body: S.TemplateBody, status: 201 }],
@@ -122,6 +122,7 @@ const rows: [string, string, string, Opt?][] = [
   ["POST /api/contacts/import", "Contacts", "Import contacts from CSV (multipart `file`, max 5 MB)"],
 
   // ---- channels and settings
+  ["GET /api/channels/status", "Channels", "Per channel (`sms`, `email`): mode (`live` or `test`), whether a real provider is connected, provider, details and the last provider error. Never contains credentials", { returns: "`{sms, email, system_email}`" }],
   ["GET /api/sms-numbers", "Channels", "SMS numbers"],
   ["POST /api/sms-numbers", "Channels", "Register an SMS number", { body: S.SmsNumberBody, status: 201 }],
   ["POST /api/sms-numbers/:id/default", "Channels", "Make a number the default"],

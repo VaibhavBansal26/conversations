@@ -2,7 +2,8 @@ import { useMutation } from "@tanstack/react-query";
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { api } from "../../api/client";
 import type { Attachment, Channel, Member, Message, Room, Template } from "../../api/types";
-import { useEmailSenders, useMembers, useTemplates } from "../../api/hooks";
+import { useChannelStatus, useEmailSenders, useMembers, useTemplates } from "../../api/hooks";
+import { ChannelBanner } from "../channels/ChannelBanner";
 import { useSession } from "../../auth/AuthContext";
 import { checkComposer, defaultEmailSubject, messageKindFor, SMS_LIMIT, verifiedSenders } from "../../lib/composerRules";
 import { activeMention, insertMention } from "../../lib/mentions";
@@ -40,6 +41,7 @@ export function Composer({ room, messages, replyTo, onClearReply, textareaRef }:
   const socket = useSocket();
   const members = useMembers();
   const templates = useTemplates();
+  const channelStatus = useChannelStatus();
   const senders = useEmailSenders();
   const { send } = useSendMessage(room.id);
   const listId = useId();
@@ -258,6 +260,7 @@ export function Composer({ room, messages, replyTo, onClearReply, textareaRef }:
       onDrop={onDrop}
     >
       <SuggestionStrip roomId={room.id} triggerMessageId={suggestFor} onPick={(s) => update(s)} />
+      {!isNote && (channel === "sms" || channel === "email") && channelStatus.data?.[channel] && <ChannelBanner status={channelStatus.data[channel]} className="mb-2" />}
       <div
         data-note={isNote || undefined}
         className={cn(

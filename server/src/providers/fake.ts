@@ -13,6 +13,8 @@ interface FailPlan {
 /** Deterministic in-memory SMS provider. `ConsoleSmsProvider` is the same thing plus log lines. */
 export class FakeSmsProvider implements SmsProvider {
   readonly name: string = "fake";
+  /** The fake stands in for a real provider in most tests; set true to behave like the console provider (messages become `not_sent_test_mode`). */
+  simulated = false;
   readonly sent: (SmsSendInput & SmsSendResult)[] = [];
   readonly statuses = new Map<string, ProviderDeliveryState>();
   private n = 0;
@@ -41,6 +43,7 @@ export class FakeSmsProvider implements SmsProvider {
 
 export class FakeEmailProvider implements EmailProvider {
   readonly name: string = "fake";
+  simulated = false;
   readonly sent: (EmailSendInput & EmailSendResult)[] = [];
   private n = 0;
   private plan: FailPlan | null = null;
@@ -65,6 +68,7 @@ export class ConsoleSmsProvider extends FakeSmsProvider {
   override readonly name = "console";
   constructor(private readonly log: Logger) {
     super();
+    this.simulated = true;
   }
   override async send(input: SmsSendInput) {
     const r = await super.send(input);
@@ -77,6 +81,7 @@ export class ConsoleEmailProvider extends FakeEmailProvider {
   override readonly name = "console";
   constructor(private readonly log: Logger) {
     super();
+    this.simulated = true;
   }
   override async send(input: EmailSendInput) {
     const r = await super.send(input);

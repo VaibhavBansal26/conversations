@@ -28,7 +28,7 @@ const GROUPS: [RouteAccess, string[]][] = [
   ["authed", ["GET /api/auth/me", "GET /api/auth/sessions", "DELETE /api/auth/sessions/:id", "POST /api/auth/password/change", "POST /api/auth/mfa/setup", "POST /api/auth/mfa/enable", "POST /api/auth/mfa/disable", "GET /api/members/me", "PATCH /api/members/me", "PATCH /api/members/:id", "GET /api/notifications", "POST /api/notifications/read-all", "POST /api/notifications/:id/read", "GET /api/ai/status"]],
   ["conversations:read", [
     "GET /api/dashboard/counts", "GET /api/inboxes", "GET /api/inboxes/counts", "GET /api/inboxes/:id", "GET /api/rooms", "GET /api/rooms/:id", "GET /api/rooms/:id/messages", "GET /api/rooms/:id/payment-requests", "GET /api/messages/search",
-    "PUT /api/rooms/:id/favorite", "DELETE /api/rooms/:id/favorite", "POST /api/rooms/:id/read", "GET /api/templates",
+    "PUT /api/rooms/:id/favorite", "DELETE /api/rooms/:id/favorite", "POST /api/rooms/:id/read", "GET /api/templates", "GET /api/channels/status",
   ]],
   ["conversations:reply", [
     "POST /api/rooms", "POST /api/rooms/bulk", "PATCH /api/rooms/:id", "POST /api/rooms/:id/snooze", "DELETE /api/rooms/:id/snooze", "POST /api/rooms/:id/messages", "PATCH /api/messages/:id",

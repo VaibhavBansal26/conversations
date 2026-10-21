@@ -482,7 +482,13 @@ export async function migrate(db: Db, dir = resolve(dirname(fileURLToPath(import
       .filter((f) => f.endsWith(".sql") && !f.endsWith(other))
       .sort()) {
       if (done.has(file)) continue;
-      await db.exec(readFileSync(resolve(dir, file), "utf8"));
+      const sql = readFileSync(resolve(dir, file), "utf8");
+      await db.exec(sql);
+      // a migration that edits sqlite_master by hand must make SQLite re-read the schema (see 020_delivery_test_mode.sqlite.sql)
+      if (db.dialect === "sqlite" && sql.includes("-- @sqlite-bump-schema-version")) {
+        const v = (await db.get<{ schema_version: number }>("PRAGMA schema_version"))!.schema_version;
+        await db.exec(`PRAGMA schema_version = ${v + 1}`);
+      }
       await db.run("INSERT INTO _migrations(name, applied_at) VALUES (?, ?)", file, new Date().toISOString());
       applied.push(file);
     }

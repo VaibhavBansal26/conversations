@@ -13,6 +13,11 @@ export type ProviderDeliveryState = "sent" | "delivered" | "failed" | "unknown";
 
 export interface SmsProvider {
   readonly name: string;
+  /**
+   * true when nothing leaves this process (the console/fake providers): the service stores the message as `not_sent_test_mode`
+   * instead of pretending it was sent. Real adapters leave it undefined.
+   */
+  readonly simulated?: boolean;
   send(input: SmsSendInput): Promise<SmsSendResult>;
   /** Used by the reconciliation job when status webhooks were missed. */
   fetchStatus?(providerMessageId: string): Promise<{ state: ProviderDeliveryState; error?: string }>;
@@ -35,6 +40,8 @@ export interface EmailSendResult {
 }
 export interface EmailProvider {
   readonly name: string;
+  /** see SmsProvider.simulated */
+  readonly simulated?: boolean;
   send(input: EmailSendInput): Promise<EmailSendResult>;
 }
 

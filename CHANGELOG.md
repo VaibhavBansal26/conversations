@@ -4,6 +4,11 @@ All notable user-visible changes. Format: [Keep a Changelog](https://keepachange
 
 ## [Unreleased]
 
+### Fixed (SMS and email honesty)
+- **A message is never shown as sent or delivered when nothing was sent.** With the console provider (the default when no provider is configured) SMS and email are stored as `not_sent_test_mode`: a "Test mode: not sent" badge replaces the ticks, a banner above the composer and on Settings > Channels says "SMS is not connected. Messages are saved but not sent. Connect Twilio in Settings > Channels.", nothing is billed, and "send it now" delivers the message after a provider is connected ([ADR 0018](docs/adr/0018-test-mode-delivery.md)).
+- New `GET /api/channels/status` (mode, connected, provider, details, last error; no credentials).
+- Migration 020 (`messages.delivery` accepts `not_sent_test_mode`; SQLite and PostgreSQL) and 021 (`channel_health`). The analytics export's `delivery_status` enum gained the new value.
+
 ### Changed (web redesign)
 - **New design system for the whole web app** (Tailwind CSS v4 tokens, Radix-based components in `web/src/ui`, lucide icons; [docs/design/DESIGN.md](docs/design/DESIGN.md), [ADR 0017](docs/adr/0017-tailwind-and-headless-primitives.md)): light, dark and system themes with a manual toggle, AA contrast checked in CI, visible focus rings, reduced-motion support, layouts from 360 px to 1920 px. The handwritten stylesheets are gone.
 - **Inbox**: three columns (views and inboxes with counts, virtualised conversation list with avatars, snippets, unread, priority, assignee, channel and time, thread) with a collapsible contact panel; drawers on tablets, separate list and chat screens with bottom navigation on phones.

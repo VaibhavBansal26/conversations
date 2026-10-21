@@ -56,7 +56,8 @@ describe("authorisation declaration", () => {
 
 describe("role x route matrix", () => {
   it("a role is refused (403 PERMISSION_DENIED) exactly on the routes whose permission it lacks, for owner, manager, agent and viewer", async () => {
-    const f = await fullApp();
+    // one request per route and role from one address: the matrix itself is not a rate-limit test, so the per-IP guard is scaled out of the way
+    const f = await fullApp({ RATE_LIMIT_SCALE: "20" });
     const { ctx, app, wsId, owner } = f;
     const seats: Record<string, Awaited<ReturnType<typeof addMemberRaw>>> = { owner };
     seats.manager = await addMemberRaw(ctx, wsId, { name: "Mia Manager", role: "manager" });

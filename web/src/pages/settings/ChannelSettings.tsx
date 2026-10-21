@@ -1,7 +1,8 @@
 import { AtSign, Mail, Phone, Plus, Star, Trash2 } from "lucide-react";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { api } from "../../api/client";
-import { useEmailSenders, useInboundAddresses, useSmsNumbers } from "../../api/hooks";
+import { useChannelStatus, useEmailSenders, useInboundAddresses, useSmsNumbers } from "../../api/hooks";
+import { ChannelBanner } from "../../components/channels/ChannelBanner";
 import { useListMutation } from "../../api/settingsHooks";
 import type { EmailSender, SmsNumber } from "../../api/types";
 import { ConfirmDialog } from "../../components/settings/ConfirmDialog";
@@ -202,8 +203,15 @@ function InboundAddresses() {
 }
 
 export function ChannelSettings() {
+  const status = useChannelStatus();
   return (
     <>
+      {status.data && (
+        <div className="flex flex-col gap-2">
+          <ChannelBanner status={status.data.sms} />
+          <ChannelBanner status={status.data.email} />
+        </div>
+      )}
       <SmsNumbers />
       <EmailSenders />
       <InboundAddresses />

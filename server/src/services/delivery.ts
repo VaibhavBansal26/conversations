@@ -3,12 +3,14 @@ import type { AppContext } from "../context.js";
 import type { Attachment } from "../domain/types.js";
 import { ProviderError } from "../providers/types.js";
 import { parseJson } from "../util/json.js";
+import { redactSecrets } from "../util/redact.js";
 import { addMinutes, addSeconds } from "../util/time.js";
 import { enqueueJob, runDueJobs } from "../jobs/queue.js";
 import { emitMessage, findMessageRow, type MessageRow } from "./messageStore.js";
 import { getRoomRow } from "./roomStore.js";
 import { creditCost, recordUsage } from "./workspaces.js";
 import { getContact } from "./contacts.js";
+import { noteChannelResult } from "./channels.js";
 
 /** exponential backoff capped, with +-20% jitter in production so a provider outage does not turn into synchronised retry waves */
 export const retryDelaySeconds = (ctx: AppContext, attempt: number): number => {
@@ -20,7 +22,7 @@ async function mark(
   ctx: AppContext,
   msg: { id: string; room_id: string; workspace_id: string },
   
-  delivery: "sent" | "failed" | "pending",
+  delivery: "sent" | "failed" | "pending" | "not_sent_test_mode",
   fields: { reason?: string | null; providerId?: string | null; retry?: number } = {},
 ) {
   if (fields.providerId) await putRef(ctx, "provider", fields.providerId, msg);
@@ -44,6 +46,11 @@ async function attachmentBuffers(ctx: AppContext, atts: Attachment[]) {
   return out;
 }
 
+export const TEST_MODE_REASON = {
+  sms: "SMS is not connected. Messages are saved but not sent. Connect Twilio in Settings > Channels.",
+  email: "Email is not connected. Messages are saved but not sent. Connect SendGrid in Settings > Channels.",
+} as const;
+
 /**
  * Hand an already-stored outgoing sms/email message to the provider.
  * Never throws: failures keep the message (delivery=failed + reason) and, when transient, schedule an
@@ -54,8 +61,10 @@ export async function deliverMessage(ctx: AppContext, messageId: string, opts: {
   if (msg.delivery === "sent" || msg.delivery === "delivered") return msg;
   const room = await getRoomRow(ctx, msg.workspace_id, msg.room_id);
   const kind = msg.source === "sms" ? "sms" : "email";
+  const simulated = !!(kind === "sms" ? ctx.sms.simulated : ctx.email.simulated);
   let failure: { reason: string; retryable: boolean } | null = null;
-  if (ctx.config.SEND_PACING && !opts.paced && msg.from_addr) {
+  let attempted = false; // the provider was actually called (not pacing, opt-out or an empty queue)
+  if (ctx.config.SEND_PACING && !opts.paced && msg.from_addr && !simulated) {
     // carrier/provider-friendly pacing: reserve the next slot for this number or sender; when it is not now, park the message (it stays
     // `pending`) and let a delayed job send it, instead of rejecting. A full queue falls through to the normal retry-with-backoff path.
     const r = await ctx.ratelimit.pace(kind === "sms" ? "sms.number" : "email.sender", msg.from_addr, { queueMax: ctx.config.SEND_QUEUE_MAX });
@@ -76,6 +85,7 @@ export async function deliverMessage(ctx: AppContext, messageId: string, opts: {
     if (msg.source === "sms") {
       if (contact.sms_opt_out) failure = { reason: "Contact has opted out of SMS", retryable: false };
       else {
+        attempted = true;
         const r = await ctx.sms.send({
           to: msg.to_addr!,
           from: msg.from_addr!,
@@ -83,9 +93,12 @@ export async function deliverMessage(ctx: AppContext, messageId: string, opts: {
           idempotencyKey: msg.id,
           statusCallbackUrl: `${ctx.config.PUBLIC_URL.replace(/\/$/, "")}/webhooks/twilio/status`,
         });
-        await mark(ctx, msg, "sent", { providerId: r.providerMessageId });
-        // delivery receipts normally arrive by webhook; this delayed check covers the ones that never do
-        await enqueueJob(ctx, "reconcile_sms", { message_id: msg.id, attempt: 0 }, { runAt: addMinutes(ctx.clock(), 2), dedupeKey: `reconcile:${msg.id}:0` });
+        if (simulated) await mark(ctx, msg, "not_sent_test_mode", { reason: TEST_MODE_REASON.sms });
+        else {
+          await mark(ctx, msg, "sent", { providerId: r.providerMessageId });
+          // delivery receipts normally arrive by webhook; this delayed check covers the ones that never do
+          await enqueueJob(ctx, "reconcile_sms", { message_id: msg.id, attempt: 0 }, { runAt: addMinutes(ctx.clock(), 2), dedupeKey: `reconcile:${msg.id}:0` });
+        }
       }
     } else if (msg.source === "email") {
       const sender = await ctx.db.get<{ display_name: string }>(
@@ -95,6 +108,7 @@ export async function deliverMessage(ctx: AppContext, messageId: string, opts: {
       );
       const inbound = await ctx.db.get<{ address: string }>("SELECT address FROM inbound_addresses WHERE workspace_id = ? ORDER BY created_at LIMIT 1", msg.workspace_id);
       const refs = (msg.references_hdr ?? "").split(/\s+/).filter(Boolean);
+      attempted = true;
       const r = await ctx.email.send({
         from: { address: msg.from_addr!, name: sender?.display_name || undefined },
         to: msg.to_addr!,
@@ -107,17 +121,20 @@ export async function deliverMessage(ctx: AppContext, messageId: string, opts: {
         replyTo: inbound?.address,
         attachments: await attachmentBuffers(ctx, parseJson<Attachment[]>(msg.attachments, [])),
       });
-      await mark(ctx, msg, "sent", { providerId: r.providerMessageId });
+      if (simulated) await mark(ctx, msg, "not_sent_test_mode", { reason: TEST_MODE_REASON.email });
+      else await mark(ctx, msg, "sent", { providerId: r.providerMessageId });
     }
-    if (!failure) {
+    if (!failure && !simulated) {
+      // nothing left the server in test mode, so nothing is billed
       const cost = creditCost(ctx, kind);
       if (cost > 0) await recordUsage(ctx, msg.workspace_id, kind, -cost, msg.id);
     }
   } catch (e) {
     const retryable = e instanceof ProviderError ? e.retryable : true;
-    failure = { reason: e instanceof Error ? e.message.slice(0, 300) : "Unknown delivery error", retryable };
+    failure = { reason: e instanceof Error ? redactSecrets(e.message).slice(0, 300) : "Unknown delivery error", retryable };
     ctx.log.warn("message delivery failed", { message_id: msg.id, source: msg.source, retryable, reason: failure.reason });
   }
+  if (attempted && !simulated) await noteChannelResult(ctx, msg.workspace_id, kind, failure ? { message: failure.reason } : undefined).catch(() => {});
   if (failure) {
     const attempts = msg.retry_count + 1;
     await mark(ctx, msg, "failed", { reason: failure.reason, retry: attempts });
@@ -138,7 +155,7 @@ export async function deliverMessage(ctx: AppContext, messageId: string, opts: {
 /** Job handler + manual retry share this. */
 export async function retryDelivery(ctx: AppContext, messageId: string): Promise<MessageRow | null> {
   const msg = await getByRef(ctx, "id", messageId);
-  if (!msg || msg.deleted_at || msg.delivery !== "failed") return msg ?? null;
+  if (!msg || msg.deleted_at || (msg.delivery !== "failed" && msg.delivery !== "not_sent_test_mode")) return msg ?? null;
   await ctx.db.run("UPDATE messages SET delivery = 'pending' WHERE room_id = ? AND id = ?", msg.room_id, messageId);
   return await deliverMessage(ctx, messageId);
 }

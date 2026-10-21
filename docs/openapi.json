@@ -4723,7 +4723,7 @@
         "tags": [
           "Messages"
         ],
-        "summary": "Retry a failed delivery",
+        "summary": "Retry a failed delivery, or send a message that was stored in test mode (`not_sent_test_mode`)",
         "operationId": "post_api_messages_id_retry",
         "security": [
           {
@@ -5824,6 +5824,50 @@
         "responses": {
           "200": {
             "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/channels/status": {
+      "get": {
+        "tags": [
+          "Channels"
+        ],
+        "summary": "Per channel (`sms`, `email`): mode (`live` or `test`), whether a real provider is connected, provider, details and the last provider error. Never contains credentials",
+        "operationId": "get_api_channels_status",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "conversations:read",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.read",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "`{sms, email, system_email}`",
             "content": {
               "application/json": {
                 "schema": {

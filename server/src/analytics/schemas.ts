@@ -96,7 +96,7 @@ export const SCHEMAS: Record<string, object> = {
       channel: { enum: ["dm", "sms", "email"] },
       kind: { type: "string" },
       length_chars: { type: "integer", minimum: 0 },
-      delivery_status: { enum: ["pending", "sent", "delivered", "failed"] },
+      delivery_status: { enum: ["pending", "sent", "delivered", "failed", "not_sent_test_mode"] },
       sender_type: { enum: ["agent", "contact", "bot", "system"] },
     },
   },

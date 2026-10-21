@@ -342,6 +342,6 @@ export async function deleteMessage(ctx: AppContext, actor: Actor, id: string, r
 
 export async function retryMessage(ctx: AppContext, actor: Actor, id: string, roomHint?: string): Promise<MessageRow> {
   const { msg } = await ownMessageOrThrow(ctx, actor, id, roomHint);
-  if (msg.delivery !== "failed") throw new AppError(409, "NOT_FAILED", "Only failed messages can be retried");
+  if (msg.delivery !== "failed" && msg.delivery !== "not_sent_test_mode") throw new AppError(409, "NOT_FAILED", "Only failed or unsent messages can be retried");
   return (await retryDelivery(ctx, id))!;
 }
