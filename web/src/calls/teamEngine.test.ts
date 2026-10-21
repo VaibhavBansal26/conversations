@@ -35,7 +35,7 @@ describe("placing a call", () => {
   });
 
   it("explains a refusal with the words of the reason and releases the microphone", async () => {
-    for (const [code, text] of [["CALLEE_OFFLINE", /not online/], ["CALLEE_BUSY", /another call/], ["CALLEE_UNAVAILABLE", /not available/], ["GROUP_CALLS_NOT_AVAILABLE", /two people/], ["RATE_LIMITED", /a lot/]] as const) {
+    for (const [code, text] of [["CALLEE_OFFLINE", /not online/], ["CALLEE_BUSY", /another call/], ["CALLEE_UNAVAILABLE", /not available/], ["USE_GROUP_CALL", /more than two/], ["RATE_LIMITED", /a lot/]] as const) {
       t.replies["tcall:invite"] = () => ({ ok: false, error: { code, message: "x" } });
       const r = await engine.call("tch_1", "voice", "Ben");
       expect(r).toMatchObject({ ok: false, message: expect.stringMatching(text) });

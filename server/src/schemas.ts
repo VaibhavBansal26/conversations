@@ -303,6 +303,12 @@ export const AiCallTranscriptBody = z.object({ call_id: id, role: z.enum(["user"
 export const AiCallFallbackBody = z.object({ call_id: id, reason: z.string().max(40).default("client_failed") });
 export const AiCallEndBody = z.object({ call_id: id, reason: z.enum(["completed", "silence", "unsupported", "error"]).default("completed") });
 export const TeamCallInviteBody = z.object({ channel_id: id, kind: CallKind });
+/* ---- group calls (ADR 0038) ---- */
+export const GroupCallStartBody = z.object({ channel_id: id, kind: CallKind, invite_ids: z.array(id).max(3).optional() });
+export const GroupCallInviteBody = z.object({ call_id: id, member_ids: z.array(id).min(1).max(3) });
+export const GroupCallMediaBody = z.object({ call_id: id, muted: z.boolean().optional(), camera_off: z.boolean().optional() });
+export const GroupCallShareBody = z.object({ call_id: id, on: z.boolean() });
+export const GroupSignalBody = z.object({ call_id: id, to: id, data: z.unknown() });
 /* ---- call links (ADR 0037) ---- */
 export const CallLinkOpenBody = z.object({ token: z.string().min(1).max(200) });
 export const CallLinkRedeemBody = z.object({ token: z.string().min(1).max(200), device_id: z.string().min(8).max(64), name: z.string().trim().max(60).optional() });

@@ -190,7 +190,7 @@ describe("who may call whom", () => {
     const general = await srv.ctx.db.get<{ id: string }>("SELECT id FROM team_channels WHERE workspace_id = ? AND is_general = 1", w.wsId);
     for (const id of [group.id, (chan as any).channel?.id ?? (chan as any).id, general?.id].filter(Boolean) as string[]) {
       const r = await w.invite("voice", w.a, id);
-      expect(r.error?.code, id).toBe("GROUP_CALLS_NOT_AVAILABLE");
+      expect(r.error?.code, id).toBe("USE_GROUP_CALL");
     }
     expect(await srv.ctx.db.all("SELECT id FROM team_calls WHERE workspace_id = ?", w.wsId)).toHaveLength(0);
   });

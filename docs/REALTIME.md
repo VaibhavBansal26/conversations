@@ -64,6 +64,17 @@ Every event is acknowledged: `{ok: true, ...}` or `{ok: false, error: {code, mes
 | `tcall:offer` | team | `calls:internal` | 2 | `call_id*`, `data*` |
 | `tcall:answer` | team | `calls:internal` | 2 | `call_id*`, `data*` |
 | `tcall:ice` | team | `calls:internal` | 0.25 | `call_id*`, `data*` |
+| `gcall:start` | team | `calls:internal` | 5 | `channel_id*`, `kind*`, `invite_ids` |
+| `gcall:join` | team | `calls:internal` | 2 | `call_id*` |
+| `gcall:leave` | team | `calls:internal` | 2 | `call_id*` |
+| `gcall:decline` | team | `calls:internal` | 2 | `call_id*` |
+| `gcall:invite` | team | `calls:internal` | 3 | `call_id*`, `member_ids*` |
+| `gcall:media` | team | `calls:internal` | 1 | `call_id*`, `muted`, `camera_off` |
+| `gcall:share` | team | `calls:internal` | 2 | `call_id*`, `on*` |
+| `gcall:resume` | team | `calls:internal` | 2 | `call_id*` |
+| `gcall:offer` | team | `calls:internal` | 2 | `call_id*`, `to*`, `data*` |
+| `gcall:answer` | team | `calls:internal` | 2 | `call_id*`, `to*`, `data*` |
+| `gcall:ice` | team | `calls:internal` | 0.25 | `call_id*`, `to*`, `data*` |
 | `team:message:send` | team | `team_chat:use` | 2 | `content`, `thread_root_id`, `attachment_ids`, `client_msg_id`, `share_room_id`, `channel_id*` |
 | `team:typing` | team | `team_chat:use` | 0.25 | `channel_id*`, `typing*`, `thread_root_id` |
 | `team:read` | team | `team_chat:use` | 1 | `message_id`, `channel_id*` |

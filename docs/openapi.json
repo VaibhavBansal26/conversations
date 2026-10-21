@@ -1164,6 +1164,14 @@
                                 "type": "integer",
                                 "minimum": 10,
                                 "maximum": 90
+                              },
+                              "group": {
+                                "type": "boolean"
+                              },
+                              "group_max": {
+                                "type": "integer",
+                                "minimum": 2,
+                                "maximum": 4
                               }
                             }
                           },
@@ -5927,6 +5935,14 @@
                         "type": "integer",
                         "minimum": 10,
                         "maximum": 90
+                      },
+                      "group": {
+                        "type": "boolean"
+                      },
+                      "group_max": {
+                        "type": "integer",
+                        "minimum": 2,
+                        "maximum": 4
                       }
                     }
                   },
@@ -6253,7 +6269,7 @@
         "tags": [
           "Calls"
         ],
-        "summary": "Whether calls between teammates are on (voice, video, screen share, ring time), a TURN warning, and the call this member is already in (`live_call`)",
+        "summary": "Whether calls between teammates are on (voice, video, screen share, ring time, group calls and their cap), a TURN warning, the call this member is already in (`live_call`) and the group calls they are in or that ring for them (`live_group_calls`)",
         "operationId": "get_api_team_calls_config",
         "security": [
           {
@@ -6269,6 +6285,60 @@
           ],
           "in_handler": []
         },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/team-calls/channels/{id}/group-call": {
+      "get": {
+        "tags": [
+          "Calls"
+        ],
+        "summary": "The live group call of a team conversation the member can see (or null): the card's Join button",
+        "operationId": "get_api_team_calls_channels_id_group_call",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "calls:internal",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.read",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",

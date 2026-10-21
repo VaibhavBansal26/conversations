@@ -133,8 +133,11 @@ export const CallSettingsSchema = z.object({
       video: z.boolean().default(true),
       screen_share: z.boolean().default(true),
       ring_seconds: z.number().int().min(10).max(90).default(30),
+      /** group calls (ADR 0038): a WebRTC mesh, so the cap is 4 people including the host (every person sends to every other person) */
+      group: z.boolean().default(true),
+      group_max: z.number().int().min(2).max(4).default(4),
     })
-    .default(() => ({ enabled: false, voice: true, video: true, screen_share: true, ring_seconds: 30 })),
+    .default(() => ({ enabled: false, voice: true, video: true, screen_share: true, ring_seconds: 30, group: true, group_max: 4 })),
   /** links that let a visitor join a call without logging in or giving contact details (ADR 0037): off until a manager switches them on */
   links: z
     .object({
@@ -156,7 +159,7 @@ export const CallsPatchSchema = z.object({
   browser: z.object({ enabled: z.boolean(), voice: z.boolean(), video: z.boolean(), screen_share: z.boolean() }).partial().optional(),
   ring_seconds: z.number().int().min(15).max(120).optional(),
   turn_provider: z.enum(["none", "static", "twilio"]).optional(),
-  internal: z.object({ enabled: z.boolean(), voice: z.boolean(), video: z.boolean(), screen_share: z.boolean(), ring_seconds: z.number().int().min(10).max(90) }).partial().optional(),
+  internal: z.object({ enabled: z.boolean(), voice: z.boolean(), video: z.boolean(), screen_share: z.boolean(), ring_seconds: z.number().int().min(10).max(90), group: z.boolean(), group_max: z.number().int().min(2).max(4) }).partial().optional(),
   links: z.object({ enabled: z.boolean(), ttl_minutes: z.number().int().min(5).max(1440), allow_ai: z.boolean(), allow_team: z.boolean() }).partial().optional(),
   ai: z
     .object({

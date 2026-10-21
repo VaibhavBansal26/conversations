@@ -6,10 +6,11 @@ import type { AppContext } from "../context.js";
 import { seesAll, type Actor } from "../domain/types.js";
 import { AppError, unauthorized } from "../errors.js";
 import { fallbackToBrowser, recordRealtimeTranscript, runRealtimeTool } from "../calls/realtimeCall.js";
+import { declineGroupCall, groupSocketGone, inviteGroupCall, joinGroupCall, leaveGroupCall, relayGroupSignal, resumeGroupCall, setGroupMedia, setGroupShare, startGroupCall } from "../calls/groupCall.js";
 import { acceptTeamCall, declineTeamCall, endTeamCall, inviteTeamCall, relayTeamSignal, reportTeamConnected, reportTeamFailed, resumeTeamCall, teamCallDto, teamSocketGone } from "../calls/teamCall.js";
 import { aiSay, endAiCall, handoffAiCall, startAiCall } from "../calls/aiCall.js";
 import { acceptCall, declineCall, endCall, inviteCall, relaySignal, reportConnected, reportFailed, requestCall, resumeCall, socketGone } from "../calls/service.js";
-import { TeamCallInviteBody, AiCallFallbackBody, AiCallToolBody, AiCallTranscriptBody, AiCallEndBody, AiCallSayBody, AiCallStartBody, CallFailedBody, CallIdBody, CallInviteBody, CallRequestBody, CallSignalBody, AssignBody, OtpVerify, ReadBody, RoomCreate, RoomPatch, SendMessageBody, TeamSocketReaction, TeamSocketRead, TeamSocketSend, TeamSocketTyping, TypingBody, id } from "../schemas.js";
+import { GroupCallInviteBody, GroupCallMediaBody, GroupCallShareBody, GroupCallStartBody, GroupSignalBody, TeamCallInviteBody, AiCallFallbackBody, AiCallToolBody, AiCallTranscriptBody, AiCallEndBody, AiCallSayBody, AiCallStartBody, CallFailedBody, CallIdBody, CallInviteBody, CallRequestBody, CallSignalBody, AssignBody, OtpVerify, ReadBody, RoomCreate, RoomPatch, SendMessageBody, TeamSocketReaction, TeamSocketRead, TeamSocketSend, TeamSocketTyping, TypingBody, id } from "../schemas.js";
 import { accessChannel, markTeamRead, sendTeamMessage, toggleReaction } from "../services/teamChat.js";
 import { actorFromToken } from "../services/auth.js";
 import { audienceChannels } from "../services/audience.js";
@@ -806,9 +807,21 @@ function registerHandlers(ctx: AppContext, socket: Socket, ready: Promise<void>)
   on("tcall:offer", CallSignalBody, "team", async (p, { actor }) => (await relayTeamSignal(ctx, actor!, socket.id, "offer", p), {}));
   on("tcall:answer", CallSignalBody, "team", async (p, { actor }) => (await relayTeamSignal(ctx, actor!, socket.id, "answer", p), {}));
   on("tcall:ice", CallSignalBody, "team", async (p, { actor }) => (await relayTeamSignal(ctx, actor!, socket.id, "ice", p), {}));
+  on("gcall:start", GroupCallStartBody, "team", async (p, { actor }) => await startGroupCall(ctx, actor!, socket.id, p));
+  on("gcall:join", CallIdBody, "team", async (p, { actor }) => await joinGroupCall(ctx, actor!, socket.id, p.call_id));
+  on("gcall:leave", CallIdBody, "team", async (p, { actor }) => ({ call: await leaveGroupCall(ctx, actor!, p.call_id) }));
+  on("gcall:decline", CallIdBody, "team", async (p, { actor }) => ({ call: await declineGroupCall(ctx, actor!, p.call_id) }));
+  on("gcall:invite", GroupCallInviteBody, "team", async (p, { actor }) => await inviteGroupCall(ctx, actor!, p.call_id, p.member_ids));
+  on("gcall:media", GroupCallMediaBody, "team", async (p, { actor }) => ({ call: await setGroupMedia(ctx, actor!, p.call_id, p) }));
+  on("gcall:share", GroupCallShareBody, "team", async (p, { actor }) => ({ call: await setGroupShare(ctx, actor!, p.call_id, p.on) }));
+  on("gcall:resume", CallIdBody, "team", async (p, { actor }) => await resumeGroupCall(ctx, actor!, socket.id, p.call_id));
+  on("gcall:offer", GroupSignalBody, "team", async (p, { actor }) => (await relayGroupSignal(ctx, actor!, socket.id, "offer", p), {}));
+  on("gcall:answer", GroupSignalBody, "team", async (p, { actor }) => (await relayGroupSignal(ctx, actor!, socket.id, "answer", p), {}));
+  on("gcall:ice", GroupSignalBody, "team", async (p, { actor }) => (await relayGroupSignal(ctx, actor!, socket.id, "ice", p), {}));
   void teamCallDto;
   socket.on("disconnect", () => void socketGone(ctx, ws, socket.id).catch(() => {}));
   socket.on("disconnect", () => void teamSocketGone(ctx, ws, socket.id).catch(() => {}));
+  socket.on("disconnect", () => void groupSocketGone(ctx, ws, socket.id).catch(() => {}));
 
   on("otp:verify", OtpVerify, "visitor", (p, { session }) => verifyOtp(ctx, session!, p.code));
 

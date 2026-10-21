@@ -18,7 +18,7 @@ import { iceConfig, type IceConfig } from "./turn.js";
  * Voice and video calls between two teammates (docs/CALLS.md, ADR 0036): the two members of a direct message, one call at a time each. The state machine,
  * the compare-and-set transitions, TURN credentials and signalling rules are those of calls with visitors; the difference is who the two parties are
  * (members, not a visitor), where the card lives (the direct message) and what is checked before a phone rings (presence, do-not-disturb, being busy).
- * Group calls are not built.
+ * Calls of three or four people are group calls (groupCall.ts, ADR 0038).
  */
 export interface TeamCallRow {
   id: string;
@@ -142,6 +142,7 @@ export async function teamCallSettings(ctx: AppContext, ws: string) {
 export async function memberBusy(ctx: AppContext, ws: string, memberId: string): Promise<boolean> {
   const t = await ctx.db.get("SELECT 1 FROM team_calls WHERE workspace_id = ? AND (caller_id = ? OR callee_id = ?) AND state IN ('ringing','connecting','active')", ws, memberId, memberId);
   if (t) return true;
+  if (await ctx.db.get("SELECT 1 FROM group_call_participants WHERE workspace_id = ? AND member_id = ? AND status = 'joined'", ws, memberId)) return true;
   return !!(await ctx.db.get("SELECT 1 FROM calls WHERE workspace_id = ? AND initiated_by = ? AND transport = 'webrtc' AND state IN ('ringing','connecting','active')", ws, memberId));
 }
 
@@ -159,10 +160,10 @@ export async function inviteTeamCall(ctx: AppContext, actor: Actor, socketId: st
   if (!s[input.kind]) throw new AppError(403, "TEAM_CALL_KIND_DISABLED", `${KIND[input.kind]}s between teammates are switched off for this workspace`);
   // the channel is the permission: only a member of a direct message can ring the other member (404 for anyone who cannot see it, 403 NOT_A_MEMBER for a public channel)
   const { channel } = await accessChannel(ctx, actor, input.channel_id, { write: true });
-  if (channel.kind !== "dm") throw unprocessable("GROUP_CALLS_NOT_AVAILABLE", "Calls work between two people: open a direct message with the person you want to call");
+  if (channel.kind !== "dm") throw unprocessable("USE_GROUP_CALL", "This conversation has more than two people: start a group call (gcall:start) instead");
   const ids = (await ctx.db.all<{ member_id: string }>("SELECT member_id FROM team_channel_members WHERE channel_id = ?", channel.id)).map((r) => r.member_id);
   const calleeId = ids.find((m) => m !== actor.memberId);
-  if (!calleeId || ids.length !== 2) throw unprocessable("GROUP_CALLS_NOT_AVAILABLE", "Calls work between two people");
+  if (!calleeId || ids.length !== 2) throw unprocessable("USE_GROUP_CALL", "This conversation has more than two people: start a group call (gcall:start) instead");
   const callee = await findMember(ctx, ws, calleeId);
   if (!callee) throw new AppError(409, "CALLEE_GONE", "That person is no longer in this workspace");
   if (!can(actorFromRow(callee), "calls:internal")) throw new AppError(409, "CALLEE_CANNOT_RECEIVE", `${callee.name} cannot take calls`);

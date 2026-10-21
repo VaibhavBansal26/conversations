@@ -21,6 +21,7 @@ import { sweepPhone } from "./phone.js";
 import { sweepAi } from "./aiCall.js";
 import { consumeCallLink } from "./links.js";
 import { sweepTeamCalls } from "./teamCall.js";
+import { sweepGroupCalls } from "./groupCall.js";
 
 /**
  * Calls between a team member and a visitor (docs/CALLS.md). This service owns the database row and the thread card; the sockets carry the
@@ -481,6 +482,9 @@ export async function sweepCalls(ctx: AppContext): Promise<{ missed: number; fai
       if (!(e instanceof AppError && (e.code === "CALL_STATE_CHANGED" || e.code === "CALL_STATE")) && !(e instanceof IllegalTransition)) throw e;
     }
   }
+  const g = await sweepGroupCalls(ctx);
+  out.missed += g.missed;
+  out.ended += g.ended;
   const t = await sweepTeamCalls(ctx);
   out.missed += t.missed;
   out.failed += t.failed;

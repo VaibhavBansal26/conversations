@@ -1390,7 +1390,7 @@ describe("SQLite: call links migration on a populated database of the release be
       const before = await counts(old, tables);
       await old.close();
       const db = await openDb(path);
-      expect(await migrate(db)).toEqual(["040_call_links.sql"]);
+      expect((await migrate(db)).slice(0, 1)).toEqual(["040_call_links.sql"]);
       expect(await db.all("PRAGMA foreign_key_check")).toEqual([]);
       expect(await schemaOf(db)).toEqual(await schemaOf(fresh));
       await expectCallLinksMigration(db, before, tables);
@@ -1426,9 +1426,95 @@ describe.skipIf(!postgres)("PostgreSQL: call links migration on a populated data
       await seedKb(b.db);
       const tables = await userTables(b.db);
       const before = await counts(b.db, tables);
-      expect(await migrate(b.db, undefined, { hashPartitions: 2 })).toEqual(["040_call_links.sql"]);
+      expect((await migrate(b.db, undefined, { hashPartitions: 2 })).slice(0, 1)).toEqual(["040_call_links.sql"]);
       expect(await schemaOf(b.db)).toEqual(await schemaOf(a.db));
       await expectCallLinksMigration(b.db, before, tables);
+    } finally {
+      rmSync(prev, { recursive: true, force: true });
+      await a.drop();
+      await b.drop();
+    }
+  });
+});
+
+// ---- group calls (migration 041): the release before it is 040 ------------------------------------------------------------------------------
+
+const PRE_GROUP_CALLS = 40;
+async function expectGroupCallsMigration(db: Db, before: Record<string, number>, tables: string[]) {
+  expect(await counts(db, tables)).toEqual(before);
+  const call = (id: string, ch: string, state: string, max = 4) =>
+    db.run("INSERT INTO group_calls(id, workspace_id, channel_id, kind, state, host_id, max_participants, created_at, updated_at) VALUES (?, 'w1', ?, 'voice', ?, 'm1', ?, ?, ?)", id, ch, state, max, T(1), T(1));
+  const ch = (await db.get<{ id: string }>("SELECT id FROM team_channels LIMIT 1"))!.id;
+  await call("g1", ch, "live");
+  await expect(call("g2", ch, "live")).rejects.toThrow(/unique|UNIQUE/i); // one live call per conversation
+  await call("g3", ch, "ended"); // finished calls do not count
+  await expect(call("g4", ch, "ended", 5)).rejects.toThrow(/CHECK|check constraint/i); // the cap is at most four
+  await expect(call("g5", ch, "ringing")).rejects.toThrow(/CHECK|check constraint/i);
+  const person = (c: string, m: string, st: string) => db.run("INSERT INTO group_call_participants(call_id, member_id, workspace_id, status, invited_at) VALUES (?, ?, 'w1', ?, ?)", c, m, st, T(1));
+  await person("g1", "m1", "joined");
+  await expect(person("g3", "m1", "joined")).rejects.toThrow(/unique|UNIQUE/i); // one call at a time
+  await person("g3", "m2", "joined");
+  await db.run("DELETE FROM group_calls WHERE id = 'g1'");
+  expect(await db.all("SELECT member_id FROM group_call_participants WHERE call_id = 'g1'")).toEqual([]); // participants go with their call
+}
+
+describe("SQLite: group calls migration on a populated database of the release before it", () => {
+  it("adds the tables without touching a row, enforces the caps and matches a fresh schema", async () => {
+    const fresh = await openDb(":memory:");
+    await migrate(fresh);
+    const { dir, path } = await openSqliteFile();
+    const prev = releaseDir(PRE_GROUP_CALLS);
+    try {
+      const old = await openDb(path);
+      await migrate(old, prev);
+      await seedPreviousRelease(old);
+      await seedTickets(old);
+      await seedKb(old);
+      await seedTeamChat(old);
+      const tables = await userTables(old);
+      const before = await counts(old, tables);
+      await old.close();
+      const db = await openDb(path);
+      expect(await migrate(db)).toEqual(["041_group_calls.sql"]);
+      expect(await db.all("PRAGMA foreign_key_check")).toEqual([]);
+      expect(await schemaOf(db)).toEqual(await schemaOf(fresh));
+      await expectGroupCallsMigration(db, before, tables);
+      await db.close();
+    } finally {
+      await fresh.close();
+      rmSync(prev, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe.skipIf(!postgres)("PostgreSQL: group calls migration on a populated database of the release before it", () => {
+  it("adds the tables without touching a row, enforces the caps and matches a fresh schema", async () => {
+    const mk = async () => {
+      const schema = `u_${Math.random().toString(16).slice(2, 10)}`;
+      const admin = new pg.Client({ connectionString: process.env.TEST_DATABASE_URL });
+      await admin.connect();
+      await admin.query(`CREATE SCHEMA ${schema}`);
+      const u = new URL(process.env.TEST_DATABASE_URL!);
+      u.searchParams.set("options", `-c search_path=${schema}`);
+      const db = await openDb({ url: u.toString(), poolMax: 4 });
+      return { db, drop: async () => (await db.close(), await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`), await admin.end()) };
+    };
+    const a = await mk();
+    const b = await mk();
+    const prev = releaseDir(PRE_GROUP_CALLS);
+    try {
+      await migrate(a.db, undefined, { hashPartitions: 2 });
+      await migrate(b.db, prev, { hashPartitions: 2 });
+      await seedPreviousRelease(b.db);
+      await seedTickets(b.db);
+      await seedKb(b.db);
+      await seedTeamChat(b.db);
+      const tables = await userTables(b.db);
+      const before = await counts(b.db, tables);
+      expect(await migrate(b.db, undefined, { hashPartitions: 2 })).toEqual(["041_group_calls.sql"]);
+      expect(await schemaOf(b.db)).toEqual(await schemaOf(a.db));
+      await expectGroupCallsMigration(b.db, before, tables);
     } finally {
       rmSync(prev, { recursive: true, force: true });
       await a.drop();

@@ -46,7 +46,7 @@ export interface TeamEngineDeps {
 export const TEAM_INVITE_ERRORS: Record<string, string> = {
   TEAM_CALLS_DISABLED: "Calls between teammates are switched off for this workspace.",
   TEAM_CALL_KIND_DISABLED: "This kind of call is switched off for this workspace.",
-  GROUP_CALLS_NOT_AVAILABLE: "Calls work between two people: open a direct message with the person you want to call.",
+  USE_GROUP_CALL: "This conversation has more than two people: start a group call.",
   CALLEE_OFFLINE: "They are not online, so the call could not ring.",
   CALLEE_UNAVAILABLE: "They are not available for calls right now.",
   CALLEE_BUSY: "They are in another call.",

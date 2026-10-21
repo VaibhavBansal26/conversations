@@ -4,6 +4,7 @@ import type { Env } from "../http.js";
 import { callSettings, listRoomCalls } from "../calls/service.js";
 import { iceConfig } from "../calls/turn.js";
 import { liveTeamCallOf, teamCallSettings } from "../calls/teamCall.js";
+import { groupCallOfChannel, liveGroupCallsOf } from "../calls/groupCall.js";
 import { createCallLink, linkDto, listCallLinks, revokeCallLink, sendCallLink } from "../calls/links.js";
 import { getVisibleRoom } from "../services/roomStore.js";
 import { CallLinkCreateBody } from "../schemas.js";
@@ -46,8 +47,10 @@ export function callRoutes(ctx: AppContext) {
     const actor = c.get("actor");
     const s = await teamCallSettings(ctx, actor.workspaceId);
     const ice = s.enabled ? await iceConfig(ctx, actor.workspaceId, (await callSettings(ctx, actor.workspaceId)).turn_provider, "probe") : null;
-    return c.json({ ...s, warning: ice?.warning ?? null, live_call: await liveTeamCallOf(ctx, actor) });
+    return c.json({ ...s, warning: ice?.warning ?? null, live_call: await liveTeamCallOf(ctx, actor), live_group_calls: await liveGroupCallsOf(ctx, actor) });
   });
+  // the live group call of a conversation (the card's Join button)
+  r.get("/team-calls/channels/:id/group-call", async (c) => c.json({ call: await groupCallOfChannel(ctx, c.get("actor"), c.req.param("id")) }));
   // call links (ADR 0037): the address is returned once, here, and is not stored; the visitor's own copy of the chat derives it
   r.post("/rooms/:id/call-links", async (c) => {
     const actor = c.get("actor");
