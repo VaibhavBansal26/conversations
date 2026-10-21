@@ -159,6 +159,17 @@ async function messageRows(db: Db) {
   return db.all("SELECT * FROM messages ORDER BY id");
 }
 
+/** Migration 026 (mobile): additive columns carry their defaults on old rows and the new unique index and table work. */
+async function expectMobileMigration(db: Db) {
+  expect((await db.get<{ hosted_chat_enabled: number }>("SELECT hosted_chat_enabled FROM tokens WHERE id = 'tok1'"))!.hosted_chat_enabled).toBe(0);
+  expect(await db.all("SELECT 1 FROM contacts WHERE external_id IS NOT NULL")).toEqual([]);
+  await db.run("UPDATE contacts SET external_id = 'ext-1' WHERE id = 'c1'");
+  await expect(db.run("UPDATE contacts SET external_id = 'ext-1' WHERE id = 'c2'")).rejects.toThrow(/unique/i);
+  await db.run("UPDATE contacts SET external_id = NULL WHERE id = 'c1'");
+  await db.run("INSERT INTO workspace_identity(workspace_id, secret, enforce, rotated_at, created_at) VALUES ('w1', 'v1.x.y.z', 0, ?, ?)", T(1), T(1));
+  await db.run("DELETE FROM workspace_identity");
+}
+
 // ---- the tests ---------------------------------------------------------------------------------------------------------------------
 
 async function openSqliteFile() {
@@ -224,6 +235,7 @@ describe("SQLite: upgrading a database created by the previous release", () => {
         // later migrations' columns exist and carry their defaults on old rows
         expect((await db.get<{ preview: number }>("SELECT preview FROM visitor_sessions WHERE id = 'vs1'"))!.preview).toBe(0);
         expect((await db.get<{ last_seen_at: string | null }>("SELECT last_seen_at FROM tokens WHERE id = 'tok1'"))!.last_seen_at).toBeNull();
+        await expectMobileMigration(db);
 
         // idempotent: a second boot applies nothing and changes nothing
         const schema1 = await schemaOf(db);
@@ -406,6 +418,7 @@ describe.skipIf(!postgres)("PostgreSQL: upgrading a database created by the prev
       expect(await perms("role_custom_reader")).toContain("team_chat:use");
       expect(await perms("role_custom_none")).toEqual(["billing:manage"]);
       await expect(db.run("UPDATE roles SET name = 'hacked' WHERE id = 'role_owner'")).rejects.toThrow(/immutable/);
+      await expectMobileMigration(db);
 
       const schema1 = await schemaOf(db);
       expect(await migrate(db, undefined, { hashPartitions: 2 })).toEqual([]);
