@@ -330,7 +330,7 @@ test.describe("inbox: keyboard, command palette and theme", () => {
   });
 
   test("j / k move through conversations, ? opens the help dialog, Escape closes it", async ({ page }) => {
-    await page.getByRole("region", { name: "Conversations" }).getByRole("link").first().waitFor();
+    await expect(page.getByRole("region", { name: "Conversations" }).getByRole("link").nth(2)).toBeVisible();
     await page.keyboard.press("j");
     await expect(page).toHaveURL(/\/inbox\/[^/?]+/);
     const first = page.url();
