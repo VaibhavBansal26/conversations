@@ -341,6 +341,27 @@ sequenceDiagram
   API->>API: session must belong to THIS workspace, device-or-IP check, Origin vs token
 ```
 
+### 5.4b Hosted chat for mobile web views
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant App as Native app (web view)
+  participant S as App server
+  participant Page as /chat page (chat.js + bridge.js)
+  App->>S: GET /chat?token=cvt_.. (no cookies)
+  S->>S: token active, hosted_chat_enabled, workspace not suspended
+  S-->>App: HTML + CSP (frame-ancestors from the token's domain), assets are same-origin files
+  Page->>S: GET /public/widget/config (Origin = PUBLIC_URL or x-hosted-chat marker)
+  S->>S: flag on and exact own origin allowed, flag off or null or other origin 403
+  Page-->>App: bridge event ready {device_id}
+  App->>Page: identify {external_id, email, identity_hash} (hash made by the app's backend)
+  Page->>S: POST /public/sessions (HMAC verified against the workspace identity secret)
+  Page->>S: Socket.IO /ws/<workspaceId> (same session rules, the app origin is allowed while the flag is on)
+```
+
+Details: [MOBILE-BRIDGE.md](MOBILE-BRIDGE.md), decisions [ADR 0024](adr/0024-hosted-chat-origin-model.md) to [0026](adr/0026-bridge-protocol-v1.md). Server pieces: `routes/chat.ts` (page and assets), `services/hostedChat.ts` (CSP, page templates), `services/identity.ts` (secret and verification), `services/visitors.ts` (origin rules, signed identity in `createSession`), `server/public/chat/` (the page: `chat.js`, `bridge.js`, `i18n.js`, `chat.css`, conformance page). Data: `tokens.hosted_chat_enabled`, `contacts.external_id`, table `workspace_identity` (migration 026).
+
 ### 5.5 Snooze, notifications and digest
 
 ```mermaid

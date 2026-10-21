@@ -25,3 +25,6 @@ Short records of decisions that shaped the system. Add one when you make a decis
 * [0021](./0021-team-chat.md) Team chat is its own set of tables and its own realtime path
 * [0022](./0022-optional-sentry-allow-list-scrubber.md) Optional Sentry monitoring that rebuilds events from an allow-list
 * [0023](./0023-sqlite-migrations-defensive-mode.md) SQLite migrations work in defensive mode; table rebuilds run with foreign keys off
+* [0024](./0024-hosted-chat-origin-model.md) The hosted chat uses a per-token flag and the app's own origin
+* [0025](./0025-signed-visitor-identity.md) Signed visitor identity (HMAC over external id and email)
+* [0026](./0026-bridge-protocol-v1.md) The page-to-host bridge: one envelope, versioned, command and event sets

@@ -22,6 +22,9 @@ Domain terms as used in this repository, and how they map to the legacy ("Suppor
 | **Card** | structured content carried in `message.meta.card` (currently the payment request) | payment-request cards |
 | **Inbox** | a team queue conversations are routed to (manual or round-robin), with its own members and office hours | `SupportInbox` |
 | **Embed token** | a `cvt_...` key bound to a domain that lets the widget on that site talk to the workspace | `SupportTokens` |
+| **Hosted chat** | the full-page chat at `/chat`, for native web views and iframes; enabled per embed token | (new) |
+| **Identity hash** | `HMAC_SHA256(secret, external_id\|email)` computed by a customer's backend so a signed-in user is recognised without a code | (new) |
+| **Bridge** | the versioned JSON message protocol between a host app and the hosted chat page | (new) |
 | **Widget** | the embeddable chat script `widget.js` | support widget |
 | **Snooze** | hide a conversation until a time; time snoozed is excluded from resolution time | `snooze_time` |
 | **Credits** | prepaid units spent by outbound SMS and email, recorded in the usage ledger | `OnebalanceQueue`, wallet |

@@ -20,6 +20,10 @@ In the app: **Settings > Chat widget > Install**.
 
 How it works without weakening the domain check ([ADR 0020](adr/0020-widget-preview-flag.md)): `POST /api/tokens/:id/preview` (needs `tokens:manage`, audited) returns a link with a signed flag that names one token of your workspace and expires after 10 minutes. The widget sends it as `x-preview` instead of `x-api-key`. The server accepts the flag only from the app's own origin (no `Origin` header on a same-origin GET, or exactly `PUBLIC_URL`'s origin), and sessions created that way are marked `preview`, last 12 hours, and are accepted from the app's own origin only. A site's domain allow-list is untouched: the real token still requires the exact Origin, and a preview session is refused from any customer site (tests: `widget-preview.test.ts`, the origin table in `visitors.test.ts`).
 
+## Mobile apps and web views
+
+The same chat also runs full page, for a native app's web view or an iframe: [MOBILE-BRIDGE.md](MOBILE-BRIDGE.md). It is off until you switch **Hosted chat** on for a token, and it does not change the domain rules below.
+
 ## Domain rules
 
 The token only works on the domain you entered. The browser's `Origin` header is compared with it:

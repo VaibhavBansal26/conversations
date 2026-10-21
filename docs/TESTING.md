@@ -140,6 +140,19 @@ E2E_REUSE=1 E2E_PORT=45555 npx playwright test tests/02-inbox.spec.ts   # agains
 
 Notes: the widget is exercised from a second origin because a same-origin page sends no `Origin` header on GET requests, so the embed token's domain check cannot pass (see the known limitation in [APPROACH.md](APPROACH.md)). The a11y specs run with reduced motion so that axe measures settled colours, not a menu that is still fading in.
 
+### Mobile and hosted chat
+
+| Where | What |
+| --- | --- |
+| `server/tests/hosted-chat.test.ts` | `/chat` serving, CSP and frame-ancestors per token, generic refusal for unknown, revoked, flag-off tokens and suspended workspaces, parameter escaping, asset allow-list, the origin matrix (flag off or on; missing, null, other and own origin; other workspace; revoked; rotation keeps the flag), sessions follow the flag over REST and sockets |
+| `server/tests/identity.test.ts` | secret management and audit, the full identity-hash matrix, reference vectors, tenant isolation of `external_id`, visitor uploads, attributes, log-out, upload rate limit |
+| `server/tests/bridge.contract.test.ts` | about 100 command and event cases checked against both `docs/bridge/*.schema.json` (ajv) and the shipped `bridge.js`; endpoint behaviour (acks, nacks, rate limit, timeouts), every transport, the iframe origin rules, link and origin parity with the server, i18n completeness |
+| `server/tests/mobile.docs.test.ts` | the identity snippets run in node, python and ruby (php skipped when absent), the curl flow replayed against a real HTTP server, the TypeScript example type-checked against `socket.io-client`, the Swift example with `swiftc` |
+| `server/tests/migrations.upgrade.test.ts` | extended for migration 026 (defaults on old rows, the unique `external_id` index, the new table) on SQLite and PostgreSQL |
+| `e2e/tests/10-hosted-chat.spec.ts` | 390x844 phone emulation (touch) and 1024x768, light and dark: chat, a photo upload, agent reply, emoji, 44 px targets, 16 px composer, axe, no console errors; offline banner and queue; paging with scroll anchoring; right-to-left and Spanish; the bridge conformance page passes every check in Chromium |
+| `sdks/ios` (`swift test`) | 24 XCTest cases for the envelope, commands, events, state machine and URL builder; not run by `npm test` |
+| `sdks/android` | JVM unit tests exist and were never run (no toolchain on the authoring machine) |
+
 ## Web tests
 
 `web/src/**/*.test.ts(x)` (219 tests, Vitest + Testing Library + jsdom):

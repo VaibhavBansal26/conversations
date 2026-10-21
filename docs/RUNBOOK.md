@@ -106,6 +106,17 @@ Open the workspace's Settings > Channels (or have them): the banner and `GET /ap
 
 Another superadmin cannot reset it from the console on purpose. On a host with database access: `npm run admin -- reset-mfa --email <address>` (audited as `admin.mfa_reset`); the operator enrols again at next sign-in. If the only superadmin is locked out, create a new one with `npm run admin -- create`.
 
+### 14. Mobile hosted chat and identity verification
+
+Background: [MOBILE-BRIDGE.md](MOBILE-BRIDGE.md). Migration 026 is additive only (two columns, one unique index, one table; no table rebuild, nothing touches `sqlite_master`), safe on Render's SQLite.
+
+- **Switch the hosted chat off at once** (abuse, a leaked token): Settings > Chat widget > Install > *Hosted chat for this token* off, or `PATCH /api/tokens/:id {"hosted_chat_enabled": false}`. The app's origin is refused immediately for the token's REST calls and socket handshakes; existing sessions stop working from the hosted page; the website widget on the token's own domain is unaffected. Revoke the token to stop everything.
+- **Customers report "Chat is not available" (403) in the app:** the token is revoked, flag-off, or the workspace is suspended. `GET /api/tokens` shows `hosted_chat_enabled`.
+- **`ORIGIN_NOT_ALLOWED` for every hosted call:** `PUBLIC_URL` is not the address the web view loads (scheme, host or port differ, often behind a proxy). Fix `PUBLIC_URL` ([CONFIGURATION.md](CONFIGURATION.md)).
+- **Rotate the identity secret** (suspected leak): Settings > ... > Identity verification > *Replace secret*, then deploy the new secret to the customer's backend. Until it is deployed their signed users get `401 IDENTITY_HASH_INVALID` and the page offers "Continue as guest"; with enforcement on, plan the switch (turn enforcement off during the change if guests are acceptable). Sessions already created stay valid.
+- **`DATA_ENCRYPTION_KEY` lost or changed without `DATA_ENCRYPTION_KEY_PREVIOUS`:** stored identity secrets become unreadable and the workspace behaves as if it had none (signed requests get `422 IDENTITY_NOT_CONFIGURED`, unsigned behave as before; never "accept anything"). A manager creates a new secret.
+- **Uploads:** visitor pictures and PDFs go through `POST /public/attachments` (10 per minute per visitor, `UPLOAD_MAX_BYTES`), stored like agent attachments; remove abusive ones by deleting the message.
+
 ## Dashboards, alerts and SLOs
 
 Dashboards (Prometheus/Grafana on `/metrics`): connections and handshakes (`conv_ws_connections`, `conv_ws_connect_total`, `conv_ws_shed_total`), latency (`conv_ws_ack_duration_seconds`, `conv_ws_fanout_duration_seconds`, `conv_http_request_duration_seconds`), saturation (`conv_event_loop_lag_p99_seconds`, `conv_ws_write_buffer_max`, process RSS), queues (`conv_queue_depth`, outbox lag), limiter health (`conv_ratelimit_decisions_total`, `conv_ratelimit_breaker_open`, `conv_ratelimit_redis_duration_seconds`, `conv_rate_limited_total`), database (`conv_db_statements_total`, pool wait, replica lag, partition sizes).

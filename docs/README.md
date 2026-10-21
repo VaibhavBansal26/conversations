@@ -7,6 +7,9 @@ Every document under `docs/` is listed here (a check fails otherwise). Generated
 | If you want to... | Read |
 | --- | --- |
 | install the chat widget, understand domain rules, fix a widget that does not show | [WIDGET.md](WIDGET.md) |
+| put the chat in a mobile app's web view, use the JavaScript bridge, verify signed-in users | [MOBILE-BRIDGE.md](MOBILE-BRIDGE.md), [bridge/](bridge/envelope.schema.json) |
+| build native chat screens with the public API, or plan push notifications | [MOBILE-API.md](MOBILE-API.md), [openapi-public.json](openapi-public.json) |
+| use the iOS or Android wrapper, React Native or Flutter | [MOBILE-SDKS.md](MOBILE-SDKS.md) |
 | use or understand team chat (channels, DMs, threads) | [TEAM-CHAT.md](TEAM-CHAT.md) |
 | connect Twilio and SendGrid, read the SMS/email setup guide | [CHANNELS.md](CHANNELS.md) |
 | deploy it for free (Render, GitHub-connected) | [DEPLOY.md](DEPLOY.md) |
@@ -63,3 +66,8 @@ Every document under `docs/` is listed here (a check fails otherwise). Generated
 | [design/DESIGN.md](design/DESIGN.md) | web design system: tokens, components, shortcuts, responsive rules, and the screenshot set (`design/*.jpg`) |
 | [PROVENANCE.md](PROVENANCE.md) | which legacy UI ideas the web redesign adapted, and what was deliberately not carried over |
 | [adr/README.md](adr/README.md) | architecture decision records |
+| [MOBILE-BRIDGE.md](MOBILE-BRIDGE.md) | the hosted chat at `/chat` for web views and iframes: URL parameters, origin and CSP model, identity verification with snippets, bridge protocol v1 (commands, events, transports), sequence diagrams, conformance page, troubleshooting |
+| [bridge/](bridge/envelope.schema.json) | JSON Schemas of the bridge envelope, commands and events (hand-written, tied to the shipped bridge by contract tests) |
+| [MOBILE-API.md](MOBILE-API.md) | using the public REST and Socket.IO API from a native app: tokens and origin, the flow in curl, TypeScript, Swift and Kotlin, reconnect and background rules, rate limits and error codes, security do and do not, push notification design note |
+| [openapi-public.json](openapi-public.json) | OpenAPI 3.1 of the public visitor API only (generated, staleness checked by `docs:check`) |
+| [MOBILE-SDKS.md](MOBILE-SDKS.md) | the iOS package, Android library, React Native and Flutter guides, and exactly what was built, tested or only scaffolded |

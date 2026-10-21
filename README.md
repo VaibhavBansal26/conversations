@@ -70,6 +70,10 @@ Everything is environment driven and validated at boot (`server/src/config.ts`);
 
 Wiring real providers: point Twilio's inbound and status webhooks at `PUBLIC_URL/webhooks/twilio/sms` and `/webhooks/twilio/status`; point SendGrid inbound parse at `PUBLIC_URL/webhooks/sendgrid/inbound?secret=<WEBHOOK_SHARED_SECRET>` and the event webhook at `/webhooks/sendgrid/events`. Register your numbers, verified senders and inbound addresses in *Settings*.
 
+## Mobile apps
+
+The same chat runs in a native app's web view: switch **Hosted chat** on for a token (*Settings -> Chat widget -> Install*) and open `https://YOUR-APP/chat?token=cvt_...`. A documented, versioned JavaScript bridge reports unread counts, messages and links and accepts `identify`, `setLanguage`, `setTheme`, `reset` and more; users signed in to your app are recognised without a code through a server-signed identity hash. Guides: [docs/MOBILE-BRIDGE.md](docs/MOBILE-BRIDGE.md) (page, parameters, origin and identity model, bridge protocol), [docs/MOBILE-API.md](docs/MOBILE-API.md) (the public REST and Socket.IO API for fully native screens, push design note), [docs/MOBILE-SDKS.md](docs/MOBILE-SDKS.md) (iOS Swift package, Android library, React Native and Flutter guides, with what is built and what is only scaffolded).
+
 ## Embedding the widget
 
 ```html
@@ -85,6 +89,7 @@ server/    Hono + Socket.IO API, SQLite/PostgreSQL, Redis, jobs, rate limiter, A
 web/       React agent app (inbox, settings, analytics, operator console), Tailwind v4 design system, Web Worker helpers   (docs/design/DESIGN.md)
 e2e/       Playwright browser tests and the screenshot set for docs/design   (docs/TESTING.md)
 edge/      optional Cloudflare Worker (widget cache, edge secret)
+sdks/      native wrappers for the hosted chat: ios (Swift package), android (Kotlin library), react-native and flutter guides (not part of the Docker build)
 loadtest/  multi-process socket/REST load harness, fault injection, dataset loader
 deploy/    nginx, HAProxy, Kubernetes (kustomize, KEDA)    docker-compose.yml
 docs/      ARCHITECTURE, SCALING, PERFORMANCE, RATE-LIMITING, RUNBOOK, CLOUDFLARE, ADRs, ...
