@@ -68,6 +68,10 @@ Settings > Visitor details decides which of name, email, phone and custom fields
 
 When the workspace switches browser calls on, the widget loads the call module (`/chat/assets/calls.js`) and shows "Request a voice call" and "Request a video call" above the message box. A call from the team opens the panel if it is closed and shows an incoming-call screen (Accept, Decline); during a call there are mute, camera, screen sharing, devices and end controls. The page that embeds the widget must be on HTTPS and, if it frames the hosted chat, allow `microphone; camera` ([CALLS.md](CALLS.md)).
 
+**Calls with the AI assistant.** When the workspace switches them on, "Talk to our AI assistant (voice)" (and the avatar video call) appear too. They need a browser with speech recognition (Chrome, Edge or Safari; not Firefox) and microphone permission; otherwise the widget says so and opens the same assistant in the text chat. The call screen shows captions, mute, push-to-talk, a type-instead box, "Talk to a person" and the AI label; talking over the assistant interrupts it; silence ends the call. Nothing is recorded; the visitor's camera is never sent. **Call links**: a card with a Join button (a voice or video call with the team or the AI) opens the call page in a new tab, with no login.
+
+**Agent pictures**: the agent's portrait (or the default face) shows in the header, next to its messages and on the call screen, always with the AI label.
+
 ### Office hours and away behaviour
 
 With office hours enabled, a visitor message outside the hours gets the away message once per cooldown, followed by "We'll be back ..." when the next opening is known. The conversation is still created and answered later. The config response carries `office_open` and `agents_available`.

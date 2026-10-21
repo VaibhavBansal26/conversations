@@ -91,7 +91,11 @@ Autonomy: **suggest only** writes nothing to the visitor and leaves the team a p
 
 ### Tools (a closed list)
 
-`search_kb` (the agent's own retrieval, up to two calls per turn), `set_department`, `resolve_ticket`, `handoff_to_human`, and the registered-later `collect_contact_info`, `schedule_callback`, `offer_call`. The model names a tool, the server validates the arguments with zod, checks the agent's allowed actions and departments, runs it scoped to the workspace, writes an `ai_agent.tool` audit entry and shows the team a line in the conversation ("Aria (AI agent): set the department to Billing"; visitors never see these lines). There is no plugin and no free-form HTTP tool in v1; a new tool is a case in `agents/tools.ts` with its schema and its permission.
+`search_kb` (the agent's own retrieval, up to two calls per turn), `set_department`, `resolve_ticket`, `handoff_to_human`, and the registered-later `collect_contact_info`, `schedule_callback`, `offer_call` (now with a choice of a call with the team or with the AI) and `share_call_link` (a join link, see [CALLS.md](CALLS.md)). The model names a tool, the server validates the arguments with zod, checks the agent's allowed actions and departments, runs it scoped to the workspace, writes an `ai_agent.tool` audit entry and shows the team a line in the conversation ("Aria (AI agent): set the department to Billing"; visitors never see these lines). There is no plugin and no free-form HTTP tool in v1; a new tool is a case in `agents/tools.ts` with its schema and its permission.
+
+### Calls, portraits and presets
+
+With the allowed action `ai_call` (and `calls.ai` on in Settings > Calls) a visitor can speak with the same agent: the browser recognises and speaks, the server sees text and answers through this same pipeline; an optional realtime engine and the animated face are described in [CALLS.md](CALLS.md) (decision records [0033](adr/0033-ai-calls-browser-speech.md), [0034](adr/0034-agent-portraits-and-the-talking-face.md), [0035](adr/0035-optional-realtime-voice-engine.md)). `offer_call` and `share_call_link` are the other call-related actions. An agent can have a picture (Settings > AI agents: upload with crop and alt text; use only pictures you have the right to use), and "New agent" offers **Start from a preset**: Aria and vb (persona, greeting, disclosure, bundled owner-supplied portraits). The AI label stays visible on every picture.
 
 ### Visitor controls and disclosure
 

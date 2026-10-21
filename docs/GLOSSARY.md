@@ -52,5 +52,10 @@ Domain terms as used in this repository, and how they map to the legacy ("Suppor
 | **Turn** | one decision of an AI agent on one visitor message (answered, suggested, asked for details, declined, handed over, resolved), recorded for review | (none) |
 | **Rules agent** | the offline, deterministic answerer used when no model is configured, the model fails or the AI budget is used up | heuristic provider |
 | **Call** | a voice or video call between a team member and a visitor, in the browser (WebRTC) or on the phone; it has a state (ringing, connecting, active, declined, missed, ended, failed) and leaves a card in the thread ([CALLS.md](CALLS.md)) | (none) |
+| **AI call** | a voice or video call between a visitor and an AI agent (`kind` `ai_voice` or `ai_video`): speech runs in the visitor's browser (or the optional realtime engine), the "video" is an animated face, nothing is recorded ([CALLS.md](CALLS.md)) | (none) |
+| **Call link** | an unguessable, expiring, single-use address that lets one person join one call from a web page without logging in ([ADR 0037](adr/0037-call-links.md)) | (none) |
+| **Teammate call** | a voice or video call between the two members of a direct message in team chat | (none) |
+| **Face** | the animated avatar of an AI call: a photo with a level-driven glow (never lip-synced) or a drawn face; always with the AI label | (none) |
+| **Preset** | a ready-made AI agent (Aria, vb) with persona, greeting, disclosure and a bundled portrait | (none) |
 | **TURN relay** | a server that forwards call media when two browsers cannot reach each other directly; credentials are issued per call | (none) |
 | **Call consent** | the visitor's recorded agreement, on the callback form, to be called on one specific number; without it (or after the number changes) no phone call is placed | (none) |
