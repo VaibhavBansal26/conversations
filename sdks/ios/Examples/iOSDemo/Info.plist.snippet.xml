@@ -1,0 +1,8 @@
+<!-- Add to your app's Info.plist. Without these the camera and photo library choices in the chat's attach button crash or do nothing. -->
+<key>NSCameraUsageDescription</key>
+<string>Take a photo to send to support.</string>
+<key>NSPhotoLibraryUsageDescription</key>
+<string>Choose a photo to send to support.</string>
+<!-- Only for a local http:// server during development (never in a release build): -->
+<key>NSAppTransportSecurity</key>
+<dict><key>NSAllowsLocalNetworking</key><true/></dict>

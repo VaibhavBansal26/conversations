@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- INTERNET is needed to load the chat. CAMERA is NOT requested by the library: add it in your app only if you want the "take a photo" choice. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <application>
+        <!-- camera captures are written here and handed to the web view; the files are in the cache directory and are deleted after upload -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.conversations.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/conversations_file_paths" />
+        </provider>
+    </application>
+</manifest>
