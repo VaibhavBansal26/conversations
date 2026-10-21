@@ -45,6 +45,7 @@ Every event is acknowledged: `{ok: true, ...}` or `{ok: false, error: {code, mes
 | `aicall:tool` | visitor | visitor session | 2 | `call_id*`, `name*`, `arguments` |
 | `aicall:transcript` | visitor | visitor session | 1 | `call_id*`, `role*`, `text*`, `item_id*`, `greeting`, `via` |
 | `aicall:fallback` | visitor | visitor session | 2 | `call_id*`, `reason` |
+| `aicall:avatar` | visitor | visitor session | 1 | `call_id*`, `op*`, `data` |
 | `call:accept` | visitor | visitor session | 2 | `call_id*` |
 | `call:decline` | visitor | visitor session | 2 | `call_id*` |
 | `call:end` | team, visitor | `calls:make` | 2 | `call_id*` |

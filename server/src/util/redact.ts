@@ -7,7 +7,8 @@ const PATTERNS: RegExp[] = [
   /\bSK[0-9a-f]{32}\b/gi, // Twilio API key SIDs
   /\b[0-9a-f]{32}\b/gi, // Twilio auth tokens and API secrets are 32 hex characters
   /Bearer\s+[A-Za-z0-9._~+/=-]{12,}/g,
-  /Basic\s+[A-Za-z0-9+/=]{12,}/g,
+  /Basic\s+[A-Za-z0-9+/=:_-]{12,}/g,
+  /\b[A-Za-z0-9+/=_-]{12,}:[A-Za-z0-9_-]{12,}\b/g, // user:password API keys (D-ID)
 ];
 
 export function redactSecrets(text: string): string {

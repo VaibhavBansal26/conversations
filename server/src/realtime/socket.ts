@@ -8,9 +8,9 @@ import { AppError, unauthorized } from "../errors.js";
 import { fallbackToBrowser, recordRealtimeTranscript, runRealtimeTool } from "../calls/realtimeCall.js";
 import { declineGroupCall, groupSocketGone, inviteGroupCall, joinGroupCall, leaveGroupCall, relayGroupSignal, resumeGroupCall, setGroupMedia, setGroupShare, startGroupCall } from "../calls/groupCall.js";
 import { acceptTeamCall, declineTeamCall, endTeamCall, inviteTeamCall, relayTeamSignal, reportTeamConnected, reportTeamFailed, resumeTeamCall, teamCallDto, teamSocketGone } from "../calls/teamCall.js";
-import { aiSay, endAiCall, handoffAiCall, startAiCall } from "../calls/aiCall.js";
+import { aiSay, avatarSignalForVisitor, endAiCall, handoffAiCall, startAiCall } from "../calls/aiCall.js";
 import { acceptCall, declineCall, endCall, inviteCall, relaySignal, reportConnected, reportFailed, requestCall, resumeCall, socketGone } from "../calls/service.js";
-import { GroupCallInviteBody, GroupCallMediaBody, GroupCallShareBody, GroupCallStartBody, GroupSignalBody, TeamCallInviteBody, AiCallFallbackBody, AiCallToolBody, AiCallTranscriptBody, AiCallEndBody, AiCallSayBody, AiCallStartBody, CallFailedBody, CallIdBody, CallInviteBody, CallRequestBody, CallSignalBody, AssignBody, OtpVerify, ReadBody, RoomCreate, RoomPatch, SendMessageBody, TeamSocketReaction, TeamSocketRead, TeamSocketSend, TeamSocketTyping, TypingBody, id } from "../schemas.js";
+import { AiCallAvatarBody, GroupCallInviteBody, GroupCallMediaBody, GroupCallShareBody, GroupCallStartBody, GroupSignalBody, TeamCallInviteBody, AiCallFallbackBody, AiCallToolBody, AiCallTranscriptBody, AiCallEndBody, AiCallSayBody, AiCallStartBody, CallFailedBody, CallIdBody, CallInviteBody, CallRequestBody, CallSignalBody, AssignBody, OtpVerify, ReadBody, RoomCreate, RoomPatch, SendMessageBody, TeamSocketReaction, TeamSocketRead, TeamSocketSend, TeamSocketTyping, TypingBody, id } from "../schemas.js";
 import { accessChannel, markTeamRead, sendTeamMessage, toggleReaction } from "../services/teamChat.js";
 import { actorFromToken } from "../services/auth.js";
 import { audienceChannels } from "../services/audience.js";
@@ -312,7 +312,7 @@ async function joinTeamRooms(ctx: AppContext, s: Socket, a: Actor) {
 }
 
 /** what a call-link session may emit */
-const LINK_SESSION_EVENTS = new Set(["call:accept", "call:decline", "call:end", "call:connected", "call:failed", "call:resume", "call:offer", "call:answer", "call:ice", "aicall:start", "aicall:say", "aicall:end", "aicall:handoff", "aicall:tool", "aicall:transcript", "aicall:fallback"]);
+const LINK_SESSION_EVENTS = new Set(["call:accept", "call:decline", "call:end", "call:connected", "call:failed", "call:resume", "call:offer", "call:answer", "call:ice", "aicall:start", "aicall:say", "aicall:end", "aicall:handoff", "aicall:tool", "aicall:transcript", "aicall:fallback", "aicall:avatar"]);
 
 const callPublic = (c: { id: string; state: string; kind: string }) => ({ id: c.id, state: c.state, kind: c.kind });
 
@@ -785,6 +785,7 @@ function registerHandlers(ctx: AppContext, socket: Socket, ready: Promise<void>)
   on("aicall:tool", AiCallToolBody, "visitor", async (p, { session }) => await runRealtimeTool(ctx, session!, p));
   on("aicall:transcript", AiCallTranscriptBody, "visitor", async (p, { session }) => await recordRealtimeTranscript(ctx, session!, p));
   on("aicall:fallback", AiCallFallbackBody, "visitor", async (p, { session }) => await fallbackToBrowser(ctx, session!, p.call_id, p.reason));
+  on("aicall:avatar", AiCallAvatarBody, "visitor", async (p, { session }) => await avatarSignalForVisitor(ctx, session!, p.call_id, p.op, p.data));
   on("aicall:handoff", CallIdBody, "visitor", async (p, { session }) => await handoffAiCall(ctx, session!, p.call_id));
   on("call:accept", CallIdBody, "visitor", async (p, { session }) => await acceptCall(ctx, session!, socket.id, p.call_id));
   on("call:decline", CallIdBody, "visitor", async (p, { session }) => ({ call: callPublic(await declineCall(ctx, session!, p.call_id)) }));

@@ -148,6 +148,16 @@ export const CallSettingsSchema = z.object({
       allow_team: z.boolean().default(true),
     })
     .default(() => ({ enabled: false, ttl_minutes: 30, allow_ai: true, allow_team: true })),
+  /** the photoreal avatar of AI video calls (ADR 0039): off until a key is connected AND this is on; the built-in face is used otherwise and on any failure */
+  avatar: z
+    .object({
+      enabled: z.boolean().default(false),
+      /** minutes of photoreal video per workspace per UTC day (spend guard) */
+      minutes_daily: z.number().int().min(1).max(600).default(10),
+      /** photoreal sessions at the same time */
+      max_concurrent: z.number().int().min(1).max(5).default(1),
+    })
+    .default(() => ({ enabled: false, minutes_daily: 10, max_concurrent: 1 })),
   /** how long a call rings before it counts as missed */
   ring_seconds: z.number().int().min(15).max(120).default(45),
   /** where relay (TURN) credentials come from: none = STUN only (calls fail behind strict NATs), static = the server's TURN_URLS and TURN_SECRET, twilio = the workspace's own Twilio account */
@@ -161,6 +171,7 @@ export const CallsPatchSchema = z.object({
   turn_provider: z.enum(["none", "static", "twilio"]).optional(),
   internal: z.object({ enabled: z.boolean(), voice: z.boolean(), video: z.boolean(), screen_share: z.boolean(), ring_seconds: z.number().int().min(10).max(90), group: z.boolean(), group_max: z.number().int().min(2).max(4) }).partial().optional(),
   links: z.object({ enabled: z.boolean(), ttl_minutes: z.number().int().min(5).max(1440), allow_ai: z.boolean(), allow_team: z.boolean() }).partial().optional(),
+  avatar: z.object({ enabled: z.boolean(), minutes_daily: z.number().int().min(1).max(600), max_concurrent: z.number().int().min(1).max(5) }).partial().optional(),
   ai: z
     .object({
       enabled: z.boolean(),
@@ -292,7 +303,7 @@ export function mergeSettings(cur: WorkspaceSettings, patch: z.infer<typeof Work
     ...rest,
     tickets: { ...cur.tickets, ...(tickets ?? {}) },
     routing: { ...cur.routing, ...(routing ?? {}) },
-    calls: { ...cur.calls, ...(calls ?? {}), browser: { ...cur.calls.browser, ...(calls?.browser ?? {}) }, ai: { ...cur.calls.ai, ...(calls?.ai ?? {}) }, internal: { ...cur.calls.internal, ...(calls?.internal ?? {}) }, links: { ...cur.calls.links, ...(calls?.links ?? {}) }, phone: { ...cur.calls.phone, ...(calls?.phone ?? {}), quiet_hours: { ...cur.calls.phone.quiet_hours, ...(calls?.phone?.quiet_hours ?? {}) } } },
+    calls: { ...cur.calls, ...(calls ?? {}), browser: { ...cur.calls.browser, ...(calls?.browser ?? {}) }, ai: { ...cur.calls.ai, ...(calls?.ai ?? {}) }, internal: { ...cur.calls.internal, ...(calls?.internal ?? {}) }, links: { ...cur.calls.links, ...(calls?.links ?? {}) }, avatar: { ...cur.calls.avatar, ...(calls?.avatar ?? {}) }, phone: { ...cur.calls.phone, ...(calls?.phone ?? {}), quiet_hours: { ...cur.calls.phone.quiet_hours, ...(calls?.phone?.quiet_hours ?? {}) } } },
     widget: { ...cur.widget, ...(widget ?? {}) },
   });
 }

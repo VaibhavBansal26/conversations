@@ -61,6 +61,8 @@ export interface SupportOverview {
     by_handoff_reason: { reason: string; count: number }[];
     /** the realtime engine only: minutes used, and an estimate from AI_REALTIME_COST_PER_MINUTE_USD (null when that is not set: no price is assumed) */
     realtime: { calls: number; minutes: number; estimated_cost_usd: number | null };
+    /** the photoreal avatar (ADR 0039): sessions, minutes of video, sessions that fell back to the built-in face, and an estimate from AVATAR_COST_PER_MINUTE_USD */
+    photoreal: { sessions: number; minutes: number; fell_back: number; estimated_cost_usd: number | null };
   };
 }
 
@@ -128,7 +130,7 @@ export async function supportOverview(ctx: AppContext, ws: string, r: RangeQuery
   }
   c.avg_duration_s = answeredWithDuration ? Math.round(c.total_duration_s / answeredWithDuration) : null;
   const aiRows = await db.all<{ engine: string | null; state: string; end_reason: string | null; handoff_reason: string | null; duration_s: number | null }>("SELECT engine, state, end_reason, handoff_reason, duration_s FROM calls WHERE workspace_id = ? AND transport = 'ai' AND created_at >= ? AND created_at < ?", ...op);
-  const ai: SupportOverview["ai_calls"] = { total: aiRows.length, total_duration_s: 0, avg_duration_s: null, handed_to_person: 0, handoff_rate: null, by_engine: { browser: 0, realtime: 0 }, by_end_reason: {}, by_handoff_reason: [], realtime: { calls: 0, minutes: 0, estimated_cost_usd: null } };
+  const ai: SupportOverview["ai_calls"] = { total: aiRows.length, total_duration_s: 0, avg_duration_s: null, handed_to_person: 0, handoff_rate: null, by_engine: { browser: 0, realtime: 0 }, by_end_reason: {}, by_handoff_reason: [], realtime: { calls: 0, minutes: 0, estimated_cost_usd: null }, photoreal: { sessions: 0, minutes: 0, fell_back: 0, estimated_cost_usd: null } };
   const handoffReasons = new Map<string, number>();
   let realtimeSeconds = 0;
   for (const x of aiRows) {
@@ -144,6 +146,12 @@ export async function supportOverview(ctx: AppContext, ws: string, r: RangeQuery
   ai.realtime.minutes = round(realtimeSeconds / 60, 2) ?? 0;
   const perMinute = ctx.config.AI_REALTIME_COST_PER_MINUTE_USD;
   ai.realtime.estimated_cost_usd = perMinute === undefined ? null : round(ai.realtime.minutes * perMinute, 2);
+  const av = await db.all<{ state: string; seconds: number | null }>("SELECT state, seconds FROM avatar_sessions WHERE workspace_id = ? AND started_at >= ? AND started_at < ?", ...op);
+  ai.photoreal.sessions = av.length;
+  ai.photoreal.fell_back = av.filter((x) => x.state === "failed").length;
+  ai.photoreal.minutes = round(av.reduce((s, x) => s + num(x.seconds), 0) / 60, 2) ?? 0;
+  const avPrice = ctx.config.AVATAR_COST_PER_MINUTE_USD;
+  ai.photoreal.estimated_cost_usd = avPrice === undefined ? null : round(ai.photoreal.minutes * avPrice, 2);
   return {
     from,
     to,

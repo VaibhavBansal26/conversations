@@ -72,6 +72,7 @@ export const POLICIES: Policy[] = [
   // ---- phone calls (click-to-call costs money: every limit fails closed) ----
   P({ id: "calls.ai.visitor", description: "Calls with the AI assistant a visitor may start per hour (spend guard; the workspace's daily limit is a setting)", keyBy: "composite", algo: "window", limit: 6, windowSec: 3600, onFail: "closed" }),
   P({ id: "calls.ai.say", description: "Things a visitor says to the AI assistant in a call, per visitor (20 a minute, bursts of 8): each one is a model turn", keyBy: "composite", algo: "gcra", limit: 20, windowSec: 60, burst: 8, onFail: "open" }),
+  P({ id: "avatar.test", description: "Photoreal avatar connection tests per workspace (5 a minute): each is a call to the provider", keyBy: "workspace", algo: "window", limit: 5, windowSec: 60, onFail: "closed" }),
   P({ id: "push.member", description: "Push notifications per team member (30 in 10 minutes): a burst of messages does not become a burst of notifications", keyBy: "composite", algo: "window", limit: 30, windowSec: 600, onFail: "open" }),
   P({ id: "push.test", description: "Test notifications a member may send to their own devices (5 in 10 minutes)", keyBy: "composite", algo: "window", limit: 5, windowSec: 600, onFail: "closed" }),
   P({ id: "calls.internal.member", description: "Calls a team member may place to teammates per hour (stops ring spam)", keyBy: "composite", algo: "window", limit: 20, windowSec: 3600, onFail: "open" }),

@@ -160,6 +160,13 @@ export const configSchema = z.object({
   OPENAI_REALTIME_TRANSCRIBE_MODEL: z.string().optional(),
   OPENAI_CLIENT_SECRET_TTL_SECONDS: z.coerce.number().int().min(10).max(7200).default(60),
   AI_REALTIME_ENABLED: bool.default(true),
+  /** photoreal avatar of AI video calls (ADR 0039): the instance fallback key for D-ID (workspaces connect their own in Settings > Calls), the kill switch and a price for the analytics estimate */
+  DID_API_KEY: z.string().optional(),
+  DID_API_BASE: z.string().url().default("https://api.d-id.com"),
+  DID_AUTH_ENCODE: z.enum(["raw", "base64"]).default("raw"),
+  AVATAR_PHOTOREAL_ENABLED: bool.default(true),
+  AVATAR_COST_PER_MINUTE_USD: z.coerce.number().min(0).max(100).optional(),
+  AVATAR_TEST_PROVIDER: z.enum(["fake"]).optional(),
   /** Web Push for team members (docs/NOTIFICATIONS.md): all three or the feature is off */
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
@@ -212,6 +219,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     if (cfg.NODE_ENV === "production") warn("DATA_ENCRYPTION_KEY not set: the analytics identity pepper (and so every analytics export) is refused until it is configured");
     else warn("DATA_ENCRYPTION_KEY not set: derived a development key from JWT_SECRET (an identity pepper stored now is unreadable if JWT_SECRET changes)");
   }
+  if (cfg.AVATAR_TEST_PROVIDER && cfg.NODE_ENV === "production") throw new Error("AVATAR_TEST_PROVIDER is for tests and demos only and cannot be set in production");
   if (cfg.SMS_PROVIDER === "twilio" && !(cfg.TWILIO_ACCOUNT_SID && cfg.TWILIO_AUTH_TOKEN)) {
     throw new Error("SMS_PROVIDER=twilio requires TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN");
   }

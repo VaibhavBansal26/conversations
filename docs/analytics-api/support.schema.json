@@ -330,7 +330,7 @@
     },
     "ai_calls": {
       "type": "object",
-      "description": "Calls with the AI assistant (they are also counted in `calls`). `realtime.estimated_cost_usd` is minutes times the operator's own AI_REALTIME_COST_PER_MINUTE_USD, null when that is not set: it is an estimate, not billing data.",
+      "description": "Calls with the AI assistant (they are also counted in `calls`). `realtime.estimated_cost_usd` is minutes times the operator's own AI_REALTIME_COST_PER_MINUTE_USD, null when that is not set: it is an estimate, not billing data. `photoreal` counts photoreal avatar sessions (minutes of video, sessions that fell back to the built-in face) with the same kind of estimate from AVATAR_COST_PER_MINUTE_USD.",
       "required": [
         "total",
         "total_duration_s",
@@ -340,7 +340,8 @@
         "by_engine",
         "by_end_reason",
         "by_handoff_reason",
-        "realtime"
+        "realtime",
+        "photoreal"
       ],
       "properties": {
         "total": {
@@ -416,6 +417,32 @@
             },
             "minutes": {
               "type": "number"
+            },
+            "estimated_cost_usd": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          }
+        },
+        "photoreal": {
+          "type": "object",
+          "required": [
+            "sessions",
+            "minutes",
+            "fell_back",
+            "estimated_cost_usd"
+          ],
+          "properties": {
+            "sessions": {
+              "type": "integer"
+            },
+            "minutes": {
+              "type": "number"
+            },
+            "fell_back": {
+              "type": "integer"
             },
             "estimated_cost_usd": {
               "type": [

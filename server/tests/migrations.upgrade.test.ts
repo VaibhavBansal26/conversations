@@ -1600,3 +1600,21 @@ describe("upgrades of the later additive migrations", () => {
   it("042 push subscriptions on SQLite", () => upgradeSqlite(41, "042_push_subscriptions.sql", expectPushMigration));
   it.skipIf(!postgres)("042 push subscriptions on PostgreSQL", () => upgradePostgres(41, "042_push_subscriptions.sql", expectPushMigration));
 });
+
+/** migration 043: photoreal avatars; agents keep working with no avatar chosen */
+async function expectPhotorealMigration(db: Db) {
+  const ws = (await db.get<{ id: string }>("SELECT id FROM workspaces LIMIT 1"))!.id;
+  await db.run("INSERT INTO avatar_connections(workspace_id, provider, credentials_enc, key_hint, status, created_at, updated_at) VALUES (?, 'did', 'enc2.x.y', '1234', 'pending', ?, ?)", ws, T(1), T(1));
+  await expect(db.run("INSERT INTO avatar_connections(workspace_id, provider, credentials_enc, key_hint, status, created_at, updated_at) VALUES (?, 'heygen', 'e', '1', 'pending', ?, ?)", ws, T(1), T(1))).rejects.toThrow();
+  await db.run("INSERT INTO photoreal_avatars(id, workspace_id, name, provider, source, presenter_id, created_at, updated_at) VALUES ('pa1', ?, 'Amy', 'did', 'presenter', 'p1', ?, ?)", ws, T(1), T(1));
+  const sess = (id: string, state: string) => db.run("INSERT INTO avatar_sessions(id, workspace_id, call_id, avatar_id, provider, state, started_at) VALUES (?, ?, 'c1', 'pa1', 'did', ?, ?)", id, ws, state, T(1));
+  await sess("s1", "live");
+  await expect(sess("s2", "starting")).rejects.toThrow(/unique|UNIQUE/i);
+  await sess("s3", "ended");
+  const agents = await db.all<{ photoreal_avatar_id: string | null }>("SELECT photoreal_avatar_id FROM ai_agents");
+  for (const a of agents) expect(a.photoreal_avatar_id).toBeNull();
+}
+describe("upgrade: photoreal avatars", () => {
+  it("043 on SQLite", () => upgradeSqlite(42, "043_photoreal_avatar.sql", expectPhotorealMigration));
+  it.skipIf(!postgres)("043 on PostgreSQL", () => upgradePostgres(42, "043_photoreal_avatar.sql", expectPhotorealMigration));
+});

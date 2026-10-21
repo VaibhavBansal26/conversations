@@ -145,8 +145,8 @@ export const SCHEMAS: Record<string, object> = {
       },
       ai_calls: {
         type: "object",
-        description: "Calls with the AI assistant (they are also counted in `calls`). `realtime.estimated_cost_usd` is minutes times the operator's own AI_REALTIME_COST_PER_MINUTE_USD, null when that is not set: it is an estimate, not billing data.",
-        required: ["total", "total_duration_s", "avg_duration_s", "handed_to_person", "handoff_rate", "by_engine", "by_end_reason", "by_handoff_reason", "realtime"],
+        description: "Calls with the AI assistant (they are also counted in `calls`). `realtime.estimated_cost_usd` is minutes times the operator's own AI_REALTIME_COST_PER_MINUTE_USD, null when that is not set: it is an estimate, not billing data. `photoreal` counts photoreal avatar sessions (minutes of video, sessions that fell back to the built-in face) with the same kind of estimate from AVATAR_COST_PER_MINUTE_USD.",
+        required: ["total", "total_duration_s", "avg_duration_s", "handed_to_person", "handoff_rate", "by_engine", "by_end_reason", "by_handoff_reason", "realtime", "photoreal"],
         properties: {
           total: { type: "integer" },
           total_duration_s: { type: "integer" },
@@ -157,6 +157,7 @@ export const SCHEMAS: Record<string, object> = {
           by_end_reason: { type: "object", additionalProperties: { type: "integer" } },
           by_handoff_reason: { type: "array", items: { type: "object", required: ["reason", "count"], properties: { reason: { type: "string" }, count: { type: "integer" } } } },
           realtime: { type: "object", required: ["calls", "minutes", "estimated_cost_usd"], properties: { calls: { type: "integer" }, minutes: { type: "number" }, estimated_cost_usd: nullable("number") } },
+          photoreal: { type: "object", required: ["sessions", "minutes", "fell_back", "estimated_cost_usd"], properties: { sessions: { type: "integer" }, minutes: { type: "number" }, fell_back: { type: "integer" }, estimated_cost_usd: nullable("number") } },
         },
       },
     },

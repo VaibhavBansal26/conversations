@@ -19,6 +19,7 @@ import { negotiateRealtime, sweepRealtime, type FallbackReason, type RealtimeAck
 import { browserSpeech, speakable, speechLanguage } from "./speech.js";
 import { callDto, callSettings, postCardFor, publish, requestCall, stepCall, visitorCallDto, RECONNECT_GRACE_S, type CallRow } from "./service.js";
 import { getSettings } from "../services/workspaces.js";
+import { avatarSignal, avatarSpeak, endAvatarFor, negotiateAvatar, sweepAvatar, type AvatarAck } from "../avatar/service.js";
 
 /**
  * Calls with the AI agent (docs/CALLS.md, ADR 0033). The visitor's browser listens and speaks; this service receives TEXT. Each thing the visitor says is
@@ -98,6 +99,7 @@ const isStateConflict = (e: unknown) => e instanceof IllegalTransition || (e ins
 /** End a live AI call; a call somebody else already ended is not an error (the visitor tapping end while the sweep ends it). */
 export async function finishAi(ctx: AppContext, c: CallRow, o: { by: "visitor" | "system"; reason: AiEndReason; handoff?: string }): Promise<CallRow> {
   const fresh = (await ctx.db.get<CallRow>("SELECT * FROM calls WHERE id = ?", c.id)) ?? c;
+  await endAvatarFor(ctx, c.id, o.reason).catch((e) => ctx.log.warn("photoreal close failed", { error: e instanceof Error ? e.name : "error" }));
   try {
     return await stepCall(ctx, fresh, "end", { ended_by: o.by, end_reason: o.reason, handoff_reason: o.handoff });
   } catch (e) {
@@ -195,6 +197,8 @@ export async function startAiCall(ctx: AppContext, session: SessionRow, socketId
   await publish(ctx, row);
   const realtime: RealtimeAck | null = neg.engine === "realtime" ? neg.realtime : null;
   const fallback: FallbackReason | null = neg.engine === "browser" ? neg.fallback : null;
+  // the photoreal avatar, when everything allows it; the built-in face otherwise. The AI label and the disclosure are the same either way.
+  const avatar: AvatarAck = await negotiateAvatar(ctx, { callId, workspaceId: ws, agentId: agent.id, kind: input.kind, engine: neg.engine, webrtc: !!input.speech?.webrtc });
   return {
     call: visitorCallDto(row, agent.name),
     ai: {
@@ -208,6 +212,7 @@ export async function startAiCall(ctx: AppContext, session: SessionRow, socketId
       max_duration_s: s.max_duration_s,
       idle_timeout_s: s.idle_timeout_s,
       max_utterance_chars: MAX_UTTERANCE_CHARS,
+      avatar,
     },
   };
 }
@@ -283,6 +288,7 @@ export async function aiSay(ctx: AppContext, session: SessionRow, input: AiSayIn
     const t = m?.content_text ?? "";
     // tag the stored answer with the call so the transcript can be read as a call
     if (capture.messageId) await tagMessage(ctx, room.id, capture.messageId, c.id);
+    await avatarSpeak(ctx, c, speakable(t));
     return out({ kind: capture.decision?.kind ?? "answer", text: t, speech: speakable(t), message_id: capture.messageId ?? null, ended: null });
   }
   if (outcome === "resolved") {
@@ -355,10 +361,18 @@ export async function sweepAi(ctx: AppContext, c: CallRow): Promise<boolean> {
   }
   if (!reason) {
     await ctx.ratelimit.renew("ai.concurrency", c.workspace_id, [c.id]);
+    await sweepAvatar(ctx, c);
     return false;
   }
   await finishAi(ctx, c, { by: "system", reason });
   return true;
+}
+
+/** The visitor's half of the photoreal stream (answer, candidates, connected, failed), for their own live AI call only. */
+export async function avatarSignalForVisitor(ctx: AppContext, session: SessionRow, callId: string, op: "answer" | "ice" | "connected" | "failed", data: unknown) {
+  const c = await visitorOwnedAiCall(ctx, session, callId);
+  if (c.state !== "active") throw new AppError(409, "CALL_STATE", `The call is ${c.state}`, { state: c.state });
+  return avatarSignal(ctx, c, op, data);
 }
 
 export { callDto };

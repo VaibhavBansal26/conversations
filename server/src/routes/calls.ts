@@ -5,6 +5,8 @@ import { callSettings, listRoomCalls } from "../calls/service.js";
 import { iceConfig } from "../calls/turn.js";
 import { liveTeamCallOf, teamCallSettings } from "../calls/teamCall.js";
 import { groupCallOfChannel, liveGroupCallsOf } from "../calls/groupCall.js";
+import { avatarStatus, connectAvatar, createAvatar, deleteAvatar, disconnectAvatar, setAgentAvatar, testAvatarConnection } from "../avatar/service.js";
+import { AgentAvatarBody, AvatarConnectBody, AvatarCreateBody } from "../schemas.js";
 import { createCallLink, linkDto, listCallLinks, revokeCallLink, sendCallLink } from "../calls/links.js";
 import { getVisibleRoom } from "../services/roomStore.js";
 import { CallLinkCreateBody } from "../schemas.js";
@@ -39,6 +41,14 @@ export function callRoutes(ctx: AppContext) {
     await assertCallerId(ctx, ws, body.phone?.caller_id);
     return c.json(await updateWorkspace(ctx, ws, { settings: { calls: body } }));
   });
+  // the photoreal avatar (ADR 0039): the key goes in and never comes out
+  r.get("/calls/avatar", async (c) => c.json(await avatarStatus(ctx, c.get("actor"))));
+  r.put("/calls/avatar/connection", async (c) => c.json(await connectAvatar(ctx, c.get("actor"), await parseBody(c, AvatarConnectBody))));
+  r.post("/calls/avatar/connection/test", async (c) => c.json(await testAvatarConnection(ctx, c.get("actor"))));
+  r.delete("/calls/avatar/connection", async (c) => c.json(await disconnectAvatar(ctx, c.get("actor"))));
+  r.post("/calls/avatar/avatars", async (c) => c.json(await createAvatar(ctx, c.get("actor"), await parseBody(c, AvatarCreateBody)), 201));
+  r.delete("/calls/avatar/avatars/:id", async (c) => c.json(await deleteAvatar(ctx, c.get("actor"), c.req.param("id"))));
+  r.put("/agents/:id/photoreal-avatar", async (c) => c.json(await setAgentAvatar(ctx, c.get("actor"), c.req.param("id"), (await parseBody(c, AgentAvatarBody)).avatar_id)));
   r.post("/rooms/:id/phone-call", async (c) => c.json(await placePhoneCall(ctx, c.get("actor"), c.req.param("id"), await parseBody(c, PhoneCallBody))));
   r.post("/rooms/:id/phone-call/consent", async (c) => c.json(await requestCallConsent(ctx, c.get("actor"), c.req.param("id"))));
   r.post("/calls/:id/hangup", async (c) => c.json(await hangupPhoneCall(ctx, c.get("actor"), c.req.param("id"))));

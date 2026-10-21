@@ -115,9 +115,9 @@ Generated from `policies.ts` and `routePolicies.ts` (`npm run docs:ratelimit`; `
 | `team.workspace` | workspace | window | 20000 per 1 h | free 20000, pro 200000, business 2000000 | fail-open | Team chat messages per workspace per hour, by plan (POST /api/team/channels/:id/messages, socket team:message:send) |
 | `team.search` | user | gcra | 20 per 1 min, burst 10 | - | fail-open | Team chat searches, per member (20 per minute) (GET /api/team/search) |
 | `team.create` | workspace | window | 100 per 1 h | - | fail-open | Channel and group message creation per workspace per hour (POST /api/team/channels, POST /api/team/dms) |
-| `api.read` | user | gcra | 20 per 1 s, burst 100 | - | fail-open + lease | Authenticated reads, per user (71 entry points) |
-| `api.write` | user | gcra | 10 per 1 s, burst 50 | - | fail-open + lease | Authenticated writes, per user (128 entry points) |
-| `api.workspace` | workspace | window | 1200 per 1 min | free 1200, pro 6000, business 30000 | fail-open | All API calls per workspace per minute, by plan (213 entry points) |
+| `api.read` | user | gcra | 20 per 1 s, burst 100 | - | fail-open + lease | Authenticated reads, per user (72 entry points) |
+| `api.write` | user | gcra | 10 per 1 s, burst 50 | - | fail-open + lease | Authenticated writes, per user (134 entry points) |
+| `api.workspace` | workspace | window | 1200 per 1 min | free 1200, pro 6000, business 30000 | fail-open | All API calls per workspace per minute, by plan (220 entry points) |
 | `api.send` | user | gcra | 120 per 1 min, burst 60 | - | fail-open | Agent message sends, per user (POST /api/rooms/:id/messages) |
 | `api.upload` | user | gcra | 30 per 1 min, burst 30 | - | fail-open | Uploads, per user (POST /api/attachments, POST /api/team/attachments, POST /api/agents/:id/avatar) |
 | `api.import` | workspace | gcra | 10 per 10 min, burst 10 | - | fail-open | CSV imports (cost 5 of a small bucket), per workspace (POST /api/contacts/import) |
@@ -127,6 +127,7 @@ Generated from `policies.ts` and `routePolicies.ts` (`npm run docs:ratelimit`; `
 | `ai.concurrency` | workspace | concurrency | 4 concurrent | - | fail-open | Concurrent AI calls per workspace (5 entry points) |
 | `calls.ai.visitor` | composite | window | 6 per 1 h | - | fail-closed | Calls with the AI assistant a visitor may start per hour (spend guard; the workspace's daily limit is a setting) (socket aicall:start) |
 | `calls.ai.say` | composite | gcra | 20 per 1 min, burst 8 | - | fail-open | Things a visitor says to the AI assistant in a call, per visitor (20 a minute, bursts of 8): each one is a model turn (socket aicall:say, socket aicall:tool) |
+| `avatar.test` | workspace | window | 5 per 1 min | - | fail-closed | Photoreal avatar connection tests per workspace (5 a minute): each is a call to the provider (POST /api/calls/avatar/connection/test) |
 | `push.member` | composite | window | 30 per 10 min | - | fail-open | Push notifications per team member (30 in 10 minutes): a burst of messages does not become a burst of notifications (socket server / delivery) |
 | `push.test` | composite | window | 5 per 10 min | - | fail-closed | Test notifications a member may send to their own devices (5 in 10 minutes) (POST /api/push/subscriptions/:id/test) |
 | `calls.internal.member` | composite | window | 20 per 1 h | - | fail-open | Calls a team member may place to teammates per hour (stops ring spam) (socket tcall:invite, socket gcall:start) |
@@ -181,6 +182,7 @@ Socket event costs (per-socket bucket, `ws.event`):
 | `aicall:tool` | 2 |
 | `aicall:transcript` | 1 |
 | `aicall:fallback` | 2 |
+| `aicall:avatar` | 1 |
 | `call:accept` | 2 |
 | `call:decline` | 2 |
 | `call:end` | 2 |

@@ -303,6 +303,19 @@ export const AiCallTranscriptBody = z.object({ call_id: id, role: z.enum(["user"
 export const AiCallFallbackBody = z.object({ call_id: id, reason: z.string().max(40).default("client_failed") });
 export const AiCallEndBody = z.object({ call_id: id, reason: z.enum(["completed", "silence", "unsupported", "error"]).default("completed") });
 export const TeamCallInviteBody = z.object({ channel_id: id, kind: CallKind });
+/* ---- photoreal avatar (ADR 0039) ---- */
+export const AiCallAvatarBody = z.object({ call_id: id, op: z.enum(["answer", "ice", "connected", "failed"]), data: z.unknown().optional() });
+export const AvatarConnectBody = z.object({ provider: z.literal("did"), api_key: z.string().min(8).max(400) });
+export const AvatarCreateBody = z.object({
+  name: z.string().trim().min(1).max(60),
+  source: z.enum(["presenter", "image"]),
+  presenter_id: z.string().trim().max(120).optional(),
+  image_url: z.string().trim().max(1000).optional(),
+  voice_provider: z.enum(["microsoft", "elevenlabs", "azure-openai", "cartesia"]).optional(),
+  voice_id: z.string().trim().max(120).optional(),
+  consent: z.boolean().optional(),
+});
+export const AgentAvatarBody = z.object({ avatar_id: id.nullable() });
 /* ---- group calls (ADR 0038) ---- */
 export const GroupCallStartBody = z.object({ channel_id: id, kind: CallKind, invite_ids: z.array(id).max(3).optional() });
 export const GroupCallInviteBody = z.object({ call_id: id, member_ids: z.array(id).min(1).max(3) });

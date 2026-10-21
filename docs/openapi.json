@@ -1197,6 +1197,24 @@
                               }
                             }
                           },
+                          "avatar": {
+                            "type": "object",
+                            "properties": {
+                              "enabled": {
+                                "type": "boolean"
+                              },
+                              "minutes_daily": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 600
+                              },
+                              "max_concurrent": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 5
+                              }
+                            }
+                          },
                           "ai": {
                             "type": "object",
                             "properties": {
@@ -6260,6 +6278,24 @@
                       }
                     }
                   },
+                  "avatar": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean"
+                      },
+                      "minutes_daily": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 600
+                      },
+                      "max_concurrent": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 5
+                      }
+                    }
+                  },
                   "ai": {
                     "type": "object",
                     "properties": {
@@ -6518,6 +6554,334 @@
           }
         ],
         "x-access": "calls:make",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/calls/avatar": {
+      "get": {
+        "tags": [
+          "Calls"
+        ],
+        "summary": "The photoreal avatar: provider, connection status (`key_hint` only, never the key), what a call would show now (`state`), settings, today's minutes and cost estimate, avatars and which AI agent uses which",
+        "operationId": "get_api_calls_avatar",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "calls:settings",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.read",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/calls/avatar/connection": {
+      "put": {
+        "tags": [
+          "Calls"
+        ],
+        "summary": "Store the workspace's D-ID API key (`{provider: \"did\", api_key}`), encrypted; status `pending` until tested. Write-only",
+        "operationId": "put_api_calls_avatar_connection",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "calls:settings",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Calls"
+        ],
+        "summary": "Disconnect: deletes the key; calls use the built-in face",
+        "operationId": "delete_api_calls_avatar_connection",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "calls:settings",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/calls/avatar/connection/test": {
+      "post": {
+        "tags": [
+          "Calls"
+        ],
+        "summary": "Test the key with the provider's cheapest authenticated read (D-ID: credits); answers `{ok, credits_remaining?, error?}`. 5 a minute",
+        "operationId": "post_api_calls_avatar_connection_test",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "calls:settings",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": [
+            "avatar.test"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/calls/avatar/avatars": {
+      "post": {
+        "tags": [
+          "Calls"
+        ],
+        "summary": "Add a photoreal avatar: a D-ID presenter id, or an https photo with `consent: true`; optional voice",
+        "operationId": "post_api_calls_avatar_avatars",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "calls:settings",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/calls/avatar/avatars/{id}": {
+      "delete": {
+        "tags": [
+          "Calls"
+        ],
+        "summary": "Remove a photoreal avatar (agents using it go back to the built-in face)",
+        "operationId": "delete_api_calls_avatar_avatars_id",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "calls:settings",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/agents/{id}/photoreal-avatar": {
+      "put": {
+        "tags": [
+          "Calls"
+        ],
+        "summary": "Which photoreal avatar an AI agent shows in video calls (`{avatar_id}` or null for the built-in face)",
+        "operationId": "put_api_agents_id_photoreal_avatar",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "calls:settings",
         "x-rate-limit": {
           "pre": [],
           "post": [
