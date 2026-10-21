@@ -140,8 +140,8 @@ describe("GET /api/channels/status", () => {
   });
 });
 
-describe("migration 020 on an existing SQLite database", () => {
-  it("keeps rows and mentions and passes the integrity check", async () => {
+describe("migration 020 result on SQLite (a fresh database; the upgrade of a populated one is in migrations.upgrade.test.ts)", () => {
+  it("widens the delivery CHECK and passes the integrity check", async () => {
     const db = await openDb({ path: ":memory:" });
     if (db.dialect !== "sqlite") return;
     await migrate(db);

@@ -21,6 +21,6 @@ Status: accepted (2026-10-20).
 
 ## Consequences
 
-- The `messages.delivery` CHECK constraint changed on both backends. PostgreSQL: drop and re-add on the partitioned parent. SQLite cannot alter a CHECK, and rebuilding `messages` would cascade-delete `message_mentions`, so migration 020 edits the stored table definition (the `writable_schema` procedure from the SQLite documentation, which is valid because no existing row can violate a looser constraint) and the migration runner bumps `schema_version` afterwards. This is the only place the runner treats a migration specially (`-- @sqlite-bump-schema-version`).
+- The `messages.delivery` CHECK constraint changed on both backends. PostgreSQL: drop and re-add on the partitioned parent. SQLite cannot alter a CHECK, so migration 020 rebuilds `messages` (the documented 12-step procedure) with foreign keys switched off by the runner so `message_mentions` is not cascade-deleted. The first version of this migration edited `sqlite_master` with `writable_schema`; that failed on an existing database on a SQLite build with defensive mode, see [ADR 0023](0023-sqlite-migrations-defensive-mode.md).
 - Consumers of the analytics message export see a new `delivery_status` value (schema updated).
 - `FakeSmsProvider`/`FakeEmailProvider` default to *not* simulated so the existing suite keeps exercising the live path.

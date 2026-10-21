@@ -73,7 +73,9 @@ class SqliteDb implements Db {
 
   constructor(path: string) {
     if (path !== ":memory:") mkdirSync(dirname(resolve(path)), { recursive: true });
-    this.raw = new DatabaseSync(path);
+    // Defensive mode (SQLITE_DBCONFIG_DEFENSIVE) is what newer Node builds, including node:24-slim on Render, enable by default: it forbids writable_schema
+    // and direct edits of sqlite_master. Asking for it explicitly makes older Node versions that honour the option behave like production.
+    this.raw = new DatabaseSync(path, { defensive: true });
     this.raw.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
     if (path !== ":memory:") this.raw.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;");
   }
@@ -466,34 +468,75 @@ export async function openDb(o: DbOptions | string): Promise<Db> {
   return new SqliteDb(opts.path ?? ":memory:");
 }
 
-/** Applies `migrations/*.sql` once each. On PostgreSQL a transaction-scoped advisory lock makes concurrent boots of several nodes safe. */
+/** Directive (first lines of a `.sqlite.sql` file): run the migration with `PRAGMA foreign_keys = OFF` (see ADR 0023). */
+export const SQLITE_FK_OFF = "-- @sqlite-foreign-keys-off";
+
+interface FkViolation {
+  table: string;
+  rowid: number | null;
+  parent: string;
+  fkid: number;
+}
+const fkKey = (v: FkViolation) => `${v.table}|${v.rowid}|${v.parent}|${v.fkid}`;
+
+/**
+ * Applies `migrations/*.sql` once each, in name order. `NNN_name.sql` applies everywhere; `NNN_name.pg.sql` / `NNN_name.sqlite.sql` only on that
+ * dialect (a name is recorded once either way).
+ *
+ * PostgreSQL: one transaction for the whole run, under a transaction-scoped advisory lock so concurrent boots of several nodes are safe.
+ * SQLite: one transaction per migration (a failed migration rolls back alone and leaves the database at the previous version; the files already
+ * applied stay recorded). A file starting with `-- @sqlite-foreign-keys-off` is the SQLite "rebuild a table" case: foreign keys are switched
+ * off before BEGIN (the pragma is a no-op inside a transaction), so DROP TABLE does not cascade into child tables, and re-enabled afterwards;
+ * `PRAGMA foreign_key_check` must show no violation that did not exist before the migration, otherwise the migration is rolled back and the
+ * boot fails naming the rows. No migration may edit sqlite_master or use writable_schema (tests/migrations.lint.test.ts).
+ */
 export async function migrate(db: Db, dir = resolve(dirname(fileURLToPath(import.meta.url)), "migrations"), opts: { hashPartitions?: number } = {}): Promise<string[]> {
-  return db.tx(async () => {
-    if (db.dialect === "postgres") {
+  const other = db.dialect === "postgres" ? ".sqlite.sql" : ".pg.sql";
+  const files = readdirSync(dir)
+    .filter((f) => f.endsWith(".sql") && !f.endsWith(other))
+    .sort();
+  if (db.dialect === "postgres") {
+    return db.tx(async () => {
       await db.exec("SELECT pg_advisory_xact_lock(727274)");
       if (opts.hashPartitions) await db.exec(`SELECT set_config('conv.hash_partitions', '${Math.trunc(opts.hashPartitions)}', true)`);
-    }
-    await db.exec("CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)");
-    const done = new Set((await db.all<{ name: string }>("SELECT name FROM _migrations")).map((r) => r.name));
-    const applied: string[] = [];
-    // `NNN_name.sql` applies everywhere; `NNN_name.pg.sql` / `NNN_name.sqlite.sql` only on that dialect (a name is recorded once either way)
-    const other = db.dialect === "postgres" ? ".sqlite.sql" : ".pg.sql";
-    for (const file of readdirSync(dir)
-      .filter((f) => f.endsWith(".sql") && !f.endsWith(other))
-      .sort()) {
-      if (done.has(file)) continue;
-      const sql = readFileSync(resolve(dir, file), "utf8");
-      await db.exec(sql);
-      // a migration that edits sqlite_master by hand must make SQLite re-read the schema (see 020_delivery_test_mode.sqlite.sql)
-      if (db.dialect === "sqlite" && sql.includes("-- @sqlite-bump-schema-version")) {
-        const v = (await db.get<{ schema_version: number }>("PRAGMA schema_version"))!.schema_version;
-        await db.exec(`PRAGMA schema_version = ${v + 1}`);
+      await db.exec("CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)");
+      const done = new Set((await db.all<{ name: string }>("SELECT name FROM _migrations")).map((r) => r.name));
+      const applied: string[] = [];
+      for (const file of files) {
+        if (done.has(file)) continue;
+        await db.exec(readFileSync(resolve(dir, file), "utf8"));
+        await db.run("INSERT INTO _migrations(name, applied_at) VALUES (?, ?)", file, new Date().toISOString());
+        applied.push(file);
       }
-      await db.run("INSERT INTO _migrations(name, applied_at) VALUES (?, ?)", file, new Date().toISOString());
-      applied.push(file);
+      return applied;
+    });
+  }
+  await db.exec("CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)");
+  const applied: string[] = [];
+  for (const file of files) {
+    if ((await db.get("SELECT 1 AS x FROM _migrations WHERE name = ?", file)) !== undefined) continue;
+    const sql = readFileSync(resolve(dir, file), "utf8");
+    const fkOff = sql.trimStart().startsWith(SQLITE_FK_OFF);
+    if (fkOff) await db.exec("PRAGMA foreign_keys = OFF");
+    try {
+      const did = await db.tx(async () => {
+        // another process may have applied it between the check above and our write lock
+        if ((await db.get("SELECT 1 AS x FROM _migrations WHERE name = ?", file)) !== undefined) return false;
+        const before = fkOff ? new Set((await db.all<FkViolation>("PRAGMA foreign_key_check")).map(fkKey)) : null;
+        await db.exec(sql);
+        if (before) {
+          const bad = (await db.all<FkViolation>("PRAGMA foreign_key_check")).filter((v) => !before.has(fkKey(v)));
+          if (bad.length) throw new Error(`migration ${file} left ${bad.length} foreign key violation(s), rolled back: ${JSON.stringify(bad.slice(0, 20))}`);
+        }
+        await db.run("INSERT INTO _migrations(name, applied_at) VALUES (?, ?)", file, new Date().toISOString());
+        return true;
+      });
+      if (did) applied.push(file);
+    } finally {
+      if (fkOff) await db.exec("PRAGMA foreign_keys = ON");
     }
-    return applied;
-  });
+  }
+  return applied;
 }
 
 export function isUniqueViolation(e: unknown): boolean {
