@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://conversations.example/schemas/bridge/events.schema.json",
+  "title": "Page to host events, protocol v1",
+  "description": "An envelope whose type is one of the events. `link_clicked` and `attachment_requested` may be answered with an ack; every other event is informational.",
+  "allOf": [{ "$ref": "envelope.schema.json" }],
+  "oneOf": [
+    { "properties": { "type": { "const": "ready" }, "payload": { "$ref": "#/$defs/ready" } } },
+    { "properties": { "type": { "const": "unread_count_changed" }, "payload": { "$ref": "#/$defs/unread_count_changed" } } },
+    { "properties": { "type": { "const": "message_received" }, "payload": { "$ref": "#/$defs/message_received" } } },
+    { "properties": { "type": { "const": "conversation_started" }, "payload": { "$ref": "#/$defs/room" } } },
+    { "properties": { "type": { "const": "conversation_closed" }, "payload": { "$ref": "#/$defs/room" } } },
+    { "properties": { "type": { "const": "link_clicked" }, "payload": { "$ref": "#/$defs/link_clicked" } } },
+    { "properties": { "type": { "const": "attachment_requested" }, "payload": { "$ref": "#/$defs/attachment_requested" } } },
+    { "properties": { "type": { "const": "auth_required" }, "payload": { "$ref": "#/$defs/auth_required" } } },
+    { "properties": { "type": { "const": "error" }, "payload": { "$ref": "#/$defs/error" } } },
+    { "properties": { "type": { "const": "close_requested" }, "payload": { "$ref": "commands.schema.json#/$defs/empty" } } },
+    { "properties": { "type": { "const": "ack" }, "payload": { "$ref": "#/$defs/ack" } } }
+  ],
+  "$defs": {
+    "ready": {
+      "type": "object",
+      "required": ["protocol", "page_version", "device_id", "locale", "theme", "features", "unread_count"],
+      "properties": {
+        "protocol": { "const": 1 },
+        "page_version": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "device_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{8,64}$", "description": "Not a credential. Store it and pass it back as the device_id URL parameter or restoreSession to continue the same anonymous visitor after the web view's storage was cleared." },
+        "locale": { "type": "string", "minLength": 2, "maxLength": 35 },
+        "theme": { "enum": ["light", "dark"] },
+        "features": { "type": "array", "items": { "type": "string" } },
+        "unread_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "unread_count_changed": { "type": "object", "required": ["count"], "properties": { "count": { "type": "integer", "minimum": 0 } } },
+    "message_received": {
+      "type": "object",
+      "required": ["message_id", "sender_type", "preview", "has_attachments", "in_foreground"],
+      "properties": {
+        "message_id": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "sender_type": { "enum": ["agent", "bot"] },
+        "preview": { "type": "string", "maxLength": 140 },
+        "has_attachments": { "type": "boolean" },
+        "in_foreground": { "type": "boolean" }
+      }
+    },
+    "room": { "type": "object", "required": ["room_id"], "properties": { "room_id": { "type": "string", "minLength": 1, "maxLength": 64 } } },
+    "link_clicked": {
+      "type": "object",
+      "required": ["url", "source"],
+      "properties": {
+        "url": { "type": "string", "maxLength": 2048, "pattern": "^(https://|mailto:|tel:)" },
+        "source": { "enum": ["message", "attachment", "payment"] }
+      }
+    },
+    "attachment_requested": { "type": "object", "required": ["kinds"], "properties": { "kinds": { "type": "array", "minItems": 1, "items": { "enum": ["image", "pdf"] } } } },
+    "auth_required": { "type": "object", "required": ["reason"], "properties": { "reason": { "enum": ["identity_invalid", "verification_required", "session_expired", "conflict"] } } },
+    "error": {
+      "type": "object",
+      "required": ["code", "message", "fatal"],
+      "properties": { "code": { "type": "string", "minLength": 1, "maxLength": 64 }, "message": { "type": "string", "maxLength": 300 }, "fatal": { "type": "boolean" } }
+    },
+    "ack": {
+      "type": "object",
+      "required": ["ok"],
+      "additionalProperties": false,
+      "properties": {
+        "ok": { "type": "boolean" },
+        "handled": { "type": "boolean", "description": "link_clicked: true when the host opened the link; back: true when the page consumed the back press" },
+        "result": { "type": "object", "description": "Command-specific data, for example {sent: true, message_id} for sendMessage" },
+        "error": {
+          "type": "object",
+          "required": ["code", "message"],
+          "properties": { "code": { "type": "string", "minLength": 1, "maxLength": 64, "description": "INVALID_PAYLOAD, UNKNOWN_COMMAND, RATE_LIMITED, COMMAND_FAILED, NOT_READY or a command-specific code" }, "message": { "type": "string", "maxLength": 300 } }
+        }
+      }
+    }
+  }
+}

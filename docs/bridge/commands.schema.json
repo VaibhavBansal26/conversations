@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://conversations.example/schemas/bridge/commands.schema.json",
+  "title": "Host to page commands, protocol v1",
+  "description": "An envelope whose type is one of the commands. Unknown fields are rejected (INVALID_PAYLOAD). The whole message is at most 16384 bytes and at most 30 commands are accepted per 10 seconds (RATE_LIMITED).",
+  "allOf": [{ "$ref": "envelope.schema.json" }],
+  "oneOf": [
+    { "properties": { "type": { "const": "identify" }, "payload": { "$ref": "#/$defs/identify" } } },
+    { "properties": { "type": { "const": "setLanguage" }, "payload": { "$ref": "#/$defs/setLanguage" } } },
+    { "properties": { "type": { "const": "setTheme" }, "payload": { "$ref": "#/$defs/setTheme" } } },
+    { "properties": { "type": { "const": "setCustomAttributes" }, "payload": { "$ref": "#/$defs/setCustomAttributes" } } },
+    { "properties": { "type": { "const": "open" }, "payload": { "$ref": "#/$defs/empty" } } },
+    { "properties": { "type": { "const": "close" }, "payload": { "$ref": "#/$defs/empty" } } },
+    { "properties": { "type": { "const": "back" }, "payload": { "$ref": "#/$defs/empty" } } },
+    { "properties": { "type": { "const": "reset" }, "payload": { "$ref": "#/$defs/empty" } } },
+    { "properties": { "type": { "const": "sendMessage" }, "payload": { "$ref": "#/$defs/sendMessage" } } },
+    { "properties": { "type": { "const": "restoreSession" }, "payload": { "$ref": "#/$defs/restoreSession" } } },
+    { "properties": { "type": { "const": "ack" }, "payload": { "$ref": "events.schema.json#/$defs/ack" } } }
+  ],
+  "$defs": {
+    "empty": { "type": "object", "additionalProperties": false },
+    "identify": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "external_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "email": { "type": "string", "minLength": 3, "maxLength": 254, "pattern": "^.+@.+$" },
+        "name": { "type": "string", "maxLength": 100 },
+        "phone": { "type": "string", "maxLength": 40 },
+        "identity_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "hex HMAC-SHA256(secret, external_id|email), computed on your server" }
+      },
+      "if": { "required": ["identity_hash"] },
+      "then": { "anyOf": [{ "required": ["external_id"] }, { "required": ["email"] }] }
+    },
+    "setLanguage": {
+      "type": "object",
+      "required": ["locale"],
+      "additionalProperties": false,
+      "properties": {
+        "locale": { "type": "string", "pattern": "^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,2}$" },
+        "strings": { "type": "object", "maxProperties": 120, "additionalProperties": { "type": "string", "maxLength": 300 } }
+      }
+    },
+    "setTheme": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "theme": { "enum": ["light", "dark", "auto"] },
+        "primary_color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+        "text_color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }
+      }
+    },
+    "setCustomAttributes": {
+      "type": "object",
+      "required": ["attributes"],
+      "additionalProperties": false,
+      "properties": {
+        "attributes": {
+          "type": "object",
+          "maxProperties": 20,
+          "propertyNames": { "pattern": "^[a-z][a-z0-9_]{0,39}$" },
+          "additionalProperties": { "type": ["string", "number", "boolean", "null"], "maxLength": 200 }
+        }
+      }
+    },
+    "sendMessage": {
+      "type": "object",
+      "required": ["text"],
+      "additionalProperties": false,
+      "properties": { "text": { "type": "string", "minLength": 1, "maxLength": 4000 }, "send": { "type": "boolean", "default": false } }
+    },
+    "restoreSession": {
+      "type": "object",
+      "required": ["device_id"],
+      "additionalProperties": false,
+      "properties": { "device_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{8,64}$" } }
+    }
+  }
+}

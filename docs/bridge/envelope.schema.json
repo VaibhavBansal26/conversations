@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://conversations.example/schemas/bridge/envelope.schema.json",
+  "title": "Bridge envelope, protocol v1",
+  "description": "Every message between the host app and the hosted chat. `type` selects the payload schema in commands.schema.json (host to page) or events.schema.json (page to host). A message whose `v` is not 1 is ignored without a reply.",
+  "type": "object",
+  "required": ["v", "id", "type", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "v": { "const": 1 },
+    "id": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "type": { "type": "string" },
+    "payload": { "type": "object" },
+    "reply_to": { "type": "string", "minLength": 1, "maxLength": 64, "description": "On an ack: the id of the message being answered" }
+  }
+}
