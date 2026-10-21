@@ -449,6 +449,8 @@
       renderMessages();
       return api("/public/rooms/" + state.room.id + "/quick-reply", { method: "POST", body: { message_id: m.id, option_id: optionId } }).then(function (r) {
         if (r && r.ticket) state.room.ticket = r.ticket;
+        // "Yes" to the assistant's offer of a spoken call: the call starts here, in the browser, where the microphone is
+        if (r && r.start_ai_call && state.aiCalls) state.aiCalls.start(r.start_ai_call);
         return loadMessages().then(renderMessages);
       }).catch(function () { return loadMessages().then(renderMessages); });
     }
@@ -662,6 +664,7 @@
       var socket = io(base + "/ws/" + state.session.workspace_id, { auth: { session: state.session.session_token, deviceId: deviceId }, transports: ["websocket", "polling"], reconnection: true, reconnectionDelay: 1000, reconnectionDelayMax: 30000, randomizationFactor: 0.8 });
       state.socket = socket;
       mountCalls(socket);
+      mountAiCalls(socket);
       socket.on("connect", function () {
         state.connected = true; stopPolling();
         if (els.banner) els.banner.hidden = true;
@@ -727,6 +730,34 @@
     }
     function mountCallBar() {
       if (state.callBar && els.human && els.human.parentNode) els.human.parentNode.insertBefore(state.callBar, els.human);
+      if (state.aiBar && els.human && els.human.parentNode) els.human.parentNode.insertBefore(state.aiBar, els.human);
+    }
+    /* calls with the AI assistant: /chat/assets/aicall.js, loaded only when the workspace switched them on. The visitor's browser does the speech. */
+    function loadAiCalls() {
+      var C = win.ConversationsAiCall || opts.aiCalls;
+      if (C) return Promise.resolve(C);
+      return new Promise(function (resolve, reject) {
+        var s = doc.createElement("script");
+        s.src = base + "/chat/assets/aicall.js"; s.async = true;
+        s.onload = function () { win.ConversationsAiCall ? resolve(win.ConversationsAiCall) : reject(new Error("ai calls unavailable")); };
+        s.onerror = function () { reject(new Error("ai calls script failed to load")); };
+        doc.head.appendChild(s);
+      });
+    }
+    function mountAiCalls(socket) {
+      var c = state.config.calls;
+      if (!c || !c.ai || !c.ai.enabled || state.aiCalls || state.aiCallsLoading) return;
+      state.aiCallsLoading = true;
+      loadAiCalls().then(function (C) {
+        els.shadow.appendChild(h(doc, "style", { text: C.css }));
+        state.aiCalls = C.create({
+          doc: doc, win: win, container: els.panel, getSocket: function () { return state.socket; }, getRoomId: function () { return state.room && state.room.id; }, config: c, emit: function () {}, engine: opts.speechEngine,
+          onFallback: function () { if (els.input && els.input.focus) els.input.focus(); },
+        });
+        state.aiBar = state.aiCalls.bar();
+        state.aiCalls.bind(socket);
+        mountCallBar();
+      }).catch(function () { state.aiCallsLoading = false; /* optional: the chat works without */ });
     }
 
     function loadSocketScript() {

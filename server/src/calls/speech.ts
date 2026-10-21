@@ -47,7 +47,7 @@ export class FakeSpeechProvider implements SpeechProvider {
   readonly clientSide = { stt: false, tts: false };
   readonly serverSide = { stt: true, tts: true };
   readonly spoken: string[] = [];
-  async transcribe(audio: Uint8Array, o: { language: string }): Promise<Transcription> {
+  async transcribe(audio: Uint8Array, o: { mime?: string; language: string }): Promise<Transcription> {
     return { text: Buffer.from(audio).toString("utf8"), language: o.language, confidence: 1 };
   }
   async synthesize(text: string): Promise<Synthesis> {

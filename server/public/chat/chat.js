@@ -472,6 +472,8 @@
     renderMessages();
     return api("/public/rooms/" + state.room.id + "/quick-reply", { method: "POST", body: { message_id: m.id, option_id: optionId } }).then(function (r) {
       if (r && r.ticket) state.room.ticket = r.ticket;
+      // "Yes" to the assistant's offer of a spoken call: the call starts here, in the browser, where the microphone is
+      if (r && r.start_ai_call && state.aiCalls) state.aiCalls.start(r.start_ai_call);
       return loadMessages().then(function () { renderMessages(); });
     }).catch(function () { return loadMessages().then(function () { renderMessages(); }); });
   }
@@ -835,6 +837,23 @@
   }
   function mountCallBar() {
     if (state.callBar && els.human && els.human.parentNode && state.callBar.parentNode !== els.human.parentNode) els.human.parentNode.insertBefore(state.callBar, els.human);
+    if (state.aiBar && els.human && els.human.parentNode && state.aiBar.parentNode !== els.human.parentNode) els.human.parentNode.insertBefore(state.aiBar, els.human);
+  }
+  /* calls with the AI assistant: public/chat/aicall.js. The visitor's browser does the speech; this page only shows the buttons and the overlay */
+  function mountAiCalls(socket) {
+    var c = state.config && state.config.calls;
+    var A = global.ConversationsAiCall;
+    if (!A || !c || !c.ai || !c.ai.enabled) return;
+    if (!state.aiCalls) {
+      state.aiCalls = A.create({
+        doc: doc, win: global, container: els.app, getSocket: function () { return state.socket; }, getRoomId: function () { return state.room && state.room.id; }, config: c, emit: emit, t: function (k, v) { return t(k, v); },
+        // no speech recognition in this browser: say so and put the visitor in the text chat with the same assistant
+        onFallback: function () { if (els.input && els.input.focus) els.input.focus(); },
+      });
+      state.aiBar = state.aiCalls.bar();
+    }
+    state.aiCalls.bind(socket);
+    mountCallBar();
   }
   function connectSocket() {
     if (state.socket || !state.session || !state.room) return;
@@ -843,6 +862,7 @@
     var socket = io("/ws/" + state.session.workspace_id, { auth: { session: state.session.session_token, deviceId: deviceId }, transports: ["websocket", "polling"], reconnection: true, reconnectionDelay: 1000, reconnectionDelayMax: 30000, randomizationFactor: 0.8 });
     state.socket = socket;
     mountCalls(socket);
+    mountAiCalls(socket);
     socket.on("connect", function () {
       state.connected = true; stopPolling(); updateBanner();
       loadMessages(false).then(function () { renderMessages(); flushQueue(); }).catch(function () {});

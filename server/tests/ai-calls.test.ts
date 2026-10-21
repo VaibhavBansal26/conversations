@@ -44,7 +44,6 @@ async function world(o: { ai?: Record<string, unknown>; agent?: Record<string, u
   const say = (callId: string, text: string, extra: Record<string, unknown> = {}) => ack(vis, "aicall:say", { call_id: callId, text, seq: ++seq, via: "voice", ...extra });
   return { wsId, owner, agent, v, team, teamRec, vis, visRec, roomId, start, say };
 }
-type W = Awaited<ReturnType<typeof world>>;
 const callRow = (id: string) => srv.ctx.db.get<any>("SELECT * FROM calls WHERE id = ?", id);
 const messages = (roomId: string) => srv.ctx.db.all<{ sender_type: string; content_text: string; meta: string; kind: string }>("SELECT sender_type, content_text, meta, kind FROM messages WHERE room_id = ? ORDER BY seq", roomId);
 

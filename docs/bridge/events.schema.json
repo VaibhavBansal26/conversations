@@ -16,6 +16,8 @@
     { "properties": { "type": { "const": "agent_joined" }, "payload": { "$ref": "#/$defs/room" } } },
     { "properties": { "type": { "const": "call_requested" }, "payload": { "$ref": "#/$defs/call_requested" } } },
     { "properties": { "type": { "const": "call_state" }, "payload": { "$ref": "#/$defs/call_state" } } },
+    { "properties": { "type": { "const": "ai_call_state" }, "payload": { "$ref": "#/$defs/ai_call_state" } } },
+    { "properties": { "type": { "const": "ai_call_unsupported" }, "payload": { "$ref": "#/$defs/ai_call_unsupported" } } },
     { "properties": { "type": { "const": "link_clicked" }, "payload": { "$ref": "#/$defs/link_clicked" } } },
     { "properties": { "type": { "const": "attachment_requested" }, "payload": { "$ref": "#/$defs/attachment_requested" } } },
     { "properties": { "type": { "const": "auth_required" }, "payload": { "$ref": "#/$defs/auth_required" } } },
@@ -86,6 +88,24 @@
         "state": { "enum": ["ringing", "connecting", "active", "declined", "missed", "ended", "failed"] },
         "kind": { "enum": ["voice", "video"] }
       }
+    },
+    "ai_call_state": {
+      "type": "object",
+      "required": ["room_id", "call_id", "state", "kind"],
+      "description": "Informational: the call with the AI assistant moved to a new phase. The page draws the call screen, does the speech recognition and speaking itself (the browser's own, nothing is sent to your app); use this to keep the host's audio session or a call-in-progress indicator in step. `waiting` means the call was handed to a person who may ring the visitor on this same screen. `reason` is set on `ended` and `waiting`: completed, silence, handoff, max_duration, idle, resolved, taken_over, error, disconnected.",
+      "properties": {
+        "room_id": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "call_id": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "state": { "enum": ["starting", "listening", "thinking", "speaking", "waiting", "ended"] },
+        "kind": { "enum": ["voice", "video"], "description": "`video` is an animated avatar: the visitor's camera is never sent anywhere." },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 40 }
+      }
+    },
+    "ai_call_unsupported": {
+      "type": "object",
+      "required": ["reason"],
+      "description": "The visitor tried an AI voice call in a web view or browser without speech recognition; the page opened the text chat with the same assistant instead. (Android WebView and iOS WKWebView differ: see MOBILE-BRIDGE.md.)",
+      "properties": { "room_id": { "type": "string", "minLength": 1, "maxLength": 64 }, "reason": { "const": "no_speech_recognition" } }
     },
     "link_clicked": {
       "type": "object",

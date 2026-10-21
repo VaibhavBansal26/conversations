@@ -13,6 +13,7 @@ const ASSETS: Record<string, string> = {
   "bridge.js": "application/javascript; charset=utf-8",
   "i18n.js": "application/javascript; charset=utf-8",
   "calls.js": "application/javascript; charset=utf-8",
+  "aicall.js": "application/javascript; charset=utf-8",
   "bridge-test.js": "application/javascript; charset=utf-8",
   "chat.css": "text/css; charset=utf-8",
   "bridge-test.css": "text/css; charset=utf-8",

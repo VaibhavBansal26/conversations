@@ -98,6 +98,7 @@ export function chatPage(o: { lang: string; theme: "light" | "dark" | "auto"; do
 <script src="/chat/assets/i18n.js?v=${o.v}"></script>
 <script src="/chat/assets/bridge.js?v=${o.v}"></script>
 <script src="/chat/assets/calls.js?v=${o.v}"></script>
+<script src="/chat/assets/aicall.js?v=${o.v}"></script>
 <script src="/chat/assets/chat.js?v=${o.v}"></script>
 </body>
 </html>`;

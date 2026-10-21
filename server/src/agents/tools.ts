@@ -22,7 +22,7 @@ export const ActionSchema = z.discriminatedUnion("tool", [
   z.object({ tool: z.literal("handoff_to_human"), reason: z.string().max(100).optional(), department_id: z.string().max(64).nullable().optional() }),
   z.object({ tool: z.literal("resolve_ticket"), reason: z.string().max(200).optional() }),
   z.object({ tool: z.literal("schedule_callback"), note: z.string().max(300).optional() }),
-  z.object({ tool: z.literal("offer_call"), kind: z.enum(["voice", "video"]).default("voice") }),
+  z.object({ tool: z.literal("offer_call"), kind: z.enum(["voice", "video"]).default("voice"), with: z.enum(["team", "ai"]).default("team") }),
 ]);
 export type ModelAction = z.infer<typeof ActionSchema>;
 /** What `applyDecision` executes: everything the model can ask for except its own retrieval and the hand-off (which are decisions, not tools). */
@@ -89,6 +89,26 @@ toolHandlers.offer_call = async (ctx, t) => {
   if (t.action.tool !== "offer_call") return { ok: false, summary: "offered a call" };
   const s = (await getSettings(ctx, t.room.workspace_id)).calls;
   const kind = t.action.kind;
+  if (t.action.with === "ai") {
+    // a call with the AI assistant itself: the visitor's browser starts it when they answer Yes
+    if (!t.agent.allowed_actions.includes("ai_call")) return { ok: false, detail: "not allowed", summary: "wanted to offer a call with the AI assistant, which this agent may not do" };
+    if (!s.ai.enabled || !s.ai[kind]) return { ok: false, detail: "ai calls off", summary: "wanted to offer a call with the AI assistant, but those calls are switched off" };
+    const prompt = kind === "video" ? "Would you like a video call with me? I appear as an animated avatar and cannot see you." : "Would you like to talk to me by voice? I am an AI assistant.";
+    const r = await insertMessage(ctx, {
+      workspaceId: t.room.workspace_id,
+      roomId: t.room.id,
+      senderType: "bot",
+      senderId: t.agent.id,
+      senderName: t.agent.name,
+      kind: "text",
+      source: "dm",
+      content: prompt,
+      contentText: prompt,
+      meta: { ai: true, agent: { id: t.agent.id, name: t.agent.name, label: t.agent.disclosure_label }, card: { type: "quick_replies", purpose: "ai_call", kind, prompt, options: [{ id: "yes", label: "Yes, let's talk" }, { id: "no", label: "No, thanks" }] } },
+    });
+    await emitInserted(ctx, r);
+    return { ok: true, summary: `offered the visitor a ${kind} call with the AI assistant` };
+  }
   if (!s.browser.enabled || !s.browser[kind]) return { ok: false, detail: "calls off", summary: "wanted to offer a call, but calls are switched off" };
   const text = kind === "video" ? "Would you like a video call with our team?" : "Would you like a voice call with our team?";
   const r = await insertMessage(ctx, {

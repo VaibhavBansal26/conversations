@@ -479,7 +479,8 @@ describe("workspace settings and REST", () => {
     const v = await srv.visitor(wsId);
     const pub = await fetch(`${srv.url}/public/widget/config`, { headers: { "x-api-key": v.tokenRow.token, origin: "https://chat.example.com", "x-device-id": "device-rt-0001" } });
     const pj = (await pub.json()) as any;
-    expect(pj.calls).toEqual({ browser: { enabled: true, voice: true, video: false } });
+    expect(pj.calls.browser).toEqual({ enabled: true, voice: true, video: false });
+    expect(pj.calls.ai).toMatchObject({ enabled: false, agent: null }); // calls with the AI are off by default
     expect(JSON.stringify(pj)).not.toContain("turn_provider");
   });
 });

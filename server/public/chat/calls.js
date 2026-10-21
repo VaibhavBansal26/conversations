@@ -459,6 +459,8 @@
     function onCallState(p) {
       var call = p && p.call;
       if (!call || (o.getRoomId && call.room_id !== o.getRoomId())) return;
+      // a call with the AI assistant has its own screen and events (aicall.js)
+      if (call.transport === "ai") return;
       emit("call_state", { room_id: call.room_id, call_id: call.id, state: call.state, kind: call.kind });
       // a phone call rings the visitor's phone, not this page: the thread card is the only thing to show
       if (call.transport === "phone") return;

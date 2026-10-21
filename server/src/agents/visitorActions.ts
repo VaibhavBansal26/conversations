@@ -43,6 +43,7 @@ export async function visitorQuickReply(ctx: AppContext, session: SessionRow, ro
   const ticket = await liveTicketOf(ctx, room.id);
   if (!ticket) return { ok: true as const, ticket: null };
   const fresh = await getRoomRow(ctx, room.workspace_id, room.id);
+  let startAiCall: "voice" | "video" | null = null;
   if (card.purpose === "solved") {
     if (option.id === "yes") {
       const bot = ticket.handler?.startsWith("bot:");
@@ -56,12 +57,15 @@ export async function visitorQuickReply(ctx: AppContext, session: SessionRow, ro
     }
   } else if (card.purpose === "call") {
     if (option.id === "yes") await requestCall(ctx, session, room.id, card.kind === "video" ? "video" : "voice");
+  } else if (card.purpose === "ai_call") {
+    // the call itself is started by the visitor's browser (it needs the microphone): tell it to
+    if (option.id === "yes") startAiCall = card.kind === "video" ? "video" : "voice";
   } else if (card.purpose === "department" && option.id.startsWith("dept:")) {
     await handoffTicket(ctx, ticket.id, { reason: card.reason ?? "model_handoff", by: { type: "contact" }, departmentId: option.id.slice("dept:".length) });
   }
   const after = await liveTicketOf(ctx, room.id);
   const last = after ?? (await ctx.db.get<TicketRow>("SELECT * FROM tickets WHERE id = ?", ticket.id))!;
-  return { ok: true as const, ticket: visitorTicketDto(last) };
+  return { ok: true as const, ticket: visitorTicketDto(last), ...(startAiCall ? { start_ai_call: startAiCall } : {}) };
 }
 
 /**
