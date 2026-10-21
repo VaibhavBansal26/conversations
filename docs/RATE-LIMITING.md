@@ -97,10 +97,10 @@ Generated from `policies.ts` and `routePolicies.ts` (`npm run docs:ratelimit`; `
 | `admin.fail.ip` | ip | strike | 10 failures / 15 min | - | fail-closed | Failed platform admin logins per IP: 10 in 15 min block the IP, escalating (4 entry points) |
 | `admin.fail.mfa` | composite | strike | 5 failures / 15 min | - | fail-closed | Wrong platform admin second-factor codes per admin: 5 in 15 min lock the second step, escalating (4 entry points) |
 | `admin.api` | user | gcra | 10 per 1 s, burst 40 | - | fail-closed | Platform admin API calls, per admin (18 entry points) |
-| `public.config` | ip | gcra | 60 per 1 min, burst 60 | - | fail-open | Widget config fetch, per IP (6 entry points) |
+| `public.config` | ip | gcra | 60 per 1 min, burst 60 | - | fail-open | Widget config fetch, per IP (7 entry points) |
 | `public.session` | composite | gcra | 20 per 1 min, burst 20 | - | fail-closed + penalty box | Visitor session creation, per IP + Origin + embed token (POST /public/sessions) |
 | `public.room` | visitor | gcra | 10 per 50 s, burst 10 | - | fail-open | Visitor starts a conversation (POST /public/rooms) |
-| `public.send` | visitor | gcra | 30 per 30 s, burst 30 | - | fail-open | Visitor sends a message (5 entry points) |
+| `public.send` | visitor | gcra | 30 per 30 s, burst 30 | - | fail-open | Visitor sends a message (6 entry points) |
 | `public.read` | visitor | gcra | 60 per 30 s, burst 60 | - | fail-open | Visitor read receipts (6 entry points) |
 | `public.query` | visitor | gcra | 10 per 1 s, burst 40 | - | fail-open + lease | Visitor reads (session, rooms, messages) (GET /public/session, GET /public/rooms, GET /public/rooms/:id/messages) |
 | `public.upload` | visitor | gcra | 10 per 1 min, burst 10 | - | fail-closed | Visitor file uploads (camera and photo attachments), 10 per minute per visitor (POST /public/attachments) |
@@ -115,9 +115,9 @@ Generated from `policies.ts` and `routePolicies.ts` (`npm run docs:ratelimit`; `
 | `team.workspace` | workspace | window | 20000 per 1 h | free 20000, pro 200000, business 2000000 | fail-open | Team chat messages per workspace per hour, by plan (POST /api/team/channels/:id/messages, socket team:message:send) |
 | `team.search` | user | gcra | 20 per 1 min, burst 10 | - | fail-open | Team chat searches, per member (20 per minute) (GET /api/team/search) |
 | `team.create` | workspace | window | 100 per 1 h | - | fail-open | Channel and group message creation per workspace per hour (POST /api/team/channels, POST /api/team/dms) |
-| `api.read` | user | gcra | 20 per 1 s, burst 100 | - | fail-open + lease | Authenticated reads, per user (72 entry points) |
-| `api.write` | user | gcra | 10 per 1 s, burst 50 | - | fail-open + lease | Authenticated writes, per user (134 entry points) |
-| `api.workspace` | workspace | window | 1200 per 1 min | free 1200, pro 6000, business 30000 | fail-open | All API calls per workspace per minute, by plan (220 entry points) |
+| `api.read` | user | gcra | 20 per 1 s, burst 100 | - | fail-open + lease | Authenticated reads, per user (73 entry points) |
+| `api.write` | user | gcra | 10 per 1 s, burst 50 | - | fail-open + lease | Authenticated writes, per user (135 entry points) |
+| `api.workspace` | workspace | window | 1200 per 1 min | free 1200, pro 6000, business 30000 | fail-open | All API calls per workspace per minute, by plan (222 entry points) |
 | `api.send` | user | gcra | 120 per 1 min, burst 60 | - | fail-open | Agent message sends, per user (POST /api/rooms/:id/messages) |
 | `api.upload` | user | gcra | 30 per 1 min, burst 30 | - | fail-open | Uploads, per user (POST /api/attachments, POST /api/team/attachments, POST /api/agents/:id/avatar) |
 | `api.import` | workspace | gcra | 10 per 10 min, burst 10 | - | fail-open | CSV imports (cost 5 of a small bucket), per workspace (POST /api/contacts/import) |
@@ -127,6 +127,8 @@ Generated from `policies.ts` and `routePolicies.ts` (`npm run docs:ratelimit`; `
 | `ai.concurrency` | workspace | concurrency | 4 concurrent | - | fail-open | Concurrent AI calls per workspace (5 entry points) |
 | `calls.ai.visitor` | composite | window | 6 per 1 h | - | fail-closed | Calls with the AI assistant a visitor may start per hour (spend guard; the workspace's daily limit is a setting) (socket aicall:start) |
 | `calls.ai.say` | composite | gcra | 20 per 1 min, burst 8 | - | fail-open | Things a visitor says to the AI assistant in a call, per visitor (20 a minute, bursts of 8): each one is a model turn (socket aicall:say, socket aicall:tool) |
+| `transcript.contact` | composite | window | 3 per 1 h | - | fail-closed | Copies of a conversation by email per contact (3 an hour), whoever asks (POST /public/rooms/:id/transcript, POST /api/rooms/:id/transcript) |
+| `transcript.member` | composite | window | 20 per 1 h | - | fail-closed | Copies of conversations a team member sends per hour (20) (POST /api/rooms/:id/transcript) |
 | `ai.channel.contact` | composite | window | 6 per 10 min | - | fail-closed | AI agent replies by SMS or email per contact and channel (6 in 10 minutes): a contact who floods does not get a flood back (socket server / delivery) |
 | `avatar.test` | workspace | window | 5 per 1 min | - | fail-closed | Photoreal avatar connection tests per workspace (5 a minute): each is a call to the provider (POST /api/calls/avatar/connection/test) |
 | `push.member` | composite | window | 30 per 10 min | - | fail-open | Push notifications per team member (30 in 10 minutes): a burst of messages does not become a burst of notifications (socket server / delivery) |

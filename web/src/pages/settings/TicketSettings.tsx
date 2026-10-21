@@ -49,3 +49,37 @@ export function TicketSettings() {
     </SettingsSection>
   );
 }
+
+interface Transcripts {
+  enabled: boolean;
+  send_after_resolve: boolean;
+  redact: boolean;
+}
+const TRANSCRIPTS: Transcripts = { enabled: false, send_after_resolve: false, redact: false };
+
+/** Copies of a conversation by email (docs/TRANSCRIPTS.md). */
+export function TranscriptSettings() {
+  const { workspace } = useSession();
+  const cur: Transcripts = { ...TRANSCRIPTS, ...((workspace.settings as { transcripts?: Partial<Transcripts> }).transcripts ?? {}) };
+  const save = useSaveWorkspace();
+  const [v, setV] = useState<Transcripts>(cur);
+  const dirty = JSON.stringify(v) !== JSON.stringify(cur);
+  return (
+    <SettingsSection title="Copies by email" description="Visitors can get a copy of their conversation by email. It goes only to their own address, once they have confirmed it (with a code, or by giving it in the chat with consent). Team members can send one from a conversation's menu.">
+      <form
+        className="flex max-w-xl flex-col gap-1"
+        onSubmit={(e: FormEvent) => {
+          e.preventDefault();
+          save.mutate({ settings: { transcripts: v } as never });
+        }}
+      >
+        <Switch label="Visitors can ask for a copy" hint={'Shows "Email me a copy" in the chat, and lets AI agents that have the action send one when asked. At most 3 copies per contact per hour.'} checked={v.enabled} onChange={(enabled) => setV({ ...v, enabled })} />
+        <Switch label="Also send a copy when a ticket is resolved" hint="Once per ticket, to a confirmed address, never to a contact who unsubscribed. The email has a link to stop these copies." checked={v.send_after_resolve} disabled={!v.enabled} onChange={(send_after_resolve) => setV({ ...v, send_after_resolve })} />
+        <Switch label="Hide personal data in copies" hint="Email addresses, phone and card numbers are masked. Also on when 'Redact personal data' is on in the AI settings." checked={v.redact} onChange={(redact) => setV({ ...v, redact })} />
+        <p className="pt-2 text-xs text-subtle">A copy contains what the visitor saw: no internal notes, no internal lines, nothing about how the AI decided. Without a connected email provider (test mode) copies are recorded but not sent.</p>
+        {save.isError && <ErrorNotice error={save.error} />}
+        <SaveBar pending={save.isPending} saved={save.isSuccess} dirty={dirty} onReset={() => setV(cur)} />
+      </form>
+    </SettingsSection>
+  );
+}

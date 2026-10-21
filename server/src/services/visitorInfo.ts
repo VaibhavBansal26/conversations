@@ -220,6 +220,11 @@ export async function submitContactForm(ctx: AppContext, session: SessionRow, ro
     const lines = [`The visitor shared: ${label}.`, card.moment === "callback" && clean.phone ? "They asked to be called back on the phone number of the contact." : null].filter(Boolean);
     await postSystemMessage(ctx, room.id, room.workspace_id, lines.join(" "), { sub_type: "info_submitted", moment: card.moment });
   }
+  // an address given after the ticket was resolved, with consent: the automatic copy can go now (when the workspace sends one)
+  if (card.moment === "after" && m.ticket_id && saved.includes("email")) {
+    const tid = m.ticket_id;
+    ctx.background.run(async () => (await import("./transcripts.js")).maybeSendAfterResolve(ctx, tid));
+  }
   return { ok: true as const, saved };
 }
 

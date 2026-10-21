@@ -15,7 +15,7 @@ const GROUPS: [RouteAccess, string[]][] = [
     "POST /api/auth/register", "POST /api/auth/login", "POST /api/auth/refresh", "POST /api/auth/logout", "POST /api/auth/mfa/verify", "POST /api/auth/password/forgot", "POST /api/auth/password/reset",
     "GET /api/auth/invitations/:token", "POST /api/auth/invitations/accept",
     "GET /public/widget/config", "POST /public/call-links/preview", "POST /public/call-links/redeem", "GET /call/:token", "POST /public/sessions", "GET /public/session", "GET /public/rooms", "POST /public/rooms", "GET /public/rooms/:id/messages", "POST /public/rooms/:id/messages",
-    "POST /public/rooms/:id/read", "POST /public/rooms/:id/csat", "POST /public/rooms/:id/ticket-csat", "POST /public/rooms/:id/quick-reply", "POST /public/rooms/:id/request-human", "POST /public/rooms/:id/forms/:messageId", "POST /public/rooms/:id/forms/:messageId/skip", "POST /public/rooms/:id/messages/:messageId/feedback", "POST /public/otp/send", "POST /public/otp/verify",
+    "POST /public/rooms/:id/read", "POST /public/rooms/:id/csat", "POST /public/rooms/:id/ticket-csat", "POST /public/rooms/:id/quick-reply", "POST /public/rooms/:id/request-human", "POST /public/rooms/:id/transcript", "GET /public/transcripts/unsubscribe/:token", "POST /public/rooms/:id/forms/:messageId", "POST /public/rooms/:id/forms/:messageId/skip", "POST /public/rooms/:id/messages/:messageId/feedback", "POST /public/otp/send", "POST /public/otp/verify",
     "DELETE /public/session", "POST /public/session/attributes", "POST /public/attachments",
     "GET /chat", "GET /chat/bridge-test", "GET /chat/assets/:file",
     "POST /webhooks/stripe", "POST /webhooks/stripe/connect", "POST /webhooks/twilio/sms", "POST /webhooks/twilio/status", "POST /webhooks/sendgrid/inbound", "POST /webhooks/sendgrid/events",
@@ -31,10 +31,10 @@ const GROUPS: [RouteAccess, string[]][] = [
   ["authed", ["GET /api/auth/me", "GET /api/auth/sessions", "DELETE /api/auth/sessions/:id", "POST /api/auth/password/change", "POST /api/auth/mfa/setup", "POST /api/auth/mfa/enable", "POST /api/auth/mfa/disable", "GET /api/members/me", "PATCH /api/members/me", "PATCH /api/members/:id", "GET /api/notifications", "POST /api/notifications/read-all", "POST /api/notifications/:id/read", "GET /api/ai/status", "GET /api/push/config", "GET /api/push/subscriptions", "POST /api/push/subscriptions", "PATCH /api/push/subscriptions/:id", "DELETE /api/push/subscriptions/:id", "POST /api/push/subscriptions/:id/test"]],
   ["conversations:read", [
     "GET /api/dashboard/counts", "GET /api/inboxes", "GET /api/inboxes/counts", "GET /api/inboxes/:id", "GET /api/rooms", "GET /api/rooms/:id", "GET /api/rooms/:id/messages", "GET /api/rooms/:id/payment-requests", "GET /api/messages/search",
-    "GET /api/rooms/:id/calls", "PUT /api/rooms/:id/favorite", "DELETE /api/rooms/:id/favorite", "POST /api/rooms/:id/read", "GET /api/templates", "GET /api/channels/status",
+    "GET /api/rooms/:id/calls", "GET /api/rooms/:id/transcripts", "PUT /api/rooms/:id/favorite", "DELETE /api/rooms/:id/favorite", "POST /api/rooms/:id/read", "GET /api/templates", "GET /api/channels/status",
   ]],
   ["conversations:reply", [
-    "POST /api/rooms", "POST /api/rooms/bulk", "PATCH /api/rooms/:id", "POST /api/rooms/:id/snooze", "DELETE /api/rooms/:id/snooze", "POST /api/rooms/:id/messages", "PATCH /api/messages/:id",
+    "POST /api/rooms", "POST /api/rooms/bulk", "POST /api/rooms/:id/transcript", "PATCH /api/rooms/:id", "POST /api/rooms/:id/snooze", "DELETE /api/rooms/:id/snooze", "POST /api/rooms/:id/messages", "PATCH /api/messages/:id",
     "DELETE /api/messages/:id", "POST /api/messages/:id/retry", "POST /api/attachments", "POST /api/templates/:id/render", "POST /api/rooms/:id/assign", "POST /api/messages/:id/feedback",
   ]],
   ["conversations:delete", ["DELETE /api/rooms/:id"]],

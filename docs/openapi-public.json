@@ -1614,6 +1614,174 @@
         ]
       }
     },
+    "/public/rooms/{id}/transcript": {
+      "post": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "\"Email me a copy\": sends what the visitor saw to the confirmed email address of their own contact (`EMAIL_REQUIRED` posts the details form, `VERIFY_EMAIL_FIRST` asks for a code first); 3 an hour; answers `{status: sent | not_sent_test_mode, to, messages}`",
+        "operationId": "post_public_rooms_id_transcript",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "public.send"
+          ],
+          "in_handler": [
+            "transcript.contact"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^cvt_"
+            },
+            "description": "The embed token (public by design; it is in every website's HTML)"
+          },
+          {
+            "name": "x-hosted-chat",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "const": "1"
+            },
+            "description": "Native apps and same-origin pages send `1` (and no Origin) with a token that has the hosted chat enabled"
+          },
+          {
+            "name": "x-device-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,64}$"
+            }
+          },
+          {
+            "name": "x-support-session",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The `session_token` returned by POST /public/sessions"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "security": [
+          {
+            "embedToken": []
+          }
+        ]
+      }
+    },
+    "/public/transcripts/unsubscribe/{token}": {
+      "get": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "The signed link at the bottom of an automatic copy: stops automatic copies to that contact (the same page for any link)",
+        "operationId": "get_public_transcripts_unsubscribe_token",
+        "x-rate-limit": {
+          "pre": [
+            "public.config"
+          ],
+          "post": [],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^cvt_"
+            },
+            "description": "The embed token (public by design; it is in every website's HTML)"
+          },
+          {
+            "name": "x-hosted-chat",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "const": "1"
+            },
+            "description": "Native apps and same-origin pages send `1` (and no Origin) with a token that has the hosted chat enabled"
+          },
+          {
+            "name": "x-device-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,64}$"
+            }
+          },
+          {
+            "name": "x-support-session",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The `session_token` returned by POST /public/sessions"
+          },
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "security": [
+          {
+            "embedToken": []
+          }
+        ]
+      }
+    },
     "/public/rooms/{id}/request-human": {
       "post": {
         "tags": [

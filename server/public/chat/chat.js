@@ -515,7 +515,24 @@
     var tk = state.room && state.room.ticket;
     return !!state.room && !(tk && (tk.status === "waiting_for_human" || tk.status === "open"));
   }
-  function renderHumanButton() { if (els.human) els.human.hidden = !humanNeeded(); }
+  function renderHumanButton() { if (els.human) els.human.hidden = !humanNeeded(); renderCopyButton(); }
+  /* "Email me a copy": only to the confirmed address of this visitor (docs/TRANSCRIPTS.md) */
+  function renderCopyButton() {
+    if (!els.copy) return;
+    var on = !!(state.config && state.config.transcripts && state.config.transcripts.enabled && state.room && state.messages.some(function (m) { return !m.local && m.sender && m.sender.type === "contact"; }));
+    els.copy.hidden = !on;
+  }
+  function requestTranscript() {
+    if (!state.room) return;
+    els.copyNote.textContent = "";
+    return api("/public/rooms/" + state.room.id + "/transcript", { method: "POST", body: {} }).then(function (r) {
+      els.copyNote.textContent = r.status === "sent" ? t("copy_sent", { to: r.to }) : t("copy_test_mode");
+    }).catch(function (e) {
+      if (e.code === "VERIFY_EMAIL_FIRST") { state.pendingCopy = true; state.info = t("copy_verify"); showOtp(); return requestOtp(); }
+      if (e.code === "EMAIL_REQUIRED") { els.copyNote.textContent = t("copy_email_required"); return loadMessages().then(function () { renderMessages(); }); }
+      els.copyNote.textContent = e.status === 429 ? t("copy_limit") : e.message;
+    });
+  }
   function requestHuman() {
     if (!state.room) return;
     els.human.hidden = true;
@@ -599,6 +616,8 @@
     els.typing = h("div", { class: "typing", "aria-live": "polite" });
     els.chips = h("div", { class: "chips", hidden: true });
     els.human = h("div", { class: "human", hidden: true }, [h("button", { type: "button", "data-human": "1", text: t("talk_person"), onclick: requestHuman })]);
+    els.copyNote = h("span", { class: "copynote", role: "status" });
+    els.copy = h("div", { class: "human", hidden: true }, [h("button", { type: "button", "data-transcript": "1", text: t("copy_button"), onclick: requestTranscript }), els.copyNote]);
     els.file = h("input", { type: "file", accept: "image/*,application/pdf", multiple: true, hidden: true, "aria-hidden": "true", tabindex: "-1" });
     // copy the FileList first: clearing the input empties the live list
     els.file.addEventListener("change", function () { var picked = Array.prototype.slice.call(els.file.files); els.file.value = ""; addFiles(picked); });
@@ -620,6 +639,7 @@
     els.body.appendChild(wrap);
     els.body.appendChild(els.typing);
     els.body.appendChild(els.human);
+    els.body.appendChild(els.copy);
     mountCallBar();
     els.body.appendChild(els.chips);
     els.body.appendChild(els.file);
@@ -804,6 +824,8 @@
     return api("/public/otp/verify", { method: "POST", body: { code: code } }).then(function () {
       saveSession(Object.assign({}, state.session, { verified: true }));
       return ensureRoom(false);
+    }).then(function () {
+      if (state.pendingCopy) { state.pendingCopy = false; return requestTranscript(); }
     }).catch(function (e) { state.error = e.message; showOtp(); });
   }
 

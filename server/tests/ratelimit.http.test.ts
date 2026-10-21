@@ -22,7 +22,7 @@ describe("declaration: every route and event has a limiter policy", () => {
     for (const s of ROUTE_LIMITS.values()) for (const id of [...(s.pre ?? []), ...(s.post ?? []), ...(s.inHandler ?? [])]) used.add(id);
     for (const e of Object.values(EVENT_LIMITS)) for (const id of e.inHandler ?? []) used.add(id);
     // policies applied by the socket server / delivery path rather than a route
-    for (const id of ["ip.global", "ws.connect.ip", "ws.conn.user", "ws.conn.visitor", "ws.conn.workspace", "ws.conn.ip", "ws.event", "ws.actor", "sms.number", "email.sender", "msg.room", "msg.workspace", "calls.link.create", "push.member"]) used.add(id);
+    for (const id of ["ip.global", "ws.connect.ip", "ws.conn.user", "ws.conn.visitor", "ws.conn.workspace", "ws.conn.ip", "ws.event", "ws.actor", "sms.number", "email.sender", "msg.room", "msg.workspace", "calls.link.create", "push.member", "ai.channel.contact"]) used.add(id);
     for (const p of POLICIES) expect(used.has(p.id), `policy ${p.id} is never applied`).toBe(true);
     expect(POLICY_MAP.size).toBe(POLICIES.length);
   });

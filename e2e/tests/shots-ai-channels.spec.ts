@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { loginApi } from "../support/api.mjs";
+import { scrollToTop } from "../support/scroll";
 import { expect, signIn, stamp, test } from "../support/fixtures";
 
 const OUT = process.env.SHOTS_DIR ?? join(dirname(fileURLToPath(import.meta.url)), "../../docs/design");
@@ -35,7 +36,7 @@ for (const vp of VIEWPORTS) {
           await page.goto("/settings/ai-agents");
           const h = page.getByRole("heading", { name: "SMS and email answers" });
           await expect(h).toBeVisible();
-          await h.evaluate((el) => el.scrollIntoView({ block: "start" }));
+          await scrollToTop(h);
           await shot(page, "ai-channels-settings", vp.id, scheme);
           await fetch(`${baseURL}/webhooks/twilio/sms`, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ From: phone, To: "+14155550100", Body: "How do I reset my password?", MessageSid: `SMshot${stamp}${Date.now()}` }).toString() });
           await page.goto("/inbox");

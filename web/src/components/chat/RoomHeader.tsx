@@ -1,5 +1,5 @@
 // Adapted from the legacy UI (see docs/PROVENANCE.md): assignee, status, priority and snooze controls in the conversation header.
-import { ArrowLeft, Check, Link2, Phone, PhoneOutgoing, CircleDollarSign, Flag, Inbox as InboxIcon, MoreHorizontal, PanelRight, RotateCcw, Search, Share2, Sparkles, Star, UserRound, Video } from "lucide-react";
+import { ArrowLeft, Check, Link2, MailCheck, Phone, PhoneOutgoing, CircleDollarSign, Flag, Inbox as InboxIcon, MoreHorizontal, PanelRight, RotateCcw, Search, Share2, Sparkles, Star, UserRound, Video } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
 import { api } from "../../api/client";
@@ -84,6 +84,16 @@ export function RoomHeader({ room, backTo, assignOpen, onAssignOpen, snoozeOpen,
   };
   const snoozed = isSnoozed(room, new Date());
   const assigned = members.filter((m) => room.assignee_ids.includes(m.id));
+  const canReply = useCan("conversations:reply");
+  /** a copy of the conversation to the contact's own address on file (docs/TRANSCRIPTS.md) */
+  const emailCopy = async () => {
+    try {
+      const r = await api.post<{ status: string; to: string }>(`/rooms/${room.id}/transcript`);
+      toast(r.status === "sent" ? { title: "Copy emailed", description: `Sent to ${r.to}.`, tone: "success" } : { title: "Not sent: test mode", description: "Email is not connected, so the copy was only recorded. Connect SendGrid in Settings > SMS & email.", tone: "default" });
+    } catch (e) {
+      toast({ title: "Could not email a copy", description: e instanceof Error ? e.message : "Try again", tone: "error" });
+    }
+  };
   const details = [room.contact?.email, room.contact?.phone].filter(Boolean).join(" · ") || room.subject || "No contact details";
 
   return (
@@ -227,6 +237,11 @@ export function RoomHeader({ room, backTo, assignOpen, onAssignOpen, snoozeOpen,
               {canLink && calls!.config!.links!.allow_ai && calls!.config?.ai?.enabled && (
                 <DropdownMenuItem onSelect={() => void copyCallLink("ai", "voice")}>
                   <Link2 className="size-4 text-subtle" aria-hidden="true" /> Copy AI call link
+                </DropdownMenuItem>
+              )}
+              {canReply && room.contact?.email && (
+                <DropdownMenuItem onSelect={() => void emailCopy()}>
+                  <MailCheck className="size-4 text-subtle" aria-hidden="true" /> Email a copy to the contact
                 </DropdownMenuItem>
               )}
               {canRequestPayment && (

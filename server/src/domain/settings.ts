@@ -276,6 +276,17 @@ export const WorkspaceSettingsSchema = z.object({
   /** push notifications to team members' devices may include the first words of a customer message (off: they say only that there is one) */
   push_message_previews: z.boolean().default(false),
   ai_channels: AiChannelSettingsSchema.default(() => AiChannelSettingsSchema.parse({})),
+  /** copies of a conversation by email (docs/TRANSCRIPTS.md): off by default */
+  transcripts: z
+    .object({
+      /** visitors see "Email me a copy" in the chat, and the AI may offer it */
+      enabled: z.boolean().default(false),
+      /** also send a copy when a ticket is resolved, to a confirmed address of a contact who did not unsubscribe */
+      send_after_resolve: z.boolean().default(false),
+      /** mask email addresses, phone and card numbers in the copy (also on when the AI's "redact personal data" is on) */
+      redact: z.boolean().default(false),
+    })
+    .default(() => ({ enabled: false, send_after_resolve: false, redact: false })),
   tickets: TicketSettingsSchema.default(() => TicketSettingsSchema.parse({})),
   routing: RoutingSettingsSchema.default(() => RoutingSettingsSchema.parse({})),
   calls: CallSettingsSchema.default(() => CallSettingsSchema.parse({})),
@@ -307,6 +318,7 @@ export const WorkspaceSettingsPatchSchema = z.object({
   ai_redact_pii: z.boolean().optional(),
   ai_tone: WorkspaceSettingsSchema.shape.ai_tone.optional(),
   push_message_previews: z.boolean().optional(),
+  transcripts: z.object({ enabled: z.boolean(), send_after_resolve: z.boolean(), redact: z.boolean() }).partial().optional(),
   ai_channels: z
     .object({
       sms: z.object({ enabled: z.boolean(), max_replies_per_day: z.number().int().min(1).max(50), max_segments: z.number().int().min(1).max(10), quiet_hours: z.object({ enabled: z.boolean(), start: HHMM, end: HHMM }).partial() }).partial(),
@@ -332,11 +344,12 @@ export function parseSettings(raw: string | null | undefined): WorkspaceSettings
 }
 
 export function mergeSettings(cur: WorkspaceSettings, patch: z.infer<typeof WorkspaceSettingsPatchSchema>): WorkspaceSettings {
-  const { widget, tickets, routing, calls, ai_channels, ...rest } = patch;
+  const { widget, tickets, routing, calls, ai_channels, transcripts, ...rest } = patch;
   return WorkspaceSettingsSchema.parse({
     ...cur,
     ...rest,
     tickets: { ...cur.tickets, ...(tickets ?? {}) },
+    transcripts: { ...cur.transcripts, ...(transcripts ?? {}) },
     ai_channels: {
       sms: { ...cur.ai_channels.sms, ...(ai_channels?.sms ?? {}), quiet_hours: { ...cur.ai_channels.sms.quiet_hours, ...(ai_channels?.sms?.quiet_hours ?? {}) } },
       email: { ...cur.ai_channels.email, ...(ai_channels?.email ?? {}) },

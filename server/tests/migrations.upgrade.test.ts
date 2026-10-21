@@ -1618,3 +1618,21 @@ describe("upgrade: photoreal avatars", () => {
   it("043 on SQLite", () => upgradeSqlite(42, "043_photoreal_avatar.sql", expectPhotorealMigration));
   it.skipIf(!postgres)("043 on PostgreSQL", () => upgradePostgres(42, "043_photoreal_avatar.sql", expectPhotorealMigration));
 });
+
+/** migration 044: transcript sends, one automatic copy per ticket */
+async function expectTranscriptMigration(db: Db) {
+  const ws = (await db.get<{ id: string }>("SELECT id FROM workspaces LIMIT 1"))!.id;
+  const room = (await db.get<{ id: string; contact_id: string }>("SELECT id, contact_id FROM rooms LIMIT 1"))!;
+  const add = (id: string, by: string, ticket: string | null) => db.run("INSERT INTO transcript_sends(id, workspace_id, room_id, ticket_id, contact_id, requested_by, to_hint, status, messages, created_at) VALUES (?,?,?,?,?,?,'a…@x.test','sent',3,?)", id, ws, room.id, ticket, room.contact_id, by, T(1));
+  await add("t1", "after_resolve", "tk1");
+  await expect(add("t2", "after_resolve", "tk1")).rejects.toThrow(/unique|UNIQUE/i);
+  await add("t3", "visitor", "tk1");
+  await add("t4", "visitor", "tk1");
+  await expect(add("t5", "robot", null)).rejects.toThrow(/CHECK|check constraint/i);
+  await db.run("DELETE FROM rooms WHERE id = ?", room.id);
+  expect(await db.all("SELECT id FROM transcript_sends")).toEqual([]);
+}
+describe("upgrade: transcript sends", () => {
+  it("044 on SQLite", () => upgradeSqlite(43, "044_transcript_sends.sql", expectTranscriptMigration));
+  it.skipIf(!postgres)("044 on PostgreSQL", () => upgradePostgres(43, "044_transcript_sends.sql", expectTranscriptMigration));
+});

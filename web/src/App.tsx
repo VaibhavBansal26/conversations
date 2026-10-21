@@ -24,7 +24,16 @@ const AiAgentsSettings = lazy(() => import("./pages/settings/AiAgentsSettings").
 const VisitorInfoSettings = lazy(() => import("./pages/settings/VisitorInfoSettings").then((m) => ({ default: m.VisitorInfoSettings })));
 const CallSettings = lazy(() => import("./pages/settings/CallSettings").then((m) => ({ default: m.CallSettings })));
 const DepartmentSettings = lazy(() => import("./pages/settings/DepartmentSettings").then((m) => ({ default: m.DepartmentSettings })));
-const TicketSettings = lazy(() => import("./pages/settings/TicketSettings").then((m) => ({ default: m.TicketSettings })));
+const TicketSettings = lazy(() =>
+  import("./pages/settings/TicketSettings").then((m) => ({
+    default: () => (
+      <>
+        <m.TicketSettings />
+        <m.TranscriptSettings />
+      </>
+    ),
+  })),
+);
 const TemplateSettings = lazy(() => import("./pages/settings/TemplateSettings").then((m) => ({ default: m.TemplateSettings })));
 const TokenSettings = lazy(() => import("./pages/settings/TokenSettings").then((m) => ({ default: m.TokenSettings })));
 const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage").then((m) => ({ default: m.AnalyticsPage })));

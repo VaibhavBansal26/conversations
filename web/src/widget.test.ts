@@ -534,3 +534,59 @@ describe("form card in the widget", () => {
     expect(shadow().querySelector("form[aria-label='Your details'] input[name=email]")!.hasAttribute("required")).toBe(true);
   });
 });
+
+describe("Email me a copy", () => {
+  const contactMsg = mkMsg({ id: "msg_c", seq: 2, sender: { type: "contact", name: "V" }, content_text: "Help please" });
+  async function openWith(enabled: boolean) {
+    replies["GET /public/rooms/room_1/messages"] = () => ({ json: { data: [mkMsg({ id: "msg_w", seq: 1, sender: { type: "bot", name: "Chatbot" }, content_text: "Welcome" }), contactMsg] } });
+    replies["GET /public/widget/config"] = () => ({ json: { ...config, transcripts: { enabled } } });
+    widget = (window as any).ConversationsWidget.init({ token: "cvt_testtoken1234", apiBase: "http://api.test", fetch: fakeFetch, io: (url: string, o: any) => { const s = new FakeSocket(url, o); sockets.push(s); return s; }, pollMs: 50 });
+    await widget.ready;
+    widget.open();
+    for (let i = 0; i < 4; i++) await flush();
+  }
+  const copyBtn = () => shadow().querySelector<HTMLButtonElement>("[data-transcript]")!;
+
+  it("is not offered when the workspace has copies off", async () => {
+    await openWith(false);
+    expect(copyBtn().closest<HTMLElement>(".human")!.hidden).toBe(true);
+  });
+
+  it("sends the request and says where the copy went, or that test mode kept it", async () => {
+    await openWith(true);
+    expect(copyBtn().closest<HTMLElement>(".human")!.hidden).toBe(false);
+    replies["POST /public/rooms/room_1/transcript"] = () => ({ json: { status: "sent", to: "v…@example.test", messages: 2 } });
+    copyBtn().click();
+    await flush(); await flush();
+    expect(shadow().querySelector(".copynote")!.textContent).toBe("We sent a copy of this conversation to v…@example.test.");
+    replies["POST /public/rooms/room_1/transcript"] = () => ({ json: { status: "not_sent_test_mode", to: "v…@example.test", messages: 2 } });
+    copyBtn().click();
+    await flush(); await flush();
+    expect(shadow().querySelector(".copynote")!.textContent).toBe("Test mode: the copy was not sent.");
+  });
+
+  it("an unconfirmed address: the code view opens, a code is sent, and after verifying the copy is requested again", async () => {
+    await openWith(true);
+    replies["POST /public/rooms/room_1/transcript"] = () => ({ status: 409, json: { error: { code: "VERIFY_EMAIL_FIRST", message: "Confirm", details: { channel: "email" } } } });
+    replies["POST /public/otp/send"] = () => ({ json: { channel: "email" } });
+    replies["POST /public/otp/verify"] = () => ({ json: { verified: true } });
+    copyBtn().click();
+    for (let i = 0; i < 4; i++) await flush();
+    expect(shadow().querySelector('input[name="code"]')).not.toBeNull();
+    expect(calls.some((c) => c.path === "/public/otp/send")).toBe(true);
+    replies["POST /public/rooms/room_1/transcript"] = () => ({ json: { status: "sent", to: "v…@example.test", messages: 2 } });
+    (shadow().querySelector('[name="code"]') as HTMLInputElement).value = "12345";
+    shadow().querySelector("form")!.dispatchEvent(new Event("submit", { cancelable: true }));
+    for (let i = 0; i < 6; i++) await flush();
+    expect(calls.filter((c) => c.path === "/public/rooms/room_1/transcript")).toHaveLength(2);
+    expect(shadow().querySelector(".copynote")!.textContent).toContain("We sent a copy");
+  });
+
+  it("no address yet: says to use the form in the chat", async () => {
+    await openWith(true);
+    replies["POST /public/rooms/room_1/transcript"] = () => ({ status: 409, json: { error: { code: "EMAIL_REQUIRED", message: "x" } } });
+    copyBtn().click();
+    for (let i = 0; i < 4; i++) await flush();
+    expect(shadow().querySelector(".copynote")!.textContent).toMatch(/Share your email address in the form/);
+  });
+});

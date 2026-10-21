@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { loginApi } from "../support/api.mjs";
+import { scrollToTop } from "../support/scroll";
 import { FAKE_MEDIA_SCRIPT } from "../support/fakeMedia";
 import { FAKE_SPEECH_SCRIPT } from "../support/fakeSpeech";
 import { startCustomerSite } from "../support/site";
@@ -39,7 +40,7 @@ for (const vp of VIEWPORTS) {
           await page.goto("/settings/calls");
           const h = page.getByRole("heading", { name: "Photoreal avatar" });
           await expect(h).toBeVisible();
-          await h.evaluate((el) => el.scrollIntoView({ block: "start" }));
+          await scrollToTop(h);
           await shot(page, "photoreal-settings-not-connected", vp.id, scheme);
           await req(baseURL!, api.token, "PUT", "/calls/avatar/connection", { provider: "did", api_key: `shot${stamp}user:${Math.random().toString(36).slice(2)}secret` });
           await req(baseURL!, api.token, "POST", "/calls/avatar/connection/test");
@@ -49,7 +50,7 @@ for (const vp of VIEWPORTS) {
           await req(baseURL!, api.token, "PATCH", "/calls/settings", { avatar: { enabled: true, minutes_daily: 15, max_concurrent: 5 } });
           await page.reload();
           await expect(page.getByText("Connected and on")).toBeVisible();
-          await page.getByRole("heading", { name: "Photoreal avatar" }).evaluate((el) => el.scrollIntoView({ block: "start" }));
+          await scrollToTop(page.getByRole("heading", { name: "Photoreal avatar" }));
           await shot(page, "photoreal-settings-connected", vp.id, scheme);
           const site = await startCustomerSite(baseURL!);
           const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, colorScheme: scheme, permissions: ["microphone", "camera"] });

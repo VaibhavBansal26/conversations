@@ -24,6 +24,7 @@ export const ActionSchema = z.discriminatedUnion("tool", [
   z.object({ tool: z.literal("schedule_callback"), note: z.string().max(300).optional() }),
   z.object({ tool: z.literal("offer_call"), kind: z.enum(["voice", "video"]).default("voice"), with: z.enum(["team", "ai"]).default("team") }),
   z.object({ tool: z.literal("share_call_link"), kind: z.enum(["voice", "video"]).default("voice"), with: z.enum(["team", "ai"]).default("ai") }),
+  z.object({ tool: z.literal("send_transcript") }),
 ]);
 export type ModelAction = z.infer<typeof ActionSchema>;
 /** What `applyDecision` executes: everything the model can ask for except its own retrieval and the hand-off (which are decisions, not tools). */
@@ -39,6 +40,7 @@ export const ALLOWS: Record<ModelAction["tool"], string | null> = {
   schedule_callback: "schedule_callback",
   offer_call: "offer_call",
   share_call_link: "share_call_link",
+  send_transcript: "send_transcript",
 };
 
 export interface ToolContext {
@@ -159,3 +161,10 @@ export async function executeTool(ctx: AppContext, t: ToolContext): Promise<Tool
     return { ok: false, detail: "failed", summary: `${t.action.tool.replace(/_/g, " ")} failed` };
   }
 }
+
+/** The visitor asked for a copy of the conversation: the same rules as their own "Email me a copy" button (docs/TRANSCRIPTS.md). */
+toolHandlers.send_transcript = async (ctx, t) => {
+  const { visitorRequestTranscriptForContact } = await import("../services/transcripts.js");
+  const r = await visitorRequestTranscriptForContact(ctx, t.room, t.agent.id);
+  return r.ok ? { ok: true, summary: `sent the visitor a copy of the conversation (${r.detail})` } : { ok: false, detail: r.detail, summary: `could not send a copy of the conversation: ${r.detail}` };
+};

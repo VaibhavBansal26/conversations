@@ -1067,6 +1067,20 @@
                       "push_message_previews": {
                         "type": "boolean"
                       },
+                      "transcripts": {
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "send_after_resolve": {
+                            "type": "boolean"
+                          },
+                          "redact": {
+                            "type": "boolean"
+                          }
+                        }
+                      },
                       "ai_channels": {
                         "type": "object",
                         "properties": {
@@ -6984,6 +6998,117 @@
         }
       }
     },
+    "/api/rooms/{id}/transcript": {
+      "post": {
+        "tags": [
+          "Conversations"
+        ],
+        "summary": "Send the contact a copy of the conversation by email, to their own address on file (`conversations:reply`); answers `{status, to, messages}`",
+        "operationId": "post_api_rooms_id_transcript",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "conversations:reply",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": [
+            "transcript.member",
+            "transcript.contact"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/rooms/{id}/transcripts": {
+      "get": {
+        "tags": [
+          "Conversations"
+        ],
+        "summary": "The copies sent from this conversation (who asked, a hint of the address, the result)",
+        "operationId": "get_api_rooms_id_transcripts",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "conversations:read",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.read",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
     "/api/team-calls/config": {
       "get": {
         "tags": [
@@ -8478,9 +8603,10 @@
                       "schedule_callback",
                       "offer_call",
                       "ai_call",
-                      "share_call_link"
+                      "share_call_link",
+                      "send_transcript"
                     ],
-                    "maxItems": 9,
+                    "maxItems": 10,
                     "type": "array",
                     "items": {
                       "type": "string",
@@ -8493,7 +8619,8 @@
                         "schedule_callback",
                         "offer_call",
                         "ai_call",
-                        "share_call_link"
+                        "share_call_link",
+                        "send_transcript"
                       ]
                     }
                   },
@@ -9310,7 +9437,7 @@
                     "maximum": 10
                   },
                   "allowed_actions": {
-                    "maxItems": 9,
+                    "maxItems": 10,
                     "type": "array",
                     "items": {
                       "type": "string",
@@ -9323,7 +9450,8 @@
                         "schedule_callback",
                         "offer_call",
                         "ai_call",
-                        "share_call_link"
+                        "share_call_link",
+                        "send_transcript"
                       ]
                     }
                   },
@@ -16797,6 +16925,94 @@
                 ]
               }
             }
+          }
+        }
+      }
+    },
+    "/public/rooms/{id}/transcript": {
+      "post": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "\"Email me a copy\": sends what the visitor saw to the confirmed email address of their own contact (`EMAIL_REQUIRED` posts the details form, `VERIFY_EMAIL_FIRST` asks for a code first); 3 an hour; answers `{status: sent | not_sent_test_mode, to, messages}`",
+        "operationId": "post_public_rooms_id_transcript",
+        "security": [],
+        "x-access": "public",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "public.send"
+          ],
+          "in_handler": [
+            "transcript.contact"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/public/transcripts/unsubscribe/{token}": {
+      "get": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "The signed link at the bottom of an automatic copy: stops automatic copies to that contact (the same page for any link)",
+        "operationId": "get_public_transcripts_unsubscribe_token",
+        "security": [],
+        "x-access": "public",
+        "x-rate-limit": {
+          "pre": [
+            "public.config"
+          ],
+          "post": [],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           }
         }
       }

@@ -175,6 +175,7 @@
     ".cform .go{background:var(--c);color:var(--t);border:0;border-radius:calc(var(--r,16px)*.6);padding:0 16px;min-height:40px;font-weight:600;cursor:pointer}.cform .skip{background:transparent;border:0;color:var(--muted);text-decoration:underline;cursor:pointer;font-size:13px}",
     ".cform .hp{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}",
     ".cform input:focus-visible,.cform select:focus-visible,.cform button:focus-visible{outline:2px solid var(--ring);outline-offset:2px}",
+    ".copynote{display:block;font-size:12px;color:var(--muted)}.copynote:empty{display:none}",
     ".human{padding:4px 12px 2px;background:var(--bg);border-top:1px solid var(--line);flex:none;text-align:center}.human[hidden]{display:none}.human button{border:0;background:transparent;color:var(--muted);text-decoration:underline;cursor:pointer;font-size:12.5px;padding:3px 6px}.human button:hover,.human button:focus-visible{color:var(--fg)}",
   ].join("\n");
 
@@ -495,6 +496,24 @@
     function renderHumanButton() {
       if (!els.human) return;
       els.human.hidden = !humanNeeded();
+      renderCopyButton();
+    }
+    /* ---------- "Email me a copy": only to the confirmed address of this visitor (docs/TRANSCRIPTS.md) ---------- */
+    function renderCopyButton() {
+      if (!els.copy) return;
+      var on = !!(state.config.transcripts && state.config.transcripts.enabled && state.room && sorted().some(function (m) { return !m.local && m.sender && m.sender.type === "contact"; }));
+      els.copy.hidden = !on;
+    }
+    function requestTranscript() {
+      if (!state.room) return;
+      els.copyNote.textContent = "";
+      return api("/public/rooms/" + state.room.id + "/transcript", { method: "POST", body: {} }).then(function (r) {
+        els.copyNote.textContent = r.status === "sent" ? "We sent a copy of this conversation to " + r.to + "." : "Test mode: the copy was not sent.";
+      }).catch(function (e) {
+        if (e.code === "VERIFY_EMAIL_FIRST") { state.pendingCopy = true; state.info = "To send you a copy, confirm your email address: we send a code to it."; state.view = OPEN_STATE.OTP; renderBody(); return requestOtp(); }
+        if (e.code === "EMAIL_REQUIRED") { els.copyNote.textContent = "Share your email address in the form in the chat, then ask again."; return loadMessages().then(renderMessages); }
+        els.copyNote.textContent = e.status === 429 ? "You asked for several copies just now. Please try again later." : e.message;
+      });
     }
     function requestHuman() {
       if (!state.room) return;
@@ -564,7 +583,9 @@
       els.input.addEventListener("input", function () { els.input.style.height = "auto"; els.input.style.height = Math.min(els.input.scrollHeight, 120) + "px"; });
       var send = h(doc, "button", { type: "button", class: "send", "aria-label": "Send message", onclick: submit }, [icon(doc, "send", 18)]);
       els.human = h(doc, "div", { class: "human", hidden: true }, [h(doc, "button", { type: "button", "data-human": "1", text: "Talk to a person", onclick: requestHuman })]);
-      els.body.appendChild(els.banner); els.body.appendChild(els.list); els.body.appendChild(els.typing); els.body.appendChild(els.human);
+      els.copyNote = h(doc, "span", { class: "copynote", role: "status" });
+      els.copy = h(doc, "div", { class: "human", hidden: true }, [h(doc, "button", { type: "button", "data-transcript": "1", text: "Email me a copy", onclick: requestTranscript }), els.copyNote]);
+      els.body.appendChild(els.banner); els.body.appendChild(els.list); els.body.appendChild(els.typing); els.body.appendChild(els.human); els.body.appendChild(els.copy);
       mountCallBar();
       els.body.appendChild(h(doc, "div", { class: "compose" }, [els.input, send]));
       els.body.style.display = "flex"; els.body.style.flexDirection = "column"; els.body.style.flex = "1"; els.body.style.minHeight = "0";
@@ -672,6 +693,9 @@
       return api("/public/otp/verify", { method: "POST", body: { code: code } }).then(function () {
         saveSession(Object.assign({}, state.session, { verified: true }));
         return ensureRoom(false);
+      }).then(function () {
+        // the visitor confirmed their address to receive a copy: send it now
+        if (state.pendingCopy) { state.pendingCopy = false; state.view = OPEN_STATE.CHAT; renderBody(); return requestTranscript(); }
       }).catch(function (e) { state.error = e.message; renderBody(); });
     }
 

@@ -151,7 +151,7 @@ The workspace chooses which details the chat collects and when (Settings > Visit
 - **Privacy**: values reach a language model only when the workspace does not redact personal data (the existing `ai_redact_pii` setting), and never appear in logs.
 - **In the apps**: the widget and the hosted chat render the card (labels, errors with `role=alert`, a country picker next to the phone field, consent, skip; a half-filled card survives incoming messages). The hosted chat is translated into en, es, fr, de and ja and tells the host app with the bridge events `form_requested`, `contact_info_submitted` (field names only), `handoff_started` and `agent_joined` ([MOBILE-BRIDGE.md](MOBILE-BRIDGE.md)).
 
-Not built: sending a transcript by email (the `after` moment asks for an address to follow up, it does not send anything), custom fields in the pre-chat form, and per-department consent text.
+Copies of the conversation by email are built ([TRANSCRIPTS.md](TRANSCRIPTS.md)): the `after` moment's address is used for the automatic copy when the workspace switches it on. Not built yet at this point of the text: custom fields in the pre-chat form, and per-department consent text (see below).
 
 ## 7. Measuring and trying it
 

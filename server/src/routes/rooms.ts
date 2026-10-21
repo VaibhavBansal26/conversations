@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { agentSendTranscript, listTranscriptSends } from "../services/transcripts.js";
 import type { AppContext } from "../context.js";
 import { unprocessable } from "../errors.js";
 import { parseBody, parseQuery, requireLiveSeat, type Env } from "../http.js";
@@ -132,6 +133,10 @@ export function roomRoutes(ctx: AppContext) {
         201,
       );
   });
+
+  /* copies of the conversation by email, to the contact's own address on file (docs/TRANSCRIPTS.md) */
+  r.post("/rooms/:id/transcript", async (c) => c.json(await agentSendTranscript(ctx, c.get("actor"), c.req.param("id"))));
+  r.get("/rooms/:id/transcripts", async (c) => c.json(await listTranscriptSends(ctx, c.get("actor"), c.req.param("id"))));
 
   /* notifications feed (any live seat) */
   r.get("/notifications", async (c) =>

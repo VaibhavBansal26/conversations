@@ -1,4 +1,5 @@
 import { aiCallAvailability } from "../calls/aiCall.js";
+import { visitorRequestTranscript, unsubscribeByToken } from "../services/transcripts.js";
 import { previewCallLink, redeemCallLink } from "../calls/links.js";
 import { FormSubmission, skipContactForm, submitContactForm } from "../services/visitorInfo.js";
 import { Hono } from "hono";
@@ -89,7 +90,17 @@ export function publicRoutes(ctx: AppContext) {
       departments,
       agents_available: agents.length,
       agents: agents.slice(0, 3),
+      transcripts: { enabled: settings.transcripts.enabled },
     });
+  });
+
+  // the link at the bottom of an automatic copy: stops automatic copies to that contact. The page is the same for a good and a bad link.
+  r.get("/transcripts/unsubscribe/:token", async (c) => {
+    await unsubscribeByToken(ctx, c.req.param("token")).catch(() => false);
+    c.header("Cache-Control", "no-store");
+    c.header("Referrer-Policy", "no-referrer");
+    c.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'");
+    return c.html(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Unsubscribed</title><style>body{font:16px/1.5 system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;color:#1f2430}@media (prefers-color-scheme:dark){body{background:#111318;color:#e7e9ee}}</style></head><body><h1>You will not receive automatic copies</h1><p>We will not email you a copy after your conversations end. You can still ask for a copy in the chat.</p></body></html>`);
   });
 
   r.post("/sessions", async (c) => {
@@ -127,7 +138,7 @@ export function publicRoutes(ctx: AppContext) {
   });
 
   r.use("/*", async (c, next) => {
-    if (c.req.path === "/public/sessions" || c.req.path === "/public/widget/config" || c.req.path === "/public/call-links/preview" || c.req.path === "/public/call-links/redeem") return await next();
+    if (c.req.path === "/public/sessions" || c.req.path === "/public/widget/config" || c.req.path === "/public/call-links/preview" || c.req.path === "/public/call-links/redeem" || c.req.path.startsWith("/public/transcripts/unsubscribe/")) return await next();
     const secret = c.req.header("x-support-session");
     const s = await authenticateSession(ctx, secret, { deviceId: c.req.header("x-device-id"), ip: knownIp(ctx, c) });
     // a session a call link minted takes part in the call over the socket and reads nothing here
@@ -214,6 +225,8 @@ export function publicRoutes(ctx: AppContext) {
   r.post("/rooms/:id/quick-reply", async (c) => c.json(await visitorQuickReply(ctx, c.get("session"), c.req.param("id"), await parseBody(c, QuickReplyBody))));
   // "Talk to a person": always available, whatever the workspace has switched on
   r.post("/rooms/:id/request-human", async (c) => c.json(await visitorRequestHuman(ctx, c.get("session"), c.req.param("id"))));
+  // "Email me a copy": only to the confirmed address of this visitor's own contact (docs/TRANSCRIPTS.md)
+  r.post("/rooms/:id/transcript", async (c) => c.json(await visitorRequestTranscript(ctx, c.get("session"), c.req.param("id"))));
   r.post("/rooms/:id/messages/:messageId/feedback", async (c) => c.json(await visitorFeedback(ctx, c.get("session"), c.req.param("id"), c.req.param("messageId"), await parseBody(c, VisitorFeedback))));
   // the visitor answers (or skips) a form card in the thread: name, email, phone, consent and custom fields, validated here
   r.post("/rooms/:id/forms/:messageId", async (c) => c.json(await submitContactForm(ctx, c.get("session"), c.req.param("id"), c.req.param("messageId"), await parseBody(c, FormSubmission))));

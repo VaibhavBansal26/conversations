@@ -33,7 +33,9 @@ Every document under `docs/` is listed here (a check fails otherwise). Generated
 | understand the AI features | [AI.md](AI.md) |
 | understand tickets, AI support agents, departments, visitor details and calls | [AI-AGENTS.md](AI-AGENTS.md), [DEPARTMENTS.md](DEPARTMENTS.md) |
 | place voice and video calls (also group calls), set up TURN, understand call states and limits | [CALLS.md](CALLS.md) |
-| get push notifications on your devices, set up VAPID keys, understand what a notification may contain | [NOTIFICATIONS.md](NOTIFICATIONS.md) |
+| send visitors a copy of their conversation by email (who may receive it, what it contains) | [TRANSCRIPTS.md](TRANSCRIPTS.md) |
+| get push notifications on your devices, set up VAPID keys, understand what a notification may contain | [TRANSCRIPTS.md](TRANSCRIPTS.md) | copies of a conversation by email: recipients and confirmation, contents, limits, the automatic copy, unsubscribe, routes, what is verified |
+| [NOTIFICATIONS.md](NOTIFICATIONS.md) |
 | set up departments, opening hours, routing modes, capacity, service levels and routing rules | [DEPARTMENTS.md](DEPARTMENTS.md) |
 | see what changed | [../CHANGELOG.md](../CHANGELOG.md) |
 

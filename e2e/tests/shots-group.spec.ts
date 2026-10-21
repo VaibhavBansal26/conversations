@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { loginApi } from "../support/api.mjs";
+import { scrollToTop } from "../support/scroll";
 import { FAKE_MEDIA_SCRIPT } from "../support/fakeMedia";
 import { DEMO, expect, signIn, test } from "../support/fixtures";
 
@@ -43,7 +44,7 @@ for (const vp of VIEWPORTS) {
           await signIn(pp!, { email: "priya@example.test", password: DEMO.password });
           await op!.goto("/settings/calls");
           await expect(op!.getByRole("switch", { name: /Group calls/ })).toBeVisible();
-          await op!.getByRole("switch", { name: /Group calls/ }).scrollIntoViewIfNeeded();
+          await scrollToTop(op!.getByRole("switch", { name: /Group calls/ }), 200);
           await shot(op!, "group-call-settings", vp.id, scheme);
           await op!.goto(`/team/${group.id}`);
           await op!.getByRole("button", { name: "Start a group video call" }).click();

@@ -4,6 +4,7 @@ import { createECDH, randomBytes } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loginApi } from "../support/api.mjs";
+import { scrollToTop } from "../support/scroll";
 import { expect, signIn, test } from "../support/fixtures";
 
 const OUT = process.env.SHOTS_DIR ?? join(dirname(fileURLToPath(import.meta.url)), "../../docs/design");
@@ -29,7 +30,7 @@ for (const vp of VIEWPORTS) {
           await page.goto("/settings/notifications");
           const h = page.getByRole("heading", { name: "Push notifications" });
           await expect(h).toBeVisible();
-          await h.evaluate((el) => el.scrollIntoView({ block: "start" }));
+          await scrollToTop(h);
           await page.waitForTimeout(400);
           await page.screenshot({ path: join(OUT, `push-settings-${vp.id}-${scheme}.jpg`), type: "jpeg", quality: 82 });
         } finally {

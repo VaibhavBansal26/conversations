@@ -421,6 +421,8 @@ export async function announceResolved(ctx: AppContext, t: TicketRow): Promise<v
     await emitInserted(ctx, r);
   }
   await requestVisitorInfo(ctx, t.id, "after").catch((e) => ctx.log.warn("visitor info request failed", { error: e instanceof Error ? e.message : String(e) }));
+  // the optional automatic copy by email (docs/TRANSCRIPTS.md), in the background: a slow mail provider must not hold up a resolution
+  ctx.background.run(async () => (await import("./transcripts.js")).maybeSendAfterResolve(ctx, t.id));
 }
 
 export async function resolveTicket(ctx: AppContext, actor: Actor, id: string, opts: ResolveOptions = {}): Promise<TicketRow> {
