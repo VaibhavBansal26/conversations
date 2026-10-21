@@ -27,12 +27,18 @@ export interface InboundSms {
   MessageSid: string;
 }
 
+/** Set when the request came in on a workspace's own webhook URL (verified with THAT workspace's credentials): nothing outside it may be touched. */
+export interface InboundScope {
+  workspaceId: string;
+}
+
 export type InboundResult = { status: "processed" | "duplicate" | "ignored"; room_id?: string; message_id?: string; keyword?: "opt_out" | "opt_in" };
 
 /** Twilio inbound SMS. Idempotent on MessageSid. */
-export async function handleInboundSms(ctx: AppContext, p: InboundSms): Promise<InboundResult> {
+export async function handleInboundSms(ctx: AppContext, p: InboundSms, scope?: InboundScope): Promise<InboundResult> {
   const num = await ctx.db.get<{ workspace_id: string }>("SELECT workspace_id FROM sms_numbers WHERE e164 = ?", p.To);
-  if (!num) return { status: "ignored" };
+  // a request that arrived on one workspace's webhook can only deliver to that workspace's numbers
+  if (!num || (scope && num.workspace_id !== scope.workspaceId)) return { status: "ignored" };
   const ws = num.workspace_id;
   if (!(await claimEvent(ctx, "twilio_inbound", p.MessageSid))) return { status: "duplicate" };
   const from = normalizePhone(p.From, (await getSettings(ctx, ws)).default_region);
@@ -91,10 +97,11 @@ export async function handleInboundSms(ctx: AppContext, p: InboundSms): Promise<
 export async function handleTwilioStatus(
   ctx: AppContext,
   p: { MessageSid: string; MessageStatus: string; ErrorCode?: string },
+  scope?: InboundScope,
 ): Promise<"updated" | "ignored" | "duplicate"> {
   if (!(await claimEvent(ctx, "twilio_status", `${p.MessageSid}:${p.MessageStatus}`))) return "duplicate";
   const m = await getByRef(ctx, "provider", p.MessageSid, { source: "sms" });
-  if (!m) return "ignored";
+  if (!m || (scope && m.workspace_id !== scope.workspaceId)) return "ignored";
   return await applyDelivery(ctx, m, p.MessageStatus, p.ErrorCode ? `Carrier error ${p.ErrorCode}` : undefined);
 }
 
@@ -140,14 +147,14 @@ export function parseHeaders(raw: string | undefined): Record<string, string> {
 const ids = (v: string | undefined): string[] => v?.match(/<[^>]+>/g) ?? [];
 
 /** SendGrid inbound parse. Idempotent on Message-ID. */
-export async function handleInboundEmail(ctx: AppContext, p: InboundEmail): Promise<InboundResult> {
+export async function handleInboundEmail(ctx: AppContext, p: InboundEmail, scope?: InboundScope): Promise<InboundResult> {
   const sender = parseAddress(p.from);
   if (!sender) return { status: "ignored" };
   let ws: string | undefined;
   for (const raw of p.to.split(",")) {
     const a = parseAddress(raw);
     const hit = a && (await ctx.db.get<{ workspace_id: string }>("SELECT workspace_id FROM inbound_addresses WHERE address = ?", a.address));
-    if (hit) {
+    if (hit && (!scope || hit.workspace_id === scope.workspaceId)) {
       ws = hit.workspace_id;
       break;
     }
@@ -229,7 +236,7 @@ export interface SendgridEvent {
 }
 
 /** SendGrid event webhook: delivered / open / bounce / dropped for outgoing email. Idempotent on sg_event_id. */
-export async function handleSendgridEvents(ctx: AppContext, events: SendgridEvent[]): Promise<{ processed: number; ignored: number }> {
+export async function handleSendgridEvents(ctx: AppContext, events: SendgridEvent[], scope?: InboundScope): Promise<{ processed: number; ignored: number }> {
   let processed = 0;
   let ignored = 0;
   for (const ev of events) {
@@ -243,7 +250,7 @@ export async function handleSendgridEvents(ctx: AppContext, events: SendgridEven
       (providerId && (await getByRef(ctx, "provider", providerId, { source: "email" }))) ||
       (ev["smtp-id"] && (await getByRef(ctx, "rfc", ev["smtp-id"], { source: "email" }))) ||
       undefined;
-    if (!m) {
+    if (!m || (scope && m.workspace_id !== scope.workspaceId)) {
       ignored++;
       continue;
     }

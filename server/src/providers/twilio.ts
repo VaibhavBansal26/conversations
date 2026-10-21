@@ -1,56 +1,108 @@
+import { DEFAULT_PROVIDER_TIMEOUT_MS, mapTwilioError, timedFetch } from "./errors.js";
 import { ProviderError, type ProviderDeliveryState, type SmsProvider, type SmsSendInput, type SmsSendResult } from "./types.js";
 
 type Fetch = typeof fetch;
 
-/** Twilio Programmable SMS over plain fetch (no SDK). Only constructed when SMS_PROVIDER=twilio. */
+export interface TwilioOptions {
+  /** REST calls authenticate with this API key instead of the auth token (the auth token is still what signs webhooks) */
+  apiKeySid?: string;
+  apiKeySecret?: string;
+  timeoutMs?: number;
+}
+
+export interface TwilioAccountInfo {
+  sid: string;
+  friendly_name: string;
+  status: string;
+  /** "Trial" or "Full" */
+  type: string;
+}
+export interface TwilioNumber {
+  sid: string;
+  e164: string;
+  label: string;
+  sms_capable: boolean;
+}
+
+/** Twilio Programmable SMS over plain fetch (no SDK). Constructed per workspace from its own credentials, or once from the platform's environment. */
 export class TwilioSmsProvider implements SmsProvider {
   readonly name = "twilio";
+  private readonly timeoutMs: number;
 
   constructor(
     private readonly accountSid: string,
     private readonly authToken: string,
     private readonly fetchImpl: Fetch = fetch,
     private readonly baseUrl = "https://api.twilio.com",
-  ) {}
+    private readonly opts: TwilioOptions = {},
+  ) {
+    this.timeoutMs = opts.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS;
+  }
 
   private get auth() {
-    return "Basic " + Buffer.from(`${this.accountSid}:${this.authToken}`).toString("base64");
+    const user = this.opts.apiKeySid && this.opts.apiKeySecret ? this.opts.apiKeySid : this.accountSid;
+    const pass = this.opts.apiKeySid && this.opts.apiKeySecret ? this.opts.apiKeySecret : this.authToken;
+    return "Basic " + Buffer.from(`${user}:${pass}`).toString("base64");
+  }
+
+  private async call(path: string, init: RequestInit = {}): Promise<{ res: Response; json: Record<string, unknown> }> {
+    const res = await timedFetch(this.fetchImpl, `${this.baseUrl}/2010-04-01/Accounts/${this.accountSid}${path}`, { ...init, headers: { Authorization: this.auth, ...(init.headers as Record<string, string> | undefined) } }, "Twilio", this.timeoutMs);
+    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    return { res, json };
+  }
+
+  private fail(status: number, json: Record<string, unknown>): ProviderError {
+    const code = typeof json.code === "number" ? json.code : undefined;
+    const message = typeof json.message === "string" ? json.message : "request failed";
+    const mapped = mapTwilioError(status, code, message);
+    return new ProviderError(`Twilio ${status}: ${message}${code ? ` (code ${code})` : ""}`, mapped.retryable, status, mapped.code, mapped.hint);
   }
 
   async send(input: SmsSendInput): Promise<SmsSendResult> {
     const body = new URLSearchParams({ To: input.to, From: input.from, Body: input.body });
     if (input.statusCallbackUrl) body.set("StatusCallback", input.statusCallbackUrl);
-    let res: Response;
-    try {
-      res = await this.fetchImpl(`${this.baseUrl}/2010-04-01/Accounts/${this.accountSid}/Messages.json`, {
-        method: "POST",
-        headers: { Authorization: this.auth, "Content-Type": "application/x-www-form-urlencoded", "I-Twilio-Idempotency-Token": input.idempotencyKey },
-        body,
-      });
-    } catch (e) {
-      throw new ProviderError(`Twilio unreachable: ${e instanceof Error ? e.message : "network error"}`, true);
-    }
-    const json = (await res.json().catch(() => ({}))) as { sid?: string; message?: string; code?: number };
-    if (!res.ok || !json.sid) {
-      // 4xx (bad number, unverified sender, auth) will not get better by retrying; 429 and 5xx will
-      const retryable = res.status === 429 || res.status >= 500;
-      throw new ProviderError(`Twilio ${res.status}: ${json.message ?? "request failed"}${json.code ? ` (code ${json.code})` : ""}`, retryable, res.status);
-    }
+    const { res, json } = await this.call("/Messages.json", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", "I-Twilio-Idempotency-Token": input.idempotencyKey },
+      body,
+    });
+    if (!res.ok) throw this.fail(res.status, json);
+    if (typeof json.sid !== "string") throw new ProviderError("Twilio answered without a message id", false, res.status, "malformed_response", "Twilio returned an unexpected answer. Check the Twilio Console message log before retrying.");
     return { providerMessageId: json.sid };
   }
 
+  /** Read-only: fetch the account. Proves the SID and token work and tells trial from full accounts. */
+  async fetchAccount(): Promise<TwilioAccountInfo> {
+    const { res, json } = await this.call(".json");
+    if (!res.ok) throw this.fail(res.status, json);
+    if (typeof json.sid !== "string") throw new ProviderError("Twilio answered without an account", false, res.status, "malformed_response", "Twilio returned an unexpected answer.");
+    return { sid: json.sid, friendly_name: String(json.friendly_name ?? ""), status: String(json.status ?? "unknown"), type: String(json.type ?? "unknown") };
+  }
+
+  /** Read-only: the phone numbers this account owns (first 100). */
+  async listNumbers(): Promise<TwilioNumber[]> {
+    const { res, json } = await this.call("/IncomingPhoneNumbers.json?PageSize=100");
+    if (!res.ok) throw this.fail(res.status, json);
+    if (!Array.isArray(json.incoming_phone_numbers)) throw new ProviderError("Twilio answered without a number list", false, res.status, "malformed_response", "Twilio returned an unexpected answer.");
+    return (json.incoming_phone_numbers as Record<string, unknown>[])
+      .filter((n) => typeof n.phone_number === "string")
+      .map((n) => ({
+        sid: String(n.sid ?? ""),
+        e164: n.phone_number as string,
+        label: String(n.friendly_name ?? ""),
+        sms_capable: (n.capabilities as { sms?: boolean } | undefined)?.sms !== false,
+      }));
+  }
+
   async fetchStatus(id: string): Promise<{ state: ProviderDeliveryState; error?: string }> {
-    const res = await this.fetchImpl(`${this.baseUrl}/2010-04-01/Accounts/${this.accountSid}/Messages/${encodeURIComponent(id)}.json`, {
-      headers: { Authorization: this.auth },
-    });
+    const { res, json: j } = await this.call(`/Messages/${encodeURIComponent(id)}.json`);
     if (!res.ok) return { state: "unknown" };
-    const j = (await res.json()) as { status?: string; error_code?: number | null };
     switch (j.status) {
       case "delivered":
         return { state: "delivered" };
       case "failed":
       case "undelivered":
-        return { state: "failed", error: j.error_code ? `Carrier error ${j.error_code}` : "Undelivered" };
+        return { state: "failed", error: j.error_code ? `Carrier error ${String(j.error_code)}` : "Undelivered" };
       case "queued":
       case "sending":
       case "sent":

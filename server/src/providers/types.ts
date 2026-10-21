@@ -45,12 +45,37 @@ export interface EmailProvider {
   send(input: EmailSendInput): Promise<EmailSendResult>;
 }
 
+/**
+ * Normalised failure classes, mapped from each provider's own codes so the UI can say what to do about them
+ * (see providers/errors.ts). `provider_error` is the catch-all.
+ */
+export type ProviderErrorCode =
+  | "auth_failed"
+  | "account_suspended"
+  | "unverified_sender"
+  | "unverified_number"
+  | "trial_restriction"
+  | "insufficient_funds"
+  | "rate_limited"
+  | "invalid_recipient"
+  | "invalid_sender"
+  | "recipient_opted_out"
+  | "permission_denied"
+  | "timeout"
+  | "unreachable"
+  | "malformed_response"
+  | "credentials_unusable"
+  | "provider_error";
+
 export class ProviderError extends Error {
   constructor(
     message: string,
     /** Permanent failures (bad number, 4xx) are not retried automatically. */
     public readonly retryable: boolean,
     public readonly status?: number,
+    public readonly code: ProviderErrorCode = "provider_error",
+    /** One sentence telling a workspace admin what to do about it */
+    public readonly hint?: string,
   ) {
     super(message);
     this.name = "ProviderError";

@@ -97,9 +97,9 @@ Development runs the same thing with `npm run dev` (API on :3000, Vite on :5173 
 | `metrics.ts`, `telemetry.ts` | Prometheus `/metrics`; optional OpenTelemetry (loaded only if installed and configured) |
 | `services/*` | all business rules; every query is workspace-scoped; `roomStore.roomVisibility` is the single definition of scope |
 | `channels/rules.ts` | SMS/email rules: keyword classification, number choice and locking, subject derivation, threading |
-| `providers/` | `SmsProvider`/`EmailProvider`/`Storage` interfaces, Fake/Console providers, Twilio/SendGrid `fetch` adapters, `LocalDiskStorage` |
+| `providers/` | `SmsProvider`/`EmailProvider`/`Storage` interfaces, Fake/Console providers (`simulated` = test mode), Twilio/SendGrid `fetch` adapters with timeouts and normalised errors, `ProviderRegistry` (per-workspace credentials, else the platform default; [CHANNELS.md](CHANNELS.md)), `LocalDiskStorage` |
 | `realtime/` | `RealtimeBus` interface, `SocketBus` (Socket.IO: admission control, limits, backpressure, drain, event coalescing) |
-| `webhooks/signatures.ts` | Twilio HMAC-SHA1, SendGrid ECDSA / shared secret, replay + idempotency table |
+| `webhooks/signatures.ts` | Twilio HMAC-SHA1, SendGrid ECDSA / shared secret, replay + idempotency table; per-workspace endpoints `/webhooks/c/:id/...` verify with the connection's own credentials |
 | `jobs/` | `JobQueue` (`DbJobQueue` / `BullJobQueue`) with backoff, scheduler passes |
 | `ai/` | `AiProvider`, Anthropic + heuristic providers, BM25 retrieval, prompt safety, features |
 | `routes/` | thin Hono routers: validate, call a service, serialise |
@@ -387,7 +387,7 @@ Capacity numbers, the sizing model and what to change when you outgrow a topolog
 - **Event coalescing**: bursty idempotent events (presence flips, read receipts) are collected for a short window and only the newest state per key is sent. Message events are never coalesced.
 - **Pagination** is keyset everywhere a list can be large (rooms, contacts, notifications, messages); the web inbox virtualises its list above 100 rows.
 - **Storage**: implement `Storage` (`put/read/remove/signedUrl`) for S3 (presigned GET) and select it in `createContext`; `LocalDiskStorage` is per node, so multi-node deployments need an object store or a shared volume (see Limits).
-- **Providers**: `SmsProvider`/`EmailProvider` are tiny interfaces; real adapters are selected only by env (`SMS_PROVIDER=twilio`, `EMAIL_PROVIDER=sendgrid`).
+- **Providers**: `SmsProvider`/`EmailProvider` are tiny interfaces. A workspace connects its own Twilio / SendGrid account in Settings > Channels (`channel_connections`, encrypted, [ADR 0019](adr/0019-per-workspace-channel-connections.md)); `SMS_PROVIDER`/`EMAIL_PROVIDER` in the environment are only the platform default for workspaces without a connection, and the console default means messages are stored as `not_sent_test_mode` ([ADR 0018](adr/0018-test-mode-delivery.md)).
 - **AI**: `AiProvider.complete(request)`; Anthropic when `ANTHROPIC_API_KEY` is set, otherwise the deterministic heuristic provider.
 
 ### Limits (known, measured where possible)

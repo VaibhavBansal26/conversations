@@ -12,6 +12,7 @@ import type { JobQueue } from "./jobs/queue.js";
 import type { Metrics } from "./metrics.js";
 import type { WorkerPool } from "./workers/pool.js";
 import type { EmailProvider, SmsProvider, Storage } from "./providers/types.js";
+import type { ProviderRegistry } from "./providers/registry.js";
 import type { AiProvider } from "./ai/provider.js";
 import type { BillingProvider } from "./billing/types.js";
 
@@ -24,8 +25,11 @@ export interface AppContext {
   clock: () => Date;
   bus: RealtimeBus;
   presence: PresenceService;
+  /** the PLATFORM default providers (environment). Conversation traffic resolves per workspace through `providers`. */
   sms: SmsProvider;
   email: EmailProvider;
+  /** per-workspace provider resolution: the workspace's own Twilio/SendGrid connection, else the platform default above */
+  providers: ProviderRegistry;
   storage: Storage;
   ai: AiProvider;
   /** Stripe behind an interface: the real SDK, a fake in tests, or a stub that answers 503 when no key is configured */

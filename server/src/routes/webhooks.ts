@@ -7,7 +7,13 @@ import { guardStrikes } from "../ratelimit/http.js";
 import { ipKey } from "../util/clientIp.js";
 import { handleInboundEmail, handleInboundSms, handleSendgridEvents, handleTwilioStatus, type SendgridEvent } from "../services/inbound.js";
 import { handleStripeEvent } from "../billing/webhooks.js";
-import { requireSendgridEvents, requireSharedSecret, requireTwilio } from "../webhooks/signatures.js";
+import { claimEvent, requireSendgridEvents, requireSharedSecret, requireTwilio, verifySendgridSignature, verifyTwilioSignature } from "../webhooks/signatures.js";
+import { enforce } from "../ratelimit/http.js";
+import { openCredentials, type ConnectionRow, type TwilioCredentials } from "../providers/registry.js";
+import { recordChannelEvent } from "../services/channelConnections.js";
+import { safeEqual, sha256 } from "../util/crypto.js";
+import { parseJson } from "../util/json.js";
+import { unauthorized } from "../errors.js";
 
 const TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
 
@@ -44,6 +50,81 @@ export function webhookRoutes(ctx: AppContext) {
     if (!p.MessageSid || !p.MessageStatus) throw badRequest("VALIDATION_ERROR", "MessageSid and MessageStatus are required");
     await handleTwilioStatus(ctx, { MessageSid: p.MessageSid, MessageStatus: p.MessageStatus, ErrorCode: p.ErrorCode });
     return c.body(null, 204);
+  });
+
+  /*
+   * Per-workspace webhooks: /webhooks/c/<webhook id>/... . The id selects the workspace's connection, and the request is verified with THAT
+   * connection's credentials (Twilio: the workspace's own auth token; SendGrid: the connection's secret, or its event-webhook public key).
+   * Unknown ids and bad proofs answer the same 401, so ids cannot be probed, and every proof failure counts toward the IP block above.
+   */
+  const connection = async (c: Context, provider: "twilio" | "sendgrid"): Promise<ConnectionRow> => {
+    const row = await ctx.db.get<ConnectionRow>("SELECT * FROM channel_connections WHERE webhook_id = ?", c.req.param("id") ?? "");
+    if (!row || row.provider !== provider) throw unauthorized("Invalid webhook signature", "INVALID_SIGNATURE");
+    await enforce(ctx, "webhook.connection", { key: row.webhook_id });
+    return row;
+  };
+  const reject = async (row: ConnectionRow, kind: string, why: string): Promise<never> => {
+    await recordChannelEvent(ctx, row.workspace_id, row.channel, kind, "rejected", why).catch(() => {});
+    throw unauthorized("Invalid webhook signature", "INVALID_SIGNATURE");
+  };
+  const secretOk = (row: ConnectionRow, provided: string | undefined) => !!provided && safeEqual(sha256(provided), row.webhook_secret_hash);
+
+  r.post("/c/:id/twilio/sms", async (c) => {
+    const row = await connection(c, "twilio");
+    const p = await formParams(c);
+    const url = new URL(c.req.url);
+    const creds = openCredentials<TwilioCredentials>(ctx, row);
+    if (!verifyTwilioSignature(creds.auth_token, ctx.config.PUBLIC_URL.replace(/\/$/, "") + url.pathname + url.search, p, c.req.header("x-twilio-signature"))) await reject(row, "twilio_sms", "signature does not match this workspace's auth token");
+    if (!p.From || !p.To || !p.MessageSid) throw badRequest("VALIDATION_ERROR", "From, To and MessageSid are required");
+    const res = await handleInboundSms(ctx, { From: p.From, To: p.To, Body: p.Body ?? "", MessageSid: p.MessageSid }, { workspaceId: row.workspace_id });
+    await recordChannelEvent(ctx, row.workspace_id, "sms", "twilio_sms", res.status === "processed" ? "processed" : res.status === "duplicate" ? "duplicate" : "ignored", res.status === "ignored" ? "the To number is not registered in this workspace, or the text was empty" : null);
+    return c.body(TWIML, 200, { "Content-Type": "text/xml" });
+  });
+
+  r.post("/c/:id/twilio/status", async (c) => {
+    const row = await connection(c, "twilio");
+    const p = await formParams(c);
+    const url = new URL(c.req.url);
+    const creds = openCredentials<TwilioCredentials>(ctx, row);
+    if (!verifyTwilioSignature(creds.auth_token, ctx.config.PUBLIC_URL.replace(/\/$/, "") + url.pathname + url.search, p, c.req.header("x-twilio-signature"))) await reject(row, "twilio_status", "signature does not match this workspace's auth token");
+    if (!p.MessageSid || !p.MessageStatus) throw badRequest("VALIDATION_ERROR", "MessageSid and MessageStatus are required");
+    const res = await handleTwilioStatus(ctx, { MessageSid: p.MessageSid, MessageStatus: p.MessageStatus, ErrorCode: p.ErrorCode }, { workspaceId: row.workspace_id });
+    await recordChannelEvent(ctx, row.workspace_id, "sms", "twilio_status", res === "updated" ? "processed" : res, `${p.MessageStatus}`);
+    return c.body(null, 204);
+  });
+
+  r.post("/c/:id/sendgrid/inbound", async (c) => {
+    const row = await connection(c, "sendgrid");
+    if (!secretOk(row, c.req.query("secret") ?? c.req.header("x-webhook-secret"))) await reject(row, "sendgrid_inbound", "wrong or missing secret");
+    const p = await formParams(c);
+    if (!p.from || !p.to) throw badRequest("VALIDATION_ERROR", "from and to are required");
+    const res = await handleInboundEmail(ctx, { from: p.from, to: p.to, subject: p.subject, text: p.text, html: p.html, headers: p.headers }, { workspaceId: row.workspace_id });
+    await recordChannelEvent(ctx, row.workspace_id, "email", "sendgrid_inbound", res.status === "processed" ? "processed" : res.status === "duplicate" ? "duplicate" : "ignored", res.status === "ignored" ? "no inbound address of this workspace in the To field, or an empty message" : null);
+    return c.json(res);
+  });
+
+  r.post("/c/:id/sendgrid/events", async (c) => {
+    const row = await connection(c, "sendgrid");
+    const raw = await c.req.text();
+    const publicKey = parseJson<{ event_public_key?: string | null }>(row.meta, {}).event_public_key;
+    if (publicKey) {
+      const sig = c.req.header("x-twilio-email-event-webhook-signature");
+      const ts = c.req.header("x-twilio-email-event-webhook-timestamp");
+      if (!verifySendgridSignature(publicKey, raw, sig, ts)) await reject(row, "sendgrid_events", "signature does not match this workspace's verification key");
+      const n = Number(ts);
+      if (!Number.isFinite(n) || Math.abs(ctx.clock().getTime() / 1000 - n) > ctx.config.WEBHOOK_TOLERANCE_SECONDS) await reject(row, "sendgrid_events", "timestamp outside the tolerated window");
+      if (!(await claimEvent(ctx, "sendgrid_sig", sha256(`${row.id}|${sig}|${ts}`)))) await reject(row, "sendgrid_events", "replayed request");
+    } else if (!secretOk(row, c.req.query("secret") ?? c.req.header("x-webhook-secret"))) await reject(row, "sendgrid_events", "wrong or missing secret");
+    let events: unknown;
+    try {
+      events = JSON.parse(raw);
+    } catch {
+      throw badRequest("INVALID_JSON", "Body must be a JSON array of events");
+    }
+    if (!Array.isArray(events)) throw badRequest("VALIDATION_ERROR", "Body must be a JSON array of events");
+    const res = await handleSendgridEvents(ctx, events as SendgridEvent[], { workspaceId: row.workspace_id });
+    await recordChannelEvent(ctx, row.workspace_id, "email", "sendgrid_events", res.processed ? "processed" : "ignored", `${res.processed} processed, ${res.ignored} ignored`);
+    return c.json(res);
   });
 
   // Stripe: the signature is checked over the exact raw bytes, then the event is applied once (stripe_events journal). 2xx = done or ignorable,

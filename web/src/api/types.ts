@@ -376,7 +376,7 @@ export interface LedgerEntry {
 
 export interface ChannelStatus {
   channel: "sms" | "email";
-  mode: "live" | "test";
+  mode: "live" | "test" | "attention";
   connected: boolean;
   provider: string;
   source: "platform" | "workspace" | "none";
@@ -389,4 +389,43 @@ export interface ChannelStatuses {
   sms: ChannelStatus;
   email: ChannelStatus;
   system_email: { mode: "live" | "test"; provider: string };
+}
+
+export interface ChannelConnection {
+  id: string;
+  channel: "sms" | "email";
+  provider: "twilio" | "sendgrid";
+  status: "pending" | "verified" | "error";
+  masked: Record<string, string>;
+  account: { friendly_name?: string; type?: string; status?: string; scopes_ok?: boolean; domains?: { domain: string; valid: boolean }[]; verified_senders?: number } | null;
+  inbound_domain: string | null;
+  event_public_key_set: boolean;
+  verified_at: string | null;
+  last_error: string | null;
+  last_error_at: string | null;
+  webhooks: Record<string, string>;
+  created_at: string;
+  updated_at: string;
+}
+export interface ChannelConnections {
+  sms: ChannelConnection | null;
+  email: ChannelConnection | null;
+}
+export interface VerifyResult {
+  connection: ChannelConnection;
+  warnings: string[];
+  senders?: { email: string; name: string; verified: boolean }[] | null;
+}
+export interface ChannelEvent {
+  id: string;
+  kind: string;
+  outcome: "processed" | "duplicate" | "ignored" | "rejected";
+  detail: string | null;
+  at: string;
+}
+export interface TwilioNumberRow {
+  e164: string;
+  label: string;
+  sms_capable: boolean;
+  imported: boolean;
 }

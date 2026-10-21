@@ -3,6 +3,8 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { api } from "../../api/client";
 import { useChannelStatus, useEmailSenders, useInboundAddresses, useSmsNumbers } from "../../api/hooks";
 import { ChannelBanner } from "../../components/channels/ChannelBanner";
+import { useCan } from "../../auth/AuthContext";
+import { ChannelConnectionsPanel } from "./ChannelConnections";
 import { useListMutation } from "../../api/settingsHooks";
 import type { EmailSender, SmsNumber } from "../../api/types";
 import { ConfirmDialog } from "../../components/settings/ConfirmDialog";
@@ -204,6 +206,7 @@ function InboundAddresses() {
 
 export function ChannelSettings() {
   const status = useChannelStatus();
+  const canManage = useCan("channels:manage");
   return (
     <>
       {status.data && (
@@ -212,6 +215,7 @@ export function ChannelSettings() {
           <ChannelBanner status={status.data.email} />
         </div>
       )}
+      {canManage && <ChannelConnectionsPanel sms={status.data?.sms} email={status.data?.email} />}
       <SmsNumbers />
       <EmailSenders />
       <InboundAddresses />

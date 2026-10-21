@@ -32,4 +32,6 @@ export const keys = {
   credits: ["credits"] as const,
   billing: ["billing"] as const,
   channelStatus: ["channel-status"] as const,
+  channelConnections: ["channel-connections"] as const,
+  channelEvents: (c: string) => ["channel-events", c] as const,
 };

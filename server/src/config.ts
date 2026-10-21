@@ -115,6 +115,8 @@ export const configSchema = z.object({
   SENDGRID_API_KEY: z.string().optional(),
   SENDGRID_WEBHOOK_PUBLIC_KEY: z.string().optional(),
   WEBHOOK_SHARED_SECRET: z.string().optional(),
+  /** time budget of every call to Twilio or SendGrid (sends, credential checks, number and sender imports) */
+  PROVIDER_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(15000),
   WEBHOOK_TOLERANCE_SECONDS: z.coerce.number().int().positive().default(300),
   SYSTEM_EMAIL_FROM: z.string().default("notifications@conversations.local"),
   CREDIT_COST_SMS: z.coerce.number().int().min(0).default(1),

@@ -23,6 +23,7 @@ import { WorkerPool } from "./workers/pool.js";
 import { createLogger, type Logger } from "./logger.js";
 import { ConsoleEmailProvider, ConsoleSmsProvider } from "./providers/fake.js";
 import { LocalDiskStorage } from "./providers/storage.js";
+import { ProviderRegistry } from "./providers/registry.js";
 import { SendGridEmailProvider } from "./providers/sendgrid.js";
 import { TwilioSmsProvider } from "./providers/twilio.js";
 import type { EmailProvider, SmsProvider, Storage } from "./providers/types.js";
@@ -73,6 +74,7 @@ export async function createContext(config: Config, o: ContextOverrides = {}): P
     presence: undefined as never,
     sms: o.sms ?? (config.SMS_PROVIDER === "twilio" ? new TwilioSmsProvider(config.TWILIO_ACCOUNT_SID!, config.TWILIO_AUTH_TOKEN!) : new ConsoleSmsProvider(log)),
     email: o.email ?? (config.EMAIL_PROVIDER === "sendgrid" ? new SendGridEmailProvider(config.SENDGRID_API_KEY!) : new ConsoleEmailProvider(log)),
+    providers: new ProviderRegistry(() => ctxRef),
     storage: o.storage ?? new LocalDiskStorage(resolve(config.DATA_DIR, "uploads"), config.PUBLIC_URL, config.JWT_SECRET, () => ctxRef.clock().getTime()),
     ai: o.ai ?? createAiProvider(config),
     billing: o.billing ?? createBilling(config),

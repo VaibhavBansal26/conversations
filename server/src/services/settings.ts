@@ -7,6 +7,8 @@ import { AppError, forbidden, notFound, unprocessable } from "../errors.js";
 import { newId } from "../util/ids.js";
 import { normalizeEmail, normalizePhone } from "../util/phone.js";
 import { getSettings } from "./workspaces.js";
+import { ProviderError } from "../providers/types.js";
+import { providerAppError } from "./channelConnections.js";
 import type { KbDoc } from "../ai/retrieval.js";
 
 const manager = (a: Actor) => {
@@ -29,20 +31,31 @@ export async function addSmsNumber(ctx: AppContext, actor: Actor, i: { e164: str
   manager(actor);
   const e164 = normalizePhone(i.e164, (await getSettings(ctx, actor.workspaceId)).default_region);
   if (!e164) throw unprocessable("INVALID_PHONE", "Phone number is not valid");
+  // with a verified Twilio connection a number must belong to THAT account: otherwise a workspace could claim a number it does not own
+  // (and receive its inbound texts) just by typing it
+  const conn = await ctx.providers.connection(actor.workspaceId, "sms");
+  if (conn?.status === "verified") {
+    let owned;
+    try {
+      owned = await ctx.providers.twilioFor(conn).listNumbers();
+    } catch (e) {
+      if (e instanceof ProviderError) throw providerAppError(e);
+      throw e;
+    }
+    if (!owned.some((n) => n.e164 === e164)) {
+      throw unprocessable("NUMBER_NOT_OWNED", "This number is not on your connected Twilio account. Buy or port it in Twilio first, or use Import numbers.");
+    }
+  }
+  return insertSmsNumber(ctx, actor.workspaceId, e164, i.label ?? "", i.is_default ?? false);
+}
+
+export async function insertSmsNumber(ctx: AppContext, ws: string, e164: string, label: string, makeDefault: boolean): Promise<SmsNumberRow> {
   const id = newId("num");
   try {
     await ctx.db.tx(async () => {
-      await ctx.db.run(
-        "INSERT INTO sms_numbers(id, workspace_id, e164, label, is_default, created_at) VALUES (?,?,?,?,?,?)",
-        id,
-        actor.workspaceId,
-        e164,
-        i.label ?? "",
-        false,
-        nowIso(ctx),
-      );
-      const first = (await ctx.db.get<{ n: number }>("SELECT COUNT(*) n FROM sms_numbers WHERE workspace_id = ?", actor.workspaceId))!.n === 1;
-      if (i.is_default || first) await setDefaultNumber(ctx, actor.workspaceId, id);
+      await ctx.db.run("INSERT INTO sms_numbers(id, workspace_id, e164, label, is_default, created_at) VALUES (?,?,?,?,?,?)", id, ws, e164, label, false, nowIso(ctx));
+      const first = (await ctx.db.get<{ n: number }>("SELECT COUNT(*) n FROM sms_numbers WHERE workspace_id = ?", ws))!.n === 1;
+      if (makeDefault || first) await setDefaultNumber(ctx, ws, id);
     });
   } catch (e) {
     if (isUniqueViolation(e)) throw new AppError(409, "NUMBER_EXISTS", "This number is already registered");

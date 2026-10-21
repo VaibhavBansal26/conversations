@@ -26,8 +26,10 @@ export const jobHandlers: Record<string, JobHandler> = {
   },
   reconcile_sms: async (ctx, p: { message_id: string; attempt: number }) => {
     const m = await getByRef(ctx, "id", p.message_id);
-    if (!m || m.delivery !== "sent" || !m.provider_message_id || !ctx.sms.fetchStatus) return;
-    const s = await ctx.sms.fetchStatus(m.provider_message_id);
+    if (!m || m.delivery !== "sent" || !m.provider_message_id) return;
+    const sms = (await ctx.providers.sms(m.workspace_id)).provider;
+    if (!sms.fetchStatus) return;
+    const s = await sms.fetchStatus(m.provider_message_id);
     if (s.state === "delivered" || s.state === "failed") {
       await applyDelivery(ctx, m, s.state, s.error);
       return;
@@ -42,7 +44,6 @@ export const jobHandlers: Record<string, JobHandler> = {
  * SMS that are still "sent" after a couple of minutes. Providers without fetchStatus are skipped.
  */
 export async function reconcileDeliveries(ctx: AppContext, opts: { minAgeMinutes?: number; maxAgeHours?: number; limit?: number } = {}): Promise<number> {
-  if (!ctx.sms.fetchStatus) return 0;
   const now = ctx.clock();
   const rows = await ctx.db.all<MessageRow>(
     `SELECT * FROM messages WHERE source = 'sms' AND delivery = 'sent' AND provider_message_id IS NOT NULL AND created_at <= ? AND created_at >= ? ORDER BY created_at LIMIT ?`,
@@ -53,7 +54,9 @@ export async function reconcileDeliveries(ctx: AppContext, opts: { minAgeMinutes
   let changed = 0;
   for (const m of rows) {
     try {
-      const s = await ctx.sms.fetchStatus(m.provider_message_id!);
+      const sms = (await ctx.providers.sms(m.workspace_id)).provider;
+      if (!sms.fetchStatus) continue;
+      const s = await sms.fetchStatus(m.provider_message_id!);
       if (s.state === "delivered" || s.state === "failed") {
         if ((await applyDelivery(ctx, m, s.state, s.error)) === "updated") changed++;
       }

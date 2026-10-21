@@ -1,14 +1,16 @@
 import type { AppContext } from "../context.js";
 import { nowIso } from "../context.js";
 import { redactSecrets } from "../util/redact.js";
+import { parseJson } from "../util/json.js";
 
 export type ChannelKey = "sms" | "email";
 
 /**
- * - `live`          messages leave the server through a real provider
- * - `test`          the console/fake provider is active: messages are stored and marked "not sent"
+ * - `live`       messages leave the server through a real provider
+ * - `test`       no provider is connected and the console one is active: messages are stored and marked "not sent"
+ * - `attention`  the workspace connected its own account but it is unverified or the provider rejected it: sends fail with a message
  */
-export type ChannelMode = "live" | "test";
+export type ChannelMode = "live" | "test" | "attention";
 
 export interface ChannelStatus {
   channel: ChannelKey;
@@ -18,7 +20,7 @@ export interface ChannelStatus {
   /** provider in use: twilio | sendgrid | console */
   provider: string;
   /** where the credentials come from: the platform's environment, or nothing */
-  source: "platform" | "none";
+  source: "workspace" | "platform" | "none";
   /** human-readable one-liner for banners */
   summary: string;
   details: Record<string, unknown>;
@@ -69,46 +71,84 @@ async function health(ctx: AppContext, ws: string, channel: ChannelKey) {
   };
 }
 
-async function smsStatus(ctx: AppContext, ws: string): Promise<ChannelStatus> {
-  const live = !ctx.sms.simulated;
-  const n = (await ctx.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM sms_numbers WHERE workspace_id = ?", ws))!.n;
-  const def = await ctx.db.get<{ e164: string }>("SELECT e164 FROM sms_numbers WHERE workspace_id = ? AND is_default = 1", ws);
-  return {
-    channel: "sms",
-    mode: live ? "live" : "test",
-    connected: live,
-    provider: ctx.sms.name,
-    source: live ? "platform" : "none",
-    summary: SUMMARY.sms[live ? "live" : "test"],
-    details: { numbers: Number(n), default_number: def?.e164 ?? null },
-    ...(await health(ctx, ws, "sms")),
-  };
+
+export async function markConnectionError(ctx: AppContext, ws: string, channel: ChannelKey, message: string): Promise<void> {
+  await ctx.db.run("UPDATE channel_connections SET status = 'error', last_error = ?, last_error_at = ?, updated_at = ? WHERE workspace_id = ? AND channel = ? AND status = 'verified'", redactSecrets(message).slice(0, 300), nowIso(ctx), nowIso(ctx), ws, channel);
+  await ctx.providers.invalidate(ws);
 }
 
-async function emailStatus(ctx: AppContext, ws: string): Promise<ChannelStatus> {
-  const live = !ctx.email.simulated;
-  const senders = await ctx.db.get<{ n: number; v: number }>("SELECT COUNT(*) AS n, COALESCE(SUM(CASE WHEN verified = 1 THEN 1 ELSE 0 END), 0) AS v FROM email_senders WHERE workspace_id = ?", ws);
-  const inbound = (await ctx.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM inbound_addresses WHERE workspace_id = ?", ws))!.n;
+async function lastEvent(ctx: AppContext, ws: string, channel: ChannelKey) {
+  const e = await ctx.db.get<{ kind: string; outcome: string; detail: string | null; created_at: string }>(
+    "SELECT kind, outcome, detail, created_at FROM channel_events WHERE workspace_id = ? AND channel = ? ORDER BY created_at DESC, id DESC LIMIT 1",
+    ws,
+    channel,
+  );
+  return e ? { kind: e.kind, outcome: e.outcome, detail: e.detail, at: e.created_at } : null;
+}
+
+async function status(ctx: AppContext, ws: string, channel: ChannelKey): Promise<ChannelStatus> {
+  const resolved = channel === "sms" ? await ctx.providers.sms(ws) : await ctx.providers.email(ws);
+  const row = await ctx.providers.connection(ws, channel);
+  const brand = channel === "sms" ? "Twilio" : "SendGrid";
+  const label = channel === "sms" ? "SMS" : "Email";
+  let mode: ChannelMode;
+  let summary: string;
+  if (row && row.status !== "verified") {
+    mode = "attention";
+    summary =
+      row.status === "error"
+        ? `${brand} rejected the saved credentials${row.last_error ? `: ${row.last_error}` : ""}. Messages cannot be sent until you verify them again in Settings > Channels.`
+        : `${brand} credentials are saved but not verified yet. Verify them in Settings > Channels to start sending.`;
+  } else if (resolved.simulated) {
+    mode = "test";
+    summary = SUMMARY[channel].test;
+  } else {
+    mode = "live";
+    summary = SUMMARY[channel].live;
+  }
+  const meta = row ? parseJson<Record<string, unknown>>(row.meta, {}) : {};
+  const details: Record<string, unknown> =
+    channel === "sms"
+      ? {
+          numbers: Number((await ctx.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM sms_numbers WHERE workspace_id = ?", ws))!.n),
+          default_number: (await ctx.db.get<{ e164: string }>("SELECT e164 FROM sms_numbers WHERE workspace_id = ? AND is_default = 1", ws))?.e164 ?? null,
+        }
+      : (() => ({}))();
+  if (channel === "email") {
+    const s = await ctx.db.get<{ n: number; v: number }>("SELECT COUNT(*) AS n, COALESCE(SUM(CASE WHEN verified = 1 THEN 1 ELSE 0 END), 0) AS v FROM email_senders WHERE workspace_id = ?", ws);
+    Object.assign(details, {
+      senders: Number(s?.n ?? 0),
+      verified_senders: Number(s?.v ?? 0),
+      inbound_addresses: Number((await ctx.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM inbound_addresses WHERE workspace_id = ?", ws))!.n),
+    });
+  }
+  if (row) {
+    details.connection_status = row.status;
+    details.verified_at = row.verified_at;
+    details.account = meta.account ?? null;
+    details.masked = meta.masked ?? null;
+    details.last_event = await lastEvent(ctx, ws, channel);
+  }
   return {
-    channel: "email",
-    mode: live ? "live" : "test",
-    connected: live,
-    provider: ctx.email.name,
-    source: live ? "platform" : "none",
-    summary: SUMMARY.email[live ? "live" : "test"],
-    details: { senders: Number(senders?.n ?? 0), verified_senders: Number(senders?.v ?? 0), inbound_addresses: Number(inbound) },
-    ...(await health(ctx, ws, "email")),
+    channel,
+    mode,
+    connected: mode === "live",
+    provider: row ? row.provider : resolved.provider.name,
+    source: row ? "workspace" : resolved.simulated ? "none" : "platform",
+    summary: summary || `${label} status unknown`,
+    details,
+    ...(await health(ctx, ws, channel)),
   };
 }
 
 /**
- * Provider status for the workspace. Never contains credentials: only names, counts and the last error text (redacted).
+ * Provider status for the workspace. Never contains credentials: only names, masked hints, counts and the last error text (redacted).
  * `system_email` is the platform mailer behind invitations, password resets and notification emails (a platform setting, not a workspace one).
  */
 export async function channelStatuses(ctx: AppContext, ws: string) {
   return {
-    sms: await smsStatus(ctx, ws),
-    email: await emailStatus(ctx, ws),
+    sms: await status(ctx, ws, "sms"),
+    email: await status(ctx, ws, "email"),
     system_email: { mode: ctx.email.simulated ? ("test" as const) : ("live" as const), provider: ctx.email.name },
   };
 }

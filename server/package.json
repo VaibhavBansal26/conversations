@@ -15,6 +15,7 @@
     "seed": "tsx src/seed.ts",
     "e2e": "node scripts/e2e.mjs",
     "admin": "tsx scripts/platform-admin.ts",
+    "smoke:channels": "tsx scripts/channels-smoke.ts",
     "docs:config": "tsx scripts/gen-config-doc.ts",
     "docs:api": "tsx scripts/gen-api-doc.ts",
     "docs:realtime": "tsx scripts/gen-realtime-doc.ts",

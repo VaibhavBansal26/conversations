@@ -1,3 +1,4 @@
+import { workspaceFromAddress } from "./channelConnections.js";
 import { assertWorkspaceActive } from "../admin/suspension.js";
 import { can } from "../authz/permissions.js";
 import type { AppContext } from "../context.js";
@@ -273,16 +274,20 @@ export async function sendOtp(ctx: AppContext, session: SessionRow): Promise<{ c
   if (channel === "sms" && !smsFrom) throw unprocessable("OTP_CHANNEL_UNAVAILABLE", "SMS verification is not available for this workspace");
   try {
     if (channel === "email") {
-      await ctx.email.send({
-        from: { address: ctx.config.SYSTEM_EMAIL_FROM, name: workspace.name },
+      const route = await ctx.providers.email(session.workspace_id);
+      // through the workspace's own SendGrid account the code must come from one of ITS verified senders
+      const fromAddress = route.source === "workspace" ? await workspaceFromAddress(ctx, session.workspace_id) : ctx.config.SYSTEM_EMAIL_FROM;
+      if (!fromAddress) throw new Error("no verified sender for the workspace's email connection");
+      await route.provider.send({
+        from: { address: fromAddress, name: workspace.name },
         to: contact.email!,
         subject: "Your verification code",
         text,
         html: `<p>${text}</p>`,
-        messageId: `<${newId("otp")}@${ctx.config.SYSTEM_EMAIL_FROM.split("@")[1] ?? "localhost"}>`,
+        messageId: `<${newId("otp")}@${fromAddress.split("@")[1] ?? "localhost"}>`,
       });
     } else {
-      await ctx.sms.send({ to: contact.phone!, from: smsFrom!.e164, body: text, idempotencyKey: newId("otp") });
+      await (await ctx.providers.sms(session.workspace_id)).provider.send({ to: contact.phone!, from: smsFrom!.e164, body: text, idempotencyKey: newId("otp") });
     }
   } catch (e) {
     ctx.log.warn("otp delivery failed", { session: session.id, channel, error: e instanceof Error ? e.message : String(e) });

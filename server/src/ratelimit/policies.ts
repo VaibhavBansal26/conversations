@@ -71,6 +71,11 @@ export const POLICIES: Policy[] = [
   P({ id: "billing.checkout", description: "Creating Stripe checkout/portal/onboarding sessions, per user (each is a paid API call to Stripe)", keyBy: "user", algo: "gcra", limit: 10, windowSec: 60, burst: 10, onFail: "open" }),
   P({ id: "payments.workspace", description: "Customer payment requests per workspace per hour, by plan", keyBy: "workspace", algo: "window", limit: 20, windowSec: 3600, tiers: { free: 20, pro: 300, business: 3000 }, onFail: "open" }),
 
+  // ---- channel connections (every call here reaches Twilio or SendGrid with the workspace's own credentials) ----
+  P({ id: "channels.verify", description: "Credential checks and number/sender imports (read-only provider calls), per user", keyBy: "user", algo: "gcra", limit: 6, windowSec: 60, burst: 6, onFail: "open" }),
+  P({ id: "channels.test", description: "Test texts and test emails per workspace per hour (they cost the workspace money at its provider)", keyBy: "workspace", algo: "window", limit: 10, windowSec: 3600, onFail: "closed" }),
+  P({ id: "webhook.connection", description: "Inbound provider events per workspace connection (its webhook id), 20/s with a burst of 100", keyBy: "composite", algo: "gcra", limit: 20, windowSec: 1, burst: 100, onFail: "open" }),
+
   // ---- provider webhooks ----
   P({ id: "webhook.provider", description: "Provider webhooks (Twilio, SendGrid), per IP", keyBy: "ip", algo: "gcra", limit: 300, windowSec: 60, burst: 300, onFail: "closed" }),
   P({ id: "webhook.stripe", description: "Stripe webhooks (platform and Connect), per IP. Signature-verified; Stripe retries what is delayed", keyBy: "ip", algo: "gcra", limit: 600, windowSec: 60, burst: 600, onFail: "open" }),

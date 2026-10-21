@@ -6,6 +6,7 @@ Every document under `docs/` is listed here (a check fails otherwise). Generated
 
 | If you want to... | Read |
 | --- | --- |
+| connect Twilio and SendGrid, read the SMS/email setup guide | [CHANNELS.md](CHANNELS.md) |
 | deploy it for free (Render, GitHub-connected) | [DEPLOY.md](DEPLOY.md) |
 | run it and see it work | [../README.md](../README.md) (quick start), [TESTING.md](TESTING.md) |
 | understand how it is built | [ARCHITECTURE.md](ARCHITECTURE.md), [APPROACH.md](APPROACH.md), [adr/README.md](adr/README.md) |
@@ -17,7 +18,8 @@ Every document under `docs/` is listed here (a check fails otherwise). Generated
 | operate many workspaces (suspend, credits, support access) | [ADMIN.md](ADMIN.md) |
 | feed analytics to another system | [ANALYTICS.md](ANALYTICS.md), [analytics-api/schema-version.json](analytics-api/schema-version.json) |
 | tune or understand rate limits | [RATE-LIMITING.md](RATE-LIMITING.md) |
-| put it behind Cloudflare | [CLOUDFLARE.md](CLOUDFLARE.md) |
+| put it behind Cloudflare | [CHANNELS.md](CHANNELS.md) | SMS and email: test mode, per-workspace Twilio and SendGrid connections, webhook verification, provider caveats, smoke test |
+| [CLOUDFLARE.md](CLOUDFLARE.md) |
 | size a deployment, know the limits | [SCALING.md](SCALING.md), [PERFORMANCE.md](PERFORMANCE.md) |
 | validate the big numbers in a cloud account | [CLOUD-LOADTEST.md](CLOUD-LOADTEST.md), `../loadtest/README.md` |
 | run it in production, handle an incident | [RUNBOOK.md](RUNBOOK.md) |

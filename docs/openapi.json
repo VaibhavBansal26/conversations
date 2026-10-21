@@ -5888,6 +5888,739 @@
         }
       }
     },
+    "/api/channels/connections": {
+      "get": {
+        "tags": [
+          "Channels"
+        ],
+        "summary": "The workspace's own Twilio (SMS) and SendGrid (email) connections: status, masked hints (last four characters), account facts and the webhook URLs to paste into the provider console. Credentials are never returned",
+        "operationId": "get_api_channels_connections",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "channels:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.read",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "`{sms, email}`, each a connection or `null`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/channels/sms/connection": {
+      "put": {
+        "tags": [
+          "Channels"
+        ],
+        "summary": "Save the workspace's Twilio credentials (encrypted at rest). Sending stops until `verify` succeeds; the old credentials are replaced",
+        "operationId": "put_api_channels_sms_connection",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "channels:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "account_sid": {
+                    "type": "string",
+                    "pattern": "^AC[0-9a-fA-F]{32}$"
+                  },
+                  "auth_token": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9]{16,64}$"
+                  },
+                  "api_key_sid": {
+                    "type": "string",
+                    "pattern": "^SK[0-9a-fA-F]{32}$"
+                  },
+                  "api_key_secret": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9]{16,64}$"
+                  }
+                },
+                "required": [
+                  "account_sid",
+                  "auth_token"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/channels/email/connection": {
+      "put": {
+        "tags": [
+          "Channels"
+        ],
+        "summary": "Save the workspace's SendGrid API key (encrypted at rest), optionally the inbound domain and the event-webhook verification key",
+        "operationId": "put_api_channels_email_connection",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "channels:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "api_key": {
+                    "type": "string",
+                    "pattern": "^SG\\.[A-Za-z0-9_-]{16,}\\.[A-Za-z0-9_-]{16,}$"
+                  },
+                  "inbound_domain": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 253
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "event_public_key": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 400
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "api_key"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Channels"
+        ],
+        "summary": "Change the inbound domain and the event-webhook verification key without re-entering the API key",
+        "operationId": "patch_api_channels_email_connection",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "channels:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "inbound_domain": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 253
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "event_public_key": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 400
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/channels/{channel}/connection": {
+      "delete": {
+        "tags": [
+          "Channels"
+        ],
+        "summary": "Disconnect `sms` or `email`: the credentials are deleted; numbers and senders stay",
+        "operationId": "delete_api_channels_channel_connection",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "channels:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "channel",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/channels/{channel}/verify": {
+      "post": {
+        "tags": [
+          "Channels"
+        ],
+        "summary": "Read-only provider check (Twilio: fetch the account; SendGrid: key scopes, verified senders, authenticated domains). Provider problems answer 422/502 with a `CHANNEL_*` code and a fix-it message",
+        "operationId": "post_api_channels_channel_verify",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "channels:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": [
+            "channels.verify"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "channel",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/channels/sms/numbers": {
+      "get": {
+        "tags": [
+          "Channels"
+        ],
+        "summary": "Phone numbers on the connected Twilio account, with `imported` flags",
+        "operationId": "get_api_channels_sms_numbers",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "channels:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.read",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/channels/sms/numbers/import": {
+      "post": {
+        "tags": [
+          "Channels"
+        ],
+        "summary": "Add numbers from the Twilio account to the workspace (only numbers Twilio lists for the account are accepted)",
+        "operationId": "post_api_channels_sms_numbers_import",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "channels:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": [
+            "channels.verify"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "e164s": {
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 20
+                    }
+                  }
+                },
+                "required": [
+                  "e164s"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/channels/email/senders/import": {
+      "post": {
+        "tags": [
+          "Channels"
+        ],
+        "summary": "Add the verified single senders of the SendGrid account as verified senders",
+        "operationId": "post_api_channels_email_senders_import",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "channels:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": [
+            "channels.verify"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/channels/email/webhook-secret/rotate": {
+      "post": {
+        "tags": [
+          "Channels"
+        ],
+        "summary": "Generate a new secret for the SendGrid webhook URLs (the old URLs stop working)",
+        "operationId": "post_api_channels_email_webhook_secret_rotate",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "channels:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/channels/{channel}/test": {
+      "post": {
+        "tags": [
+          "Channels"
+        ],
+        "summary": "Send a test text or email to `to` through the connected provider (10 per workspace per hour)",
+        "operationId": "post_api_channels_channel_test",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "channels:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": [
+            "channels.test"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "channel",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "to": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 254
+                  }
+                },
+                "required": [
+                  "to"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/channels/{channel}/events": {
+      "get": {
+        "tags": [
+          "Channels"
+        ],
+        "summary": "The latest inbound provider events received for the channel and their outcome (\"Check webhook\")",
+        "operationId": "get_api_channels_channel_events",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "channels:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.read",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "channel",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
     "/api/sms-numbers": {
       "get": {
         "tags": [
@@ -9671,6 +10404,183 @@
             "webhook.badsig"
           ]
         },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/webhooks/c/{id}/twilio/sms": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Inbound SMS for one workspace's Twilio account; `:id` is the connection's webhook id; verified with that workspace's auth token",
+        "operationId": "post_webhooks_c_id_twilio_sms",
+        "security": [],
+        "x-access": "public",
+        "x-rate-limit": {
+          "pre": [
+            "webhook.provider"
+          ],
+          "post": [],
+          "in_handler": [
+            "webhook.connection",
+            "webhook.badsig"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "text/xml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/webhooks/c/{id}/twilio/status": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "SMS delivery status for one workspace's Twilio account (that workspace's signature)",
+        "operationId": "post_webhooks_c_id_twilio_status",
+        "security": [],
+        "x-access": "public",
+        "x-rate-limit": {
+          "pre": [
+            "webhook.provider"
+          ],
+          "post": [],
+          "in_handler": [
+            "webhook.connection",
+            "webhook.badsig"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/webhooks/c/{id}/sendgrid/inbound": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Inbound Parse for one workspace's SendGrid account (the connection's `secret` query parameter)",
+        "operationId": "post_webhooks_c_id_sendgrid_inbound",
+        "security": [],
+        "x-access": "public",
+        "x-rate-limit": {
+          "pre": [
+            "webhook.provider"
+          ],
+          "post": [],
+          "in_handler": [
+            "webhook.connection",
+            "webhook.badsig"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/webhooks/c/{id}/sendgrid/events": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Event webhook for one workspace's SendGrid account (the connection's verification key, else its `secret`)",
+        "operationId": "post_webhooks_c_id_sendgrid_events",
+        "security": [],
+        "x-access": "public",
+        "x-rate-limit": {
+          "pre": [
+            "webhook.provider"
+          ],
+          "post": [],
+          "in_handler": [
+            "webhook.connection",
+            "webhook.badsig"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",

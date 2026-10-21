@@ -22,7 +22,7 @@ Source of truth: `server/src/authz/permissions.ts` (a test checks that the built
 | `roles:manage` | Create custom roles and change member roles | yes |  |  |  |
 | `settings:read` | See workspace settings | yes | yes | yes | yes |
 | `settings:write` | Change workspace settings | yes | yes |  |  |
-| `channels:manage` | Manage SMS numbers, email senders and inbound addresses | yes | yes |  |  |
+| `channels:manage` | Manage SMS numbers, email senders, inbound addresses and the Twilio / SendGrid connections | yes | yes |  |  |
 | `tokens:manage` | Manage widget embed tokens | yes | yes |  |  |
 | `templates:manage` | Manage reply templates | yes | yes |  |  |
 | `kb:manage` | Manage the knowledge base | yes | yes |  |  |

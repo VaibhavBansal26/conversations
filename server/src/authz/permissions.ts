@@ -17,7 +17,7 @@ export const PERMISSIONS = {
   "roles:manage": "Create custom roles and change member roles",
   "settings:read": "See workspace settings",
   "settings:write": "Change workspace settings",
-  "channels:manage": "Manage SMS numbers, email senders and inbound addresses",
+  "channels:manage": "Manage SMS numbers, email senders, inbound addresses and the Twilio / SendGrid connections",
   "tokens:manage": "Manage widget embed tokens",
   "templates:manage": "Manage reply templates",
   "kb:manage": "Manage the knowledge base",

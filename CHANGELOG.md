@@ -4,6 +4,15 @@ All notable user-visible changes. Format: [Keep a Changelog](https://keepachange
 
 ## [Unreleased]
 
+### Added (per-workspace channel connections)
+- **Settings > Channels: Connect Twilio and Connect SendGrid.** A workspace admin pastes their own credentials (encrypted at rest with `DATA_ENCRYPTION_KEY`, masked to the last four characters, never logged), verifies them with a read-only provider call, imports numbers from Twilio or verified senders from SendGrid, sends a test text or email, and copies the exact webhook URLs for Twilio (SMS webhook, status callback) and SendGrid (Inbound Parse, Event Webhook). "Check webhook" shows the latest inbound events and their outcome. Provider errors are mapped to fix-it messages (bad credentials, unverified sender, trial restriction, insufficient funds, rate limit, timeout). See [docs/CHANNELS.md](docs/CHANNELS.md) and [ADR 0019](docs/adr/0019-per-workspace-channel-connections.md).
+- Per-workspace inbound endpoints `POST /webhooks/c/:id/twilio/{sms,status}` and `/sendgrid/{inbound,events}`, each verified with that workspace's own credentials (Twilio Auth Token, SendGrid verification key or URL secret); the platform-wide endpoints remain for the environment default.
+- New routes under `/api/channels/*` (permission `channels:manage`), rate-limit policies `channels.verify`, `channels.test`, `webhook.connection`, `PROVIDER_TIMEOUT_MS`, audit entries `channel.*`, migration 022, `npm run smoke:channels --prefix server` (real-provider smoke test with your own credentials; nothing in `npm test` reaches Twilio or SendGrid).
+
+### Changed
+- `SMS_PROVIDER` / `EMAIL_PROVIDER` / `TWILIO_*` / `SENDGRID_*` are now the optional platform default for workspaces that have no connection of their own.
+- Adding an SMS number by hand is refused (`NUMBER_NOT_OWNED`) when the workspace has a verified Twilio connection and Twilio does not list that number for the account.
+
 ### Fixed (SMS and email honesty)
 - **A message is never shown as sent or delivered when nothing was sent.** With the console provider (the default when no provider is configured) SMS and email are stored as `not_sent_test_mode`: a "Test mode: not sent" badge replaces the ticks, a banner above the composer and on Settings > Channels says "SMS is not connected. Messages are saved but not sent. Connect Twilio in Settings > Channels.", nothing is billed, and "send it now" delivers the message after a provider is connected ([ADR 0018](docs/adr/0018-test-mode-delivery.md)).
 - New `GET /api/channels/status` (mode, connected, provider, details, last error; no credentials).

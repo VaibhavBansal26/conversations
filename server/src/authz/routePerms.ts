@@ -17,6 +17,7 @@ const GROUPS: [RouteAccess, string[]][] = [
     "GET /public/widget/config", "POST /public/sessions", "GET /public/session", "GET /public/rooms", "POST /public/rooms", "GET /public/rooms/:id/messages", "POST /public/rooms/:id/messages",
     "POST /public/rooms/:id/read", "POST /public/rooms/:id/csat", "POST /public/otp/send", "POST /public/otp/verify",
     "POST /webhooks/stripe", "POST /webhooks/stripe/connect", "POST /webhooks/twilio/sms", "POST /webhooks/twilio/status", "POST /webhooks/sendgrid/inbound", "POST /webhooks/sendgrid/events",
+    "POST /webhooks/c/:id/twilio/sms", "POST /webhooks/c/:id/twilio/status", "POST /webhooks/c/:id/sendgrid/inbound", "POST /webhooks/c/:id/sendgrid/events",
     "GET /files/*", "GET /widget.js", "GET /widget-demo.html",
   ]],
   ["platform", [
@@ -54,7 +55,11 @@ const GROUPS: [RouteAccess, string[]][] = [
     "POST /api/billing/connect/onboard", "POST /api/billing/connect/refresh",
   ]],
   ["payments:request", ["POST /api/rooms/:id/payment-requests", "POST /api/payment-requests/:id/cancel"]],
-  ["channels:manage", ["POST /api/sms-numbers", "POST /api/sms-numbers/:id/default", "DELETE /api/sms-numbers/:id", "POST /api/email-senders", "PATCH /api/email-senders/:id", "DELETE /api/email-senders/:id", "POST /api/inbound-addresses", "DELETE /api/inbound-addresses/:address"]],
+  ["channels:manage", [
+    "GET /api/channels/connections", "PUT /api/channels/sms/connection", "PUT /api/channels/email/connection", "PATCH /api/channels/email/connection", "DELETE /api/channels/:channel/connection",
+    "POST /api/channels/:channel/verify", "GET /api/channels/sms/numbers", "POST /api/channels/sms/numbers/import", "POST /api/channels/email/senders/import",
+    "POST /api/channels/email/webhook-secret/rotate", "POST /api/channels/:channel/test", "GET /api/channels/:channel/events",
+    "POST /api/sms-numbers", "POST /api/sms-numbers/:id/default", "DELETE /api/sms-numbers/:id", "POST /api/email-senders", "PATCH /api/email-senders/:id", "DELETE /api/email-senders/:id", "POST /api/inbound-addresses", "DELETE /api/inbound-addresses/:address"]],
   ["tokens:manage", ["GET /api/tokens", "POST /api/tokens", "POST /api/tokens/:id/rotate", "DELETE /api/tokens/:id"]],
   ["templates:manage", ["POST /api/templates", "PATCH /api/templates/:id", "DELETE /api/templates/:id"]],
   ["kb:manage", ["GET /api/kb", "POST /api/kb", "PUT /api/kb/:id", "DELETE /api/kb/:id"]],

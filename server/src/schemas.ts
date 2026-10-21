@@ -132,6 +132,21 @@ export const SenderBody = z.object({
   is_default: z.boolean().optional(),
 });
 export const InboundAddressBody = z.object({ address: z.string().email().max(254) });
+/** Credentials pasted by a workspace admin. Validated loosely on purpose: the provider is the judge of whether they work. */
+export const TwilioConnectBody = z.object({
+  account_sid: z.string().trim().regex(/^AC[0-9a-fA-F]{32}$/, "Account SID looks like AC followed by 32 characters"),
+  auth_token: z.string().trim().regex(/^[A-Za-z0-9]{16,64}$/, "Auth Token is 32 letters and digits"),
+  api_key_sid: z.string().trim().regex(/^SK[0-9a-fA-F]{32}$/, "API key SID looks like SK followed by 32 characters").optional(),
+  api_key_secret: z.string().trim().regex(/^[A-Za-z0-9]{16,64}$/, "API key secret is letters and digits").optional(),
+});
+export const SendGridConnectBody = z.object({
+  api_key: z.string().trim().regex(/^SG\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}$/, "SendGrid API keys look like SG.xxxx.yyyy"),
+  inbound_domain: z.string().max(253).nullable().optional(),
+  event_public_key: z.string().max(400).nullable().optional(),
+});
+export const EmailSettingsBody = z.object({ inbound_domain: z.string().max(253).nullable().optional(), event_public_key: z.string().max(400).nullable().optional() });
+export const ImportNumbersBody = z.object({ e164s: z.array(z.string().max(20)).min(1).max(100) });
+export const TestSendBody = z.object({ to: z.string().trim().min(3).max(254) });
 export const TokenBody = z.object({ domain: z.string().min(1).max(255) });
 
 export const TemplateBody = z.object({
