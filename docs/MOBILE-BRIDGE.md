@@ -48,7 +48,7 @@ Mobile behaviour that is built in and tested:
 | motion and contrast | `prefers-reduced-motion` honoured; axe (WCAG 2.1 A/AA) passes in light and dark at 390x844 and 1024x768 |
 | screen readers | the list is `role="log"` with polite live updates; every control has a translated label; focus rings on keyboard focus |
 
-Screenshots (kept in [docs/design](design/)): `hosted-chat-390-light-2-conversation.png`, `hosted-chat-390-dark-2-conversation.png`, `hosted-chat-390-light-5-offline.png`, `hosted-chat-102-dark-2-conversation.png`, `hosted-chat-390-light-6-rtl.png`, `bridge-test-1024-light.png`.
+Screenshots (kept in [docs/design](design/)): `hosted-chat-390-light-2-conversation.png`, `hosted-chat-390-dark-2-conversation.png`, `hosted-chat-390-light-4-history.png`, `hosted-chat-390-light-5-offline.png`, `hosted-chat-102-dark-2-conversation.png`, `hosted-chat-102-light-3-emoji.png`, `hosted-chat-390-light-6-rtl.png`, `bridge-test-1024-light.png`.
 
 ## Origin and identity model
 
