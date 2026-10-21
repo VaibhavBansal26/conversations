@@ -302,7 +302,15 @@ export interface EmbedToken {
   /** newest widget config request from a real site (the in-app preview does not count) */
   last_seen_origin?: string | null;
   last_seen_at?: string | null;
+  /** the hosted full-page chat (/chat) may use this token */
+  hosted_chat_enabled?: boolean;
   created_at: string;
+}
+
+export interface IdentityStatus {
+  configured: boolean;
+  enforce: boolean;
+  rotated_at: string | null;
 }
 
 export interface SmsNumber {

@@ -25,6 +25,7 @@ export const keys = {
   smsNumbers: ["sms-numbers"] as const,
   inbound: ["inbound-addresses"] as const,
   tokens: ["tokens"] as const,
+  identity: ["identity"] as const,
   kb: ["kb"] as const,
   notifications: ["notifications"] as const,
   workspace: ["workspace"] as const,

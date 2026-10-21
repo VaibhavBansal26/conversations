@@ -7,6 +7,7 @@ import type { EmbedToken } from "../../api/types";
 import { useSession } from "../../auth/AuthContext";
 import { CopyButton } from "../../components/settings/CopyButton";
 import { formatDateTime } from "../../lib/time";
+import { MobileInstall } from "./MobileInstall";
 import { keys } from "../../state/keys";
 import { Badge, Button, cn, ErrorNotice, Field, Input, Skeleton, Tabs, TabsContent, TabsList, TabsTrigger, toast } from "../../ui";
 
@@ -269,6 +270,7 @@ export function WidgetInstall() {
                 <Verify token={selected} />
                 <TryItNow token={selected} />
               </section>
+              <MobileInstall token={selected} publicUrl={publicUrl} />
             </>
           )}
         </>
