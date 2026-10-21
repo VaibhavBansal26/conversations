@@ -32,7 +32,8 @@ Every document under `docs/` is listed here (a check fails otherwise). Generated
 | learn the vocabulary (and the legacy names) | [GLOSSARY.md](GLOSSARY.md), [MIGRATION-NOTES.md](MIGRATION-NOTES.md) |
 | understand the AI features | [AI.md](AI.md) |
 | understand tickets, AI support agents, departments, visitor details and calls | [AI-AGENTS.md](AI-AGENTS.md), [DEPARTMENTS.md](DEPARTMENTS.md) |
-| place voice and video calls, set up TURN, understand call states and limits | [CALLS.md](CALLS.md) |
+| place voice and video calls (also group calls), set up TURN, understand call states and limits | [CALLS.md](CALLS.md) |
+| get push notifications on your devices, set up VAPID keys, understand what a notification may contain | [NOTIFICATIONS.md](NOTIFICATIONS.md) |
 | set up departments, opening hours, routing modes, capacity, service levels and routing rules | [DEPARTMENTS.md](DEPARTMENTS.md) |
 | see what changed | [../CHANGELOG.md](../CHANGELOG.md) |
 
@@ -45,6 +46,7 @@ Every document under `docs/` is listed here (a check fails otherwise). Generated
 | [AI.md](AI.md) | AI features, providers, prompt safety, offline heuristics |
 | [AI-AGENTS.md](AI-AGENTS.md) | tickets and their lifecycle, AI support agents, departments and routing, visitor details in the widget, voice and video calls: what is built, tested and unverified |
 | [CALLS.md](CALLS.md) | voice and video calls: browser calls (signalling, states, TURN and STUN with coturn samples, permissions, privacy, what is verified) and phone calls |
+| [NOTIFICATIONS.md](NOTIFICATIONS.md) | in-app, email and Web Push notifications for team members (events, privacy, VAPID setup, what is and is not verified), the visitor side, and the mobile push (APNs/FCM) design that is not built |
 | [DEPARTMENTS.md](DEPARTMENTS.md) | departments (inboxes with routing configuration): hours and holidays, who is available, routing modes, capacity, the queue, service levels, transfer, routing rules, race safety |
 | [TESTING.md](TESTING.md) | test strategy, how to run, test catalogue, edge-case map, test counts |
 | [MIGRATION-NOTES.md](MIGRATION-NOTES.md) | legacy to new mapping of collections, endpoints, events, and defects not carried over |

@@ -14,7 +14,8 @@ import { TestClock, testConfig, isolatedDbEnv, dropSchema, type TestCtx, seedWor
 export async function startServer(env: Record<string, string> = {}) {
   const clockCtl = new TestClock(Date.now());
   const bus = new SocketBus();
-  const iso = await isolatedDbEnv({ PRESENCE_GRACE_MS: "150", WS_CONNECT_RATE_PER_IP: "1000", ...env });
+  // load shedding on event-loop lag is off unless a test asks for it: a busy CI machine must not turn "the server is slow" into failed handshakes
+  const iso = await isolatedDbEnv({ PRESENCE_GRACE_MS: "150", WS_CONNECT_RATE_PER_IP: "1000", SHED_LOOP_LAG_MS: "0", ...env });
   const ctx = (await createContext(testConfig(iso.env), {
     log: silentLogger,
     bus,

@@ -7,6 +7,7 @@ import { SettingsSection } from "../../components/settings/SettingsSection";
 import { toLocalInput } from "../../lib/time";
 import { keys } from "../../state/keys";
 import { Button, cn, ErrorNotice, Input, Switch, toast } from "../../ui";
+import { PushSettings } from "./PushSettings";
 
 const PREFS: { id: keyof NotificationPrefs; label: string; hint: string }[] = [
   { id: "assigned_to_you", label: "Assigned to you", hint: "A conversation is assigned to you." },
@@ -91,6 +92,7 @@ export function NotificationSettings() {
         </div>
         {save.isError && <ErrorNotice error={save.error} />}
       </SettingsSection>
+      <PushSettings />
     </>
   );
 }

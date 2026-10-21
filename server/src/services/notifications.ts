@@ -10,6 +10,7 @@ import { memberIds } from "./inboxes.js";
 import { isDnd, listMemberRows, memberScope, prefsOf, type MemberRow } from "./members.js";
 import type { MessageRow } from "./messageStore.js";
 import { assigneeIds, type RoomRow } from "./roomStore.js";
+import { notifyPush } from "../push/service.js";
 
 export type Tier = "assigned_to_you" | "assigned_to_your_team" | "unassigned";
 const TIER_ORDER: Tier[] = ["assigned_to_you", "assigned_to_your_team", "unassigned"];
@@ -107,6 +108,8 @@ export async function notifyContactMessage(ctx: AppContext, room: RoomRow, messa
     if (id && r.tier === "assigned_to_you" && (await canEmail(ctx, r.member))) {
       await enqueueJob(ctx, "notify_email", { notification_id: id }, { dedupeKey: `notify_email:${id}` });
     }
+    // push to the assignee's devices when the app is closed; the text only when the workspace allows previews
+    if (id && r.tier === "assigned_to_you") await notifyPush(ctx, r.member, "message", { title: "New customer message", body: "A customer wrote in a conversation assigned to you.", url: `/inbox/${room.id}`, tag: `msg-${room.id}`, key: message.id, preview: `${who}: ${snippet(message.content_text, 120)}` });
   }
 }
 
@@ -140,6 +143,7 @@ export async function notifyTicket(ctx: AppContext, m: MemberRow, n: { type: str
     unread_count: await unreadNotificationCount(ctx, m.id),
   });
   if (n.email && (await canEmail(ctx, m))) await enqueueJob(ctx, "notify_email", { notification_id: id }, { dedupeKey: `notify_email:${id}` });
+  if (n.type === "ticket_assigned") await notifyPush(ctx, m, "assigned", { title: "Assigned to you", body: "A conversation was assigned to you.", url: `/inbox/${n.room.id}`, tag: `assigned-${n.room.id}`, key: id, preview: n.title });
 }
 
 /** Tell the seat that snoozed a room that it is back. */

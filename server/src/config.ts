@@ -160,6 +160,11 @@ export const configSchema = z.object({
   OPENAI_REALTIME_TRANSCRIBE_MODEL: z.string().optional(),
   OPENAI_CLIENT_SECRET_TTL_SECONDS: z.coerce.number().int().min(10).max(7200).default(60),
   AI_REALTIME_ENABLED: bool.default(true),
+  /** Web Push for team members (docs/NOTIFICATIONS.md): all three or the feature is off */
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().optional(),
+  PUSH_ALLOWED_HOSTS: z.string().optional(),
   AI_REALTIME_COST_PER_MINUTE_USD: z.coerce.number().min(0).max(100).optional(),
 
   STORAGE_DRIVER: z.enum(["local"]).default("local"),

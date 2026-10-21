@@ -3,6 +3,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
+import { createECDH } from "node:crypto";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,6 +24,13 @@ const freePort = () =>
     });
   });
 
+/** a VAPID key pair generated per run: no key is ever committed */
+function vapid() {
+  const e = createECDH("prime256v1");
+  e.generateKeys();
+  return { VAPID_PUBLIC_KEY: e.getPublicKey().toString("base64url"), VAPID_PRIVATE_KEY: e.getPrivateKey().toString("base64url"), VAPID_SUBJECT: "mailto:ops@example.test" };
+}
+
 export async function startStack({ port } = {}) {
   port ??= await freePort();
   const dataDir = mkdtempSync(join(tmpdir(), "conv-e2e-ui-"));
@@ -41,6 +49,9 @@ export async function startStack({ port } = {}) {
     RATE_LIMIT_SCALE: "50",
     // calls connect over loopback in the tests: no STUN lookups to the internet
     STUN_URLS: "",
+    // Web Push with a key pair made for this run, and a fake push service on loopback (tests/16-push.spec.ts)
+    ...vapid(),
+    PUSH_ALLOWED_HOSTS: "127.0.0.1",
   };
   const seed = spawnSync(join(SERVER, "node_modules/.bin/tsx"), ["src/seed.ts"], { cwd: SERVER, env, encoding: "utf8" });
   if (seed.status !== 0) throw new Error(`seed failed: ${seed.stderr || seed.stdout}`);

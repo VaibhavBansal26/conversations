@@ -1064,6 +1064,9 @@
                           "empathetic"
                         ]
                       },
+                      "push_message_previews": {
+                        "type": "boolean"
+                      },
                       "tickets": {
                         "type": "object",
                         "properties": {
@@ -3066,6 +3069,298 @@
             "api.workspace"
           ],
           "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/push/config": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Whether Web Push is set up on this server (the VAPID public key a browser subscribes with), or why not",
+        "operationId": "get_api_push_config",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "authed",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.read",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/push/subscriptions": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Your devices that receive push notifications (the push service host, never the full endpoint), their events and last result",
+        "operationId": "get_api_push_subscriptions",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "authed",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.read",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Register this browser's push subscription (`{subscription: {endpoint, keys: {p256dh, auth}}, label?, events?}`); only known push services are accepted",
+        "operationId": "post_api_push_subscriptions",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "authed",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/push/subscriptions/{id}": {
+      "patch": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Change a device's name or events (`missed_call`, `assigned`, `message`)",
+        "operationId": "patch_api_push_subscriptions_id",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "authed",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Stop push notifications on a device",
+        "operationId": "delete_api_push_subscriptions_id",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "authed",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/push/subscriptions/{id}/test": {
+      "post": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Send a test notification to one of your devices (5 in 10 minutes); answers `sent`, `gone` (the subscription had expired and was removed), `failed` or `retry`",
+        "operationId": "post_api_push_subscriptions_id_test",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "authed",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": [
+            "push.test"
+          ]
         },
         "parameters": [
           {

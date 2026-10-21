@@ -26,6 +26,7 @@ export class Metrics {
   readonly rateLimited = new Counter({ name: "conv_rate_limited_total", help: "Requests/events rejected by a rate limit", labelNames: ["scope"], registers: [this.registry] });
   readonly rlDecisions = new Counter({ name: "conv_ratelimit_decisions_total", help: "Rate-limit decisions by policy and outcome", labelNames: ["policy", "outcome"], registers: [this.registry] });
   readonly rlRedis = new Histogram({ name: "conv_ratelimit_redis_duration_seconds", help: "Latency of rate-limit Redis calls", labelNames: ["ok"], buckets: [0.0002, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.03], registers: [this.registry] });
+  readonly pushSends = new Counter({ name: "conv_push_sends_total", help: "Web Push deliveries by outcome (sent, gone = subscription removed after 404/410, failed, retry)", labelNames: ["outcome"], registers: [this.registry] });
   readonly rlLease = new Counter({ name: "conv_ratelimit_lease_total", help: "Local lease tier results (hit = served without Redis)", labelNames: ["result"], registers: [this.registry] });
   readonly rlBreaker = new Gauge({ name: "conv_ratelimit_breaker_open", help: "1 while the rate-limit Redis circuit breaker is open", registers: [this.registry] });
   readonly rlPenaltyBox = new Gauge({ name: "conv_ratelimit_penalty_box_size", help: "Keys currently blocked by an escalating penalty", registers: [this.registry] });

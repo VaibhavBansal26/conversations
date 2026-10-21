@@ -84,6 +84,12 @@ const rows: [string, string, string, Opt?][] = [
   ["GET /api/notifications", "Notifications", "Your notifications and unread count"],
   ["POST /api/notifications/read-all", "Notifications", "Mark all your notifications read"],
   ["POST /api/notifications/:id/read", "Notifications", "Mark one notification read"],
+  ["GET /api/push/config", "Notifications", "Whether Web Push is set up on this server (the VAPID public key a browser subscribes with), or why not"],
+  ["GET /api/push/subscriptions", "Notifications", "Your devices that receive push notifications (the push service host, never the full endpoint), their events and last result"],
+  ["POST /api/push/subscriptions", "Notifications", "Register this browser's push subscription (`{subscription: {endpoint, keys: {p256dh, auth}}, label?, events?}`); only known push services are accepted"],
+  ["PATCH /api/push/subscriptions/:id", "Notifications", "Change a device's name or events (`missed_call`, `assigned`, `message`)"],
+  ["DELETE /api/push/subscriptions/:id", "Notifications", "Stop push notifications on a device"],
+  ["POST /api/push/subscriptions/:id/test", "Notifications", "Send a test notification to one of your devices (5 in 10 minutes); answers `sent`, `gone` (the subscription had expired and was removed), `failed` or `retry`"],
 
   // ---- inboxes, rooms, messages
   ["GET /api/inboxes", "Inboxes", "Inboxes you can see"],

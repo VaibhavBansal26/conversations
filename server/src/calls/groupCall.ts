@@ -10,6 +10,7 @@ import { recordAudit } from "../services/audit.js";
 import { actorFromRow, findMember, isDnd, memberScope } from "../services/members.js";
 import { accessChannel, postTeamSystemMessage, updateTeamSystemMessage } from "../services/teamChat.js";
 import { getSettings } from "../services/workspaces.js";
+import { notifyPushById } from "../push/service.js";
 import { afterDeparture, clampGroupMax, groupCardText, hasRoom, nextStatus, type ParticipantStatus } from "./groupMachine.js";
 import { iceConfig, type IceConfig } from "./turn.js";
 
@@ -406,7 +407,11 @@ export async function sweepGroupCalls(ctx: AppContext): Promise<{ missed: number
       for (const p of await parts(ctx, c0.id)) {
         if (p.status === "invited" && now - Date.parse(p.invited_at) >= ring * 1000) {
           const r = await ctx.db.run("UPDATE group_call_participants SET status = 'missed' WHERE call_id = ? AND member_id = ? AND status = 'invited'", c0.id, p.member_id);
-          if (r.changes) (out.missed++, (changed = true));
+          if (r.changes) {
+            out.missed++;
+            changed = true;
+            await notifyPushById(ctx, c0.workspace_id, p.member_id, "missed_call", { title: "Missed group call", body: `${await nameOf(ctx, c0.workspace_id, c0.host_id)} invited you to a group call.`, url: `/team/${c0.channel_id}`, tag: `call-${c0.id}` });
+          }
         } else if (p.status === "joined" && p.gone_at && now - Date.parse(p.gone_at) >= GROUP_RECONNECT_GRACE_S * 1000) {
           const after = await depart(ctx, c0, p.member_id, "gone_timeout", "disconnected");
           out.ended += after.state === "live" ? 0 : 1;

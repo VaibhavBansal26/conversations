@@ -38,6 +38,7 @@ import { departmentRoutes } from "./routes/departments.js";
 import { agentRoutes } from "./routes/agents.js";
 import { settingsRoutes } from "./routes/settings.js";
 import { teamRoutes } from "./routes/team.js";
+import { pushRoutes } from "./routes/push.js";
 import { webhookRoutes } from "./routes/webhooks.js";
 import { compressed, readPublicFile, serveSpa } from "./static.js";
 import { demoRedirectPage, previewExpiredPage, previewPage, verifyPreview } from "./services/widgetPreview.js";
@@ -130,6 +131,7 @@ export function createApp(ctx: AppContext): Hono {
   api.route("/", roomRoutes(ctx));
   api.route("/", ticketRoutes(ctx));
   api.route("/", callRoutes(ctx));
+  api.route("/", pushRoutes(ctx));
   api.route("/", departmentRoutes(ctx));
   api.route("/", agentRoutes(ctx));
   api.route("/", settingsRoutes(ctx));

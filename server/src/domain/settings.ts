@@ -235,6 +235,8 @@ export const WorkspaceSettingsSchema = z.object({
   ai_autoresponder_enabled: z.boolean().default(false),
   ai_redact_pii: z.boolean().default(false),
   ai_tone: z.enum(["friendly", "professional", "concise", "empathetic"]).default("friendly"),
+  /** push notifications to team members' devices may include the first words of a customer message (off: they say only that there is one) */
+  push_message_previews: z.boolean().default(false),
   tickets: TicketSettingsSchema.default(() => TicketSettingsSchema.parse({})),
   routing: RoutingSettingsSchema.default(() => RoutingSettingsSchema.parse({})),
   calls: CallSettingsSchema.default(() => CallSettingsSchema.parse({})),
@@ -265,6 +267,7 @@ export const WorkspaceSettingsPatchSchema = z.object({
   ai_autoresponder_enabled: z.boolean().optional(),
   ai_redact_pii: z.boolean().optional(),
   ai_tone: WorkspaceSettingsSchema.shape.ai_tone.optional(),
+  push_message_previews: z.boolean().optional(),
   tickets: patchOf(TicketSettingsSchema).optional(),
   routing: patchOf(RoutingSettingsSchema).optional(),
   calls: CallsPatchSchema.optional(),

@@ -11,6 +11,7 @@ import { recordAudit } from "../services/audit.js";
 import { actorFromRow, findMember, isDnd, memberScope } from "../services/members.js";
 import { accessChannel, postTeamSystemMessage, updateTeamSystemMessage } from "../services/teamChat.js";
 import { getSettings } from "../services/workspaces.js";
+import { notifyPushById } from "../push/service.js";
 import { isLive, next, IllegalTransition, type CallEvent, type CallState } from "./machine.js";
 import { iceConfig, type IceConfig } from "./turn.js";
 
@@ -126,6 +127,7 @@ async function step(ctx: AppContext, c: TeamCallRow, event: CallEvent, patch: Pa
   if (!row) throw new AppError(409, "CALL_STATE_CHANGED", "The call has already changed");
   if (row.message_id) await updateTeamSystemMessage(ctx, row.message_id, row.workspace_id, teamCardText(row), cardMeta(row));
   await publishTeamCall(ctx, row);
+  if (row.state === "missed") await notifyPushById(ctx, row.workspace_id, row.callee_id, "missed_call", { title: "Missed call", body: `${await nameOf(ctx, row.workspace_id, row.caller_id)} called you.`, url: `/team/${row.channel_id}`, tag: `call-${row.id}` });
   if (final) await recordAudit(ctx, { workspaceId: row.workspace_id, actor: { type: "member", id: row.caller_id }, action: `team_call.${row.state}`, target: row.id, detail: { channel_id: row.channel_id, kind: row.kind, duration_s: row.duration_s, reason: row.end_reason } });
   return row;
 }

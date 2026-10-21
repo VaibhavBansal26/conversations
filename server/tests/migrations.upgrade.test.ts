@@ -1475,7 +1475,7 @@ describe("SQLite: group calls migration on a populated database of the release b
       const before = await counts(old, tables);
       await old.close();
       const db = await openDb(path);
-      expect(await migrate(db)).toEqual(["041_group_calls.sql"]);
+      expect((await migrate(db)).slice(0, 1)).toEqual(["041_group_calls.sql"]);
       expect(await db.all("PRAGMA foreign_key_check")).toEqual([]);
       expect(await schemaOf(db)).toEqual(await schemaOf(fresh));
       await expectGroupCallsMigration(db, before, tables);
@@ -1512,7 +1512,7 @@ describe.skipIf(!postgres)("PostgreSQL: group calls migration on a populated dat
       await seedTeamChat(b.db);
       const tables = await userTables(b.db);
       const before = await counts(b.db, tables);
-      expect(await migrate(b.db, undefined, { hashPartitions: 2 })).toEqual(["041_group_calls.sql"]);
+      expect((await migrate(b.db, undefined, { hashPartitions: 2 })).slice(0, 1)).toEqual(["041_group_calls.sql"]);
       expect(await schemaOf(b.db)).toEqual(await schemaOf(a.db));
       await expectGroupCallsMigration(b.db, before, tables);
     } finally {
@@ -1521,4 +1521,82 @@ describe.skipIf(!postgres)("PostgreSQL: group calls migration on a populated dat
       await b.drop();
     }
   });
+});
+
+// ---- later additive migrations: each on a populated database of the release before it, SQLite and PostgreSQL ------------------------------
+
+async function upgradeSqlite(pre: number, expected: string, check: (db: Db) => Promise<void>) {
+  const fresh = await openDb(":memory:");
+  await migrate(fresh);
+  const { dir, path } = await openSqliteFile();
+  const prev = releaseDir(pre);
+  try {
+    const old = await openDb(path);
+    await migrate(old, prev);
+    await seedPreviousRelease(old);
+    await seedTickets(old);
+    await seedKb(old);
+    await seedTeamChat(old);
+    const tables = await userTables(old);
+    const before = await counts(old, tables);
+    await old.close();
+    const db = await openDb(path);
+    expect((await migrate(db)).slice(0, 1)).toEqual([expected]);
+    expect(await db.all("PRAGMA foreign_key_check")).toEqual([]);
+    expect(await schemaOf(db)).toEqual(await schemaOf(fresh));
+    expect(await counts(db, tables)).toEqual(before);
+    await check(db);
+    await db.close();
+  } finally {
+    await fresh.close();
+    rmSync(prev, { recursive: true, force: true });
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+async function upgradePostgres(pre: number, expected: string, check: (db: Db) => Promise<void>) {
+  const mk = async () => {
+    const schema = `u_${Math.random().toString(16).slice(2, 10)}`;
+    const admin = new pg.Client({ connectionString: process.env.TEST_DATABASE_URL });
+    await admin.connect();
+    await admin.query(`CREATE SCHEMA ${schema}`);
+    const u = new URL(process.env.TEST_DATABASE_URL!);
+    u.searchParams.set("options", `-c search_path=${schema}`);
+    const db = await openDb({ url: u.toString(), poolMax: 4 });
+    return { db, drop: async () => (await db.close(), await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`), await admin.end()) };
+  };
+  const a = await mk();
+  const b = await mk();
+  const prev = releaseDir(pre);
+  try {
+    await migrate(a.db, undefined, { hashPartitions: 2 });
+    await migrate(b.db, prev, { hashPartitions: 2 });
+    await seedPreviousRelease(b.db);
+    await seedTickets(b.db);
+    await seedKb(b.db);
+    await seedTeamChat(b.db);
+    const tables = await userTables(b.db);
+    const before = await counts(b.db, tables);
+    expect((await migrate(b.db, undefined, { hashPartitions: 2 })).slice(0, 1)).toEqual([expected]);
+    expect(await schemaOf(b.db)).toEqual(await schemaOf(a.db));
+    expect(await counts(b.db, tables)).toEqual(before);
+    await check(b.db);
+  } finally {
+    rmSync(prev, { recursive: true, force: true });
+    await a.drop();
+    await b.drop();
+  }
+}
+
+/** migration 042: push subscriptions, one per member and endpoint, removed with the member */
+async function expectPushMigration(db: Db) {
+  const m = (await db.get<{ id: string; workspace_id: string }>("SELECT id, workspace_id FROM members LIMIT 1"))!;
+  const add = (id: string, endpoint: string) => db.run("INSERT INTO push_subscriptions(id, workspace_id, member_id, endpoint, p256dh, auth, created_at) VALUES (?,?,?,?, 'k', 'a', ?)", id, m.workspace_id, m.id, endpoint, T(1));
+  await add("p1", "https://fcm.googleapis.com/x");
+  await expect(add("p2", "https://fcm.googleapis.com/x")).rejects.toThrow(/unique|UNIQUE/i);
+  await add("p3", "https://fcm.googleapis.com/y");
+  expect((await db.get<{ events: string }>("SELECT events FROM push_subscriptions WHERE id = 'p1'"))!.events).toBe('["missed_call","assigned","message"]');
+}
+describe("upgrades of the later additive migrations", () => {
+  it("042 push subscriptions on SQLite", () => upgradeSqlite(41, "042_push_subscriptions.sql", expectPushMigration));
+  it.skipIf(!postgres)("042 push subscriptions on PostgreSQL", () => upgradePostgres(41, "042_push_subscriptions.sql", expectPushMigration));
 });
