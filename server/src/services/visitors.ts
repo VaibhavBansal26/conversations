@@ -1,4 +1,5 @@
 import { ownOrigin, PREVIEW_SESSION_HOURS, verifyPreview } from "./widgetPreview.js";
+import { effectiveInfo, validate } from "./visitorInfo.js";
 import { workspaceFromAddress } from "./channelConnections.js";
 import { assertWorkspaceActive } from "../admin/suspension.js";
 import { can } from "../authz/permissions.js";
@@ -11,7 +12,7 @@ import { recordAudit } from "./audit.js";
 import { decideIdentity, type IdentityInput } from "./identity.js";
 import { addSeconds } from "../util/time.js";
 import { isUniqueViolation } from "../db/index.js";
-import { findByEmail, findOrCreateContact, getContact, type ContactRow } from "./contacts.js";
+import { findByEmail, findOrCreateContact, getContact, patchContact, type ContactRow } from "./contacts.js";
 import { getSettings, getWorkspace } from "./workspaces.js";
 import type { Actor } from "../domain/types.js";
 
@@ -201,6 +202,10 @@ export interface VisitorInfo {
   name?: string;
   email?: string;
   phone?: string;
+  /** the pre-chat form's custom fields (docs/AI-AGENTS.md "Visitor details"): key -> value, validated against the settings */
+  attrs?: Record<string, string | boolean>;
+  /** the consent box of the pre-chat form */
+  consent?: boolean;
 }
 
 /** May a request from `origin` use this session? Normal sessions: the embed token's domain; preview sessions: the app's own origin only. */
@@ -214,9 +219,27 @@ export async function createSession(ctx: AppContext, token: TokenRow & { preview
   const ws = token.workspace_id;
   const identity = await decideIdentity(ctx, ws, input);
   const widget = (await getSettings(ctx, ws)).widget;
-  const need = new Set<string>([...widget.required_info, ...((["name", "email", "phone"] as const).filter((k) => widget.visitor_info.fields[k] === "required"))]);
+  // the pre-chat form follows the settings of the widget's department (a department may override fields, custom fields and the consent wording)
+  const info = await effectiveInfo(ctx, ws, widget.default_inbox_id ?? null);
+  const need = new Set<string>([...widget.required_info, ...((["name", "email", "phone"] as const).filter((k) => info.fields[k] === "required"))]);
   const missing = [...need].filter((k) => !(input as unknown as Record<string, unknown>)[k]?.toString().trim());
+  // custom fields asked before the chat: "required" and "optional" ones (ask_when_needed ones are asked in the thread later)
+  const pre = info.custom_fields.filter((f) => f.mode === "required" || f.mode === "optional");
+  const given = input.attrs ?? {};
+  const raw = (k: string) => (given[k] === true ? "yes" : given[k] === false ? "" : String(given[k] ?? ""));
+  for (const f of pre) if (f.mode === "required" && (f.type === "checkbox" ? !/^(yes|true|on|1)$/i.test(raw(f.key)) : !raw(f.key).trim())) missing.push(f.key);
   if (missing.length) throw unprocessable("REQUIRED_INFO_MISSING", `Please provide: ${missing.join(", ")}`, { missing });
+  const errors: Record<string, string> = {};
+  const values: Record<string, string> = {};
+  for (const k of Object.keys(given)) if (!pre.some((f) => f.key === k)) errors[k] = "Not asked";
+  for (const f of pre) {
+    const r = validate({ key: f.key, type: f.type, required: f.mode === "required", options: f.options }, raw(f.key), (await getSettings(ctx, ws)).default_region);
+    if (!r.ok) errors[f.key] = r.error;
+    else if (r.value) values[f.key] = r.value;
+  }
+  // consent: asked in the pre-chat form when the workspace (or the department) asks for it and the visitor shares a way to reach them
+  if (info.consent.enabled && (input.email?.trim() || input.phone?.trim()) && !input.consent) errors.consent = "Please agree to continue";
+  if (Object.keys(errors).length) throw unprocessable("INVALID_FORM", "Some details need another look", { errors });
 
   let contact: ContactRow;
   const identified = identity.mode === "legacy" && !!(input.email?.trim() || input.phone?.trim());
@@ -235,6 +258,16 @@ export async function createSession(ctx: AppContext, token: TokenRow & { preview
     if (prev && input.name?.trim() && (!contact.name || contact.name === "Visitor")) {
       await ctx.db.run("UPDATE contacts SET name = ? WHERE id = ?", input.name.trim(), contact.id);
     }
+  }
+
+  // a client that showed the pre-chat fields sends `attrs` (possibly empty); one that did not (an older app) leaves them to the thread
+  const showed = pre.length > 0 && input.attrs !== undefined;
+  if (showed || Object.keys(values).length || (input.consent && info.consent.enabled)) {
+    const attrs: Record<string, unknown> = { ...values };
+    // the visitor has seen the pre-chat fields: an optional one they left empty is not asked again in the thread
+    if (showed) attrs.prechat_at = nowIso(ctx);
+    if (input.consent && info.consent.enabled && (input.email?.trim() || input.phone?.trim())) attrs.contact_consent = { at: nowIso(ctx), text: info.consent.text, via: "prechat" };
+    contact = await patchContact(ctx, ws, contact.id, { attrs });
   }
 
   const id = newId("ses");

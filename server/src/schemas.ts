@@ -199,6 +199,10 @@ export const SessionBody = z.object({
   external_id: z.string().trim().min(1).max(128).optional(),
   /** hex HMAC-SHA256(identity secret, external_id|email), computed on YOUR server (docs/MOBILE-BRIDGE.md#identity-verification) */
   identity_hash: z.string().trim().max(64).optional(),
+  /** answers to the pre-chat custom fields (Settings > Visitor details): key -> text, choice or checkbox */
+  attrs: z.record(z.string().max(30), z.union([z.string().max(300), z.boolean()])).optional(),
+  /** the consent box of the pre-chat form */
+  consent: z.boolean().optional(),
 });
 export const SessionAttributes = z.object({
   attributes: z.record(z.string().regex(/^[a-z][a-z0-9_]{0,39}$/, "Keys are lower-case letters, digits and _"), z.union([z.string().max(200), z.number(), z.boolean(), z.null()])).refine((o) => Object.keys(o).length <= 20, "At most 20 attributes"),

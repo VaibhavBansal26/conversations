@@ -355,6 +355,27 @@
                   "identity_hash": {
                     "type": "string",
                     "maxLength": 64
+                  },
+                  "attrs": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "maxLength": 30
+                    },
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 300
+                        },
+                        {
+                          "type": "boolean"
+                        }
+                      ]
+                    }
+                  },
+                  "consent": {
+                    "type": "boolean"
                   }
                 }
               }

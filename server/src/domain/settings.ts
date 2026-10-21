@@ -40,7 +40,8 @@ export const CustomFieldSchema = z
   .object({
     key: z.string().regex(/^[a-z][a-z0-9_]{0,29}$/, "Use lower-case letters, digits and underscores"),
     label: z.string().trim().min(1).max(60),
-    type: z.enum(["text", "select"]).default("text"),
+    /** text, a choice (select), or a checkbox (stored as "yes" or "no"; a required one must be ticked) */
+    type: z.enum(["text", "select", "checkbox"]).default("text"),
     options: z.array(z.string().trim().min(1).max(60)).max(20).default([]),
     mode: InfoModeSchema.default("ask_when_needed"),
   })
@@ -68,10 +69,19 @@ export const VisitorInfoSchema = z.object({
     .default(() => ({ enabled: false, text: "I agree that you may contact me about this conversation.", privacy_url: null })),
 });
 export type VisitorInfoSettings = z.infer<typeof VisitorInfoSchema>;
-/** A department may override the fields and the moments (the rest stays the workspace's). */
+/** A department may override the fields, the custom fields' modes, the moments and the consent wording (the rest stays the workspace's). */
 export const DepartmentInfoSchema = z.object({
   fields: z.object({ name: InfoModeSchema.optional(), email: InfoModeSchema.optional(), phone: InfoModeSchema.optional() }).optional(),
+  /** key of a workspace custom field -> its mode in this department */
+  custom_fields: z.record(z.string().regex(/^[a-z][a-z0-9_]{0,29}$/), InfoModeSchema).optional(),
   moments: z.object({ handoff: z.boolean().optional(), no_agent: z.boolean().optional(), callback: z.boolean().optional(), after: z.boolean().optional() }).optional(),
+  consent: z
+    .object({
+      enabled: z.boolean().optional(),
+      text: z.string().trim().min(1).max(300).optional(),
+      privacy_url: z.string().url().max(500).refine((u) => /^https?:\/\//i.test(u), "Use an http or https address").nullable().optional(),
+    })
+    .optional(),
 });
 export type DepartmentInfo = z.infer<typeof DepartmentInfoSchema>;
 

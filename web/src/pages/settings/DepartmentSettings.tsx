@@ -1,8 +1,10 @@
 import { ArrowDown, ArrowUp, Building2, Clock, FlaskConical, Pencil, Plus, Trash2, Users } from "lucide-react";
 import { useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "../../api/client";
 import { useDepartments, useRoutingRules, useRuleMutations, useUpdateDepartment, type DepartmentPatch, type RuleDraft } from "../../api/departmentHooks";
-import type { Department, DepartmentHours, InfoMode, RoutingMode, RoutingRule, RuleCondition, RuleField, RuleOp, RuleTestResult } from "../../api/types";
+import type { Department, DepartmentHours, DepartmentVisitorInfo, InfoMode, Workspace, RoutingMode, RoutingRule, RuleCondition, RuleField, RuleOp, RuleTestResult } from "../../api/types";
 import { HoursEditor } from "../../components/settings/HoursEditor";
 import { ConfirmDialog } from "../../components/settings/ConfirmDialog";
 import { EditorPanel, ListRow, RowList, SaveBar, SettingsSection } from "../../components/settings/SettingsSection";
@@ -41,6 +43,12 @@ interface Draft {
   auto_reply_closed: string;
   auto_reply_queued: string;
   info: { name: string; email: string; phone: string };
+  /** the department's own modes for the workspace's custom fields ("" = the workspace's) */
+  custom: Record<string, string>;
+  consent_text: string;
+  consent_url: string;
+  /** kept as they are: this screen does not edit them */
+  moments: DepartmentVisitorInfo["moments"];
   members: MemberDraft[];
 }
 
@@ -57,6 +65,10 @@ const toDraft = (d: Department): Draft => ({
   auto_reply_closed: d.auto_reply_closed,
   auto_reply_queued: d.auto_reply_queued,
   info: { name: d.visitor_info?.fields?.name ?? "", email: d.visitor_info?.fields?.email ?? "", phone: d.visitor_info?.fields?.phone ?? "" },
+  custom: { ...(d.visitor_info?.custom_fields ?? {}) },
+  consent_text: d.visitor_info?.consent?.text ?? "",
+  consent_url: d.visitor_info?.consent?.privacy_url ?? "",
+  moments: d.visitor_info?.moments,
   members: d.members.map((m) => ({ member_id: m.member_id, name: m.name, skills: m.skills.join(", "), languages: m.languages.join(", "), capacity: m.capacity === null ? "" : String(m.capacity) })),
 });
 const toPatch = (d: Draft): DepartmentPatch => ({
@@ -70,7 +82,13 @@ const toPatch = (d: Draft): DepartmentPatch => ({
   overflow_inbox_id: d.overflow_inbox_id || null,
   auto_reply_closed: d.auto_reply_closed,
   auto_reply_queued: d.auto_reply_queued,
-  visitor_info: { fields: Object.fromEntries((Object.entries(d.info) as ["name" | "email" | "phone", string][]).filter(([, m]) => m).map(([k, m]) => [k, m as InfoMode])) },
+  visitor_info: {
+    fields: Object.fromEntries((Object.entries(d.info) as ["name" | "email" | "phone", string][]).filter(([, m]) => m).map(([k, m]) => [k, m as InfoMode])),
+    custom_fields: Object.fromEntries(Object.entries(d.custom).filter(([, m]) => m).map(([k, m]) => [k, m as InfoMode])),
+    ...(d.moments ? { moments: d.moments } : {}),
+    // a department can word the consent its own way (another company, another privacy policy)
+    ...(d.consent_text.trim() || d.consent_url.trim() ? { consent: { ...(d.consent_text.trim() ? { text: d.consent_text.trim() } : {}), ...(d.consent_url.trim() ? { privacy_url: d.consent_url.trim() } : {}) } } : {}),
+  },
   members: d.members.map((m) => ({ member_id: m.member_id, skills: list(m.skills), languages: list(m.languages), capacity: m.capacity.trim() === "" ? null : Number(m.capacity) })),
 });
 
@@ -97,6 +115,9 @@ function DepartmentEditor({ dept, others, onClose }: { dept: Department; others:
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((cur) => ({ ...cur, [k]: v }));
   const setMember = (id: string, patch: Partial<MemberDraft>) => set("members", d.members.map((m) => (m.member_id === id ? { ...m, ...patch } : m)));
   const [holiday, setHoliday] = useState("");
+  // the workspace's custom fields (read here, not from the session, so the editor also works on its own)
+  const ws = useQuery({ queryKey: ["workspace", "visitor-info"], queryFn: () => api.get<Workspace>("/workspace"), staleTime: 60_000 });
+  const customFields = ws.data?.settings?.widget?.visitor_info?.custom_fields ?? [];
   const dirty = JSON.stringify(d) !== JSON.stringify(toDraft(dept));
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -123,6 +144,25 @@ function DepartmentEditor({ dept, others, onClose }: { dept: Department; others:
             </Field>
           ))}
         </div>
+        {customFields.length > 0 && (
+          <div className="grid gap-3 sm:grid-cols-2" role="group" aria-label="Custom fields in this department">
+            {customFields.map((c) => (
+              <Field key={c.key} label={c.label}>
+                <Select
+                  value={d.custom[c.key] || "default"}
+                  onValueChange={(v) => set("custom", { ...d.custom, [c.key]: v === "default" ? "" : v })}
+                  options={[{ value: "default", label: "Workspace default" }, { value: "off", label: "Never ask" }, { value: "optional", label: "Ask before the chat, may skip" }, { value: "required", label: "Required before the chat" }, { value: "ask_when_needed", label: "Ask when needed" }]}
+                />
+              </Field>
+            ))}
+          </div>
+        )}
+        <Field label="Consent text in this department" hint="Leave empty to use the workspace's wording. Used when the workspace asks for consent.">
+          <Textarea rows={2} maxLength={300} value={d.consent_text} onChange={(e) => set("consent_text", e.target.value)} />
+        </Field>
+        <Field label="Privacy policy address in this department" hint="Leave empty to use the workspace's." error={errors["visitor_info.consent.privacy_url"]}>
+          <Input type="url" value={d.consent_url} placeholder="https://example.com/privacy" onChange={(e) => set("consent_url", e.target.value)} />
+        </Field>
       </fieldset>
 
       <fieldset className="flex flex-col gap-3 rounded-lg border border-border p-4">

@@ -27,6 +27,7 @@ function mount() {
       if (path.startsWith("/api/departments/") && method === "PATCH") return json(departments[0]);
       if (path === "/api/routing-rules" && method === "GET") return json({ data: rules });
       if (path === "/api/routing-rules/order") return json({ data: rules });
+      if (path === "/api/workspace") return json({ id: "ws_1", name: "Acme", settings: { widget: { visitor_info: { custom_fields: [{ key: "order", label: "Order number", type: "text", options: [], mode: "optional" }] } } } });
       if (path === "/api/routing-rules/test") return json({ department_id: "inb_sales", rule: rules[0], evaluated: [{ rule_id: "rl_1", name: "Pricing", matched: true }] });
       if (path === "/api/routing-rules" && method === "POST") return json({ ...rules[0], id: "rl_new" }, 201);
       return json({});
@@ -77,6 +78,21 @@ describe("DepartmentSettings", () => {
     await waitFor(() => expect(calls.some((c) => c.method === "PATCH")).toBe(true));
     const body = JSON.parse(calls.find((c) => c.method === "PATCH")!.body!);
     expect(body).toMatchObject({ capacity: 3, sla_first_response_s: 300, routing_mode: null, overflow_inbox_id: null, members: [{ member_id: "mem_1", skills: ["billing", "api"], languages: ["en"], capacity: null }] });
+  });
+
+  it("overrides a custom field's mode and the consent wording for one department, and keeps its moments", async () => {
+    departments[0] = dept("inb_sales", "Sales", { visitor_info: { moments: { after: true } } });
+    mount();
+    await userEvent.click(await screen.findByRole("button", { name: "Edit department Sales" }));
+    const form = await screen.findByRole("form", { name: "Edit department Sales" });
+    const group = await within(form).findByRole("group", { name: "Custom fields in this department" });
+    await userEvent.click(within(group).getByRole("combobox", { name: "Order number" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Required before the chat" }));
+    await userEvent.type(within(form).getByLabelText("Consent text in this department"), "Acme Sales Ltd may contact me.");
+    await userEvent.type(within(form).getByLabelText("Privacy policy address in this department"), "https://sales.example.test/privacy");
+    await userEvent.click(within(form).getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(calls.some((c) => c.method === "PATCH")).toBe(true));
+    expect(JSON.parse(calls.find((c) => c.method === "PATCH")!.body!).visitor_info).toEqual({ fields: {}, custom_fields: { order: "required" }, moments: { after: true }, consent: { text: "Acme Sales Ltd may contact me.", privacy_url: "https://sales.example.test/privacy" } });
   });
 
   it("adds and removes holidays", async () => {

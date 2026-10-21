@@ -1,4 +1,5 @@
 import { aiCallAvailability } from "../calls/aiCall.js";
+import { effectiveInfo } from "../services/visitorInfo.js";
 import { visitorRequestTranscript, unsubscribeByToken } from "../services/transcripts.js";
 import { previewCallLink, redeemCallLink } from "../calls/links.js";
 import { FormSubmission, skipContactForm, submitContactForm } from "../services/visitorInfo.js";
@@ -82,7 +83,8 @@ export function publicRoutes(ctx: AppContext) {
       workspace_id: ws.id,
       workspace_name: ws.name,
       default_region: settings.default_region,
-      widget: publicWidgetConfig(widget),
+      // the pre-chat form follows the widget's department: its overrides of the fields, the custom fields and the consent wording
+      widget: { ...publicWidgetConfig(widget), visitor_info: await effectiveInfo(ctx, ws.id, widget.default_inbox_id ?? null) },
       office_open: isOpen(widget.office_hours, ctx.clock()),
       live_routing_inboxes: inboxes,
       ai,

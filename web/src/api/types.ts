@@ -69,7 +69,7 @@ export type InfoMode = "off" | "optional" | "required" | "ask_when_needed";
 export interface CustomField {
   key: string;
   label: string;
-  type: "text" | "select";
+  type: "text" | "select" | "checkbox";
   options: string[];
   mode: InfoMode;
 }
@@ -81,7 +81,10 @@ export interface VisitorInfo {
 }
 export interface DepartmentVisitorInfo {
   fields?: Partial<VisitorInfo["fields"]>;
+  /** key of a workspace custom field -> its mode in this department */
+  custom_fields?: Record<string, InfoMode>;
   moments?: Partial<VisitorInfo["moments"]>;
+  consent?: { enabled?: boolean; text?: string; privacy_url?: string | null };
 }
 
 export type AiTone = "friendly" | "professional" | "concise" | "empathetic";

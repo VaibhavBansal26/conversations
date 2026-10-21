@@ -25,7 +25,7 @@ export type Moment = "handoff" | "no_agent" | "callback" | "after" | "agent";
 export interface CardField {
   key: string;
   label: string;
-  type: "text" | "email" | "tel" | "select";
+  type: "text" | "email" | "tel" | "select" | "checkbox";
   required: boolean;
   options?: string[];
   /** a value the contact already has, shown for confirmation (the phone number a visitor is asked to agree to be called on) */
@@ -58,7 +58,15 @@ export async function effectiveInfo(ctx: AppContext, ws: string, departmentId: s
   const row = await ctx.db.get<{ visitor_info: string }>("SELECT visitor_info FROM inboxes WHERE id = ? AND workspace_id = ?", departmentId, ws);
   const o = DepartmentInfoSchema.safeParse(parseJson<unknown>(row?.visitor_info ?? "{}", {}));
   if (!o.success) return base;
-  return { ...base, fields: { ...base.fields, ...(o.data.fields ?? {}) }, moments: { ...base.moments, ...(o.data.moments ?? {}) } };
+  const cf = o.data.custom_fields ?? {};
+  return {
+    ...base,
+    fields: { ...base.fields, ...(o.data.fields ?? {}) },
+    custom_fields: base.custom_fields.map((f) => (cf[f.key] ? { ...f, mode: cf[f.key]! } : f)),
+    moments: { ...base.moments, ...(o.data.moments ?? {}) },
+    // the department's own consent wording (a different legal entity, a different privacy policy) wins over the workspace's
+    consent: { ...base.consent, ...Object.fromEntries(Object.entries(o.data.consent ?? {}).filter(([, v]) => v !== undefined)) },
+  };
 }
 
 const knownName = (c: Pick<ContactRow, "name">) => !!c.name.trim() && c.name.trim() !== "Visitor";
@@ -86,9 +94,11 @@ export function fieldsToAsk(info: VisitorInfoSettings, contact: ContactRow, mome
   if (moment !== "after" && moment !== "callback") {
     for (const c of info.custom_fields) {
       if (attrs[c.key] !== undefined && attrs[c.key] !== "") continue;
+      // shown in the pre-chat form already (required or optional there): not asked a second time
+      if (attrs.prechat_at && (c.mode === "required" || c.mode === "optional")) continue;
       const before = out.length;
       consider(c.key, c.mode);
-      if (out.length > before) Object.assign(out[out.length - 1]!, { label: c.label, type: c.type === "select" ? "select" : "text", options: c.type === "select" ? c.options : undefined });
+      if (out.length > before) Object.assign(out[out.length - 1]!, { label: c.label, type: c.type, options: c.type === "select" ? c.options : undefined });
     }
   }
   // a callback needs the visitor's agreement to be called on the number we hold: confirm it even when it is already known
@@ -158,8 +168,14 @@ const EMAIL_RE = /^[^\s@]{1,64}@[^\s@.]+(\.[^\s@.]+)+$/;
 // eslint-disable-next-line no-control-regex
 const CONTROL_RE = /[\u0000-\u001f\u007f<>]/;
 
-function validate(f: CardField, raw: string, region: string): { ok: true; value: string } | { ok: false; error: string } {
+/** One value of a form (in the thread or the pre-chat form), validated on the server; the same rules for both. */
+export function validate(f: Pick<CardField, "key" | "type" | "required" | "options">, raw: string, region: string): { ok: true; value: string } | { ok: false; error: string } {
   const v = raw.trim();
+  if (f.type === "checkbox") {
+    const on = /^(yes|true|on|1)$/i.test(v);
+    if (f.required && !on) return { ok: false, error: "Please tick this box" };
+    return { ok: true, value: v === "" && !f.required ? "" : on ? "yes" : "no" };
+  }
   if (!v) return f.required ? { ok: false, error: "This is required" } : { ok: true, value: "" };
   if (f.key === "name") return NAME_RE.test(v) ? { ok: true, value: v } : { ok: false, error: "Use letters, numbers and spaces only (up to 100 characters)" };
   if (f.key === "email") {
@@ -277,7 +293,8 @@ async function applyToContact(ctx: AppContext, contact: ContactRow, card: Contac
   } else if (values.phone && contact.phone && contact.phone !== values.phone) attrs.unverified_phone = values.phone;
   if (timezone) attrs.timezone = timezone;
   for (const f of card.fields) if (!["name", "email", "phone"].includes(f.key) && values[f.key]) (attrs[f.key] = values[f.key], saved.push(f.label));
-  if (consent && card.consent) attrs.contact_consent = { at: now, text: card.consent.text };
+  // which address the consent came with: only an address given in THIS form (and so linked to this contact) counts as confirmed for a copy by email
+  if (consent && card.consent) attrs.contact_consent = { at: now, text: card.consent.text, email: patch.email ?? null };
   if (!Object.keys(patch).length && !Object.keys(attrs).length) return saved;
   try {
     await patchContact(ctx, contact.workspace_id, contact.id, { ...patch, attrs });

@@ -426,11 +426,15 @@
       errs[f.key] = err;
       var input;
       if (f.type === "select") input = h("select", { name: f.key }, [h("option", { value: "", text: "" })].concat((f.options || []).map(function (o) { return h("option", { value: o, text: o }); })));
+      else if (f.type === "checkbox") input = h("input", { type: "checkbox", name: f.key, "aria-required": f.required ? "true" : null });
       else input = h("input", { type: f.type === "email" ? "email" : f.type === "tel" ? "tel" : "text", name: f.key, autocomplete: f.key === "name" ? "name" : f.key === "email" ? "email" : f.key === "phone" ? "tel" : "off", maxlength: "200", inputmode: f.type === "tel" ? "tel" : null, "aria-required": f.required ? "true" : null });
       inputs[f.key] = input;
-      if (draft[f.key]) input.value = draft[f.key]; else if (f.prefill) input.value = f.prefill;
-      input.addEventListener("input", function () { draft[f.key] = input.value; });
-      input.addEventListener("change", function () { draft[f.key] = input.value; });
+      if (f.type === "checkbox") { input.checked = draft[f.key] === "yes"; input.addEventListener("change", function () { draft[f.key] = input.checked ? "yes" : ""; }); }
+      else {
+        if (draft[f.key]) input.value = draft[f.key]; else if (f.prefill) input.value = f.prefill;
+        input.addEventListener("input", function () { draft[f.key] = input.value; });
+        input.addEventListener("change", function () { draft[f.key] = input.value; });
+      }
       var control = input;
       if (f.key === "phone") {
         country = h("select", { "aria-label": t("form_country"), name: "country" }, COUNTRIES.map(function (c) { return h("option", { value: c[0], text: c[1] }); }));
@@ -440,7 +444,8 @@
       }
       var fid = "cf-" + m.id + "-" + f.key;
       input.id = fid;
-      form.appendChild(h("div", { class: "fld" }, [h("label", { for: fid }, [f.label, f.required ? null : h("span", { class: "opt", text: " (" + t("optional") + ")" })]), control, err]));
+      if (f.type === "checkbox") form.appendChild(h("div", { class: "fld" }, [h("label", { class: "consent", for: fid }, [input, h("span", { text: f.label })]), err]));
+      else form.appendChild(h("div", { class: "fld" }, [h("label", { for: fid }, [f.label, f.required ? null : h("span", { class: "opt", text: " (" + t("optional") + ")" })]), control, err]));
     });
     var consent = null, consentErr = h("div", { class: "fe", role: "alert" });
     if (card.consent) {
@@ -464,7 +469,7 @@
     function localCheck() {
       var bad = false;
       card.fields.forEach(function (f) {
-        var v = (inputs[f.key].value || "").trim(), msg = "";
+        var v = fieldValue(inputs[f.key]), msg = "";
         if (!v && f.required) msg = t("err_required");
         else if (v && f.key === "email" && !/^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(v)) msg = t("err_email");
         errs[f.key].textContent = msg;
@@ -472,7 +477,7 @@
         if (msg) bad = true;
       });
       if (consent) {
-        var filled = card.fields.some(function (f) { return f.key !== "name" && (inputs[f.key].value || "").trim(); });
+        var filled = card.fields.some(function (f) { return (f.key === "email" || f.key === "phone") && fieldValue(inputs[f.key]); });
         consentErr.textContent = filled && !consent.checked ? t("err_consent") : "";
         if (consentErr.textContent) bad = true;
       }
@@ -483,7 +488,7 @@
       fail.textContent = "";
       if (!localCheck()) { var first = form.querySelector("[aria-invalid=true]"); if (first && first.focus) first.focus(); return; }
       var values = {};
-      card.fields.forEach(function (f) { var v = (inputs[f.key].value || "").trim(); if (v) values[f.key] = v; });
+      card.fields.forEach(function (f) { var v = fieldValue(inputs[f.key]); if (v) values[f.key] = v; });
       go.disabled = true;
       api("/public/rooms/" + state.room.id + "/forms/" + m.id, { method: "POST", body: { values: values, consent: !!(consent && consent.checked), country: country ? country.value : undefined, website: hp.value || undefined, timezone: zone() } }).then(function () {
         emit("contact_info_submitted", { room_id: state.room.id, fields: Object.keys(values) });
@@ -688,6 +693,10 @@
     return true;
   }
 
+  /** a form control's value as the server wants it: a ticked checkbox is "yes", an unticked one empty */
+  function fieldValue(input) { return input.type === "checkbox" ? (input.checked ? "yes" : "") : (input.value || "").trim(); }
+  /** custom fields shown before the chat: the required and the optional ones (ask-when-needed ones come later, in the thread) */
+  function prechatFields(w) { return ((w.visitor_info && w.visitor_info.custom_fields) || []).filter(function (f) { return f.mode === "required" || f.mode === "optional"; }); }
   function requiredInfo(w) {
     var need = w.required_info.slice(), f = (w.visitor_info && w.visitor_info.fields) || {};
     ["name", "email", "phone"].forEach(function (k) { if (f[k] === "required" && need.indexOf(k) < 0) need.push(k); });
@@ -703,7 +712,7 @@
     var labels = { name: t("name"), email: t("email"), phone: t("phone") };
     var inputs = {};
     var pre = state.identity || {};
-    var form = h("form", { class: "form", "aria-label": labels.name, novalidate: false });
+    var form = h("form", { class: "form", "aria-label": t("form_label"), novalidate: false });
     form.appendChild(h("p", { class: "hint", text: w.chat_type === "sms" ? t("form_hint_sms") : t("form_hint") }));
     ["name", "email", "phone"].forEach(function (k) {
       var req = need.indexOf(k) >= 0;
@@ -711,13 +720,52 @@
       inputs[k] = input;
       form.appendChild(h("label", null, [labels[k] + (req ? "" : " (" + t("optional") + ")"), input]));
     });
-    form.appendChild(h("div", { class: "err", role: "alert", text: state.error }));
+    // the workspace's custom fields (Settings > Visitor details): text, a choice or a checkbox; the server checks them again
+    var custom = prechatFields(w), cinputs = {}, cerrs = {};
+    custom.forEach(function (f) {
+      var req = f.mode === "required", fid = "pre-" + f.key, input;
+      var err = h("div", { class: "fe", role: "alert" });
+      cerrs[f.key] = err;
+      if (f.type === "select") input = h("select", { name: f.key, id: fid, "aria-required": req ? "true" : null }, [h("option", { value: "", text: "" })].concat((f.options || []).map(function (o) { return h("option", { value: o, text: o }); })));
+      else if (f.type === "checkbox") input = h("input", { type: "checkbox", name: f.key, id: fid, "aria-required": req ? "true" : null });
+      else input = h("input", { type: "text", name: f.key, id: fid, maxlength: "200", required: req, autocomplete: "off" });
+      cinputs[f.key] = input;
+      if (f.type === "checkbox") form.appendChild(h("label", { class: "consent", for: fid }, [input, h("span", { text: f.label })]));
+      else form.appendChild(h("label", { for: fid }, [f.label + (req ? "" : " (" + t("optional") + ")"), input]));
+      form.appendChild(err);
+    });
+    var vi = w.visitor_info || {}, consent = null, consentErr = h("div", { class: "fe", role: "alert" });
+    if (vi.consent && vi.consent.enabled) {
+      consent = h("input", { type: "checkbox", name: "consent" });
+      var ctext = h("span", { text: vi.consent.text + " " });
+      if (vi.consent.privacy_url && /^https?:\/\//.test(vi.consent.privacy_url)) ctext.appendChild(h("a", { href: vi.consent.privacy_url, "data-cv-link": "message", rel: "noopener noreferrer", text: t("privacy_policy") }));
+      form.appendChild(h("label", { class: "consent" }, [consent, ctext]));
+      form.appendChild(consentErr);
+    }
+    var ferr = h("div", { class: "err", role: "alert", text: state.error });
+    form.appendChild(ferr);
     form.appendChild(h("button", { type: "submit", class: "btn", text: t("start_chat") }));
     form.addEventListener("submit", function (e) {
       e.preventDefault();
       state.error = "";
-      state.identity = Object.assign({}, state.identity || {}, { name: inputs.name.value.trim() || undefined, email: inputs.email.value.trim() || undefined, phone: inputs.phone.value.trim() || undefined });
-      startSession().catch(function (ex) { state.error = ex.message; showForm(); });
+      var attrs = {}, bad = false;
+      custom.forEach(function (f) {
+        var v = fieldValue(cinputs[f.key]);
+        var msg = f.mode === "required" && !v ? (f.type === "checkbox" ? t("err_tick") : t("err_required")) : "";
+        cerrs[f.key].textContent = msg;
+        cinputs[f.key].setAttribute("aria-invalid", msg ? "true" : "false");
+        if (msg) bad = true;
+        if (v) attrs[f.key] = f.type === "checkbox" ? true : v;
+      });
+      var reach = inputs.email.value.trim() || inputs.phone.value.trim();
+      if (consent) { consentErr.textContent = reach && !consent.checked ? t("err_consent") : ""; if (consentErr.textContent) bad = true; }
+      if (bad) { var first = form.querySelector("[aria-invalid=true]") || consent; if (first && first.focus) first.focus(); return; }
+      state.identity = Object.assign({}, state.identity || {}, { name: inputs.name.value.trim() || undefined, email: inputs.email.value.trim() || undefined, phone: inputs.phone.value.trim() || undefined, attrs: custom.length ? attrs : undefined, consent: consent ? consent.checked : undefined });
+      startSession().catch(function (ex) {
+        var d = ex.details && ex.details.errors;
+        if (d) { Object.keys(d).forEach(function (k) { if (cerrs[k]) cerrs[k].textContent = d[k]; else if (k === "consent") consentErr.textContent = d[k]; }); ferr.textContent = ex.message; return; }
+        state.error = ex.message; showForm();
+      });
     });
     els.body.appendChild(form);
     var first = form.querySelector("input");
@@ -766,13 +814,16 @@
     if (i.identity_hash) return false;
     var need = requiredInfo(w);
     if (w.chat_type === "sms" && need.indexOf("phone") < 0) need.push("phone");
+    // custom fields of the pre-chat form, until the visitor has answered them in this page
+    if (prechatFields(w).length && !i.attrs) return true;
     return need.some(function (k) { return !i[k]; });
   }
 
   function startSession() {
     var i = state.identity || {};
     var body = {};
-    ["name", "email", "phone", "external_id", "identity_hash"].forEach(function (k) { if (i[k]) body[k] = i[k]; });
+    ["name", "email", "phone", "external_id", "identity_hash", "attrs"].forEach(function (k) { if (i[k]) body[k] = i[k]; });
+    if (i.consent !== undefined) body.consent = i.consent;
     return api("/public/sessions", { method: "POST", body: body, noSession: true }).then(function (s) {
       saveSession(s);
       return ensureRoom(!!s.requires_verification);

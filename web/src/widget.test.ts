@@ -590,3 +590,77 @@ describe("Email me a copy", () => {
     expect(shadow().querySelector(".copynote")!.textContent).toMatch(/Share your email address in the form/);
   });
 });
+
+describe("custom fields and consent in the pre-chat form", () => {
+  const vi_ = {
+    fields: { name: "off", email: "optional", phone: "off" },
+    custom_fields: [
+      { key: "plan", label: "Your plan", type: "select", options: ["Free", "Pro"], mode: "required" },
+      { key: "order", label: "Order number", type: "text", options: [], mode: "optional" },
+      { key: "terms", label: "I accept the terms", type: "checkbox", options: [], mode: "required" },
+      { key: "company", label: "Company", type: "text", options: [], mode: "ask_when_needed" },
+    ],
+    consent: { enabled: true, text: "You may contact me.", privacy_url: "https://acme.test/privacy" },
+  };
+  it("shows the required and optional custom fields (not the ask-when-needed one), labelled, with the consent box", async () => {
+    widget = await boot({ visitor_info: vi_ });
+    widget.open();
+    await flush();
+    const form = shadow().querySelector("form")!;
+    expect(form.querySelector('select[name="plan"]')).not.toBeNull();
+    expect(form.querySelector('input[name="order"]')).not.toBeNull();
+    expect(form.querySelector('input[type="checkbox"][name="terms"]')).not.toBeNull();
+    expect(form.querySelector('[name="company"]')).toBeNull();
+    expect(form.textContent).toContain("Order number (optional)");
+    // every control has a label the screen reader reads
+    for (const id of ["pre-plan", "pre-order", "pre-terms"]) expect(form.querySelector(`label[for="${id}"]`)).not.toBeNull();
+    expect(form.textContent).toContain("You may contact me.");
+    expect(form.querySelector('a[href="https://acme.test/privacy"]')).not.toBeNull();
+  });
+  it("checks required fields and consent before sending; then sends attrs and consent", async () => {
+    widget = await boot({ visitor_info: vi_ });
+    widget.open();
+    await flush();
+    const form = shadow().querySelector("form")!;
+    (form.querySelector('[name="email"]') as HTMLInputElement).value = "vic@example.test";
+    form.dispatchEvent(new Event("submit", { cancelable: true }));
+    await flush();
+    expect(calls.some((c) => c.path === "/public/sessions")).toBe(false);
+    expect(form.textContent).toContain("This is required");
+    expect(form.textContent).toContain("Please tick this box");
+    expect(form.textContent).toContain("Please agree to continue");
+    expect(form.querySelector('[name="plan"]')!.getAttribute("aria-invalid")).toBe("true");
+    (form.querySelector('[name="plan"]') as HTMLSelectElement).value = "Pro";
+    (form.querySelector('[name="terms"]') as HTMLInputElement).checked = true;
+    (form.querySelector('[name="consent"]') as HTMLInputElement).checked = true;
+    form.dispatchEvent(new Event("submit", { cancelable: true }));
+    await flush(); await flush(); await flush();
+    expect(calls.find((c) => c.path === "/public/sessions")!.body).toEqual({ email: "vic@example.test", attrs: { plan: "Pro", terms: true }, consent: true });
+  });
+  it("shows the server's per-field errors", async () => {
+    widget = await boot({ visitor_info: { ...vi_, consent: { enabled: false, text: "x", privacy_url: null } } });
+    replies["POST /public/sessions"] = () => ({ status: 422, json: { error: { code: "INVALID_FORM", message: "Some details need another look", details: { errors: { plan: "Choose one of the options" } } } } });
+    widget.open();
+    await flush();
+    const form = shadow().querySelector("form")!;
+    (form.querySelector('[name="plan"]') as HTMLSelectElement).value = "Free";
+    (form.querySelector('[name="terms"]') as HTMLInputElement).checked = true;
+    form.dispatchEvent(new Event("submit", { cancelable: true }));
+    await flush(); await flush(); await flush();
+    expect(shadow().querySelector("form")!.textContent).toContain("Choose one of the options");
+  });
+  it("a checkbox field in a thread card is sent as yes", async () => {
+    replies["GET /public/rooms/room_1/messages"] = () => ({ json: { data: [mkMsg({ id: "msg_f", seq: 2, sender: { type: "bot", name: "Support assistant" }, content_text: "A few details", meta: { card: { type: "contact_form", moment: "handoff", fields: [{ key: "newsletter", label: "Send me news", type: "checkbox", required: false }], consent: null, skippable: true } } })] } });
+    replies["POST /public/rooms/room_1/forms/msg_f"] = () => ({ json: { ok: true, saved: ["Send me news"] } });
+    widget = await boot();
+    widget.open();
+    for (let i = 0; i < 4; i++) await flush();
+    const box = shadow().querySelector('form.cform input[type="checkbox"][name="newsletter"]') as HTMLInputElement;
+    expect(box).not.toBeNull();
+    box.checked = true;
+    box.dispatchEvent(new Event("change"));
+    shadow().querySelector("form.cform")!.dispatchEvent(new Event("submit", { cancelable: true }));
+    await flush(); await flush();
+    expect(calls.find((c) => c.path === "/public/rooms/room_1/forms/msg_f")!.body.values).toEqual({ newsletter: "yes" });
+  });
+});

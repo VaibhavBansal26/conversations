@@ -42,8 +42,9 @@ const hint = (email: string) => {
 /** May this contact receive a transcript without a code? */
 async function confirmed(ctx: AppContext, contact: ContactRow, session: SessionRow | null): Promise<boolean> {
   if (session?.verified) return true;
-  const attrs = parseJson<{ contact_consent?: { at?: string } }>(contact.attrs, {});
-  if (attrs.contact_consent?.at && contact.email) return true;
+  // consent given in the details form together with this very address (not one typed in the pre-chat form, which anyone can type)
+  const attrs = parseJson<{ contact_consent?: { at?: string; email?: string | null; via?: string } }>(contact.attrs, {});
+  if (attrs.contact_consent?.at && contact.email && attrs.contact_consent.via !== "prechat" && attrs.contact_consent.email === contact.email) return true;
   // a verified session of the same contact (another device that did confirm the address) also counts
   return !!(await ctx.db.get("SELECT 1 FROM visitor_sessions WHERE contact_id = ? AND workspace_id = ? AND verified = 1 LIMIT 1", contact.id, contact.workspace_id));
 }

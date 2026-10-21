@@ -53,7 +53,7 @@ describe("a visitor asks for a copy", () => {
 
   it("an address typed at the start is not trusted: a code first (the existing verification), then the copy", async () => {
     const w = await world();
-    const v = await w.visitor({ email: "typed@example.test" });
+    const v = await w.visitor({ email: "typed@example.test", consent: true });
     await say(w, v, "Hi there");
     const r = await w.ask(v);
     expect(r.body.error).toMatchObject({ code: "VERIFY_EMAIL_FIRST", details: { channel: "email" } });
@@ -129,7 +129,7 @@ describe("a visitor asks for a copy", () => {
 describe("the team sends a copy", () => {
   it("to the contact's own address on file, with conversations:reply; audited with a hint of the address; listed on the conversation", async () => {
     const w = await world({});
-    const v = await w.visitor({ email: "client@example.test" });
+    const v = await w.visitor({ email: "client@example.test", consent: true });
     await say(w, v, "Please send me the details");
     const r = await w.http.post(`/api/rooms/${v.roomId}/transcript`, {}, w.token);
     expect(r.body).toMatchObject({ status: "sent", to: "c…@example.test" });
@@ -188,7 +188,7 @@ describe("the automatic copy after a resolution", () => {
 
   it("nothing for an unconfirmed address or when the option is off", async () => {
     const w = await world({ enabled: true, send_after_resolve: true });
-    const v = await w.visitor({ email: "typed@example.test" });
+    const v = await w.visitor({ email: "typed@example.test", consent: true });
     await say(w, v, "hello");
     await resolved(w, v);
     expect(w.sentTo("typed@example.test")).toHaveLength(0);
