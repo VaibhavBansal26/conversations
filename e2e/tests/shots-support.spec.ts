@@ -1,6 +1,7 @@
 // Screenshot matrix of the support features (tickets, departments, AI agents, visitor details, calls, support analytics, the widget with the AI agent):
 // 3 viewports x light/dark. `npx playwright test tests/shots-support.spec.ts --project=shots` writes to SHOTS_DIR (default ../docs/design).
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Browser, Page } from "@playwright/test";
@@ -23,9 +24,15 @@ const shot = async (page: Page, name: string, vp: string, scheme: string) => {
 };
 
 let visitorName = "";
+// a worker restarted after a failure loses module state: the data the screens need is created once per stack and remembered in a file
+const STATE = join(tmpdir(), `conv-e2e-shots-support-${process.env.E2E_PORT}`);
 /** the workspace the screens need: an AI agent that is on, entries with links, calls and phone calls on, an email card at hand-off, and a few conversations */
 async function setup(browser: Browser, baseURL: string) {
   if (visitorName) return;
+  if (existsSync(STATE)) {
+    visitorName = readFileSync(STATE, "utf8");
+    return;
+  }
   const api = await loginApi(baseURL);
   const patch = (path: string, body: unknown) => fetch(`${baseURL}/api${path}`, { method: "PATCH", headers: { authorization: `Bearer ${api.token}`, "content-type": "application/json" }, body: JSON.stringify(body) });
   const post = (path: string, body: unknown) => fetch(`${baseURL}/api${path}`, { method: "POST", headers: { authorization: `Bearer ${api.token}`, "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -59,6 +66,7 @@ async function setup(browser: Browser, baseURL: string) {
     await ctx.close();
   }
   await site.close();
+  writeFileSync(STATE, visitorName);
 }
 
 for (const vp of VIEWPORTS) {
@@ -142,7 +150,7 @@ for (const vp of VIEWPORTS) {
         const input = page.getByRole("textbox", { name: "Message" });
         await input.fill("How do I reset my password?");
         await page.getByRole("button", { name: "Send message" }).click();
-        await expect(page.getByText("Did that solve your problem?")).toBeVisible({ timeout: 15_000 });
+        await expect(page.getByRole("button", { name: "Yes, thanks" })).toBeVisible({ timeout: 15_000 });
         await shot(page, "widget-ai", vp.id, scheme);
         await page.getByRole("button", { name: "Talk to a person" }).last().click();
         await expect(page.getByRole("form", { name: "Your details" })).toBeVisible({ timeout: 15_000 });

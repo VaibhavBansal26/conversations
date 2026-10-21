@@ -187,6 +187,21 @@ export function RoomHeader({ room, backTo, assignOpen, onAssignOpen, snoozeOpen,
               <DropdownMenuItem onSelect={onToggleSearch}>
                 <Search className="size-4 text-subtle" aria-hidden="true" /> Search in conversation
               </DropdownMenuItem>
+              {canCall && calls!.config?.browser.voice && (
+                <DropdownMenuItem disabled={inCall || !online} onSelect={() => void calls!.start(room.id, "voice")}>
+                  <Phone className="size-4 text-subtle" aria-hidden="true" /> Voice call
+                </DropdownMenuItem>
+              )}
+              {canCall && calls!.config?.browser.video && (
+                <DropdownMenuItem disabled={inCall || !online} onSelect={() => void calls!.start(room.id, "video")}>
+                  <Video className="size-4 text-subtle" aria-hidden="true" /> Video call
+                </DropdownMenuItem>
+              )}
+              {canCall && calls!.config?.phone?.ready && (
+                <DropdownMenuItem onSelect={() => setPhoning(true)}>
+                  <PhoneOutgoing className="size-4 text-subtle" aria-hidden="true" /> Call by phone
+                </DropdownMenuItem>
+              )}
               {canRequestPayment && (
                 <DropdownMenuItem onSelect={() => setPaying(true)}>
                   <CircleDollarSign className="size-4 text-subtle" aria-hidden="true" /> Request payment

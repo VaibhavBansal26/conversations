@@ -220,3 +220,16 @@ describe("static assets and widget delivery", () => {
     expect((await http.get("/public/nope")).status).toBe(401);
   });
 });
+
+describe("a settings patch changes only what it names", () => {
+  it("one widget field, one ticket field and one call field leave every other value as it was", async () => {
+    const { fullApp } = await import("./helpers.js");
+    const f = await fullApp();
+    await f.http.patch("/api/workspace", { settings: { widget: { title: "Chat with Acme", primary_color: "#112233", required_info: ["name"], welcome_message: "Welcome!" }, tickets: { reopen_hours: 12, closing_message: "Done." }, calls: { ring_seconds: 60 } } }, f.token);
+    const r = await f.http.patch("/api/workspace", { settings: { widget: { launcher_label: "Ask us" }, tickets: { csat_prompt: false }, calls: { browser: { enabled: true } } } }, f.token);
+    expect(r.status).toBe(200);
+    expect(r.body.settings.widget).toMatchObject({ title: "Chat with Acme", primary_color: "#112233", required_info: ["name"], welcome_message: "Welcome!", launcher_label: "Ask us" });
+    expect(r.body.settings.tickets).toMatchObject({ reopen_hours: 12, closing_message: "Done.", csat_prompt: false });
+    expect(r.body.settings.calls).toMatchObject({ ring_seconds: 60, browser: { enabled: true, voice: true, video: true } });
+  });
+});

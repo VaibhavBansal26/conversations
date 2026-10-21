@@ -183,6 +183,16 @@ export type WorkspaceSettings = z.infer<typeof WorkspaceSettingsSchema>;
 export type WidgetSettings = z.infer<typeof WidgetShape>;
 export type OfficeHours = z.infer<typeof OfficeHoursSchema>;
 
+/**
+ * The patch form of an object schema: every field optional and NO default applied for a field that is left out. (`.partial()` alone keeps the
+ * defaults inside, so a patch that named one widget field would put every other field back to its default.)
+ */
+function patchOf<T extends z.ZodRawShape>(schema: z.ZodObject<T>) {
+  const shape: Record<string, z.ZodType> = {};
+  for (const [k, f] of Object.entries(schema.shape)) shape[k] = (f instanceof z.ZodDefault ? (f as z.ZodDefault<z.ZodType>).removeDefault() : (f as z.ZodType)).optional();
+  return z.object(shape) as unknown as z.ZodObject<{ [K in keyof T]: z.ZodOptional<z.ZodType<z.output<T[K]>>> }>;
+}
+
 export const WorkspaceSettingsPatchSchema = z.object({
   default_region: WorkspaceSettingsSchema.shape.default_region.optional(),
   edit_window_seconds: WorkspaceSettingsSchema.shape.edit_window_seconds.optional(),
@@ -193,10 +203,10 @@ export const WorkspaceSettingsPatchSchema = z.object({
   ai_autoresponder_enabled: z.boolean().optional(),
   ai_redact_pii: z.boolean().optional(),
   ai_tone: WorkspaceSettingsSchema.shape.ai_tone.optional(),
-  tickets: TicketSettingsSchema.partial().optional(),
-  routing: RoutingSettingsSchema.partial().optional(),
+  tickets: patchOf(TicketSettingsSchema).optional(),
+  routing: patchOf(RoutingSettingsSchema).optional(),
   calls: CallsPatchSchema.optional(),
-  widget: WidgetShape.partial().optional(),
+  widget: patchOf(WidgetShape).optional(),
 });
 
 export function parseSettings(raw: string | null | undefined): WorkspaceSettings {

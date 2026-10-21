@@ -7,7 +7,7 @@ import type { AgentAction, AgentAutonomy, AgentTone, AgentTurn, AgentTurnOutcome
 import { ConfirmDialog } from "../../components/settings/ConfirmDialog";
 import { HoursEditor } from "../../components/settings/HoursEditor";
 import { EditorPanel, ListRow, RowList, SettingsSection } from "../../components/settings/SettingsSection";
-import { Badge, Button, EmptyState, ErrorNotice, Field, Input, Select, Skeleton, Switch, Tabs, TabsList, TabsTrigger, Textarea, toast } from "../../ui";
+import { Badge, Button, EmptyState, ErrorNotice, Field, Input, Select, Skeleton, Switch, SwitchControl, Tabs, TabsList, TabsTrigger, Textarea, toast } from "../../ui";
 
 const MAX_AGENTS = 5;
 const AUTONOMY: Record<AgentAutonomy, { label: string; help: string }> = {
@@ -279,10 +279,10 @@ function Agents() {
               actions={
                 <>
                   <Button variant="outline" size="sm" aria-label={`Edit ${a.name}`} onClick={() => setEditing(a.id)}>
-                    <Pencil aria-hidden="true" /> Edit
+                    <Pencil aria-hidden="true" /> <span className="max-sm:sr-only">Edit</span>
                   </Button>
                   <Button variant="danger-ghost" size="sm" aria-label={`Delete ${a.name}`} onClick={() => setConfirm(a)}>
-                    <Trash2 aria-hidden="true" /> Delete
+                    <Trash2 aria-hidden="true" /> <span className="max-sm:sr-only">Delete</span>
                   </Button>
                 </>
               }
@@ -300,7 +300,7 @@ function Agents() {
                   </p>
                 </div>
                 <div className="ml-auto">
-                  <Switch label={`${a.name} on`} checked={a.enabled} onChange={(on) => update.mutate({ id: a.id, enabled: on })} />
+                  <SwitchControl aria-label={`${a.name} on`} checked={a.enabled} onCheckedChange={(on) => update.mutate({ id: a.id, enabled: on })} />
                 </div>
               </div>
             </ListRow>
@@ -401,7 +401,7 @@ function Unanswered() {
     <SettingsSection
       title="Questions without an answer"
       description="What visitors asked that the knowledge base could not answer, grouped by what they have in common. The biggest groups are the entries worth writing first."
-      actions={<Select value={days} onValueChange={setDays} aria-label="Period" options={[{ value: "7", label: "Last 7 days" }, { value: "30", label: "Last 30 days" }, { value: "90", label: "Last 90 days" }]} />}
+      actions={<div className="w-40"><Select value={days} onValueChange={setDays} aria-label="Period" options={[{ value: "7", label: "Last 7 days" }, { value: "30", label: "Last 30 days" }, { value: "90", label: "Last 90 days" }]} /></div>}
     >
       {q.isPending && <Skeleton className="h-16" />}
       {q.isError && <ErrorNotice error={q.error} onRetry={() => void q.refetch()} />}
