@@ -1068,13 +1068,11 @@
                         "type": "object",
                         "properties": {
                           "reopen_hours": {
-                            "default": 72,
                             "type": "integer",
                             "minimum": 0,
                             "maximum": 720
                           },
                           "bot_idle_minutes": {
-                            "default": 30,
                             "anyOf": [
                               {
                                 "type": "number",
@@ -1088,23 +1086,19 @@
                             ]
                           },
                           "pending_idle_hours": {
-                            "default": 72,
                             "type": "integer",
                             "minimum": 0,
                             "maximum": 720
                           },
                           "close_resolved_hours": {
-                            "default": 72,
                             "type": "integer",
                             "minimum": 1,
                             "maximum": 720
                           },
                           "csat_prompt": {
-                            "default": true,
                             "type": "boolean"
                           },
                           "closing_message": {
-                            "default": "This conversation has been marked as resolved. If you need anything else, just reply here.",
                             "type": "string",
                             "maxLength": 500
                           }
@@ -1114,7 +1108,6 @@
                         "type": "object",
                         "properties": {
                           "require_online": {
-                            "default": true,
                             "type": "boolean"
                           }
                         }
@@ -1212,27 +1205,22 @@
                         "type": "object",
                         "properties": {
                           "title": {
-                            "default": "Chat with us",
                             "type": "string",
                             "maxLength": 80
                           },
                           "intro": {
-                            "default": "We usually reply within a few minutes.",
                             "type": "string",
                             "maxLength": 240
                           },
                           "primary_color": {
-                            "default": "#4f46e5",
                             "type": "string",
                             "pattern": "^#[0-9a-fA-F]{6}$"
                           },
                           "text_color": {
-                            "default": "#ffffff",
                             "type": "string",
                             "pattern": "^#[0-9a-fA-F]{6}$"
                           },
                           "logo_url": {
-                            "default": null,
                             "anyOf": [
                               {
                                 "type": "string",
@@ -1245,7 +1233,6 @@
                             ]
                           },
                           "launcher_position": {
-                            "default": "right",
                             "type": "string",
                             "enum": [
                               "left",
@@ -1253,13 +1240,11 @@
                             ]
                           },
                           "launcher_spacing": {
-                            "default": 20,
                             "type": "integer",
                             "minimum": 0,
                             "maximum": 200
                           },
                           "launcher_style": {
-                            "default": "bubble",
                             "type": "string",
                             "enum": [
                               "bubble",
@@ -1268,32 +1253,26 @@
                             ]
                           },
                           "launcher_label": {
-                            "default": "Chat with us",
                             "type": "string",
                             "maxLength": 24
                           },
                           "radius": {
-                            "default": 16,
                             "type": "integer",
                             "minimum": 0,
                             "maximum": 24
                           },
                           "sound": {
-                            "default": true,
                             "type": "boolean"
                           },
                           "welcome_message": {
-                            "default": "Hi there! How can we help you today?",
                             "type": "string",
                             "maxLength": 500
                           },
                           "away_message": {
-                            "default": "We're currently away. Leave a message and we'll get back to you.",
                             "type": "string",
                             "maxLength": 500
                           },
                           "required_info": {
-                            "default": [],
                             "type": "array",
                             "items": {
                               "type": "string",
@@ -1305,7 +1284,6 @@
                             }
                           },
                           "chat_type": {
-                            "default": "live_chat",
                             "type": "string",
                             "enum": [
                               "live_chat",
@@ -1313,37 +1291,6 @@
                             ]
                           },
                           "office_hours": {
-                            "default": {
-                              "enabled": false,
-                              "timezone": "UTC",
-                              "days": [
-                                {
-                                  "day": 1,
-                                  "start": "09:00",
-                                  "end": "17:00"
-                                },
-                                {
-                                  "day": 2,
-                                  "start": "09:00",
-                                  "end": "17:00"
-                                },
-                                {
-                                  "day": 3,
-                                  "start": "09:00",
-                                  "end": "17:00"
-                                },
-                                {
-                                  "day": 4,
-                                  "start": "09:00",
-                                  "end": "17:00"
-                                },
-                                {
-                                  "day": 5,
-                                  "start": "09:00",
-                                  "end": "17:00"
-                                }
-                              ]
-                            },
                             "type": "object",
                             "properties": {
                               "enabled": {
@@ -1410,36 +1357,15 @@
                             }
                           },
                           "default_inbox_id": {
-                            "default": null,
                             "type": [
                               "string",
                               "null"
                             ]
                           },
                           "department_selector": {
-                            "default": false,
                             "type": "boolean"
                           },
                           "visitor_info": {
-                            "default": {
-                              "fields": {
-                                "name": "off",
-                                "email": "off",
-                                "phone": "off"
-                              },
-                              "custom_fields": [],
-                              "moments": {
-                                "handoff": true,
-                                "no_agent": true,
-                                "callback": true,
-                                "after": false
-                              },
-                              "consent": {
-                                "enabled": false,
-                                "text": "I agree that you may contact me about this conversation.",
-                                "privacy_url": null
-                              }
-                            },
                             "type": "object",
                             "properties": {
                               "fields": {
