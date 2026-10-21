@@ -102,7 +102,11 @@ Development runs the same thing with `npm run dev` (API on :3000, Vite on :5173 
 | `services/tickets.ts`, `routes/tickets.ts` | tickets: the state machine run by `insertMessage`, resolve/close/reopen/merge, listing and counts, the idle sweep, rating ([AI-AGENTS.md](AI-AGENTS.md), [ADR 0027](adr/0027-tickets-inside-rooms.md)); web: `pages/TicketsPage.tsx`, `components/tickets/`, `api/ticketHooks.ts` |
 | `services/departments.ts`, `services/routing.ts`, `services/routingRules.ts`, `routes/departments.ts` | departments (hours, availability, status, configuration), the handoff engine (`routeTicket`, handoff, transfer, claim, queue drain, seat changes, SLA sweep) and routing rules ([DEPARTMENTS.md](DEPARTMENTS.md), [ADR 0028](adr/0028-departments-are-inboxes.md)); web: `pages/settings/DepartmentSettings.tsx`, `components/settings/HoursEditor.tsx` |
 | `agents/*.ts`, `routes/agents.ts` | AI support agents: configuration (`config.ts`), the turn pipeline (`pipeline.ts`: `decideTurn` reads, `applyDecision` writes), classification, hand-off and injection rules, guards, tools, visitor quick replies and "talk to a person", take over and hand back, sandbox and review ([AI-AGENTS.md](AI-AGENTS.md), [ADR 0029](adr/0029-ai-agent-pipeline.md)); web: `pages/settings/AiAgentsSettings.tsx` |
-| `calls/*.ts`, `routes/calls.ts` | voice and video calls: the pure state machine, the service (invite, accept, signalling relay, resume, sweeps, thread cards), TURN credentials ([CALLS.md](CALLS.md), [ADR 0031](adr/0031-calls-signalling-over-sockets.md)); clients: `web/src/calls/*` (team) and `server/public/chat/calls.js` (visitor) |
+| `calls/*.ts`, `routes/calls.ts` | voice and video calls: the pure state machine, the service (invite, accept, signalling relay, resume, sweeps, thread cards), TURN credentials ([CALLS.md](CALLS.md), [ADR 0031](adr/0031-calls-signalling-over-sockets.md)); phone calls (`phone.ts`), AI calls and the realtime engine (`aiCall.ts`, `realtime*.ts`), teammate calls (`teamCall.ts`), group calls (`groupCall.ts`, pure rules in `groupMachine.ts`, [ADR 0038](adr/0038-group-calls-mesh.md)), call links (`links.ts`); clients: `web/src/calls/*` (team, including `groupEngine.ts` and `GroupCallProvider.tsx`) and `server/public/chat/calls.js`, `aicall.js` (visitor) |
+| `avatar/` | the optional photoreal avatar: `AvatarProvider` interface, the D-ID adapter (`did.ts`), a fake, and the service (encrypted per-workspace key, avatars, per-call sessions, budget and concurrency, sweep) ([ADR 0039](adr/0039-optional-photoreal-avatar.md)); web: `pages/settings/PhotorealAvatarSettings.tsx` |
+| `push/` | Web Push for team members: RFC 8291 encryption and RFC 8292 VAPID on `node:crypto` and `jose` (`webpush.ts`), subscriptions, the `push_send` job and the hooks called by notifications and missed calls (`service.ts`) ([NOTIFICATIONS.md](NOTIFICATIONS.md)); clients: `web/public/sw.js`, `web/src/lib/push.ts`, `pages/settings/PushSettings.tsx` |
+| `agents/channelReply.ts`, `agents/channelText.ts` | AI agents on SMS and email: when to answer (loop protection, opt-outs, quiet hours, daily cap) and how the answer is shaped for the channel; replies go through the normal delivery pipeline |
+| `services/transcripts.ts` | copies of a conversation by email: recipient confirmation, contents as the visitor saw them, masking, limits, unsubscribe tokens ([TRANSCRIPTS.md](TRANSCRIPTS.md)) |
 | `services/teamChat.ts`, `routes/teamChat.ts` | internal team chat: channels, direct and group messages, threads, reactions, pins, search, read cursors, notifications ([TEAM-CHAT.md](TEAM-CHAT.md), [ADR 0021](adr/0021-team-chat.md)); web: `web/src/team/`, `pages/TeamPage.tsx` |
 | `webhooks/signatures.ts` | Twilio HMAC-SHA1, SendGrid ECDSA / shared secret, replay + idempotency table; per-workspace endpoints `/webhooks/c/:id/...` verify with the connection's own credentials |
 | `jobs/` | `JobQueue` (`DbJobQueue` / `BullJobQueue`) with backoff, scheduler passes |
@@ -244,6 +248,14 @@ Notable constraints (all enforced by the database, not just by code):
 | `ux_tokens_domain` (partial, active) | one active embed token per domain per workspace |
 | `webhook_events (provider, event_key)` | provider-message-id idempotency and signature replay protection |
 | `notifications (member, message, type)` unique | one notification per seat per message |
+| `ux_tickets_room_live` (partial) | at most one live ticket per conversation |
+| `group_calls (channel_id)` unique where live | one live group call per channel |
+| `group_call_participants (member_id)` unique where joined | a member is in at most one group call at a time |
+| `push_subscriptions (member_id, endpoint)` | a device is subscribed once per member |
+| `avatar_sessions (call_id)` unique while starting or live | at most one photoreal stream per call |
+| `transcript_sends (ticket_id)` unique for the automatic copy | the copy after resolution goes once per ticket |
+
+The full table list with an ER diagram of every entity (including calls, team chat, tickets, AI agents, push and avatars) is in [FUNCTIONS.md](FUNCTIONS.md#data-model); the diagram above covers the core conversation model.
 
 ## 4. Access model
 
@@ -424,11 +436,12 @@ Work is a set of idempotent jobs plus a periodic sweep. On one node the schedule
 | Pass | Trigger | What |
 | --- | --- | --- |
 | snooze wake | delayed job `wake_room` at `snooze_until` (+ 10 s sweep) | `wakeRoom`: conditional `UPDATE ... WHERE snooze_until = <seen>` so each room wakes exactly once, system message, event, in-app notification |
-| job queue | immediate or delayed | `send_retry`, `notify_email`, `digest_email`, `reconcile_sms`; claim is atomic (conditional update or BullMQ); failure -> exponential backoff (2^n s, max 15 min) up to `max_attempts` then `failed` |
+| job queue | immediate or delayed | `send_retry`, `paced_send`, `notify_email`, `digest_email`, `reconcile_sms`, `push_send` (one per device, 4 attempts, deduplicated per device and notification); claim is atomic (conditional update or BullMQ); failure -> exponential backoff (2^n s, max 15 min) up to `max_attempts` then `failed` |
 | digest | 60 s sweep | `collectDigests` (see 5.5); candidates come from the `digest_due` outbox flag set when a message is stored, not from scanning all rooms |
 | delivery reconciliation | delayed job 2 min after send (+ 60 s sweep) | asks the SMS provider for the state of messages still `sent` (replaces legacy 5 s polling) |
 | outbox relay | every 200 ms under a distributed lock | publishes committed `outbox_events` rows to the event bus in order; consumers (rollups, analytics) are idempotent on the event id |
 | `auto_recharge` | queued by a balance change, at most one per workspace per 10 minutes | charges the saved card, credits idempotently ([STRIPE.md](STRIPE.md)) |
+| call sweeps | every 5 s, no lock (every transition is a compare-and-set) | ring time-outs, reconnect grace and connect time-outs of visitor, phone, AI, teammate and group calls; photoreal streams past their budget or call |
 | daily housekeeping | every 6 h under a lock | creates the next monthly message partitions, runs retention/archival, prunes the outbox |
 
 Job scheduling is **fair across tenants**: each pass takes at most a small quantum of jobs per workspace, round-robin, so one tenant enqueueing a million sends delays others by one rank, not by its backlog; a workspace with a huge send backlog gets `429` on new external sends while others are unaffected.
