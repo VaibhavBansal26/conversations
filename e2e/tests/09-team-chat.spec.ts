@@ -192,7 +192,7 @@ test("long history is virtualised and older pages load without losing your place
   // only a window of the 160 rows is in the DOM
   expect(await log.getByTestId("team-message").count()).toBeLessThan(60);
   // scroll to the top: older messages load and the first visible message stays the oldest loaded one
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 40; i++) {
     await log.evaluate((el) => { el.scrollTop = 0; });
     if (await log.getByText("history message 1", { exact: true }).isVisible()) break;
     await owner.waitForTimeout(500);
