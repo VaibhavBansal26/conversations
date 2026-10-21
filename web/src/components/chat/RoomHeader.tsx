@@ -1,7 +1,8 @@
 // Adapted from the legacy UI (see docs/PROVENANCE.md): assignee, status, priority and snooze controls in the conversation header.
-import { ArrowLeft, Check, Phone, PhoneOutgoing, CircleDollarSign, Flag, Inbox as InboxIcon, MoreHorizontal, PanelRight, RotateCcw, Search, Share2, Sparkles, Star, UserRound, Video } from "lucide-react";
+import { ArrowLeft, Check, Link2, Phone, PhoneOutgoing, CircleDollarSign, Flag, Inbox as InboxIcon, MoreHorizontal, PanelRight, RotateCcw, Search, Share2, Sparkles, Star, UserRound, Video } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
+import { api } from "../../api/client";
 import { useInboxes, useMembers, useRoomActions } from "../../api/hooks";
 import type { Room } from "../../api/types";
 import { useCan, useSession } from "../../auth/AuthContext";
@@ -11,7 +12,7 @@ import { PhoneCallDialog } from "../../calls/PhoneCall";
 import { useSocket } from "../../realtime/SocketProvider";
 import { isSnoozed } from "../../state/roomCache";
 import {
-  Avatar, Button, cn, DropdownMenuCheckItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRoot, DropdownMenuSeparator, DropdownMenuTrigger, Tooltip,
+  Avatar, Button, cn, toast, DropdownMenuCheckItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRoot, DropdownMenuSeparator, DropdownMenuTrigger, Tooltip,
 } from "../../ui";
 import { ShareToTeamDialog } from "../../team/Dialogs";
 import { RequestPaymentDialog } from "./RequestPaymentDialog";
@@ -65,6 +66,22 @@ export function RoomHeader({ room, backTo, assignOpen, onAssignOpen, snoozeOpen,
   const canCall = !!calls?.available && !closed && !!room.ticket && room.ticket.status !== "resolved" && room.ticket.status !== "closed";
   const inCall = !!calls && calls.view.phase !== "idle" && calls.view.phase !== "ended";
   const callTitle = (kind: "voice" | "video") => (inCall ? "You are already in a call" : !online ? "The visitor is not in the chat right now" : kind === "voice" ? "Voice call" : "Video call");
+  const canLink = useCan("calls:make") && !closed && !!calls?.config?.links?.enabled;
+  // a link the visitor opens without logging in: it is posted in the thread as a card with a Join button, and copied here for any other channel
+  const copyCallLink = async (mode: "ai" | "team", kind: "voice" | "video") => {
+    try {
+      const r = await api.post<{ url: string; expires_at: string }>(`/rooms/${room.id}/call-links`, { mode, kind });
+      let copied = true;
+      try {
+        await navigator.clipboard.writeText(r.url);
+      } catch {
+        copied = false;
+      }
+      toast({ title: copied ? "Call link copied" : "Call link created", description: `${copied ? "" : "Copying was blocked by the browser; the link is in the conversation. "}Works once, until ${new Date(r.expires_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}. A new link replaces the old one.` });
+    } catch (e) {
+      toast({ title: "Could not create the link", description: e instanceof Error ? e.message : "Try again", tone: "error" });
+    }
+  };
   const snoozed = isSnoozed(room, new Date());
   const assigned = members.filter((m) => room.assignee_ids.includes(m.id));
   const details = [room.contact?.email, room.contact?.phone].filter(Boolean).join(" · ") || room.subject || "No contact details";
@@ -200,6 +217,16 @@ export function RoomHeader({ room, backTo, assignOpen, onAssignOpen, snoozeOpen,
               {canCall && calls!.config?.phone?.ready && (
                 <DropdownMenuItem onSelect={() => setPhoning(true)}>
                   <PhoneOutgoing className="size-4 text-subtle" aria-hidden="true" /> Call by phone
+                </DropdownMenuItem>
+              )}
+              {canLink && calls!.config!.links!.allow_team && (
+                <DropdownMenuItem onSelect={() => void copyCallLink("team", calls!.config!.browser.voice ? "voice" : "video")}>
+                  <Link2 className="size-4 text-subtle" aria-hidden="true" /> Copy call link
+                </DropdownMenuItem>
+              )}
+              {canLink && calls!.config!.links!.allow_ai && calls!.config?.ai?.enabled && (
+                <DropdownMenuItem onSelect={() => void copyCallLink("ai", "voice")}>
+                  <Link2 className="size-4 text-subtle" aria-hidden="true" /> Copy AI call link
                 </DropdownMenuItem>
               )}
               {canRequestPayment && (

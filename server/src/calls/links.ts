@@ -202,9 +202,9 @@ async function counterpart(ctx: AppContext, link: CallLinkRow, room: RoomRow) {
   if (link.mode === "ai") {
     const a = await aiCallAvailability(ctx, link.workspace_id, room.inbox_id);
     const row = a.agent;
-    return { workspace_name: ws?.name ?? "", who: row ? { name: row.name, label: row.label, avatar_url: row.avatar_url, avatar_alt: row.avatar_alt } : null, ai_available: a.enabled && a[link.kind] };
+    return { workspace_name: ws?.name ?? "", who: row ? { name: row.name, label: row.label, avatar_url: row.avatar_url, avatar_alt: row.avatar_alt } : null, ai_available: a.enabled && a[link.kind], ai_config: a };
   }
-  return { workspace_name: ws?.name ?? "", who: null, ai_available: false };
+  return { workspace_name: ws?.name ?? "", who: null, ai_available: false, ai_config: null };
 }
 
 /** What the page shows before the visitor agrees to join. A link that is not usable answers with the one generic refusal. */
@@ -212,7 +212,7 @@ export async function previewCallLink(ctx: AppContext, token: unknown) {
   const { link, room } = await usable(ctx, token);
   const c = await counterpart(ctx, link, room);
   if (link.mode === "ai" && !c.ai_available) throw LINK_UNAVAILABLE();
-  return { mode: link.mode, kind: link.kind, workspace_name: c.workspace_name, ai: c.who, expires_at: link.expires_at };
+  return { mode: link.mode, kind: link.kind, workspace_name: c.workspace_name, ai: c.who, ai_config: c.ai_config, expires_at: link.expires_at };
 }
 
 const deviceHash = (device: string) => sha256(`calllink-device|${device}`);
@@ -251,7 +251,7 @@ export async function redeemCallLink(ctx: AppContext, o: { token: unknown; devic
     await requestCall(ctx, session, room.id, link.kind).catch(() => null);
   }
   const c = await counterpart(ctx, link, room);
-  return { session_token: secret, device_id: o.device_id, workspace_id: link.workspace_id, room_id: room.id, mode: link.mode, kind: link.kind, workspace_name: c.workspace_name, ai: c.who, expires_at: expires, link_expires_at: link.expires_at, display_name: name || null };
+  return { session_token: secret, device_id: o.device_id, workspace_id: link.workspace_id, room_id: room.id, mode: link.mode, kind: link.kind, workspace_name: c.workspace_name, ai: c.who, ai_config: c.ai_config, expires_at: expires, link_expires_at: link.expires_at, display_name: name || null };
 }
 
 /** The call that was started through a link ended: the link is used up and its session closes. */

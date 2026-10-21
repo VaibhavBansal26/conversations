@@ -21,7 +21,9 @@ export interface CallsConfig {
   ring_seconds: number;
   turn_provider: string;
   warning: string | null;
-  ai?: { engine: "browser" | "realtime"; realtime_available: boolean; realtime_switched_off: boolean };
+  ai?: { enabled?: boolean; engine: "browser" | "realtime"; realtime_available: boolean; realtime_switched_off: boolean };
+  /** call links (ADR 0037): a Join link the visitor opens without logging in */
+  links?: { enabled: boolean; allow_ai: boolean; allow_team: boolean; ttl_minutes: number };
 }
 /** A phone call this member placed: Twilio rings their phone, then the contact's. Driven by `call:state` events; there is no media in the browser. */
 export interface PhoneCallView {

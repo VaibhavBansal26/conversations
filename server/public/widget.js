@@ -65,6 +65,21 @@
     } catch (e) { return (minor / 100).toFixed(2) + " " + String(currency).toUpperCase(); }
   }
 
+  var LINK_LABEL = { active: "Link ready", in_use: "In progress", used: "Call finished", revoked: "Link cancelled", expired: "Link expired" };
+  /** A call link card: Join opens the call page in a new tab (the address is a credential: only an https or local address is offered). */
+  function callLinkCard(doc, m, body, c) {
+    var st = String(c.status || "active").replace(/[^a-z_]/g, "");
+    if ((st === "active" || st === "in_use") && c.expires_at && Date.parse(c.expires_at) < Date.now()) st = "expired";
+    body.className += " pay calllink " + st;
+    var agent = m.meta && m.meta.agent;
+    body.appendChild(h(doc, "span", { class: "amt", text: c.mode === "ai" ? "Call with " + ((agent && agent.name) || "our AI assistant") : "Call with our team" }));
+    body.appendChild(h(doc, "span", { text: c.kind === "video" ? "Video call" : "Voice call" }));
+    var until = "";
+    try { until = st === "active" && c.expires_at ? " \u00b7 valid until " + new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(new Date(c.expires_at)) : ""; } catch (e) { /* no Intl */ }
+    body.appendChild(h(doc, "span", { class: "st", text: (LINK_LABEL[st] || "") + until }));
+    if ((st === "active" || st === "in_use") && /^(https:\/\/|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/)/.test(c.url || "")) body.appendChild(h(doc, "a", { class: "btn", href: c.url, target: "_blank", rel: "noopener noreferrer", "data-call-link": "1", text: "Join call" }));
+  }
+
   function linkify(doc, text) {
     var frag = doc.createDocumentFragment();
     var re = /(https?:\/\/[^\s<]+)/g, last = 0, m;
@@ -303,6 +318,8 @@
           body.appendChild(h(doc, "span", { class: "st", text: PAY_LABEL[card.status] || "" }));
           // only a Stripe-hosted https page is ever offered as a link
           if (card.status === "open" && /^https:\/\//.test(card.url || "")) body.appendChild(h(doc, "a", { class: "btn", href: card.url, target: "_blank", rel: "noopener noreferrer", text: "Pay now" }));
+        } else if (m.meta && m.meta.card && m.meta.card.type === "call_link") {
+          callLinkCard(doc, m, body, m.meta.card);
         } else {
           var span = h(doc, "span");
           span.appendChild(linkify(doc, text));

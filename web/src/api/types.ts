@@ -110,6 +110,7 @@ export interface CallSettings {
   internal?: { enabled: boolean; voice: boolean; video: boolean; screen_share: boolean; ring_seconds: number };
   ai?: AiCallSettings;
   ai_engine?: "browser" | "realtime";
+  links?: { enabled: boolean; ttl_minutes: number; allow_ai: boolean; allow_team: boolean };
   phone?: PhoneCallSettings;
   ring_seconds: number;
   turn_provider: "none" | "static" | "twilio";
@@ -485,7 +486,7 @@ export interface KbEntry {
 
 export type AgentAutonomy = "suggest_only" | "auto_answer" | "auto_resolve";
 export type AgentTone = "friendly" | "professional" | "concise" | "empathetic";
-export type AgentAction = "collect_info" | "route" | "resolve" | "quick_replies" | "request_human" | "schedule_callback" | "offer_call" | "ai_call";
+export type AgentAction = "collect_info" | "route" | "resolve" | "quick_replies" | "request_human" | "schedule_callback" | "offer_call" | "ai_call" | "share_call_link";
 export interface HandoffTriggers {
   human_request: boolean;
   low_confidence: boolean;

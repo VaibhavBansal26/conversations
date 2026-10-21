@@ -237,6 +237,24 @@
   function fmtTime(iso) {
     try { return new Intl.DateTimeFormat(state.locale, { hour: "numeric", minute: "2-digit" }).format(new Date(iso)); } catch (e) { return ""; }
   }
+  /** A call link card: Join opens the call page (the address is a credential, so only an https or local address is ever offered). */
+  var seenCallLinks = {};
+  function callLinkState(c) {
+    if ((c.status === "active" || c.status === "in_use") && c.expires_at && Date.parse(c.expires_at) < Date.now()) return "expired";
+    return String(c.status || "active").replace(/[^a-z_]/g, "");
+  }
+  function callLinkCard(m, body, c) {
+    var st = callLinkState(c);
+    body.className += " pay calllink " + st;
+    var agent = m.meta && m.meta.agent;
+    body.appendChild(h("span", { class: "amt", text: c.mode === "ai" ? t("call_card_ai", { name: (agent && agent.name) || t("ai_tag") }) : t("call_card_team") }));
+    body.appendChild(h("span", { text: t(c.kind === "video" ? "call_card_video" : "call_card_voice") }));
+    body.appendChild(h("span", { class: "st", text: t("call_link_" + st) + (st === "active" && c.expires_at ? " · " + t("call_link_until", { time: fmtTime(c.expires_at) }) : "") }));
+    if ((st === "active" || st === "in_use") && /^(https:\/\/|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/)/.test(c.url || "")) {
+      body.appendChild(h("a", { class: "btn", href: c.url, "data-cv-link": "call_link", rel: "noopener noreferrer", target: "_blank", text: t("call_join") }));
+      if (m.id && !seenCallLinks[m.id]) { seenCallLinks[m.id] = 1; emit("call_link_received", { room_id: m.room_id || (state.room && state.room.id) || "", message_id: m.id, kind: c.kind === "video" ? "video" : "voice", mode: c.mode === "ai" ? "ai" : "team", expires_at: c.expires_at }); }
+    }
+  }
   function formatMoney(minor, currency) {
     try {
       var f = new Intl.NumberFormat(state.locale, { style: "currency", currency: String(currency).toUpperCase() });
@@ -311,6 +329,8 @@
         body.appendChild(h("span", { text: String(card.description || "") }));
         body.appendChild(h("span", { class: "st", text: t("pay_" + String(card.status).replace(/[^a-z]/g, "")) }));
         if (card.status === "open" && /^https:\/\//.test(card.url || "")) body.appendChild(h("a", { class: "btn", href: card.url, "data-cv-link": "payment", rel: "noopener noreferrer", text: t("pay_now") }));
+      } else if (m.meta && m.meta.card && m.meta.card.type === "call_link") {
+        callLinkCard(m, body, m.meta.card);
       } else if (text) {
         var span = h("span");
         span.appendChild(linkify(text, "message"));
@@ -831,7 +851,7 @@
     if (!lax.ok) return;
     var fallback = function () { try { global.open(lax.url, "_blank", "noopener,noreferrer"); } catch (e) { /* the host decides */ } };
     if (bridge.transport.name === "none" || !strict.ok) return fallback();
-    bridge.emitAwait("link_clicked", { url: strict.url, source: source === "attachment" || source === "payment" ? source : "message" }, 800).then(function (ack) {
+    bridge.emitAwait("link_clicked", { url: strict.url, source: source === "attachment" || source === "payment" || source === "call_link" ? source : "message" }, 800).then(function (ack) {
       if (!(ack && ack.ok && ack.handled)) fallback();
     });
   }

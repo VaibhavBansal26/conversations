@@ -18,6 +18,7 @@
     { "properties": { "type": { "const": "call_state" }, "payload": { "$ref": "#/$defs/call_state" } } },
     { "properties": { "type": { "const": "ai_call_state" }, "payload": { "$ref": "#/$defs/ai_call_state" } } },
     { "properties": { "type": { "const": "ai_call_unsupported" }, "payload": { "$ref": "#/$defs/ai_call_unsupported" } } },
+    { "properties": { "type": { "const": "call_link_received" }, "payload": { "$ref": "#/$defs/call_link_received" } } },
     { "properties": { "type": { "const": "link_clicked" }, "payload": { "$ref": "#/$defs/link_clicked" } } },
     { "properties": { "type": { "const": "attachment_requested" }, "payload": { "$ref": "#/$defs/attachment_requested" } } },
     { "properties": { "type": { "const": "auth_required" }, "payload": { "$ref": "#/$defs/auth_required" } } },
@@ -107,12 +108,24 @@
       "description": "The visitor tried an AI voice call in a web view or browser without speech recognition; the page opened the text chat with the same assistant instead. (Android WebView and iOS WKWebView differ: see MOBILE-BRIDGE.md.)",
       "properties": { "room_id": { "type": "string", "minLength": 1, "maxLength": 64 }, "reason": { "const": "no_speech_recognition" } }
     },
+    "call_link_received": {
+      "type": "object",
+      "required": ["room_id", "message_id", "kind", "mode"],
+      "description": "Informational: a call link (a Join button to a voice or video call with the AI assistant or the team) arrived in the conversation. Carries no address, on purpose: the address is a credential. Tapping Join sends link_clicked with source call_link and the address, so the host can open it in the system browser; treat that address as a secret (never log it).",
+      "properties": {
+        "room_id": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "message_id": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "kind": { "enum": ["voice", "video"] },
+        "mode": { "enum": ["ai", "team"] },
+        "expires_at": { "type": "string", "minLength": 1, "maxLength": 40 }
+      }
+    },
     "link_clicked": {
       "type": "object",
       "required": ["url", "source"],
       "properties": {
         "url": { "type": "string", "maxLength": 2048, "pattern": "^(https://|mailto:|tel:)" },
-        "source": { "enum": ["message", "attachment", "payment"] }
+        "source": { "enum": ["message", "attachment", "payment", "call_link"], "description": "call_link: the Join button of a call link. The url is the address of the call page and works as a credential: do not log or store it." }
       }
     },
     "attachment_requested": { "type": "object", "required": ["kinds"], "properties": { "kinds": { "type": "array", "minItems": 1, "items": { "enum": ["image", "pdf"] } } } },

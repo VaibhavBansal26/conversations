@@ -16,7 +16,8 @@ import { ErrorNotice, Field, Input, Select, Switch } from "../../ui";
 const PHONE: PhoneCallSettings = { enabled: false, caller_id: null, daily_limit: 50, allowed_countries: [], max_duration_s: 1800, quiet_hours: { enabled: true, start: "21:00", end: "08:00" } };
 const AI: AiCallSettings = { enabled: false, voice: true, video: true, max_duration_s: 600, idle_timeout_s: 120, max_concurrent: 3, daily_limit: 100, realtime_minutes_daily: 30, realtime_max_concurrent: 2 };
 const INTERNAL = { enabled: false, voice: true, video: true, screen_share: true, ring_seconds: 30 };
-const DEFAULTS: Settings = { internal: INTERNAL, browser: { enabled: false, voice: true, video: true, screen_share: true }, ai: AI, ai_engine: "browser", ring_seconds: 45, turn_provider: "none", phone: PHONE };
+const LINKS = { enabled: false, ttl_minutes: 30, allow_ai: true, allow_team: true };
+const DEFAULTS: Settings = { links: LINKS, internal: INTERNAL, browser: { enabled: false, voice: true, video: true, screen_share: true }, ai: AI, ai_engine: "browser", ring_seconds: 45, turn_provider: "none", phone: PHONE };
 const TURN = {
   none: { label: "None (STUN only)", help: "Peers connect directly when their networks allow it. Calls fail for visitors behind strict firewalls, symmetric NATs and many mobile networks." },
   static: { label: "Your own TURN server", help: "The server's TURN_URLS and TURN_SECRET (for example coturn): the app hands out credentials that expire after the call. The shared secret never reaches a browser." },
@@ -27,7 +28,7 @@ const TURN = {
 export function CallSettings() {
   const { workspace } = useSession();
   const canEdit = useCan("calls:settings");
-  const cur: Settings = { ...DEFAULTS, ...(workspace.settings.calls ?? {}), browser: { ...DEFAULTS.browser, ...(workspace.settings.calls?.browser ?? {}) }, ai: { ...AI, ...(workspace.settings.calls?.ai ?? {}) }, internal: { ...INTERNAL, ...(workspace.settings.calls?.internal ?? {}) }, phone: { ...PHONE, ...(workspace.settings.calls?.phone ?? {}), quiet_hours: { ...PHONE.quiet_hours, ...(workspace.settings.calls?.phone?.quiet_hours ?? {}) } } };
+  const cur: Settings = { ...DEFAULTS, ...(workspace.settings.calls ?? {}), browser: { ...DEFAULTS.browser, ...(workspace.settings.calls?.browser ?? {}) }, ai: { ...AI, ...(workspace.settings.calls?.ai ?? {}) }, internal: { ...INTERNAL, ...(workspace.settings.calls?.internal ?? {}) }, links: { ...LINKS, ...(workspace.settings.calls?.links ?? {}) }, phone: { ...PHONE, ...(workspace.settings.calls?.phone ?? {}), quiet_hours: { ...PHONE.quiet_hours, ...(workspace.settings.calls?.phone?.quiet_hours ?? {}) } } };
   const qc = useQueryClient();
   const save = useMutation({
     mutationFn: (body: Settings) => api.patch<Workspace>("/calls/settings", body),
@@ -47,6 +48,8 @@ export function CallSettings() {
   const setPhone = (patch: Partial<PhoneCallSettings>) => setV({ ...v, phone: { ...phone, ...patch } });
   const internal = v.internal ?? INTERNAL;
   const setInternal = (patch: Partial<typeof INTERNAL>) => setV({ ...v, internal: { ...internal, ...patch } });
+  const links = v.links ?? LINKS;
+  const setLinks = (patch: Partial<typeof LINKS>) => setV({ ...v, links: { ...links, ...patch } });
   const ai = v.ai ?? AI;
   const setAi = (patch: Partial<AiCallSettings>) => setV({ ...v, ai: { ...ai, ...patch } });
   const set = (patch: Partial<Settings["browser"]>) => setV({ ...v, browser: { ...v.browser, ...patch } });
@@ -82,6 +85,20 @@ export function CallSettings() {
                 <Input type="number" min={10} max={90} value={internal.ring_seconds} onChange={(e) => setInternal({ ring_seconds: Number(e.target.value) })} />
               </Field>
               <p className="text-xs text-subtle">Needs the "calls with teammates" permission, which the Owner, Manager and Agent roles have. Custom roles must be given it under Roles.</p>
+            </>
+          )}
+        </fieldset>
+        <fieldset className="flex flex-col gap-3 rounded-lg border border-border p-4" disabled={!canEdit}>
+          <legend className="px-1 text-[13px] font-semibold">Call links</legend>
+          <Switch label="Let people join a call from a link" hint="A link you or the AI assistant send opens a page where the visitor joins a voice or video call without logging in or giving details (they may add a name). One link works once, on one device, for a short time, and only for that conversation; you can replace or revoke it. The AI is always announced on that page." checked={links.enabled} onChange={(enabled) => setLinks({ enabled })} />
+          {links.enabled && (
+            <>
+              <Switch label="Links to the AI assistant" checked={links.allow_ai} onChange={(allow_ai) => setLinks({ allow_ai })} />
+              <Switch label="Links to your team" checked={links.allow_team} onChange={(allow_team) => setLinks({ allow_team })} />
+              <Field label="Link lifetime (minutes)" hint="From 5 minutes to 24 hours (1440). A shorter lifetime is safer." error={errors["settings.calls.links.ttl_minutes"]}>
+                <Input type="number" min={5} max={1440} value={links.ttl_minutes} onChange={(e) => setLinks({ ttl_minutes: Number(e.target.value) })} />
+              </Field>
+              <p className="text-xs text-subtle">Anyone who has the link can join, so share it only with the person it is for. Sending it by email or SMS needs that person's consent and keeps the link in that message.</p>
             </>
           )}
         </fieldset>

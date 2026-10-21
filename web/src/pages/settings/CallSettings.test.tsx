@@ -125,4 +125,17 @@ describe("CallSettings", () => {
     await waitFor(() => expect(calls.some((c) => c.method === "PATCH")).toBe(true));
     expect(JSON.parse(calls.find((c) => c.method === "PATCH")!.body!).internal).toEqual({ enabled: true, voice: true, video: false, screen_share: true, ring_seconds: 20 });
   });
+
+  it("call links: off by default, then who they may reach and how long they live, saved in one patch", async () => {
+    mount();
+    expect(screen.getByRole("switch", { name: /Let people join a call from a link/ })).not.toBeChecked();
+    await userEvent.click(screen.getByRole("switch", { name: /Let people join a call from a link/ }));
+    await userEvent.click(screen.getByRole("switch", { name: "Links to your team" }));
+    await userEvent.clear(screen.getByLabelText("Link lifetime (minutes)"));
+    await userEvent.type(screen.getByLabelText("Link lifetime (minutes)"), "60");
+    expect(screen.getByText(/Anyone who has the link can join/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(calls.some((c) => c.method === "PATCH")).toBe(true));
+    expect(JSON.parse(calls.find((c) => c.method === "PATCH")!.body!).links).toEqual({ enabled: true, ttl_minutes: 60, allow_ai: true, allow_team: false });
+  });
 });

@@ -27,6 +27,7 @@ const ACTIONS: { id: AgentAction; label: string; built: boolean }[] = [
   { id: "schedule_callback", label: "Offer a callback", built: true },
   { id: "offer_call", label: "Offer a voice or video call", built: true },
   { id: "ai_call", label: "Talk with visitors by voice or video (speech runs in the visitor's browser; switch it on in Settings > Calls)", built: true },
+  { id: "share_call_link", label: "Send a link to join a voice or video call (works without the chat open; needs call links under Settings > Calls)", built: true },
 ];
 const TRIGGERS: { id: keyof Omit<HandoffTriggers, "sensitive_topics">; label: string }[] = [
   { id: "human_request", label: "The visitor asks for a person" },

@@ -168,6 +168,25 @@ svg { display: block; flex: none; }
 .cform .hp { position: absolute; inset-inline-start: -10000px; inline-size: 1px; block-size: 1px; overflow: hidden; }
 .cform input:focus-visible, .cform select:focus-visible, .cform button:focus-visible { outline: 2px solid var(--ring, var(--fg)); outline-offset: 2px; }
 
+/* call link page (/call/<token>, callpage.js) and the call-link card */
+.cpage { position: relative; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; background: var(--bg2); padding: var(--sat) var(--sar) var(--sab) var(--sal); }
+.cp-card { margin: auto; width: min(100% - 32px, 420px); background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: var(--r); padding: 24px 20px; display: flex; flex-direction: column; gap: 10px; text-align: start; }
+.cp-card h1 { font-size: 20px; margin: 0; }
+.cp-card p { margin: 0; line-height: 1.45; }
+.cp-card label { font-size: 14px; font-weight: 600; margin-block-start: 6px; }
+.cp-card input { font: inherit; font-size: 16px; min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: calc(var(--r) * 0.6); background: var(--in); color: var(--fg); }
+.cp-card .btn { margin-block-start: 8px; min-height: 48px; }
+.cp-card .btn:disabled { opacity: 0.6; }
+.cp-av { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; align-self: center; border: 1px solid var(--line); }
+.cp-note { font-size: 13px; color: var(--muted); }
+.cp-ai { background: var(--bot); border: 1px solid var(--bot-line); border-radius: calc(var(--r) * 0.6); padding: 10px 12px; }
+.cp-ai .tag { display: inline-block; padding: 1px 8px; border-radius: 999px; background: var(--c); color: var(--t); font-size: 12px; font-weight: 700; }
+.cp-wait { align-items: center; text-align: center; }
+.cp-stage { position: absolute; inset: 0; display: flex; }
+.m.pay.calllink .st { margin-block-end: 4px; }
+.m.pay.calllink.used, .m.pay.calllink.revoked, .m.pay.calllink.expired { opacity: 0.75; }
+.m.pay.calllink .lbl { font-size: 13px; color: var(--muted); display: block; margin-block-end: 8px; }
+
 /* calls: generated from public/chat/calls.js (ConversationsCalls.css); keep in step */
 .app { position: relative; }
 .call{position:absolute;inset:0;z-index:30;display:flex;flex-direction:column;background:#10131a;color:#fff;font-family:inherit}

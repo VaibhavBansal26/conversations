@@ -27,7 +27,8 @@ export function callRoutes(ctx: AppContext) {
       warning: ice?.warning ?? null,
       phone: await phoneReadiness(ctx, ws),
       // what this installation can do for AI calls: the realtime engine needs a key and a model on the server and its instance switch on (the key itself is never reported)
-      ai: { engine: s.ai_engine, realtime_available: !!ctx.realtime && !!ctx.config.OPENAI_REALTIME_MODEL && ctx.config.AI_REALTIME_ENABLED, realtime_switched_off: !ctx.config.AI_REALTIME_ENABLED },
+      links: s.links,
+      ai: { enabled: s.ai.enabled, engine: s.ai_engine, realtime_available: !!ctx.realtime && !!ctx.config.OPENAI_REALTIME_MODEL && ctx.config.AI_REALTIME_ENABLED, realtime_switched_off: !ctx.config.AI_REALTIME_ENABLED },
     });
   });
   // the call settings have their own permission (a manager who is not allowed to touch them can still edit the rest of the workspace)
