@@ -74,6 +74,9 @@ export const POLICIES: Policy[] = [
   P({ id: "calls.ai.say", description: "Things a visitor says to the AI assistant in a call, per visitor (20 a minute, bursts of 8): each one is a model turn", keyBy: "composite", algo: "gcra", limit: 20, windowSec: 60, burst: 8, onFail: "open" }),
   P({ id: "calls.internal.member", description: "Calls a team member may place to teammates per hour (stops ring spam)", keyBy: "composite", algo: "window", limit: 20, windowSec: 3600, onFail: "open" }),
   P({ id: "calls.internal.pair", description: "Calls from one member to the same teammate: 5 per 5 minutes", keyBy: "composite", algo: "window", limit: 5, windowSec: 300, onFail: "open" }),
+  P({ id: "calls.link.create", description: "Call links created per conversation per hour (a person's button and the AI's tool share it)", keyBy: "composite", algo: "window", limit: 10, windowSec: 3600, onFail: "closed" }),
+  P({ id: "calls.link.redeem.ip", description: "Opening or previewing a call link, per IP (20 a minute): the address is the credential, so guessing is throttled hard", keyBy: "ip", algo: "gcra", limit: 20, windowSec: 60, burst: 10, onFail: "closed", penalty: true }),
+  P({ id: "calls.link.fail.ip", description: "Call link addresses that did not work, per IP: 10 in 15 min block the IP, escalating", keyBy: "ip", algo: "strike", limit: 10, windowSec: 900, onFail: "closed" }),
   P({ id: "calls.phone.agent", description: "Phone calls a team member may place per hour (spend guard; the workspace's daily limit is a setting)", keyBy: "composite", algo: "window", limit: 10, windowSec: 3600, onFail: "closed" }),
 
   // ---- analytics API (API keys) ----

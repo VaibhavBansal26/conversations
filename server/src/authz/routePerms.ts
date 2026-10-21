@@ -14,7 +14,7 @@ const GROUPS: [RouteAccess, string[]][] = [
   ["public", [
     "POST /api/auth/register", "POST /api/auth/login", "POST /api/auth/refresh", "POST /api/auth/logout", "POST /api/auth/mfa/verify", "POST /api/auth/password/forgot", "POST /api/auth/password/reset",
     "GET /api/auth/invitations/:token", "POST /api/auth/invitations/accept",
-    "GET /public/widget/config", "POST /public/sessions", "GET /public/session", "GET /public/rooms", "POST /public/rooms", "GET /public/rooms/:id/messages", "POST /public/rooms/:id/messages",
+    "GET /public/widget/config", "POST /public/call-links/preview", "POST /public/call-links/redeem", "GET /call/:token", "POST /public/sessions", "GET /public/session", "GET /public/rooms", "POST /public/rooms", "GET /public/rooms/:id/messages", "POST /public/rooms/:id/messages",
     "POST /public/rooms/:id/read", "POST /public/rooms/:id/csat", "POST /public/rooms/:id/ticket-csat", "POST /public/rooms/:id/quick-reply", "POST /public/rooms/:id/request-human", "POST /public/rooms/:id/forms/:messageId", "POST /public/rooms/:id/forms/:messageId/skip", "POST /public/rooms/:id/messages/:messageId/feedback", "POST /public/otp/send", "POST /public/otp/verify",
     "DELETE /public/session", "POST /public/session/attributes", "POST /public/attachments",
     "GET /chat", "GET /chat/bridge-test", "GET /chat/assets/:file",
@@ -40,7 +40,7 @@ const GROUPS: [RouteAccess, string[]][] = [
   ["conversations:delete", ["DELETE /api/rooms/:id"]],
   ["tickets:read", ["GET /api/tickets", "GET /api/tickets/counts", "GET /api/tickets/:id", "GET /api/rooms/:id/tickets", "GET /api/contacts/:id/tickets", "GET /api/department-status"]],
   ["tickets:write", ["PATCH /api/tickets/:id", "POST /api/tickets/:id/reopen", "POST /api/tickets/:id/claim", "POST /api/tickets/:id/hand-back", "POST /api/tickets/:id/transfer"]],
-  ["calls:make", ["GET /api/calls/config", "POST /api/rooms/:id/phone-call", "POST /api/rooms/:id/phone-call/consent", "POST /api/calls/:id/hangup"]],
+  ["calls:make", ["POST /api/rooms/:id/call-links", "GET /api/rooms/:id/call-links", "DELETE /api/rooms/:id/call-links/:linkId", "GET /api/calls/config", "POST /api/rooms/:id/phone-call", "POST /api/rooms/:id/phone-call/consent", "POST /api/calls/:id/hangup"]],
   ["calls:settings", ["PATCH /api/calls/settings"]],
   ["calls:internal", ["GET /api/team-calls/config"]],
   ["agents:manage", ["GET /api/agents/presets", "GET /api/agents", "POST /api/agents", "GET /api/agents/turns", "GET /api/agents/unanswered", "GET /api/agents/:id", "PATCH /api/agents/:id", "DELETE /api/agents/:id", "POST /api/agents/:id/sandbox", "POST /api/agents/:id/avatar", "DELETE /api/agents/:id/avatar"]],

@@ -119,7 +119,11 @@ export class SocketBus implements RealtimeBus {
         const n = this.nsp(ws);
         if (!n) return;
         n.to(channels).emit(event, payload);
-        if (opts?.visitor !== undefined) n.to(`vroom:${roomId}`).emit(event, opts.visitor);
+        if (opts?.visitor !== undefined) {
+          n.to(`vroom:${roomId}`).emit(event, opts.visitor);
+          // a visitor who came in through a call link hears about the calls of that conversation and about nothing else
+          if (event.startsWith("call:")) n.to(`vcall:${roomId}`).emit(event, opts.visitor);
+        }
       });
     });
   }
@@ -290,8 +294,8 @@ export class SocketBus implements RealtimeBus {
     if (!sess) return;
     const rooms = await visitorRooms(ctx, sess);
     for (const s of socks) {
-      for (const r of s.rooms) if (r.startsWith("vroom:")) s.leave(r);
-      for (const room of rooms) s.join(`vroom:${room.id}`);
+      for (const r of s.rooms) if (r.startsWith("vroom:") || r.startsWith("vcall:")) s.leave(r);
+      for (const room of rooms) s.join(`${sess.call_link_id ? "vcall" : "vroom"}:${room.id}`);
       s.emit("session:verified", { verified: !!sess.verified });
     }
   }
@@ -305,6 +309,9 @@ async function joinTeamRooms(ctx: AppContext, s: Socket, a: Actor) {
   for (const i of inboxes) s.join(`inbox:${i.id}`);
   if (!seesAll(a) && a.inboxVisibility === "assigned_inbox") for (const i of inboxes) s.join(`inboxv:${i.id}`);
 }
+
+/** what a call-link session may emit */
+const LINK_SESSION_EVENTS = new Set(["call:accept", "call:decline", "call:end", "call:connected", "call:failed", "call:resume", "call:offer", "call:answer", "call:ice", "aicall:start", "aicall:say", "aicall:end", "aicall:handoff", "aicall:tool", "aicall:transcript", "aicall:fallback"]);
 
 const callPublic = (c: { id: string; state: string; kind: string }) => ({ id: c.id, state: c.state, kind: c.kind });
 
@@ -511,7 +518,8 @@ export async function attachSocketServer(httpServer: HttpServer, ctx: AppContext
       } else {
         const sess = handshakeSession.get(socket) ?? (await ctx.db.get<SessionRow>("SELECT * FROM visitor_sessions WHERE id = ?", data.sessionId));
         if (!sess) throw new Error("session gone");
-        socket.join([`session:${sess.id}`, ...(await visitorRooms(ctx, sess, { reload: false })).map((r) => `vroom:${r.id}`)]);
+        // a session minted by a call link hears about the calls of its conversation (`vcall:`) and gets none of the conversation's messages (no `vroom:`)
+        socket.join([`session:${sess.id}`, ...(await visitorRooms(ctx, sess, { reload: false })).map((r) => (sess.call_link_id ? `vcall:${r.id}` : `vroom:${r.id}`))]);
         await ctx.presence.connect(visitorScope(ws), data.contactId, socket.id);
       }
     })();
@@ -664,7 +672,11 @@ function registerHandlers(ctx: AppContext, socket: Socket, ready: Promise<void>)
           // the same permission check as REST (authz/routePerms.ts)
           const need = EVENT_ACCESS[event]!;
           if (need !== "authed" && need !== "visitor-only" && !can(who.actor, need)) throw new PermissionDenied(need);
-        } else who.session = await visitorSession();
+        } else {
+          who.session = await visitorSession();
+          // the session a call link minted may take part in its call and do nothing else: no messages, no new conversations, no read receipts
+          if (who.session.call_link_id && !LINK_SESSION_EVENTS.has(event)) throw new AppError(403, "LINK_SESSION", "This link only allows taking part in the call");
+        }
         {
           const d = await ctx.ratelimit.check("ws.actor", { key: `${ws}:${data.kind === "team" ? data.memberId : data.contactId}` }, { cost: w.cost });
           if (!d.allowed) limited(d.retryAfterMs, "actor");

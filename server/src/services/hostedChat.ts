@@ -105,6 +105,35 @@ export function chatPage(o: { lang: string; theme: "light" | "dark" | "auto"; do
 </html>`;
 }
 
+/**
+ * The page a call link opens. The same document for every address under /call/, so the page itself says nothing about whether a link exists: its script
+ * reads the address, removes it from the browser's address bar, and asks the server (calls/links.ts). No referrer is sent from it, nothing is cached.
+ */
+export function callPage(v: string): string {
+  return `<!doctype html>
+<html lang="en" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Join the call</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/chat/assets/chat.css?v=${v}">
+</head>
+<body>
+<main id="cpage" class="cpage" aria-busy="true"><div class="boot" role="status"><span class="spinner" aria-hidden="true"></span><span id="boot-text">Loading...</span></div></main>
+<noscript><p class="boot">JavaScript is required to join a call.</p></noscript>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/chat/assets/i18n.js?v=${v}"></script>
+<script src="/chat/assets/calls.js?v=${v}"></script>
+<script src="/chat/assets/aicall.js?v=${v}"></script>
+<script src="/chat/assets/callpage.js?v=${v}"></script>
+</body>
+</html>`;
+}
+
 export const unavailablePage = () =>
   `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><meta name="color-scheme" content="light dark"><title>Chat unavailable</title><link rel="icon" href="data:,"><link rel="stylesheet" href="/chat/assets/chat.css"></head><body><main class="unavailable"><h1>Chat is not available</h1><p>This chat link is not active. If you followed it from an app, update the app or contact its support team.</p></main></body></html>`;
 

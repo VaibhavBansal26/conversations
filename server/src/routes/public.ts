@@ -1,4 +1,5 @@
 import { aiCallAvailability } from "../calls/aiCall.js";
+import { previewCallLink, redeemCallLink } from "../calls/links.js";
 import { FormSubmission, skipContactForm, submitContactForm } from "../services/visitorInfo.js";
 import { Hono } from "hono";
 import type { Context } from "hono";
@@ -11,10 +12,10 @@ import { saveUpload, VISITOR_UPLOAD_MIME } from "../services/attachments.js";
 import { z } from "zod";
 import { AppError } from "../errors.js";
 import { recordCsat } from "../services/roomMetrics.js";
-import { knownIp, parseBody, parseQuery, validate } from "../http.js";
-import { applyPrincipalLimits, enforce } from "../ratelimit/http.js";
+import { clientIp, knownIp, parseBody, parseQuery, validate } from "../http.js";
+import { applyPrincipalLimits, enforce, guardStrikes } from "../ratelimit/http.js";
 import { ipKey } from "../util/clientIp.js";
-import { MessageListQuery, OtpVerify, PublicRoomBody, QuickReplyBody, ReadBody, SessionAttributes, SessionBody, TicketCsat, VisitorFeedback, VisitorSend } from "../schemas.js";
+import { CallLinkOpenBody, CallLinkRedeemBody, MessageListQuery, OtpVerify, PublicRoomBody, QuickReplyBody, ReadBody, SessionAttributes, SessionBody, TicketCsat, VisitorFeedback, VisitorSend } from "../schemas.js";
 import { rateTicket, visitorTicketDto } from "../services/tickets.js";
 import { visitorFeedback, visitorQuickReply, visitorRequestHuman } from "../agents/visitorActions.js";
 import { selectAgent } from "../agents/config.js";
@@ -100,10 +101,37 @@ export function publicRoutes(ctx: AppContext) {
     return c.json({ ...sessionDto(res.session, res.contact, res.secret), requires_verification: res.requires_verification }, 201);
   });
 
+  // call links: opened by someone who has no session yet; the address is the credential (see calls/links.ts)
+  r.post("/call-links/preview", async (c) => {
+    const ip = ipKey(clientIp(ctx, c));
+    await guardStrikes(ctx, [{ policy: "calls.link.fail.ip", key: ip }]);
+    const b = await parseBody(c, CallLinkOpenBody);
+    try {
+      return c.json(await previewCallLink(ctx, b.token));
+    } catch (e) {
+      if (e instanceof AppError && e.code === "LINK_UNAVAILABLE") await ctx.ratelimit.strike("calls.link.fail.ip", ip);
+      throw e;
+    }
+  });
+  r.post("/call-links/redeem", async (c) => {
+    const ip = ipKey(clientIp(ctx, c));
+    await guardStrikes(ctx, [{ policy: "calls.link.fail.ip", key: ip }]);
+    const b = await parseBody(c, CallLinkRedeemBody);
+    if (!DEVICE_RE.test(b.device_id)) throw badRequest("DEVICE_ID_REQUIRED", "device_id (8-64 chars of A-Z a-z 0-9 _ -) is required");
+    try {
+      return c.json(await redeemCallLink(ctx, { token: b.token, device_id: b.device_id, ip: knownIp(ctx, c), name: b.name }), 201);
+    } catch (e) {
+      if (e instanceof AppError && e.code === "LINK_UNAVAILABLE") await ctx.ratelimit.strike("calls.link.fail.ip", ip);
+      throw e;
+    }
+  });
+
   r.use("/*", async (c, next) => {
-    if (c.req.path === "/public/sessions" || c.req.path === "/public/widget/config") return await next();
+    if (c.req.path === "/public/sessions" || c.req.path === "/public/widget/config" || c.req.path === "/public/call-links/preview" || c.req.path === "/public/call-links/redeem") return await next();
     const secret = c.req.header("x-support-session");
     const s = await authenticateSession(ctx, secret, { deviceId: c.req.header("x-device-id"), ip: knownIp(ctx, c) });
+    // a session a call link minted takes part in the call over the socket and reads nothing here
+    if (s.call_link_id) throw forbidden("This link only allows taking part in the call", "LINK_SESSION");
     // browsers always send Origin; if it is present it must still belong to the embed token that created the session
     const origin = c.req.header("origin");
     if (origin && s.token_id) {

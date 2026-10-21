@@ -55,7 +55,7 @@ export interface AiCallAvailability {
   /** the realtime engine is chosen for this workspace and set up on this installation (a call can still fall back to the browser engine) */
   realtime: boolean;
   engine: "browser";
-  agent: { name: string; label: string; avatar_url: string | null; languages: string[] } | null;
+  agent: { name: string; label: string; avatar_url: string | null; avatar_alt: string; languages: string[] } | null;
   max_duration_s: number;
   idle_timeout_s: number;
 }
@@ -78,7 +78,7 @@ export async function aiCallAvailability(ctx: AppContext, ws: string, department
     video: s.enabled && s.video && !!agent,
     realtime: s.enabled && !!agent && (await callSettings(ctx, ws)).ai_engine === "realtime" && !!ctx.realtime && !!ctx.config.OPENAI_REALTIME_MODEL && ctx.config.AI_REALTIME_ENABLED,
     engine: "browser",
-    agent: cfg ? { name: cfg.name, label: cfg.disclosure_label, avatar_url: cfg.avatar_url, languages: cfg.languages } : null,
+    agent: cfg ? { name: cfg.name, label: cfg.disclosure_label, avatar_url: cfg.avatar_url, avatar_alt: cfg.avatar_alt, languages: cfg.languages } : null,
     max_duration_s: s.max_duration_s,
     idle_timeout_s: s.idle_timeout_s,
   };
@@ -147,7 +147,7 @@ export async function startAiCall(ctx: AppContext, session: SessionRow, socketId
 
   const now = nowIso(ctx);
   const lang = speechLanguage(agent.languages, input.locale);
-  const meta = { agent_name: agent.name, label: agent.disclosure_label, lang, speech: input.speech ?? null };
+  const meta = { agent_name: agent.name, label: agent.disclosure_label, lang, speech: input.speech ?? null, ...(session.call_link_id ? { link_id: session.call_link_id } : {}) };
   try {
     await ctx.db.run(
       `INSERT INTO calls(id, workspace_id, room_id, ticket_id, contact_id, transport, kind, state, initiated_by, visitor_socket, created_at, answered_at, updated_at, ai_agent_id, engine, meta)

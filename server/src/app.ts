@@ -1,3 +1,4 @@
+import { scrubCallPath } from "./calls/links.js";
 import { readAgentAvatar } from "./agents/avatar.js";
 import { BUNDLED_AVATARS } from "./agents/presets.js";
 import { existsSync } from "node:fs";
@@ -21,7 +22,7 @@ import { requireAuth, type Env } from "./http.js";
 import { attachmentByKey } from "./services/attachments.js";
 import { authRoutes } from "./routes/auth.js";
 import { publicRoutes } from "./routes/public.js";
-import { chatRoutes } from "./routes/chat.js";
+import { callPageRoutes, chatRoutes } from "./routes/chat.js";
 import { adminRoutes } from "./routes/admin.js";
 import { analyticsApiRoutes } from "./routes/analyticsApi.js";
 import { analyticsRoutes } from "./routes/analytics.js";
@@ -69,7 +70,7 @@ export function createApp(ctx: AppContext): Hono {
     const path = new URL(c.req.url).pathname;
     if (path !== "/metrics" && path !== "/healthz") {
       ctx.metrics.http.observe({ method: c.req.method, route: c.req.routePath === "/*" ? "unmatched" : c.req.routePath, status: String(c.res.status) }, sec);
-      ctx.log.info("request", { request_id: rid, node: ctx.nodeId, method: c.req.method, path, status: c.res.status, ms: Math.round(sec * 1000) });
+      ctx.log.info("request", { request_id: rid, node: ctx.nodeId, method: c.req.method, path: scrubCallPath(path), status: c.res.status, ms: Math.round(sec * 1000) });
     }
   });
   app.use("*", rateLimitMiddleware(ctx));
@@ -78,7 +79,7 @@ export function createApp(ctx: AppContext): Hono {
   app.use("/public/*", timeout(ctx.config.REQUEST_TIMEOUT_MS, () => new HTTPException(504, { message: "Request timed out" })));
   // the hosted chat pages set their own full header set (CSP with per-token frame-ancestors, no blanket X-Frame-Options): see routes/chat.ts
   const standardHeaders = secureHeaders({ crossOriginResourcePolicy: false, contentSecurityPolicy: undefined });
-  app.use("*", async (c, next) => (c.req.path === "/chat" || c.req.path === "/chat/bridge-test" ? await next() : await standardHeaders(c, next)));
+  app.use("*", async (c, next) => (c.req.path === "/chat" || c.req.path === "/chat/bridge-test" || c.req.path.startsWith("/call/") ? await next() : await standardHeaders(c, next)));
 
   // team API: explicit allow-list from env. Public widget endpoints: any origin (access is decided by the embed token's domain).
   app.use(
@@ -141,6 +142,7 @@ export function createApp(ctx: AppContext): Hono {
   app.route("/api", api);
 
   app.route("/public", publicRoutes(ctx));
+  app.route("/call", callPageRoutes(ctx)); // the page a call link opens (services/hostedChat.ts callPage)
   app.route("/chat", chatRoutes(ctx)); // hosted full-page chat for native web views and iframes (services/hostedChat.ts)
   app.route("/webhooks", webhookRoutes(ctx));
 

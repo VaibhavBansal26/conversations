@@ -127,6 +127,9 @@ const rows: [string, string, string, Opt?][] = [
   ["POST /api/rooms/:id/phone-call/consent", "Calls", "Ask the visitor, with a form card in the thread, to confirm their number and agree to be called on it"],
   ["POST /api/calls/:id/hangup", "Calls", "Hang up a phone call you placed (or cancel it while your own phone rings)"],
   ["GET /api/team-calls/config", "Calls", "Whether calls between teammates are on (voice, video, screen share, ring time), a TURN warning, and the call this member is already in (`live_call`)"],
+  ["POST /api/rooms/:id/call-links", "Calls", "Create a link that lets the visitor join a voice or video call without logging in or giving contact details: `mode` `ai` (the AI assistant) or `team` (a person rings them). The address is returned once and is not stored (only its hash is); a card with a Join button appears in the visitor's chat. Expires (5 minutes to 24 hours), one device, one call; a new link replaces the old one. With `send` it is also sent by email or SMS, only to a contact who agreed to be contacted. Needs the workspace's call links switched on", { body: S.CallLinkCreateBody, status: 201 }],
+  ["GET /api/rooms/:id/call-links", "Calls", "The links of a conversation, newest first (mode, kind, expiry, status active, in_use, used, expired or revoked). Addresses are never listed"],
+  ["DELETE /api/rooms/:id/call-links/:linkId", "Calls", "Revoke a call link: it stops working at once, the visitor's call-only session closes and a call started through it ends"],
   ["GET /api/rooms/:id/calls", "Calls", "The calls of a conversation, newest first (state, kind, duration, who ended it)", { returns: "`{data: Call[]}`" }],
   ["GET /api/tickets/counts", "Tickets", "Live tickets per status in your scope", { returns: "`{new, bot_handling, waiting_for_human, open, pending_customer, resolved, closed, total_live}`" }],
   ["POST /api/tickets/bulk", "Tickets", "Resolve or close up to 100 tickets; each result is reported on its own", { body: S.TicketBulk }],
@@ -263,6 +266,8 @@ const rows: [string, string, string, Opt?][] = [
 
   // ---- public widget
   ["GET /public/widget/config", "Widget (public)", "Widget configuration for an embed token (`x-api-key`, `Origin`)"],
+  ["POST /public/call-links/preview", "Widget (public)", "What a call link's page shows before the visitor agrees to join: who is on the other end (the AI assistant with its label, or the team), the kind and the expiry. A link that cannot be used (unknown, expired, revoked, used, in use on another device) answers `404 LINK_UNAVAILABLE`, always the same; failures are throttled and escalate into an IP block", { body: S.CallLinkOpenBody }],
+  ["POST /public/call-links/redeem", "Widget (public)", "Open a call link: binds it to this device and returns a session that can only take part in that call (the socket events of the call and nothing else; no messages, no history). `device_id` is the usual 8 to 64 character id; `name` is optional", { body: S.CallLinkRedeemBody, status: 201 }],
   ["POST /public/sessions", "Widget (public)", "Create a visitor session. With `external_id` + `identity_hash` the session is identified and verified (no code); see docs/MOBILE-BRIDGE.md", { body: S.SessionBody, status: 201 }],
   ["GET /public/session", "Widget (public)", "The current visitor session"],
   ["GET /public/rooms", "Widget (public)", "The visitor's conversations"],
@@ -324,6 +329,7 @@ const rows: [string, string, string, Opt?][] = [
   ["POST /webhooks/c/:id/sendgrid/events", "Webhooks", "Event webhook for one workspace's SendGrid account (the connection's verification key, else its `secret`)"],
   ["GET /avatars/agent/:id", "Files", "An AI agent's uploaded portrait, for visitors' pages: no credentials, a fixed image type, `nosniff`, a sandboxing CSP", { media: "application/octet-stream" }],
   ["GET /avatars/:file", "Files", "The two bundled default portraits (`aria.webp`, `vb.webp`); any other name is 404", { media: "application/octet-stream" }],
+  ["GET /call/:token", "Files", "The page a call link opens: the same document for every address (it says nothing about whether the link exists), no referrer, never cached, never framed", { media: "text/html" }],
   ["GET /files/*", "Files", "Signed attachment download (`exp` and `sig` query parameters)", { media: "application/octet-stream" }],
   ["GET /widget.js", "Files", "The embeddable widget script", { media: "application/javascript" }],
   ["GET /chat", "Files", "The hosted full-page chat (`?token=cvt_...` plus optional `locale`, `theme`, and the page-side parameters in docs/MOBILE-BRIDGE.md). 403 unless the token has the hosted chat enabled; CSP `frame-ancestors` is limited to the token's domain", { media: "text/html" }],

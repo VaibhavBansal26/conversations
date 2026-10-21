@@ -1287,7 +1287,7 @@ describe("SQLite: teammate calls migrations on a populated database of the relea
       await old.close();
       const db = await openDb(path);
       const applied = await migrate(db);
-      expect(applied).toEqual(["038_team_calls.sql", "039_roles_calls_internal.sqlite.sql"]);
+      expect(applied.slice(0, 2)).toEqual(["038_team_calls.sql", "039_roles_calls_internal.sqlite.sql"]);
       expect(await db.all("PRAGMA foreign_key_check")).toEqual([]);
       await expectTeamCallsMigration(db, before, tables.filter((t) => t !== "team_calls"));
       expect(await migrate(db)).toEqual([]);
@@ -1344,9 +1344,91 @@ describe.skipIf(!postgres)("PostgreSQL: teammate calls migrations on a populated
       await seedTeamChat(b.db);
       const tables = await userTables(b.db);
       const before = await counts(b.db, tables);
-      expect(await migrate(b.db, undefined, { hashPartitions: 2 })).toEqual(["038_team_calls.sql", "039_roles_calls_internal.pg.sql"]);
+      expect((await migrate(b.db, undefined, { hashPartitions: 2 })).slice(0, 2)).toEqual(["038_team_calls.sql", "039_roles_calls_internal.pg.sql"]);
       expect(await schemaOf(b.db)).toEqual(await schemaOf(a.db));
       await expectTeamCallsMigration(b.db, before, tables.filter((t) => t !== "team_calls"));
+    } finally {
+      rmSync(prev, { recursive: true, force: true });
+      await a.drop();
+      await b.drop();
+    }
+  });
+});
+
+// ---- call links (migration 040): the release before it is 039 -------------------------------------------------------------------------------
+
+const PRE_CALL_LINKS = 39;
+async function expectCallLinksMigration(db: Db, before: Record<string, number>, tables: string[]) {
+  expect(await counts(db, tables)).toEqual(before);
+  const link = (id: string, mode: string, kind: string, hash: string) =>
+    db.run("INSERT INTO call_links(id, workspace_id, room_id, mode, kind, token_hash, created_by, created_at, expires_at) VALUES (?, 'w1', 'r1', ?, ?, ?, 'member:m1', ?, ?)", id, mode, kind, hash, T(60), T(90));
+  await link("l1", "team", "voice", "h1");
+  await link("l2", "ai", "video", "h2");
+  await expect(link("l3", "team", "voice", "h1")).rejects.toThrow(/unique|UNIQUE/i); // one hash, one link
+  await expect(link("l4", "robot", "voice", "h4")).rejects.toThrow(/CHECK|check constraint/i);
+  await expect(link("l5", "ai", "hologram", "h5")).rejects.toThrow(/CHECK|check constraint/i);
+  // sessions keep working and may carry a link id
+  expect((await db.get<any>("SELECT call_link_id FROM visitor_sessions LIMIT 1"))?.call_link_id ?? null).toBeNull();
+  // links go with their conversation
+  await db.run("DELETE FROM rooms WHERE id = 'r1'");
+  expect(await db.all("SELECT id FROM call_links")).toEqual([]);
+}
+
+describe("SQLite: call links migration on a populated database of the release before it", () => {
+  it("adds the table and the session column without touching a row, and matches a fresh schema", async () => {
+    const fresh = await openDb(":memory:");
+    await migrate(fresh);
+    const { dir, path } = await openSqliteFile();
+    const prev = releaseDir(PRE_CALL_LINKS);
+    try {
+      const old = await openDb(path);
+      await migrate(old, prev);
+      await seedPreviousRelease(old);
+      await seedTickets(old);
+      await seedKb(old);
+      const tables = await userTables(old);
+      const before = await counts(old, tables);
+      await old.close();
+      const db = await openDb(path);
+      expect(await migrate(db)).toEqual(["040_call_links.sql"]);
+      expect(await db.all("PRAGMA foreign_key_check")).toEqual([]);
+      expect(await schemaOf(db)).toEqual(await schemaOf(fresh));
+      await expectCallLinksMigration(db, before, tables);
+      await db.close();
+    } finally {
+      await fresh.close();
+      rmSync(prev, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe.skipIf(!postgres)("PostgreSQL: call links migration on a populated database of the release before it", () => {
+  it("adds the table and the session column without touching a row, and matches a fresh schema", async () => {
+    const mk = async () => {
+      const schema = `u_${Math.random().toString(16).slice(2, 10)}`;
+      const admin = new pg.Client({ connectionString: process.env.TEST_DATABASE_URL });
+      await admin.connect();
+      await admin.query(`CREATE SCHEMA ${schema}`);
+      const u = new URL(process.env.TEST_DATABASE_URL!);
+      u.searchParams.set("options", `-c search_path=${schema}`);
+      const db = await openDb({ url: u.toString(), poolMax: 4 });
+      return { db, drop: async () => (await db.close(), await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`), await admin.end()) };
+    };
+    const a = await mk();
+    const b = await mk();
+    const prev = releaseDir(PRE_CALL_LINKS);
+    try {
+      await migrate(a.db, undefined, { hashPartitions: 2 });
+      await migrate(b.db, prev, { hashPartitions: 2 });
+      await seedPreviousRelease(b.db);
+      await seedTickets(b.db);
+      await seedKb(b.db);
+      const tables = await userTables(b.db);
+      const before = await counts(b.db, tables);
+      expect(await migrate(b.db, undefined, { hashPartitions: 2 })).toEqual(["040_call_links.sql"]);
+      expect(await schemaOf(b.db)).toEqual(await schemaOf(a.db));
+      await expectCallLinksMigration(b.db, before, tables);
     } finally {
       rmSync(prev, { recursive: true, force: true });
       await a.drop();

@@ -20,6 +20,8 @@ export const VISITOR_MAX_CHARS = 4000;
 
 /** Unverified sessions see only rooms they created; verified sessions see every live room of their contact. */
 function roomScope(s: SessionRow): { sql: string; params: string[] } {
+  // a call link's session belongs to the conversation of that link and to nothing else
+  if (s.call_link_id) return { sql: "r.id = (SELECT room_id FROM call_links WHERE id = ?)", params: [s.call_link_id] };
   return s.verified ? { sql: "r.contact_id = ?", params: [s.contact_id] } : { sql: "r.session_id = ?", params: [s.id] };
 }
 

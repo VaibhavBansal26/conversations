@@ -4,6 +4,9 @@ import type { Env } from "../http.js";
 import { callSettings, listRoomCalls } from "../calls/service.js";
 import { iceConfig } from "../calls/turn.js";
 import { liveTeamCallOf, teamCallSettings } from "../calls/teamCall.js";
+import { createCallLink, linkDto, listCallLinks, revokeCallLink, sendCallLink } from "../calls/links.js";
+import { getVisibleRoom } from "../services/roomStore.js";
+import { CallLinkCreateBody } from "../schemas.js";
 import { assertCallerId, hangupPhoneCall, phoneReadiness, placePhoneCall, requestCallConsent } from "../calls/phone.js";
 import { PhoneCallBody } from "../calls/phoneSchemas.js";
 import { CallsPatchSchema } from "../domain/settings.js";
@@ -44,6 +47,18 @@ export function callRoutes(ctx: AppContext) {
     const ice = s.enabled ? await iceConfig(ctx, actor.workspaceId, (await callSettings(ctx, actor.workspaceId)).turn_provider, "probe") : null;
     return c.json({ ...s, warning: ice?.warning ?? null, live_call: await liveTeamCallOf(ctx, actor) });
   });
+  // call links (ADR 0037): the address is returned once, here, and is not stored; the visitor's own copy of the chat derives it
+  r.post("/rooms/:id/call-links", async (c) => {
+    const actor = c.get("actor");
+    const roomId = c.req.param("id");
+    const b = await parseBody(c, CallLinkCreateBody);
+    await getVisibleRoom(ctx, actor, roomId);
+    const made = await createCallLink(ctx, { workspaceId: actor.workspaceId, roomId, mode: b.mode, kind: b.kind, ttlMinutes: b.ttl_minutes, by: { type: "member", id: actor.memberId, name: actor.name } });
+    const sent = b.send ? await sendCallLink(ctx, actor, roomId, b.send, made.url, made.link) : null;
+    return c.json({ ...linkDto(ctx, made.link), url: made.url, sent }, 201);
+  });
+  r.get("/rooms/:id/call-links", async (c) => c.json({ data: await listCallLinks(ctx, c.get("actor"), c.req.param("id")) }));
+  r.delete("/rooms/:id/call-links/:linkId", async (c) => c.json(await revokeCallLink(ctx, c.get("actor"), c.req.param("id"), c.req.param("linkId"))));
   r.get("/rooms/:id/calls", async (c) => c.json({ data: await listRoomCalls(ctx, c.get("actor"), c.req.param("id")) }));
   return r;
 }

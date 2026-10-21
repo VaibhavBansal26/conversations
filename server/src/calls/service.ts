@@ -19,6 +19,7 @@ import { canDo, isLive, next, IllegalTransition, type CallEvent, type CallState 
 import { iceConfig, type IceConfig } from "./turn.js";
 import { sweepPhone } from "./phone.js";
 import { sweepAi } from "./aiCall.js";
+import { consumeCallLink } from "./links.js";
 import { sweepTeamCalls } from "./teamCall.js";
 
 /**
@@ -219,6 +220,8 @@ const asAppError = (e: unknown): never => {
 
 async function afterCall(ctx: AppContext, c: CallRow): Promise<void> {
   const ticket = c.ticket_id ? await ctx.db.get<import("../services/tickets.js").TicketRow>("SELECT * FROM tickets WHERE id = ?", c.ticket_id) : undefined;
+  const linkId = parseJson<{ link_id?: string }>(c.meta, {}).link_id;
+  if (linkId) await consumeCallLink(ctx, linkId).catch((e) => ctx.log.warn("call link could not be closed", { error: e instanceof Error ? e.message : String(e) }));
   const who = c.transport === "ai" ? ({ type: "bot", id: c.ai_agent_id ?? "" } as const) : ({ type: "member", id: c.initiated_by } as const);
   if (c.transport === "ai") await ctx.ratelimit.release("ai.concurrency", c.workspace_id, c.id).catch(() => {});
   if (ticket) await recordTicketEvent(ctx, ticket, c.state === "ended" ? "call_ended" : `call_${c.state}`, who, { call_id: c.id, kind: c.transport === "phone" ? "phone" : c.kind, duration_s: c.duration_s, reason: c.end_reason, ...(c.handoff_reason ? { handoff_reason: c.handoff_reason } : {}) });
@@ -281,6 +284,11 @@ export async function acceptCall(ctx: AppContext, session: SessionRow, socketId:
   let row: CallRow;
   try {
     row = await step(ctx, c, "accept", { visitor_socket: socketId });
+    // answered by someone who came in through a call link: the link is used up when this call ends
+    if (session.call_link_id) {
+      const meta = parseJson<Record<string, unknown>>(row.meta, {});
+      await ctx.db.run("UPDATE calls SET meta = ? WHERE id = ?", JSON.stringify({ ...meta, link_id: session.call_link_id }), row.id);
+    }
   } catch (e) {
     return asAppError(e);
   }

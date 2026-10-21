@@ -303,4 +303,15 @@ export const AiCallTranscriptBody = z.object({ call_id: id, role: z.enum(["user"
 export const AiCallFallbackBody = z.object({ call_id: id, reason: z.string().max(40).default("client_failed") });
 export const AiCallEndBody = z.object({ call_id: id, reason: z.enum(["completed", "silence", "unsupported", "error"]).default("completed") });
 export const TeamCallInviteBody = z.object({ channel_id: id, kind: CallKind });
+/* ---- call links (ADR 0037) ---- */
+export const CallLinkOpenBody = z.object({ token: z.string().min(1).max(200) });
+export const CallLinkRedeemBody = z.object({ token: z.string().min(1).max(200), device_id: z.string().min(8).max(64), name: z.string().trim().max(60).optional() });
+export const CallLinkCreateBody = z.object({
+  mode: z.enum(["ai", "team"]),
+  kind: CallKind.default("voice"),
+  /** minutes the link can be opened (5 to 1440); empty = the workspace's setting */
+  ttl_minutes: z.number().int().min(5).max(1440).optional(),
+  /** also send it to the contact, through the workspace's own channels, when they agreed to be contacted */
+  send: z.enum(["email", "sms"]).optional(),
+});
 export const CallSignalBody = z.object({ call_id: id, data: z.record(z.string(), z.unknown()) });

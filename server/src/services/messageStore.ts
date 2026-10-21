@@ -1,3 +1,4 @@
+import { withLinkUrl } from "../calls/links.js";
 import { metricsMessage, metricsUnsnoozed } from "./roomMetrics.js";
 import { putRef } from "./messageRefs.js";
 import { TOPIC_MESSAGES, writeOutbox, type MessageEvent } from "../events/outbox.js";
@@ -304,7 +305,7 @@ function publicMeta(m: MessageRow) {
  * "Conversation started" and payment confirmations are about the customer; assignment, status, priority, snooze, SMS consent and
  * reopen/close markers describe the team's work and name agents, so they stay in the team views.
  */
-export const VISITOR_SYSTEM_SUBTYPES = ["create", "payment", "ticket_resolved", "agent_joined", "handed_back", "call", "call_request"] as const;
+export const VISITOR_SYSTEM_SUBTYPES = ["create", "payment", "ticket_resolved", "agent_joined", "handed_back", "call", "call_request", "call_link"] as const;
 /** SQL predicate over `messages` columns for what a visitor may be shown (notes and internal system lines excluded). meta is compact JSON written by this server. */
 export const VISITOR_VISIBLE_SQL = `kind != 'note' AND (kind != 'system' OR ${VISITOR_SYSTEM_SUBTYPES.map((s) => `meta LIKE '%"sub_type":"${s}"%'`).join(" OR ")})`;
 export function visibleToVisitor(m: Pick<MessageRow, "kind" | "meta">): boolean {
@@ -340,7 +341,7 @@ export function visitorMessageDto(ctx: AppContext, m: MessageRow, visitorReadSeq
   const dto = messageDto(ctx, m, { visitorReadSeq, refs });
   const { sub_type, ai, status, card, agent, sources, call, kind } = dto.meta as Record<string, unknown>;
   // `agent` names the AI agent and its disclosure label; `sources` are the help-centre links under its answer
-  return { ...dto, subject: m.source === "email" ? dto.subject : null, from_addr: undefined, meta: { sub_type, ai, status, ...(card ? { card } : {}), ...(agent ? { agent } : {}), ...(sources ? { sources } : {}), ...(call ? { call } : {}), ...(sub_type === "call_request" && kind ? { kind } : {}) }, failure_reason: null };
+  return { ...dto, subject: m.source === "email" ? dto.subject : null, from_addr: undefined, meta: { sub_type, ai, status, ...(card ? { card: withLinkUrl(ctx, card as Record<string, unknown>) } : {}), ...(agent ? { agent } : {}), ...(sources ? { sources } : {}), ...(call ? { call } : {}), ...(sub_type === "call_request" && kind ? { kind } : {}) }, failure_reason: null };
 }
 
 export async function visitorMessageDtos(ctx: AppContext, rows: MessageRow[], visitorReadSeq: number) {

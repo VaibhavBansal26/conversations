@@ -23,6 +23,7 @@ export const ActionSchema = z.discriminatedUnion("tool", [
   z.object({ tool: z.literal("resolve_ticket"), reason: z.string().max(200).optional() }),
   z.object({ tool: z.literal("schedule_callback"), note: z.string().max(300).optional() }),
   z.object({ tool: z.literal("offer_call"), kind: z.enum(["voice", "video"]).default("voice"), with: z.enum(["team", "ai"]).default("team") }),
+  z.object({ tool: z.literal("share_call_link"), kind: z.enum(["voice", "video"]).default("voice"), with: z.enum(["team", "ai"]).default("ai") }),
 ]);
 export type ModelAction = z.infer<typeof ActionSchema>;
 /** What `applyDecision` executes: everything the model can ask for except its own retrieval and the hand-off (which are decisions, not tools). */
@@ -37,6 +38,7 @@ export const ALLOWS: Record<ModelAction["tool"], string | null> = {
   resolve_ticket: "resolve",
   schedule_callback: "schedule_callback",
   offer_call: "offer_call",
+  share_call_link: "share_call_link",
 };
 
 export interface ToolContext {
@@ -125,6 +127,20 @@ toolHandlers.offer_call = async (ctx, t) => {
   });
   await emitInserted(ctx, r);
   return { ok: true, summary: `offered the visitor a ${kind} call` };
+};
+/** a link the visitor can open on any device to join a call without giving contact details: with the AI assistant itself, or waiting for a person */
+toolHandlers.share_call_link = async (ctx, t) => {
+  if (t.action.tool !== "share_call_link") return { ok: false, summary: "shared a call link" };
+  const mode = t.action.with === "team" ? "team" : "ai";
+  if (mode === "ai" && !t.agent.allowed_actions.includes("ai_call")) return { ok: false, detail: "not allowed", summary: "wanted to share a link to a call with the AI assistant, which this agent may not do" };
+  try {
+    const { createCallLink } = await import("../calls/links.js");
+    await createCallLink(ctx, { workspaceId: t.room.workspace_id, roomId: t.room.id, mode, kind: t.action.kind, by: { type: "bot", id: t.agent.id, name: t.agent.name }, agent: { id: t.agent.id, name: t.agent.name, label: t.agent.disclosure_label } });
+    return { ok: true, summary: `shared a link to a ${t.action.kind} call ${mode === "ai" ? "with the AI assistant" : "with the team"}` };
+  } catch (e) {
+    if (e instanceof Error && "code" in e) return { ok: false, detail: String((e as { code: string }).code), summary: `could not share a call link (${String((e as { code: string }).code).toLowerCase().replace(/_/g, " ")})` };
+    throw e;
+  }
 };
 toolHandlers.schedule_callback = async (ctx, t) => {
   const m = await requestVisitorInfo(ctx, t.ticket.id, "callback");

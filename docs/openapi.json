@@ -1167,6 +1167,25 @@
                               }
                             }
                           },
+                          "links": {
+                            "type": "object",
+                            "properties": {
+                              "enabled": {
+                                "type": "boolean"
+                              },
+                              "ttl_minutes": {
+                                "type": "integer",
+                                "minimum": 5,
+                                "maximum": 1440
+                              },
+                              "allow_ai": {
+                                "type": "boolean"
+                              },
+                              "allow_team": {
+                                "type": "boolean"
+                              }
+                            }
+                          },
                           "ai": {
                             "type": "object",
                             "properties": {
@@ -5911,6 +5930,25 @@
                       }
                     }
                   },
+                  "links": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean"
+                      },
+                      "ttl_minutes": {
+                        "type": "integer",
+                        "minimum": 5,
+                        "maximum": 1440
+                      },
+                      "allow_ai": {
+                        "type": "boolean"
+                      },
+                      "allow_team": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
                   "ai": {
                     "type": "object",
                     "properties": {
@@ -6231,6 +6269,219 @@
           ],
           "in_handler": []
         },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/rooms/{id}/call-links": {
+      "post": {
+        "tags": [
+          "Calls"
+        ],
+        "summary": "Create a link that lets the visitor join a voice or video call without logging in or giving contact details: `mode` `ai` (the AI assistant) or `team` (a person rings them). The address is returned once and is not stored (only its hash is); a card with a Join button appears in the visitor's chat. Expires (5 minutes to 24 hours), one device, one call; a new link replaces the old one. With `send` it is also sent by email or SMS, only to a contact who agreed to be contacted. Needs the workspace's call links switched on",
+        "operationId": "post_api_rooms_id_call_links",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "calls:make",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "ai",
+                      "team"
+                    ]
+                  },
+                  "kind": {
+                    "default": "voice",
+                    "type": "string",
+                    "enum": [
+                      "voice",
+                      "video"
+                    ]
+                  },
+                  "ttl_minutes": {
+                    "type": "integer",
+                    "minimum": 5,
+                    "maximum": 1440
+                  },
+                  "send": {
+                    "type": "string",
+                    "enum": [
+                      "email",
+                      "sms"
+                    ]
+                  }
+                },
+                "required": [
+                  "mode"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Calls"
+        ],
+        "summary": "The links of a conversation, newest first (mode, kind, expiry, status active, in_use, used, expired or revoked). Addresses are never listed",
+        "operationId": "get_api_rooms_id_call_links",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "calls:make",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.read",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/rooms/{id}/call-links/{linkId}": {
+      "delete": {
+        "tags": [
+          "Calls"
+        ],
+        "summary": "Revoke a call link: it stops working at once, the visitor's call-only session closes and a call started through it ends",
+        "operationId": "delete_api_rooms_id_call_links_linkId",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "calls:make",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "linkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",
@@ -7436,9 +7687,10 @@
                       "request_human",
                       "schedule_callback",
                       "offer_call",
-                      "ai_call"
+                      "ai_call",
+                      "share_call_link"
                     ],
-                    "maxItems": 8,
+                    "maxItems": 9,
                     "type": "array",
                     "items": {
                       "type": "string",
@@ -7450,7 +7702,8 @@
                         "request_human",
                         "schedule_callback",
                         "offer_call",
-                        "ai_call"
+                        "ai_call",
+                        "share_call_link"
                       ]
                     }
                   },
@@ -8265,7 +8518,7 @@
                     "maximum": 10
                   },
                   "allowed_actions": {
-                    "maxItems": 8,
+                    "maxItems": 9,
                     "type": "array",
                     "items": {
                       "type": "string",
@@ -8277,7 +8530,8 @@
                         "request_human",
                         "schedule_callback",
                         "offer_call",
-                        "ai_call"
+                        "ai_call",
+                        "share_call_link"
                       ]
                     }
                   },
@@ -14836,6 +15090,132 @@
         }
       }
     },
+    "/public/call-links/preview": {
+      "post": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "What a call link's page shows before the visitor agrees to join: who is on the other end (the AI assistant with its label, or the team), the kind and the expiry. A link that cannot be used (unknown, expired, revoked, used, in use on another device) answers `404 LINK_UNAVAILABLE`, always the same; failures are throttled and escalate into an IP block",
+        "operationId": "post_public_call_links_preview",
+        "security": [],
+        "x-access": "public",
+        "x-rate-limit": {
+          "pre": [
+            "calls.link.redeem.ip"
+          ],
+          "post": [],
+          "in_handler": [
+            "calls.link.fail.ip"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "token"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/call-links/redeem": {
+      "post": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "Open a call link: binds it to this device and returns a session that can only take part in that call (the socket events of the call and nothing else; no messages, no history). `device_id` is the usual 8 to 64 character id; `name` is optional",
+        "operationId": "post_public_call_links_redeem",
+        "security": [],
+        "x-access": "public",
+        "x-rate-limit": {
+          "pre": [
+            "calls.link.redeem.ip"
+          ],
+          "post": [],
+          "in_handler": [
+            "calls.link.fail.ip"
+          ]
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "device_id": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 64
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 60
+                  }
+                },
+                "required": [
+                  "token",
+                  "device_id"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/public/sessions": {
       "post": {
         "tags": [
@@ -18088,6 +18468,49 @@
             "description": "Success",
             "content": {
               "application/octet-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/call/{token}": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "The page a call link opens: the same document for every address (it says nothing about whether the link exists), no referrer, never cached, never framed",
+        "operationId": "get_call_token",
+        "security": [],
+        "x-access": "public",
+        "x-rate-limit": {
+          "pre": [
+            "public.config"
+          ],
+          "post": [],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "text/html": {
                 "schema": {
                   "type": "string"
                 }

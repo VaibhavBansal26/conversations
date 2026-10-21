@@ -10,6 +10,8 @@ import { createHash } from "node:crypto";
  */
 
 const PATTERNS: [RegExp, string][] = [
+  [/\b[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}\b/g, "[call-link]"],
+  [/\/call\/[^/?#\s"']+/g, "/call/[link]"],
   [/\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]*/g, "[jwt]"],
   [/\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}/gi, "[auth]"],
   [/\bSG\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g, "[sendgrid-key]"],

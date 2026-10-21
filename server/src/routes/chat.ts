@@ -4,7 +4,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Hono } from "hono";
 import type { AppContext } from "../context.js";
-import { bridgeTestPage, chatPage, chatSecurity, hostedTokenFor, safeLang, safeTheme, unavailablePage } from "../services/hostedChat.js";
+import { bridgeTestPage, callPage, chatPage, chatSecurity, hostedTokenFor, safeLang, safeTheme, unavailablePage } from "../services/hostedChat.js";
 import { compressed } from "../static.js";
 
 const CHAT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../../public/chat");
@@ -14,6 +14,7 @@ const ASSETS: Record<string, string> = {
   "i18n.js": "application/javascript; charset=utf-8",
   "calls.js": "application/javascript; charset=utf-8",
   "aicall.js": "application/javascript; charset=utf-8",
+  "callpage.js": "application/javascript; charset=utf-8",
   "bridge-test.js": "application/javascript; charset=utf-8",
   "chat.css": "text/css; charset=utf-8",
   "bridge-test.css": "text/css; charset=utf-8",
@@ -41,6 +42,17 @@ const BASE_HEADERS = {
   "Cache-Control": "no-store",
   "Cross-Origin-Opener-Policy": "same-origin",
 };
+
+/** `GET /call/:token`: the page a call link opens (mounted by app.ts at /call). Identical for every address; see services/hostedChat.ts. */
+export function callPageRoutes(ctx: AppContext) {
+  const r = new Hono();
+  r.get("/:token", (c) => {
+    const sec = chatSecurity(ctx, null);
+    // the page plays media and talks to the app (and, for live voice, the voice provider): the chat's policy, never framed
+    return c.html(callPage(assetVersion()), 200, { ...BASE_HEADERS, "Content-Security-Policy": sec.csp, "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex, nofollow" });
+  });
+  return r;
+}
 
 export function chatRoutes(ctx: AppContext) {
   const r = new Hono();

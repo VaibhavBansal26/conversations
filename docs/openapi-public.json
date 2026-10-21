@@ -68,6 +68,216 @@
         ]
       }
     },
+    "/public/call-links/preview": {
+      "post": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "What a call link's page shows before the visitor agrees to join: who is on the other end (the AI assistant with its label, or the team), the kind and the expiry. A link that cannot be used (unknown, expired, revoked, used, in use on another device) answers `404 LINK_UNAVAILABLE`, always the same; failures are throttled and escalate into an IP block",
+        "operationId": "post_public_call_links_preview",
+        "x-rate-limit": {
+          "pre": [
+            "calls.link.redeem.ip"
+          ],
+          "post": [],
+          "in_handler": [
+            "calls.link.fail.ip"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "token"
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "embedToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^cvt_"
+            },
+            "description": "The embed token (public by design; it is in every website's HTML)"
+          },
+          {
+            "name": "x-hosted-chat",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "const": "1"
+            },
+            "description": "Native apps and same-origin pages send `1` (and no Origin) with a token that has the hosted chat enabled"
+          },
+          {
+            "name": "x-device-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,64}$"
+            }
+          },
+          {
+            "name": "x-support-session",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The `session_token` returned by POST /public/sessions"
+          }
+        ]
+      }
+    },
+    "/public/call-links/redeem": {
+      "post": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "Open a call link: binds it to this device and returns a session that can only take part in that call (the socket events of the call and nothing else; no messages, no history). `device_id` is the usual 8 to 64 character id; `name` is optional",
+        "operationId": "post_public_call_links_redeem",
+        "x-rate-limit": {
+          "pre": [
+            "calls.link.redeem.ip"
+          ],
+          "post": [],
+          "in_handler": [
+            "calls.link.fail.ip"
+          ]
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "device_id": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 64
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 60
+                  }
+                },
+                "required": [
+                  "token",
+                  "device_id"
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "embedToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^cvt_"
+            },
+            "description": "The embed token (public by design; it is in every website's HTML)"
+          },
+          {
+            "name": "x-hosted-chat",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "const": "1"
+            },
+            "description": "Native apps and same-origin pages send `1` (and no Origin) with a token that has the hosted chat enabled"
+          },
+          {
+            "name": "x-device-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,64}$"
+            }
+          },
+          {
+            "name": "x-support-session",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The `session_token` returned by POST /public/sessions"
+          }
+        ]
+      }
+    },
     "/public/sessions": {
       "post": {
         "tags": [

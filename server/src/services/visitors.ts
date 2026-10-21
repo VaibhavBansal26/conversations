@@ -190,6 +190,8 @@ export interface SessionRow {
   user_info: string;
   /** minted through the in-app preview: accepted from the app's own origin only */
   preview: number;
+  /** minted by a call link: it can only take part in that link's call, and sees nothing else of the conversation */
+  call_link_id: string | null;
   expires_at: string;
   expired: number;
   created_at: string;
