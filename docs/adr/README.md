@@ -23,3 +23,4 @@ Short records of decisions that shaped the system. Add one when you make a decis
 * [0019](./0019-per-workspace-channel-connections.md) Per-workspace Twilio and SendGrid connections, verified per workspace
 * [0020](./0020-widget-preview-flag.md) The in-app widget preview uses a signed flag, not a relaxed origin check
 * [0021](./0021-team-chat.md) Team chat is its own set of tables and its own realtime path
+* [0022](./0022-optional-sentry-allow-list-scrubber.md) Optional Sentry monitoring that rebuilds events from an allow-list

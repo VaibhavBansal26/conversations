@@ -116,6 +116,30 @@ export function RateLimitPage() {
   );
 }
 
+/** Sends one synthetic error through the real capture path so an operator can confirm Sentry is wired up (docs/MONITORING.md). */
+export function MonitoringPage() {
+  const { canChange } = useAdmin();
+  const test = useMutation({ mutationFn: () => adminApi.post<{ enabled: boolean; delivered: boolean }>("/monitoring/test", {}) });
+  const r = test.data;
+  return (
+    <Panel title="Error monitoring" description="Sentry captures unexpected server and browser errors. It is off until SENTRY_DSN is set, and it never receives message text, contact details, credentials or tokens.">
+      {canChange ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="outline" loading={test.isPending} onClick={() => test.mutate()}>
+            Send a test error
+          </Button>
+          <p role="status" className="text-sm text-muted-foreground">
+            {r ? (r.enabled ? (r.delivered ? "Sent. It should appear in your Sentry project within a minute." : "Queued, but delivery was not confirmed. Check the DSN and the server's outbound network.") : "Monitoring is not configured on this server (SENTRY_DSN is not set), so nothing was sent.") : "Creates one clearly labelled error."}
+          </p>
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">Only a superadmin can send a test error.</p>
+      )}
+      {test.isError && <ErrorNotice error={test.error} compact />}
+    </Panel>
+  );
+}
+
 interface AdminRow {
   id: string;
   email: string;

@@ -32,6 +32,7 @@ function install() {
       if (key === "POST /mfa/enable" || key === "POST /mfa/verify") return c.body.code === "123456" ? json({ token: "admin-access-token", expires_in: 1800, admin: { id: "adm_1", email: "ops@example.test", name: "Ops", role } }) : json({ error: { code: "INVALID_CODE", message: "That code is not valid" } }, 401);
       if (key === "GET /stats") return json({ workspaces: 42, suspended: 1, new_last_7_days: 3, members: 120, past_due: 2, credits_outstanding: 9000, by_plan: {} });
       if (key === "GET /workspaces") return json({ data: [{ id: "ws_1", name: "Acme Plumbing", plan: "pro", created_at: "2026-03-01T10:00:00.000Z", suspended: false, credit_balance: 120, members: 2, billing_status: "active" }], next_cursor: null });
+      if (key === "POST /monitoring/test") return json({ enabled: false, delivered: false });
       if (key === "GET /workspaces/ws_1") return json(detail);
       if (key === "POST /workspaces/ws_1/impersonate") return json({ token: "imp.token.value", expires_in: 900, read_only: true });
       if (key.startsWith("POST /workspaces/ws_1/")) return new Response(null, { status: 204 });
@@ -128,6 +129,14 @@ describe("platform console", () => {
     const c = calls.find((x) => x.path === "/workspaces/ws_1/credits")!;
     expect(c.body).toEqual({ amount: 250, note: "goodwill after outage" });
     expect(c.headers["Idempotency-Key"]).toMatch(/[0-9a-f-]{36}/);
+  });
+
+  it("a superadmin can send a test error and is told plainly when monitoring is not configured", async () => {
+    await open("/admin");
+    await userEvent.click(await screen.findByRole("link", { name: "Monitoring" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Send a test error" }));
+    expect(await screen.findByText(/not configured on this server/i)).toBeInTheDocument();
+    expect(calls.some((c) => c.method === "POST" && c.path === "/monitoring/test")).toBe(true);
   });
 
   it("a support operator sees the account but none of the change controls", async () => {

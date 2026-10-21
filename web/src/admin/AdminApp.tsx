@@ -1,16 +1,17 @@
-import { Activity, Building2, Gauge, LogOut, ScrollText, ShieldCheck, Users } from "lucide-react";
+import { Activity, Bug, Building2, Gauge, LogOut, ScrollText, ShieldCheck, Users } from "lucide-react";
 import { NavLink, Navigate, Route, Routes } from "react-router";
 import "./admin.css";
 import { Badge, Button, ThemeToggle, cn } from "../ui";
 import { AdminProvider, useAdmin } from "./AdminContext";
 import { AdminLogin } from "./AdminLogin";
-import { AdminsPage, AuditPage, RateLimitPage } from "./OperatorPages";
+import { AdminsPage, AuditPage, MonitoringPage, RateLimitPage } from "./OperatorPages";
 import { WorkspaceDetailPage, WorkspacesPage } from "./WorkspacePages";
 
 const NAV = [
   { to: "/admin", label: "Workspaces", end: true, Icon: Building2 },
   { to: "/admin/audit", label: "Audit log", end: false, Icon: ScrollText },
   { to: "/admin/ratelimit", label: "Rate limits", end: false, Icon: Gauge },
+  { to: "/admin/monitoring", label: "Monitoring", end: false, Icon: Bug },
   { to: "/admin/admins", label: "Operators", end: false, Icon: Users },
 ];
 
@@ -77,6 +78,7 @@ function Shell() {
               <Route path="workspaces/:id" element={<WorkspaceDetailPage />} />
               <Route path="audit" element={<AuditPage />} />
               <Route path="ratelimit" element={<RateLimitPage />} />
+              <Route path="monitoring" element={<MonitoringPage />} />
               <Route path="admins" element={<AdminsPage />} />
               <Route path="*" element={<Navigate to="/admin" replace />} />
             </Routes>

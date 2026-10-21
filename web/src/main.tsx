@@ -4,7 +4,9 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router";
 import { App } from "./App";
 import { AuthProvider } from "./auth/AuthContext";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ApiError } from "./lib/apiError";
+import { startMonitoring } from "./monitoring";
 import { TooltipProvider } from "./ui";
 import "./styles/index.css";
 
@@ -22,6 +24,7 @@ const queryClient = new QueryClient({
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
+    <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
       <BrowserRouter>
@@ -32,5 +35,8 @@ createRoot(document.getElementById("root")!).render(
       <Suspense fallback={null}><Toaster /></Suspense>
       </TooltipProvider>
     </QueryClientProvider>
+    </ErrorBoundary>
   </StrictMode>,
 );
+// after first paint: a no-op unless the server hands out a DSN (then the SDK is a separate lazy chunk)
+setTimeout(() => void startMonitoring(), 1500);

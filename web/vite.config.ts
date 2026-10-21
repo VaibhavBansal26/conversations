@@ -28,6 +28,7 @@ export default defineConfig({
       output: {
         manualChunks(id: string) {
           if (!id.includes("node_modules")) return undefined;
+          if (/@sentry/.test(id)) return "vendor-sentry"; // optional and lazy: downloaded only when the server configures a DSN
           if (/socket\.io|engine\.io/.test(id)) return "vendor-socket";
           if (/@tanstack\/react-query/.test(id)) return "vendor-query";
           if (/react-router/.test(id)) return "vendor-router";

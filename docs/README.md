@@ -6,11 +6,9 @@ Every document under `docs/` is listed here (a check fails otherwise). Generated
 
 | If you want to... | Read |
 | --- | --- |
-| install the chat widget, understand domain rules, fix a widget that does not show | [TEAM-CHAT.md](TEAM-CHAT.md) | internal team chat: channels, direct and group messages, threads, privacy rules, notifications, retention, limits |
-| [WIDGET.md](WIDGET.md) |
+| install the chat widget, understand domain rules, fix a widget that does not show | [WIDGET.md](WIDGET.md) |
 | use or understand team chat (channels, DMs, threads) | [TEAM-CHAT.md](TEAM-CHAT.md) |
-| connect Twilio and SendGrid, read the SMS/email setup guide | [WIDGET.md](WIDGET.md) | install guide (HTML, WordPress, Shopify, GTM, React), the in-app preview, domain rules, CSP needs, troubleshooting table, office hours, OTP |
-| [CHANNELS.md](CHANNELS.md) |
+| connect Twilio and SendGrid, read the SMS/email setup guide | [CHANNELS.md](CHANNELS.md) |
 | deploy it for free (Render, GitHub-connected) | [DEPLOY.md](DEPLOY.md) |
 | run it and see it work | [../README.md](../README.md) (quick start), [TESTING.md](TESTING.md) |
 | understand how it is built | [ARCHITECTURE.md](ARCHITECTURE.md), [APPROACH.md](APPROACH.md), [adr/README.md](adr/README.md) |
@@ -22,11 +20,11 @@ Every document under `docs/` is listed here (a check fails otherwise). Generated
 | operate many workspaces (suspend, credits, support access) | [ADMIN.md](ADMIN.md) |
 | feed analytics to another system | [ANALYTICS.md](ANALYTICS.md), [analytics-api/schema-version.json](analytics-api/schema-version.json) |
 | tune or understand rate limits | [RATE-LIMITING.md](RATE-LIMITING.md) |
-| put it behind Cloudflare | [CHANNELS.md](CHANNELS.md) | SMS and email: test mode, per-workspace Twilio and SendGrid connections, webhook verification, provider caveats, smoke test |
-| [CLOUDFLARE.md](CLOUDFLARE.md) |
+| put it behind Cloudflare | [CLOUDFLARE.md](CLOUDFLARE.md) |
 | size a deployment, know the limits | [SCALING.md](SCALING.md), [PERFORMANCE.md](PERFORMANCE.md) |
 | validate the big numbers in a cloud account | [CLOUD-LOADTEST.md](CLOUD-LOADTEST.md), `../loadtest/README.md` |
 | run it in production, handle an incident | [RUNBOOK.md](RUNBOOK.md) |
+| get told about errors (Sentry), and know what is never sent | [MONITORING.md](MONITORING.md) |
 | review security, report a vulnerability | [SECURITY.md](SECURITY.md) |
 | learn the vocabulary (and the legacy names) | [GLOSSARY.md](GLOSSARY.md), [MIGRATION-NOTES.md](MIGRATION-NOTES.md) |
 | understand the AI features | [AI.md](AI.md) |
@@ -56,6 +54,10 @@ Every document under `docs/` is listed here (a check fails otherwise). Generated
 | [PERFORMANCE.md](PERFORMANCE.md) | every measurement: method, machine, numbers, caveats |
 | [CLOUD-LOADTEST.md](CLOUD-LOADTEST.md) | how to validate the extrapolated figures at scale, result tables, cost estimate |
 | [RUNBOOK.md](RUNBOOK.md) | capacity and billing incident playbooks, dashboards, alerts, SLOs, deploys, secrets, backups |
+| [MONITORING.md](MONITORING.md) | optional Sentry error monitoring: configuration, exactly what is and is not sent, testing it, source maps in CI |
+| [CHANNELS.md](CHANNELS.md) | SMS and email: test mode, per-workspace Twilio and SendGrid connections, webhook verification, provider caveats, smoke test |
+| [WIDGET.md](WIDGET.md) | install guide (HTML, WordPress, Shopify, GTM, React), the in-app preview, domain rules, CSP needs, troubleshooting, office hours, OTP |
+| [TEAM-CHAT.md](TEAM-CHAT.md) | internal team chat: channels, direct and group messages, threads, privacy rules, notifications, retention, limits |
 | [SECURITY.md](SECURITY.md) | data handled, threat model, secrets, privacy, what is not covered |
 | [GLOSSARY.md](GLOSSARY.md) | domain terms and legacy term mapping |
 | [design/DESIGN.md](design/DESIGN.md) | web design system: tokens, components, shortcuts, responsive rules, and the screenshot set (`design/*.jpg`) |
