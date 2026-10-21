@@ -71,7 +71,7 @@ export function publicRoutes(ctx: AppContext) {
     );
     // the visitor is told when they talk to an AI: the agent that would answer on the website (its name, avatar and disclosure label)
     const sel = await selectAgent(ctx, ws.id, { channel: "widget", departmentId: widget.default_inbox_id });
-    const ai = sel ? { name: sel.agent.name, label: sel.agent.disclosure_label, avatar_url: sel.agent.avatar_url } : null;
+    const ai = sel ? { name: sel.agent.name, label: sel.agent.disclosure_label, avatar_url: sel.agent.avatar_url, avatar_alt: sel.agent.avatar_alt } : null;
     const agents = (await listMemberRows(ctx, ws.id)).filter((m) => m.live_seat && m.availability === "active").map((m) => ({ id: m.id, name: m.name.split(" ")[0] }));
     // an edge cache may hold this for 30s; the key MUST include the api key and Origin (the domain allow-list is evaluated per origin)
     c.header("Cache-Control", "public, max-age=0, s-maxage=30");

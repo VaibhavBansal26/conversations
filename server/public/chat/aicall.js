@@ -71,18 +71,26 @@
     ".aicall .ai-name{font-size:16px;font-weight:600}",
     ".aicall .ai-badge{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;background:#2a2f3a;font-size:12px;font-weight:600;color:#cfd5df}",
     ".aicall .ai-sub{display:block;font-size:12.5px;opacity:.85;margin-top:3px;font-variant-numeric:tabular-nums}",
-    ".aicall .ai-stage{position:relative;display:flex;align-items:center;justify-content:center;min-height:120px;padding:8px 0;flex:0 0 auto}",
-    ".aicall .ai-orb{width:96px;height:96px;border-radius:50%;background:#2a2f3a center/cover no-repeat;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:700;box-shadow:0 0 0 0 rgba(255,255,255,.35);transition:box-shadow .15s}",
-    ".aicall[data-phase=speaking] .ai-orb{animation:aipulse 1.1s ease-in-out infinite}",
-    ".aicall[data-phase=listening] .ai-orb{box-shadow:0 0 0 6px rgba(74,222,128,.35)}",
-    ".aicall[data-phase=thinking] .ai-orb{opacity:.75}",
-    "@keyframes aipulse{0%,100%{box-shadow:0 0 0 0 rgba(255,255,255,.4)}50%{box-shadow:0 0 0 14px rgba(255,255,255,.08)}}",
-    ".aicall .ai-avatar{width:150px;height:150px}",
-    ".aicall .ai-avatar .mouth{transform-origin:50% 50%;transform:scaleY(.15);transition:transform .08s}",
-    ".aicall .ai-avatar .glow{opacity:0;transition:opacity .2s}",
-    ".aicall[data-phase=speaking] .ai-avatar .glow{opacity:1}",
-    ".aicall[data-phase=thinking] .ai-avatar .eye{animation:aiblink 1.4s infinite}",
-    "@keyframes aiblink{0%,92%,100%{transform:scaleY(1)}96%{transform:scaleY(.1)}}",
+    ".aicall .ai-stage{position:relative;display:flex;align-items:center;justify-content:center;min-height:132px;padding:10px 0 6px;flex:0 0 auto}",
+    ".aicall .face{position:relative;width:104px;height:104px;--lvl:0;--c:#6b7280}",
+    ".aicall[data-kind=video] .face{width:176px;height:176px}",
+    ".aicall .face[data-state=listening]{--c:#4ade80}.aicall .face[data-state=thinking]{--c:#facc15}.aicall .face[data-state=speaking]{--c:#60a5fa}",
+    ".aicall .face-ring{position:absolute;inset:-9px;border-radius:50%;border:3px solid var(--c);opacity:.9;transform:scale(calc(1 + var(--lvl)*.09));box-shadow:0 0 calc(6px + var(--lvl)*26px) var(--c);transition:border-color .2s,box-shadow .1s}",
+    ".aicall .face[data-state=idle] .face-ring{opacity:.35;box-shadow:none}",
+    ".aicall .face-frame{position:absolute;inset:0;border-radius:50%;overflow:hidden;background:#2a2f3a;display:flex;align-items:center;justify-content:center;transform:scale(calc(1 + var(--lvl)*.025))}",
+    ".aicall .face-photo{width:100%;height:100%;object-fit:cover;display:block;transform:translate(var(--px,0),var(--py,0)) scale(1.04)}",
+    ".aicall .face-svg{width:100%;height:100%;transform:rotate(var(--tilt,0deg))}",
+    ".aicall .face-svg .eye{transform-box:fill-box;transform-origin:center;transition:transform .07s}.aicall .face.blink .face-svg .eye{transform:scaleY(.1)}",
+    ".aicall .face-svg .mouth{transform-box:fill-box;transform-origin:center;transform:scaleY(var(--mouth,.15))}",
+    ".aicall .face[data-state=thinking] .face-svg .eye{transform:translateY(-3px)}",
+    ".aicall .face-wave{position:absolute;left:50%;bottom:-16px;transform:translateX(-50%);display:flex;gap:3px;align-items:flex-end;height:16px;opacity:0;transition:opacity .15s}",
+    ".aicall .face[data-state=speaking] .face-wave{opacity:1}",
+    ".aicall .face-wave i{display:block;width:4px;height:16px;border-radius:2px;background:var(--c);transform-origin:50% 100%;transform:scaleY(var(--b,.25))}",
+    ".aicall .face-dots{position:absolute;left:50%;bottom:-14px;transform:translateX(-50%);display:flex;gap:5px;opacity:0;transition:opacity .15s}",
+    ".aicall .face[data-state=thinking] .face-dots{opacity:1}",
+    ".aicall .face-dots i{width:6px;height:6px;border-radius:50%;background:var(--c);animation:aidot 1s infinite ease-in-out}.aicall .face-dots i:nth-child(2){animation-delay:.15s}.aicall .face-dots i:nth-child(3){animation-delay:.3s}",
+    "@keyframes aidot{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}",
+    ".aicall .face-label{position:absolute;left:50%;top:-12px;transform:translateX(-50%);white-space:nowrap;padding:2px 9px;border-radius:999px;background:#0b0d12;border:1px solid #4b5568;color:#e5e9f0;font-size:11.5px;font-weight:700;letter-spacing:.02em}",
     ".aicall .ai-self{position:absolute;right:10px;bottom:6px;width:84px;aspect-ratio:3/4;object-fit:cover;border-radius:10px;border:2px solid rgba(255,255,255,.6);background:#222;transform:scaleX(-1)}",
     ".aicall .ai-self[hidden]{display:none}",
     ".aicall .ai-status{text-align:center;font-size:13px;min-height:18px;opacity:.9}",
@@ -101,7 +109,7 @@
     ".aicall .ai-bar button[hidden]{display:none}",
     ".aicallbar{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;padding:2px 8px}.aicallbar[hidden]{display:none}.aicallbar button{border:0;background:transparent;color:var(--muted,#555);text-decoration:underline;cursor:pointer;font-size:12.5px;padding:3px 6px}",
     ".aicallbar .aicallnote{flex-basis:100%;text-align:center;font-size:12.5px;color:var(--muted,#555)}.aicallbar .aicallnote:empty{display:none}",
-    "@media (prefers-reduced-motion:reduce){.aicall .ai-orb,.aicall .ai-avatar *{animation:none!important;transition:none!important}}",
+    "@media (prefers-reduced-motion:reduce){.aicall .face *,.aicall .face{animation:none!important;transition:none!important}.aicall .face-ring{transform:none}.aicall .face-frame{transform:none}.aicall .face-photo{transform:none}}",
   ].join("\n");
 
   /* ---------- speech engines ---------- */
@@ -193,6 +201,132 @@
     return { name: "browser", supported: supported, listen: listen, stop: stop, abort: abort, listening: listening, speak: speak, cancel: cancel, isSpeaking: function () { return speaking; } };
   }
 
+  /* ---------- the face of the assistant ---------- */
+
+  var FACE_STATES = ["idle", "listening", "thinking", "speaking"];
+  /** The face's state machine: what a call event turns the face into. Unknown events and unknown states leave it where it is (or at rest). */
+  function faceNext(cur, ev) {
+    var map = { listen: "listening", think: "thinking", speak: "speaking", stop: "idle", mute: "idle", end: "listening" };
+    if (FACE_STATES.indexOf(cur) < 0) cur = "idle";
+    return map[ev] || cur;
+  }
+
+  /**
+   * A lightweight animated face, no dependencies. Two looks: the agent's PHOTO (never lip-synced: a glow ring and a small scale that follow the level of
+   * the voice, a speaking bars indicator, thinking dots) or a stylised SVG face (mouth and blinking follow the voice). The level comes from an
+   * AnalyserNode on the assistant's audio when there is one (the realtime engine) and from word boundaries of the browser's voice otherwise. States:
+   * idle, listening, thinking, speaking, each also shown without motion (ring colour, indicators) when the visitor prefers reduced motion. The label that
+   * says it is an AI is part of the face and cannot be left out. A picture that fails to load turns into the SVG face.
+   */
+  function createFace(doc, win, o) {
+    var NS = "http://www.w3.org/2000/svg";
+    var reduce = !!(win && win.matchMedia && win.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    var st = { state: "idle", level: 0, target: 0, analyser: null, data: null, raf: 0, timer: 0, blinkAt: 0, blinking: 0, destroyed: false };
+    var root = doc.createElement("div");
+    root.className = "face";
+    root.setAttribute("role", "img");
+    root.setAttribute("aria-label", (o.alt || o.name + ", animated AI avatar") + (o.label ? " (" + o.label + ")" : ""));
+    root.setAttribute("data-state", "idle");
+    var ring = doc.createElement("div"); ring.className = "face-ring";
+    var frame = doc.createElement("div"); frame.className = "face-frame";
+    var wave = doc.createElement("div"); wave.className = "face-wave"; wave.setAttribute("aria-hidden", "true");
+    var bars = [];
+    for (var i = 0; i < 5; i++) { var b = doc.createElement("i"); bars.push(b); wave.appendChild(b); }
+    var dots = doc.createElement("div"); dots.className = "face-dots"; dots.setAttribute("aria-hidden", "true");
+    for (var j = 0; j < 3; j++) dots.appendChild(doc.createElement("i"));
+    var chip = doc.createElement("span"); chip.className = "face-label"; chip.textContent = o.label || "AI";
+    [ring, frame, wave, dots, chip].forEach(function (e) { root.appendChild(e); });
+
+    function svgFace() {
+      function n(tag, a) { var e = doc.createElementNS(NS, tag); for (var k in a) e.setAttribute(k, a[k]); return e; }
+      var svg = n("svg", { class: "face-svg", viewBox: "0 0 150 150", "aria-hidden": "true" });
+      svg.appendChild(n("circle", { cx: "75", cy: "75", r: "75", fill: "#2a2f3a" }));
+      svg.appendChild(n("circle", { cx: "75", cy: "78", r: "52", fill: "#394152" }));
+      svg.appendChild(n("ellipse", { class: "eye", cx: "55", cy: "68", rx: "7", ry: "9", fill: "#fff" }));
+      svg.appendChild(n("ellipse", { class: "eye", cx: "95", cy: "68", rx: "7", ry: "9", fill: "#fff" }));
+      svg.appendChild(n("ellipse", { class: "mouth", cx: "75", cy: "102", rx: "18", ry: "13", fill: "#fff" }));
+      return svg;
+    }
+    function useSvg() {
+      frame.textContent = "";
+      frame.appendChild(svgFace());
+      root.setAttribute("data-mode", "svg");
+      st.mode = "svg";
+    }
+    function usePhoto(url) {
+      var img = doc.createElement("img");
+      img.className = "face-photo";
+      img.setAttribute("alt", "");
+      img.setAttribute("draggable", "false");
+      img.setAttribute("referrerpolicy", "no-referrer");
+      img.addEventListener("error", function () { if (!st.destroyed && st.mode === "photo") { useSvg(); if (o.onPhotoFail) o.onPhotoFail(); } });
+      img.setAttribute("src", url);
+      frame.textContent = "";
+      frame.appendChild(img);
+      root.setAttribute("data-mode", "photo");
+      st.mode = "photo";
+    }
+    if (o.photo) usePhoto(o.photo); else useSvg();
+
+    function readAnalyser() {
+      var a = st.analyser;
+      if (!a) return null;
+      if (!st.data) st.data = new Uint8Array(a.fftSize || 256);
+      a.getByteTimeDomainData(st.data);
+      var sum = 0;
+      for (var k = 0; k < st.data.length; k++) { var v = (st.data[k] - 128) / 128; sum += v * v; }
+      return Math.min(1, Math.sqrt(sum / st.data.length) * 3.2);
+    }
+    /** one animation frame (also called directly by tests with a time in ms) */
+    function tick(t) {
+      var raw = readAnalyser();
+      if (raw === null) { raw = st.target; st.target *= 0.86; }
+      st.level += (raw - st.level) * (raw > st.level ? 0.55 : 0.18);
+      if (st.level < 0.003) st.level = 0;
+      var lvl = st.state === "speaking" ? st.level : st.state === "listening" ? Math.min(0.12, st.level) : 0;
+      root.style.setProperty("--lvl", lvl.toFixed(3));
+      bars.forEach(function (b, idx) { b.style.setProperty("--b", st.state === "speaking" ? (0.22 + lvl * (0.45 + 0.55 * Math.abs(Math.sin(t / 95 + idx * 1.7)))).toFixed(2) : "0.22"); });
+      if (st.mode === "svg") {
+        root.style.setProperty("--mouth", st.state === "speaking" ? (0.12 + lvl * 0.95).toFixed(2) : "0.12");
+        root.style.setProperty("--tilt", (st.state === "idle" || st.state === "listening" ? Math.sin(t / 2300) * 1.8 : 0).toFixed(2) + "deg");
+        if (t >= st.blinkAt) { if (st.blinking) { st.blinking = 0; root.classList.remove("blink"); st.blinkAt = t + 2400 + ((t * 7) % 3100); } else { st.blinking = 1; root.classList.add("blink"); st.blinkAt = t + 130; } }
+      } else if (st.state !== "idle") {
+        // a photograph is not lip-synced: it breathes a little and follows the voice with its glow
+        root.style.setProperty("--px", (Math.sin(t / 1700) * 1.6).toFixed(2) + "px");
+        root.style.setProperty("--py", (Math.cos(t / 2100) * 1.2).toFixed(2) + "px");
+      }
+    }
+    function loop(t) {
+      st.raf = 0;
+      if (st.destroyed || reduce) return;
+      tick(t || 0);
+      if (st.state !== "idle" || st.level > 0.003) schedule();
+    }
+    function schedule() {
+      if (st.raf || st.destroyed || reduce) return;
+      st.raf = win.requestAnimationFrame ? win.requestAnimationFrame(loop) : setTimeout(function () { loop(Date.now()); }, 33);
+    }
+    function setState(ev) {
+      var next = FACE_STATES.indexOf(ev) >= 0 ? ev : faceNext(st.state, ev);
+      st.state = next;
+      root.setAttribute("data-state", next);
+      if (next !== "speaking") st.target = 0;
+      if (reduce) tick(0); else schedule();
+    }
+    return {
+      el: root,
+      setState: setState,
+      /** a burst of voice energy from 0 to 1 (word boundaries of the browser's voice) */
+      pulse: function (x) { st.target = Math.max(st.target, Math.min(1, x)); schedule(); },
+      /** a real audio level source: an AnalyserNode on the assistant's audio */
+      attachAnalyser: function (a) { st.analyser = a; st.data = null; schedule(); },
+      tick: tick,
+      state: function () { return st.state; },
+      mode: function () { return st.mode; },
+      destroy: function () { st.destroyed = true; if (st.raf && win.cancelAnimationFrame) win.cancelAnimationFrame(st.raf); }
+    };
+  }
+
   /* ---------- the call ---------- */
 
   function create(o) {
@@ -244,7 +378,7 @@
     }
     function state(phase, extra) {
       S.phase = phase;
-      if (elRef) { elRef.root.setAttribute("data-phase", phase); renderStatus(); }
+      if (elRef) { elRef.root.setAttribute("data-phase", phase); renderStatus(); faceState(phase); }
       if (S.call) emit("ai_call_state", { room_id: S.call.room_id, call_id: S.call.id, state: phase, kind: S.kind, reason: extra || undefined });
     }
 
@@ -332,38 +466,28 @@
       elRef.sub.textContent = (sec < 600 ? "0" : "") + Math.floor(sec / 60) + ":" + (sec % 60 < 10 ? "0" : "") + (sec % 60);
       elRef.root.setAttribute("aria-label", t("aicall_title", { name: S.ai.agent.name }));
     }
-    /** the picture of the assistant: its avatar picture (voice) or an animated drawing (video). Nothing here is the visitor's. */
+    /** the assistant's picture: its photo when it has one that loads (this app's own pictures and https addresses), else the drawn face */
+    function photoUrl(u) {
+      if (!u) return null;
+      if (/^\/avatars\/[a-z0-9._-]+$/i.test(u)) return (o.apiBase != null ? o.apiBase : (win && win.location ? win.location.origin : "")) + u;
+      return /^https:\/\//i.test(u) ? u : null;
+    }
     function renderStage() {
       var u = build();
       var keep = u.self;
       u.stage.textContent = "";
-      if (S.kind === "video") u.stage.appendChild(avatarSvg(S.ai));
-      else {
-        var url = S.ai && S.ai.agent.avatar_url;
-        var orb = h("div", { class: "ai-orb", "aria-hidden": "true", text: url ? "" : (S.ai && S.ai.agent.name ? S.ai.agent.name.charAt(0).toUpperCase() : "A") });
-        if (url && /^https:\/\//i.test(url)) orb.style.backgroundImage = "url(\"" + url.replace(/["\\()]/g, "") + "\")";
-        u.stage.appendChild(orb);
-      }
+      if (face) face.destroy();
+      var a = S.ai && S.ai.agent;
+      face = createFace(doc, win, { name: a ? a.name : "", label: a ? a.label : "", photo: photoUrl(a && a.avatar_url), alt: a && a.avatar_alt ? a.avatar_alt : "" });
+      u.stage.appendChild(face.el);
       u.stage.appendChild(keep);
+      u.root.setAttribute("data-kind", S.kind);
+      faceState(S.phase);
     }
-    function avatarSvg(ai) {
-      var NS = "http://www.w3.org/2000/svg";
-      function n(tag, a) { var e = doc.createElementNS(NS, tag); for (var k in a) e.setAttribute(k, a[k]); return e; }
-      var svg = n("svg", { class: "ai-avatar", viewBox: "0 0 150 150", role: "img", "aria-label": t("aicall_avatar", { name: ai ? ai.agent.name : "" }) });
-      svg.appendChild(n("circle", { class: "glow", cx: "75", cy: "75", r: "72", fill: "none", stroke: "#9ad1ff", "stroke-width": "3" }));
-      svg.appendChild(n("circle", { cx: "75", cy: "75", r: "62", fill: "#2a2f3a" }));
-      svg.appendChild(n("circle", { cx: "75", cy: "75", r: "62", fill: "none", stroke: "#4b5568", "stroke-width": "2" }));
-      svg.appendChild(n("ellipse", { class: "eye", cx: "55", cy: "62", rx: "7", ry: "9", fill: "#fff" }));
-      svg.appendChild(n("ellipse", { class: "eye", cx: "95", cy: "62", rx: "7", ry: "9", fill: "#fff" }));
-      svg.appendChild(n("ellipse", { class: "mouth", cx: "75", cy: "98", rx: "20", ry: "14", fill: "#fff" }));
-      return svg;
-    }
-    /** the mouth follows what is being said: the browser reports word boundaries, and between them it relaxes */
-    function mouth(open) {
-      if (!elRef) return;
-      var m = elRef.stage.querySelector(".mouth");
-      if (m) m.style.transform = "scaleY(" + (open ? (0.35 + Math.random() * 0.65).toFixed(2) : "0.15") + ")";
-    }
+    var face = null;
+    var FACE_OF = { listening: "listening", thinking: "thinking", speaking: "speaking" };
+    function faceState(phase) { if (face) face.setState(S.muted && phase === "listening" ? "idle" : FACE_OF[phase] || "idle"); }
+    function mouth(open) { if (face && open) face.pulse(0.35 + Math.random() * 0.65); }
 
     /* ---------- the microphone: a level meter and an early permission check ---------- */
     /** resolves "ok", "denied" (the visitor or the system refused: typing is the way to talk) or "none" (no media API: the recognizer asks for the microphone itself) */
@@ -521,7 +645,7 @@
       var finished = false;
       var finish = function () { if (finished) return; finished = true; if (S.speakingTimer) { clearInterval(S.speakingTimer); S.speakingTimer = null; } mouth(false); if (S.phase === "speaking") done(); };
       engine.speak(text, S.lang, {
-        onStart: function () { if (S.kind === "video" && !S.speakingTimer) S.speakingTimer = setInterval(function () { mouth(true); }, 130); },
+        onStart: function () { if (!S.speakingTimer) S.speakingTimer = setInterval(function () { mouth(true); }, 130); },
         onBoundary: function () { mouth(true); },
         onEnd: finish,
       });
@@ -593,6 +717,7 @@
       S.muted = !S.muted;
       if (S.mic) S.mic.getAudioTracks().forEach(function (tr) { tr.enabled = !S.muted; });
       if (S.muted) stopListening(); else startListening();
+      faceState(S.phase);
       renderStatus(); renderBar();
     }
     function togglePtt() {
@@ -721,5 +846,5 @@
     };
   }
 
-  return { create: create, css: CSS, DEFAULTS: DEFAULTS, browserEngine: browserEngine };
+  return { create: create, css: CSS, DEFAULTS: DEFAULTS, browserEngine: browserEngine, createFace: createFace, faceNext: faceNext, FACE_STATES: FACE_STATES };
 });

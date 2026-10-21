@@ -146,6 +146,9 @@ const rows: [string, string, string, Opt?][] = [
   // ---- AI agents
   ["GET /api/agents", "AI agents", "The workspace's AI support agents with their persona, scope, autonomy, thresholds, allowed actions and hand-off triggers"],
   ["POST /api/agents", "AI agents", "Create an AI agent (at most 5 per workspace; off until `enabled`). Audited", { body: agentsR.AgentBodySchema, status: 201 }],
+  ["GET /api/agents/presets", "AI agents", "The built-in presets (Aria, vb) the editor offers as a starting point: persona, greeting, tone, portrait (a bundled picture served from this app) and the AI disclosure label"],
+  ["POST /api/agents/:id/avatar", "AI agents", "Upload the agent's portrait (multipart `file`: PNG, JPEG or WebP, at most 1 MB, 64 to 4096 pixels, no animation; optional `alt`). The picture is validated by content and stripped of EXIF, XMP, ICC and comments, stored in this app and served publicly to visitors. Audited"],
+  ["DELETE /api/agents/:id/avatar", "AI agents", "Remove the uploaded portrait (and its stored file)"],
   ["GET /api/agents/turns", "AI agents", "Transcript review: every decision the agents took (answered, clarified, refused, handed off, resolved) with the visitor's words, the answer, sources, confidence, reason and thumbs; filter by agent, outcome, rating, ticket; keyset paged", { query: reviewR.TurnQuery }],
   ["GET /api/agents/unanswered", "AI agents", "Questions the knowledge base could not answer, grouped by similarity and counted: the order to write knowledge-base entries in", { query: reviewR.UnansweredQuery }],
   ["GET /api/agents/:id", "AI agents", "One AI agent"],
@@ -318,6 +321,8 @@ const rows: [string, string, string, Opt?][] = [
   ["POST /webhooks/c/:id/twilio/voice/status", "Webhooks", "Phone calls: progress of the agent's leg and the visitor's leg (that workspace's signature); repeats are harmless", { status: 204 }],
   ["POST /webhooks/c/:id/sendgrid/inbound", "Webhooks", "Inbound Parse for one workspace's SendGrid account (the connection's `secret` query parameter)"],
   ["POST /webhooks/c/:id/sendgrid/events", "Webhooks", "Event webhook for one workspace's SendGrid account (the connection's verification key, else its `secret`)"],
+  ["GET /avatars/agent/:id", "Files", "An AI agent's uploaded portrait, for visitors' pages: no credentials, a fixed image type, `nosniff`, a sandboxing CSP", { media: "application/octet-stream" }],
+  ["GET /avatars/:file", "Files", "The two bundled default portraits (`aria.webp`, `vb.webp`); any other name is 404", { media: "application/octet-stream" }],
   ["GET /files/*", "Files", "Signed attachment download (`exp` and `sig` query parameters)", { media: "application/octet-stream" }],
   ["GET /widget.js", "Files", "The embeddable widget script", { media: "application/javascript" }],
   ["GET /chat", "Files", "The hosted full-page chat (`?token=cvt_...` plus optional `locale`, `theme`, and the page-side parameters in docs/MOBILE-BRIDGE.md). 403 unless the token has the hosted chat enabled; CSP `frame-ancestors` is limited to the token's domain", { media: "text/html" }],

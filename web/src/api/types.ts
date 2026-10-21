@@ -471,7 +471,7 @@ export interface KbEntry {
 
 export type AgentAutonomy = "suggest_only" | "auto_answer" | "auto_resolve";
 export type AgentTone = "friendly" | "professional" | "concise" | "empathetic";
-export type AgentAction = "collect_info" | "route" | "resolve" | "quick_replies" | "request_human" | "schedule_callback" | "offer_call";
+export type AgentAction = "collect_info" | "route" | "resolve" | "quick_replies" | "request_human" | "schedule_callback" | "offer_call" | "ai_call";
 export interface HandoffTriggers {
   human_request: boolean;
   low_confidence: boolean;
@@ -487,6 +487,9 @@ export interface AiAgent {
   id: string;
   name: string;
   avatar_url: string | null;
+  avatar_alt: string;
+  /** the picture is an upload held by the app (rather than a bundled picture or a link) */
+  avatar_uploaded: boolean;
   persona: string;
   tone: AgentTone;
   languages: string[];

@@ -15,6 +15,7 @@ export default defineConfig({
       "/admin/api": target,
       "/public": target,
       "/files": target,
+      "/avatars": target,
       "/widget.js": target,
       "/widget-demo.html": target,
       "/widget-preview": target,

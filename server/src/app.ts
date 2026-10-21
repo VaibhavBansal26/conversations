@@ -1,3 +1,5 @@
+import { readAgentAvatar } from "./agents/avatar.js";
+import { BUNDLED_AVATARS } from "./agents/presets.js";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -160,6 +162,39 @@ export function createApp(ctx: AppContext): Hono {
       "Content-Security-Policy": "default-src 'none'; sandbox",
       "Cache-Control": "private, max-age=300",
       "Cross-Origin-Resource-Policy": "cross-origin",
+    });
+  });
+
+  // an AI agent's portrait for <img> tags on visitors' pages: no credentials, fixed image type, nothing executable (docs/AI-AGENTS.md, ADR 0034)
+  app.get("/avatars/agent/:id", async (c) => {
+    try {
+      const a = await readAgentAvatar(ctx, c.req.param("id"));
+      return c.body(new Uint8Array(a.content), 200, {
+        "Content-Type": a.mime,
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Cache-Control": "public, max-age=3600",
+        "Cross-Origin-Resource-Policy": "cross-origin",
+        "Referrer-Policy": "no-referrer",
+      });
+    } catch {
+      return c.body(null, 404, { "Cache-Control": "no-store" });
+    }
+  });
+
+  // the two bundled default portraits (server/public/avatars): an allow-list of file names, never a path taken from the request
+  app.get("/avatars/:file", (c) => {
+    const name = c.req.param("file");
+    if (!(BUNDLED_AVATARS as readonly string[]).includes(name)) return c.body(null, 404);
+    const f = readPublicFile(PUBLIC_DIR, `avatars/${name}`);
+    if (!f) return c.body(null, 404);
+    return c.body(new Uint8Array(f), 200, {
+      "Content-Type": "image/webp",
+      "X-Content-Type-Options": "nosniff",
+      "Content-Security-Policy": "default-src 'none'; sandbox",
+      "Cache-Control": "public, max-age=604800",
+      "Cross-Origin-Resource-Policy": "cross-origin",
+      "Referrer-Policy": "no-referrer",
     });
   });
 

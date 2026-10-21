@@ -3,7 +3,7 @@ import { api } from "./client";
 import type { AgentTurnOutcome, AgentTurnPage, AiAgent, SandboxResult, UnansweredCluster } from "./types";
 import { keys } from "../state/keys";
 
-export type AgentDraft = Omit<AiAgent, "id" | "created_at" | "updated_at">;
+export type AgentDraft = Omit<AiAgent, "id" | "created_at" | "updated_at" | "avatar_uploaded">;
 
 export const useAgents = (enabled = true) => useQuery({ queryKey: keys.agents, enabled, queryFn: async () => (await api.get<{ data: AiAgent[] }>("/agents")).data });
 
@@ -14,6 +14,13 @@ export function useAgentMutations() {
     create: useMutation({ mutationFn: (d: Partial<AgentDraft> & { name: string }) => api.post<AiAgent>("/agents", d), onSuccess: refresh }),
     update: useMutation({ mutationFn: ({ id, ...d }: Partial<AgentDraft> & { id: string }) => api.patch<AiAgent>(`/agents/${id}`, d), onSuccess: refresh }),
     remove: useMutation({ mutationFn: (id: string) => api.delete(`/agents/${id}`), onSuccess: refresh }),
+    /** the cropped portrait, with its alternative text (PNG, JPEG or WebP, 1 MB; the server validates it again and strips metadata) */
+    uploadAvatar: useMutation({
+      mutationFn: ({ id, blob, alt }: { id: string; blob: Blob; alt: string }) => {
+        return api.upload<AiAgent>(`/agents/${id}/avatar`, blob, "portrait.webp", { alt });
+      },
+      onSuccess: refresh,
+    }),
   };
 }
 

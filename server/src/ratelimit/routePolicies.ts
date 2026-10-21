@@ -48,7 +48,7 @@ const GROUPS: { spec: RouteSpec; routes: string[] }[] = [
       "GET /api/inbound-addresses", "GET /api/channels/status", "GET /api/channels/connections", "GET /api/channels/:channel/events", "GET /api/channels/sms/numbers", "GET /api/tokens", "GET /api/identity", "GET /api/templates", "GET /api/kb", "GET /api/ai/status", "GET /api/roles", "GET /api/audit", "GET /api/v1/api-keys", "GET /api/analytics/overview", "GET /api/analytics/timeseries", "GET /api/analytics/identity-pepper",
       "GET /api/tickets", "GET /api/tickets/counts", "GET /api/tickets/:id", "GET /api/rooms/:id/tickets", "GET /api/contacts/:id/tickets",
       "GET /api/departments", "GET /api/department-status", "GET /api/departments/:id", "GET /api/routing-rules",
-      "GET /api/calls/config", "GET /api/rooms/:id/calls", "GET /api/analytics/support", "GET /api/agents", "GET /api/agents/turns", "GET /api/agents/unanswered", "GET /api/agents/:id",
+      "GET /api/calls/config", "GET /api/rooms/:id/calls", "GET /api/analytics/support", "GET /api/agents", "GET /api/agents/presets", "GET /api/agents/turns", "GET /api/agents/unanswered", "GET /api/agents/:id",
     ],
   },
   {
@@ -63,14 +63,14 @@ const GROUPS: { spec: RouteSpec; routes: string[] }[] = [
       "POST /api/email-senders", "PATCH /api/email-senders/:id", "DELETE /api/email-senders/:id", "POST /api/inbound-addresses", "DELETE /api/inbound-addresses/:address",
       "PUT /api/channels/sms/connection", "PUT /api/channels/email/connection", "PATCH /api/channels/email/connection", "DELETE /api/channels/:channel/connection", "POST /api/channels/email/webhook-secret/rotate",
       "POST /api/tokens", "PATCH /api/tokens/:id", "POST /api/tokens/:id/rotate", "POST /api/tokens/:id/preview", "DELETE /api/tokens/:id", "POST /api/identity/rotate", "PATCH /api/identity", "POST /api/templates", "PATCH /api/templates/:id", "DELETE /api/templates/:id", "POST /api/templates/:id/render",
-      "POST /api/kb", "PUT /api/kb/:id", "DELETE /api/kb/:id", "POST /api/roles", "PATCH /api/roles/:id", "DELETE /api/roles/:id", "PUT /api/members/:id/role", "PATCH /api/tickets/:id", "POST /api/tickets/:id/reopen", "POST /api/tickets/:id/resolve", "POST /api/tickets/:id/close", "POST /api/tickets/bulk", "POST /api/tickets/:id/merge", "POST /api/tickets/:id/claim", "POST /api/tickets/:id/hand-back", "POST /api/tickets/:id/transfer", "PATCH /api/calls/settings", "POST /api/rooms/:id/phone-call/consent", "POST /api/calls/:id/hangup", "POST /api/agents", "PATCH /api/agents/:id", "DELETE /api/agents/:id", "POST /api/messages/:id/feedback", "PATCH /api/departments/:id", "POST /api/routing-rules", "PUT /api/routing-rules/order", "POST /api/routing-rules/test", "PATCH /api/routing-rules/:id", "DELETE /api/routing-rules/:id", "POST /api/v1/api-keys", "DELETE /api/v1/api-keys/:id", "POST /api/analytics/identity-pepper/rotate", "PUT /api/analytics/identity-pepper", "PUT /api/v1/analytics/identity-pepper", "POST /api/v1/analytics/identity-pepper/rotate",
+      "POST /api/kb", "PUT /api/kb/:id", "DELETE /api/kb/:id", "POST /api/roles", "PATCH /api/roles/:id", "DELETE /api/roles/:id", "PUT /api/members/:id/role", "PATCH /api/tickets/:id", "POST /api/tickets/:id/reopen", "POST /api/tickets/:id/resolve", "POST /api/tickets/:id/close", "POST /api/tickets/bulk", "POST /api/tickets/:id/merge", "POST /api/tickets/:id/claim", "POST /api/tickets/:id/hand-back", "POST /api/tickets/:id/transfer", "PATCH /api/calls/settings", "POST /api/rooms/:id/phone-call/consent", "POST /api/calls/:id/hangup", "POST /api/agents", "PATCH /api/agents/:id", "DELETE /api/agents/:id", "DELETE /api/agents/:id/avatar", "POST /api/messages/:id/feedback", "PATCH /api/departments/:id", "POST /api/routing-rules", "PUT /api/routing-rules/order", "POST /api/routing-rules/test", "PATCH /api/routing-rules/:id", "DELETE /api/routing-rules/:id", "POST /api/v1/api-keys", "DELETE /api/v1/api-keys/:id", "POST /api/analytics/identity-pepper/rotate", "PUT /api/analytics/identity-pepper", "PUT /api/v1/analytics/identity-pepper", "POST /api/v1/analytics/identity-pepper/rotate",
     ],
   },
   { spec: { post: ["api.send", "api.workspace"], inHandler: ["msg.room", "msg.workspace", "sms.workspace", "email.workspace", "sms.contact", "sms.number", "email.sender"] }, routes: ["POST /api/rooms/:id/messages"] },
   { spec: { post: ["api.write", "api.workspace"], inHandler: ["channels.verify"] }, routes: ["POST /api/channels/:channel/verify", "POST /api/channels/sms/numbers/import", "POST /api/channels/email/senders/import"] },
   { spec: { post: ["api.write", "api.workspace"], inHandler: ["channels.test"] }, routes: ["POST /api/channels/:channel/test"] },
   { spec: { pre: ["webhook.provider"], inHandler: ["webhook.connection", "webhook.badsig"] }, routes: ["POST /webhooks/c/:id/twilio/sms", "POST /webhooks/c/:id/twilio/status", "POST /webhooks/c/:id/twilio/voice/connect", "POST /webhooks/c/:id/twilio/voice/status", "POST /webhooks/c/:id/sendgrid/inbound", "POST /webhooks/c/:id/sendgrid/events"] },
-  { spec: { post: ["api.upload", "api.workspace"] }, routes: ["POST /api/attachments", "POST /api/team/attachments"] },
+  { spec: { post: ["api.upload", "api.workspace"] }, routes: ["POST /api/attachments", "POST /api/team/attachments", "POST /api/agents/:id/avatar"] },
   {
     spec: READ,
     routes: ["GET /api/team/channels", "GET /api/team/channels/browse", "GET /api/team/channels/:id", "GET /api/team/channels/:id/messages", "GET /api/team/channels/:id/pins", "GET /api/team/messages/:id/thread"],
@@ -120,6 +120,7 @@ const GROUPS: { spec: RouteSpec; routes: string[] }[] = [
   { spec: { post: ["public.otp.verify"] }, routes: ["POST /public/otp/verify"] },
 
   { spec: { pre: ["webhook.provider"], inHandler: ["webhook.badsig"] }, routes: ["POST /webhooks/twilio/sms", "POST /webhooks/twilio/status", "POST /webhooks/sendgrid/inbound", "POST /webhooks/sendgrid/events"] },
+  { spec: { pre: ["public.config"] }, routes: ["GET /avatars/agent/:id", "GET /avatars/:file"] },
   { spec: {}, routes: ["GET /files/*", "GET /widget.js", "GET /widget-demo.html", "GET /widget-preview", "GET /runtime-config.json"] },
 ];
 

@@ -1161,3 +1161,80 @@ describe.skipIf(!postgres)("PostgreSQL: AI calls migration on a populated databa
     }
   });
 });
+
+// ---- agent portraits (migration 037): the release before it is 036 ------------------------------------------------------------------------
+
+const PRE_AVATAR = 36;
+const seedAgentAt036 = (db: Db) => db.run("INSERT INTO ai_agents(id, workspace_id, name, avatar_url, created_at, updated_at) VALUES ('agp', 'w1', 'Aria', 'https://pictures.example.test/a.png', ?, ?)", T(50), T(50));
+
+async function expectAvatarMigration(db: Db, before: Record<string, number>, tables: string[]) {
+  expect(await counts(db, tables)).toEqual(before);
+  const a = await db.get<any>("SELECT avatar_url, avatar_key, avatar_alt FROM ai_agents WHERE id = 'agp'");
+  expect(a).toEqual({ avatar_url: "https://pictures.example.test/a.png", avatar_key: null, avatar_alt: "" });
+  await db.run("UPDATE ai_agents SET avatar_key = 'k', avatar_alt = 'alt' WHERE id = 'agp'");
+  expect((await db.get<any>("SELECT avatar_key FROM ai_agents WHERE id = 'agp'")).avatar_key).toBe("k");
+}
+
+describe("SQLite: agent portrait migration on a populated database of the release before it", () => {
+  it("adds the columns without touching a row and matches a fresh schema", async () => {
+    const fresh = await openDb(":memory:");
+    await migrate(fresh);
+    const { dir, path } = await openSqliteFile();
+    const prev = releaseDir(PRE_AVATAR);
+    try {
+      const old = await openDb(path);
+      await migrate(old, prev);
+      await seedPreviousRelease(old);
+      await seedTickets(old);
+      await seedKb(old);
+      await seedAgentAt036(old);
+      const tables = await userTables(old);
+      const before = await counts(old, tables);
+      await old.close();
+      const db = await openDb(path);
+      expect(await migrate(db)).toEqual(["037_agent_avatar.sql"]);
+      expect(await schemaOf(db)).toEqual(await schemaOf(fresh));
+      await expectAvatarMigration(db, before, tables);
+      await db.close();
+    } finally {
+      await fresh.close();
+      rmSync(prev, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe.skipIf(!postgres)("PostgreSQL: agent portrait migration on a populated database of the release before it", () => {
+  it("adds the columns without touching a row and matches a fresh schema", async () => {
+    const mk = async () => {
+      const schema = `u_${Math.random().toString(16).slice(2, 10)}`;
+      const admin = new pg.Client({ connectionString: process.env.TEST_DATABASE_URL });
+      await admin.connect();
+      await admin.query(`CREATE SCHEMA ${schema}`);
+      const u = new URL(process.env.TEST_DATABASE_URL!);
+      u.searchParams.set("options", `-c search_path=${schema}`);
+      const db = await openDb({ url: u.toString(), poolMax: 4 });
+      return { db, drop: async () => (await db.close(), await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`), await admin.end()) };
+    };
+    const a = await mk();
+    const b = await mk();
+    const prev = releaseDir(PRE_AVATAR);
+    try {
+      await migrate(a.db, undefined, { hashPartitions: 2 });
+      await migrate(b.db, prev, { hashPartitions: 2 });
+      await seedPreviousRelease(b.db);
+      await seedTickets(b.db);
+      await seedKb(b.db);
+      await seedAgentAt036(b.db);
+      const tables = await userTables(b.db);
+      const before = await counts(b.db, tables);
+      expect(await migrate(b.db, undefined, { hashPartitions: 2 })).toEqual(["037_agent_avatar.sql"]);
+      expect(await schemaOf(b.db)).toEqual(await schemaOf(a.db));
+      await expectAvatarMigration(b.db, before, tables);
+    } finally {
+      rmSync(prev, { recursive: true, force: true });
+      await a.drop();
+      await b.drop();
+    }
+  });
+});

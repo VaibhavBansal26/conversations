@@ -124,6 +124,8 @@
     ".m.out{align-self:flex-end;background:var(--c);color:var(--t);border-radius:calc(var(--r,16px)*.9) calc(var(--r,16px)*.9) 4px calc(var(--r,16px)*.9)}",
     ".m.bot{background:var(--bot);border:1px solid var(--bot-line)}",
     ".m .who{display:block;font-size:11.5px;font-weight:600;color:var(--muted);margin-bottom:2px}",
+    ".m .av{width:20px;height:20px;border-radius:50%;object-fit:cover;vertical-align:-5px;margin-right:6px;background:#e5e7eb}",
+    ".head .ttl .tag{display:inline-block;font-size:10px;font-weight:700;background:rgba(0,0,0,.28);color:inherit;border-radius:4px;padding:0 5px;margin-left:6px;vertical-align:2px}",
     ".m .tag{display:inline-block;font-size:10px;font-weight:700;background:#4338ca;color:#fff;border-radius:4px;padding:0 5px;margin-left:5px;vertical-align:1px}",
     ".m .meta{display:block;font-size:11px;opacity:.85;margin-top:3px;text-align:right}",
     ".m.failed{background:var(--err-bg);color:var(--err-fg);border:1px solid var(--err)}",
@@ -245,14 +247,26 @@
       if (els.lbl) els.lbl.textContent = w.launcher_label || "Chat with us";
     }
 
+    /** an AI agent's picture: this app's own bundled pictures (a path) or an https address; anything else is not shown */
+    function avatarSrc(u) {
+      if (!u) return null;
+      if (/^\/avatars\/[a-z0-9._-]+$/i.test(u)) return base + u;
+      return /^https:\/\//i.test(u) ? u : null;
+    }
     function renderHeader() {
       var w = state.config.widget;
       els.head.textContent = "";
+      var ai = state.config.ai;
+      var aiPic = ai && avatarSrc(ai.avatar_url);
       if (w.logo_url) els.head.appendChild(h(doc, "img", { src: w.logo_url, alt: "" }));
+      else if (aiPic) els.head.appendChild(h(doc, "img", { src: aiPic, alt: ai.avatar_alt || (ai.name + ", " + ai.label), referrerpolicy: "no-referrer", class: "aipic" }));
       var sub = h(doc, "div", { class: "sub" });
       if (state.config.agents_available > 0 && state.config.office_open !== false) sub.appendChild(h(doc, "span", { class: "on", "aria-hidden": "true" }));
       sub.appendChild(doc.createTextNode(w.intro));
-      els.head.appendChild(h(doc, "div", { class: "who2" }, [h(doc, "div", { class: "ttl", text: w.title }), sub]));
+      var ttl = h(doc, "div", { class: "ttl", text: w.title });
+      // a picture that looks like a person is always labelled as an AI next to the name
+      if (!w.logo_url && aiPic) ttl.appendChild(h(doc, "span", { class: "tag", text: ai.label || "AI" }));
+      els.head.appendChild(h(doc, "div", { class: "who2" }, [ttl, sub]));
       var closeBtn = h(doc, "button", { type: "button", "aria-label": "Close chat", onclick: close }, [icon(doc, "x", 20)]);
       els.head.appendChild(closeBtn);
     }
@@ -275,6 +289,8 @@
         var body = h(doc, "div", { class: cls, "data-id": m.id || null, "data-qid": m.client_msg_id || null });
         if (!mine && sender.type !== "system" && sender.name) {
           var who = h(doc, "span", { class: "who", text: sender.name });
+          var pic = m.meta && m.meta.ai && m.meta.agent && avatarSrc(m.meta.agent.avatar_url);
+          if (pic) who.insertBefore(h(doc, "img", { class: "av", src: pic, alt: "", referrerpolicy: "no-referrer" }), who.firstChild);
           if (m.meta && m.meta.ai) who.appendChild(h(doc, "span", { class: "tag", text: (m.meta.agent && m.meta.agent.label) || "AI" }));
           body.appendChild(who);
         }
@@ -751,7 +767,7 @@
       loadAiCalls().then(function (C) {
         els.shadow.appendChild(h(doc, "style", { text: C.css }));
         state.aiCalls = C.create({
-          doc: doc, win: win, container: els.panel, getSocket: function () { return state.socket; }, getRoomId: function () { return state.room && state.room.id; }, config: c, emit: function () {}, engine: opts.speechEngine,
+          doc: doc, win: win, container: els.panel, getSocket: function () { return state.socket; }, getRoomId: function () { return state.room && state.room.id; }, config: c, emit: function () {}, engine: opts.speechEngine, apiBase: base,
           onFallback: function () { if (els.input && els.input.focus) els.input.focus(); },
         });
         state.aiBar = state.aiCalls.bar();

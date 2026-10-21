@@ -7115,13 +7115,17 @@
                     "anyOf": [
                       {
                         "type": "string",
-                        "maxLength": 500,
-                        "format": "uri"
+                        "maxLength": 500
                       },
                       {
                         "type": "null"
                       }
                     ]
+                  },
+                  "avatar_alt": {
+                    "default": "",
+                    "type": "string",
+                    "maxLength": 200
                   },
                   "persona": {
                     "default": "",
@@ -7532,6 +7536,156 @@
         }
       }
     },
+    "/api/agents/presets": {
+      "get": {
+        "tags": [
+          "AI agents"
+        ],
+        "summary": "The built-in presets (Aria, vb) the editor offers as a starting point: persona, greeting, tone, portrait (a bundled picture served from this app) and the AI disclosure label",
+        "operationId": "get_api_agents_presets",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "agents:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.read",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/agents/{id}/avatar": {
+      "post": {
+        "tags": [
+          "AI agents"
+        ],
+        "summary": "Upload the agent's portrait (multipart `file`: PNG, JPEG or WebP, at most 1 MB, 64 to 4096 pixels, no animation; optional `alt`). The picture is validated by content and stripped of EXIF, XMP, ICC and comments, stored in this app and served publicly to visitors. Audited",
+        "operationId": "post_api_agents_id_avatar",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "agents:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.upload",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "AI agents"
+        ],
+        "summary": "Remove the uploaded portrait (and its stored file)",
+        "operationId": "delete_api_agents_id_avatar",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "agents:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
     "/api/agents/turns": {
       "get": {
         "tags": [
@@ -7838,25 +7992,25 @@
                     "maxLength": 60
                   },
                   "avatar_url": {
-                    "default": null,
                     "anyOf": [
                       {
                         "type": "string",
-                        "maxLength": 500,
-                        "format": "uri"
+                        "maxLength": 500
                       },
                       {
                         "type": "null"
                       }
                     ]
                   },
+                  "avatar_alt": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
                   "persona": {
-                    "default": "",
                     "type": "string",
                     "maxLength": 2000
                   },
                   "tone": {
-                    "default": "friendly",
                     "type": "string",
                     "enum": [
                       "friendly",
@@ -7866,7 +8020,6 @@
                     ]
                   },
                   "languages": {
-                    "default": [],
                     "maxItems": 10,
                     "type": "array",
                     "items": {
@@ -7875,12 +8028,10 @@
                     }
                   },
                   "greeting": {
-                    "default": "",
                     "type": "string",
                     "maxLength": 500
                   },
                   "department_ids": {
-                    "default": [],
                     "maxItems": 50,
                     "type": "array",
                     "items": {
@@ -7890,37 +8041,6 @@
                     }
                   },
                   "hours": {
-                    "default": {
-                      "enabled": false,
-                      "timezone": "UTC",
-                      "days": [
-                        {
-                          "day": 1,
-                          "start": "09:00",
-                          "end": "17:00"
-                        },
-                        {
-                          "day": 2,
-                          "start": "09:00",
-                          "end": "17:00"
-                        },
-                        {
-                          "day": 3,
-                          "start": "09:00",
-                          "end": "17:00"
-                        },
-                        {
-                          "day": 4,
-                          "start": "09:00",
-                          "end": "17:00"
-                        },
-                        {
-                          "day": 5,
-                          "start": "09:00",
-                          "end": "17:00"
-                        }
-                      ]
-                    },
                     "type": "object",
                     "properties": {
                       "enabled": {
@@ -7987,7 +8107,6 @@
                     }
                   },
                   "kb_collections": {
-                    "default": [],
                     "maxItems": 30,
                     "type": "array",
                     "items": {
@@ -7996,7 +8115,6 @@
                     }
                   },
                   "autonomy": {
-                    "default": "auto_answer",
                     "type": "string",
                     "enum": [
                       "suggest_only",
@@ -8005,40 +8123,26 @@
                     ]
                   },
                   "confidence_threshold": {
-                    "default": 0.6,
                     "type": "number",
                     "minimum": 0,
                     "maximum": 1
                   },
                   "coverage_threshold": {
-                    "default": 0.5,
                     "type": "number",
                     "minimum": 0,
                     "maximum": 1
                   },
                   "max_turns": {
-                    "default": 6,
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 30
                   },
                   "max_attempts": {
-                    "default": 2,
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 10
                   },
                   "allowed_actions": {
-                    "default": [
-                      "collect_info",
-                      "route",
-                      "resolve",
-                      "quick_replies",
-                      "request_human",
-                      "schedule_callback",
-                      "offer_call",
-                      "ai_call"
-                    ],
                     "maxItems": 8,
                     "type": "array",
                     "items": {
@@ -8056,69 +8160,6 @@
                     }
                   },
                   "handoff_triggers": {
-                    "default": {
-                      "human_request": true,
-                      "low_confidence": true,
-                      "repeated_rephrase": true,
-                      "negative_sentiment": true,
-                      "high_urgency": true,
-                      "sensitive_topic": true,
-                      "vip_contact": true,
-                      "tool_failure": true,
-                      "sensitive_topics": [
-                        "refund",
-                        "chargeback",
-                        "charge back",
-                        "lawsuit",
-                        "legal",
-                        "attorney",
-                        "lawyer",
-                        "fraud",
-                        "stolen",
-                        "harass",
-                        "abuse",
-                        "medical",
-                        "suicide",
-                        "self-harm",
-                        "self harm",
-                        "gdpr",
-                        "delete my data",
-                        "delete my account",
-                        "hacked",
-                        "compromised",
-                        "unauthorized",
-                        "unauthorised",
-                        "account takeover",
-                        "social security",
-                        "cancel my account",
-                        "cancel my subscription",
-                        "cancellation",
-                        "dispute",
-                        "reembolso",
-                        "devolución",
-                        "devolucion",
-                        "abogado",
-                        "fraude",
-                        "hackeado",
-                        "remboursement",
-                        "avocat",
-                        "plainte",
-                        "piraté",
-                        "erstattung",
-                        "rückerstattung",
-                        "anwalt",
-                        "betrug",
-                        "kündigen",
-                        "gehackt",
-                        "返金",
-                        "払い戻し",
-                        "弁護士",
-                        "詐欺",
-                        "解約",
-                        "不正アクセス",
-                        "ハッキング"
-                      ]
-                    },
                     "type": "object",
                     "properties": {
                       "human_request": {
@@ -8218,7 +8259,6 @@
                     }
                   },
                   "waiting_behavior": {
-                    "default": "gather_info",
                     "type": "string",
                     "enum": [
                       "silent",
@@ -8226,15 +8266,11 @@
                     ]
                   },
                   "disclosure_label": {
-                    "default": "AI assistant",
                     "type": "string",
                     "minLength": 2,
                     "maxLength": 40
                   },
                   "channels": {
-                    "default": [
-                      "widget"
-                    ],
                     "minItems": 1,
                     "maxItems": 1,
                     "type": "array",
@@ -8246,7 +8282,6 @@
                     }
                   },
                   "enabled": {
-                    "default": false,
                     "type": "boolean"
                   }
                 }
@@ -17847,6 +17882,92 @@
               "application/json": {
                 "schema": {
                   "type": "object"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/avatars/agent/{id}": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "An AI agent's uploaded portrait, for visitors' pages: no credentials, a fixed image type, `nosniff`, a sandboxing CSP",
+        "operationId": "get_avatars_agent_id",
+        "security": [],
+        "x-access": "public",
+        "x-rate-limit": {
+          "pre": [
+            "public.config"
+          ],
+          "post": [],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/avatars/{file}": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "The two bundled default portraits (`aria.webp`, `vb.webp`); any other name is 404",
+        "operationId": "get_avatars_file",
+        "security": [],
+        "x-access": "public",
+        "x-rate-limit": {
+          "pre": [
+            "public.config"
+          ],
+          "post": [],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "file",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }

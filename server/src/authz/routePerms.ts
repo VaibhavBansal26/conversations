@@ -20,7 +20,7 @@ const GROUPS: [RouteAccess, string[]][] = [
     "GET /chat", "GET /chat/bridge-test", "GET /chat/assets/:file",
     "POST /webhooks/stripe", "POST /webhooks/stripe/connect", "POST /webhooks/twilio/sms", "POST /webhooks/twilio/status", "POST /webhooks/sendgrid/inbound", "POST /webhooks/sendgrid/events",
     "POST /webhooks/c/:id/twilio/sms", "POST /webhooks/c/:id/twilio/status", "POST /webhooks/c/:id/twilio/voice/connect", "POST /webhooks/c/:id/twilio/voice/status", "POST /webhooks/c/:id/sendgrid/inbound", "POST /webhooks/c/:id/sendgrid/events",
-    "GET /files/*", "GET /widget.js", "GET /widget-demo.html", "GET /widget-preview", "GET /runtime-config.json",
+    "GET /files/*", "GET /avatars/agent/:id", "GET /avatars/:file", "GET /widget.js", "GET /widget-demo.html", "GET /widget-preview", "GET /runtime-config.json",
   ]],
   ["platform", [
     "POST /admin/api/login", "POST /admin/api/mfa/setup", "POST /admin/api/mfa/enable", "POST /admin/api/mfa/verify", "GET /admin/api/me", "GET /admin/api/stats", "GET /admin/api/workspaces", "GET /admin/api/workspaces/:id",
@@ -42,7 +42,7 @@ const GROUPS: [RouteAccess, string[]][] = [
   ["tickets:write", ["PATCH /api/tickets/:id", "POST /api/tickets/:id/reopen", "POST /api/tickets/:id/claim", "POST /api/tickets/:id/hand-back", "POST /api/tickets/:id/transfer"]],
   ["calls:make", ["GET /api/calls/config", "POST /api/rooms/:id/phone-call", "POST /api/rooms/:id/phone-call/consent", "POST /api/calls/:id/hangup"]],
   ["calls:settings", ["PATCH /api/calls/settings"]],
-  ["agents:manage", ["GET /api/agents", "POST /api/agents", "GET /api/agents/turns", "GET /api/agents/unanswered", "GET /api/agents/:id", "PATCH /api/agents/:id", "DELETE /api/agents/:id", "POST /api/agents/:id/sandbox"]],
+  ["agents:manage", ["GET /api/agents/presets", "GET /api/agents", "POST /api/agents", "GET /api/agents/turns", "GET /api/agents/unanswered", "GET /api/agents/:id", "PATCH /api/agents/:id", "DELETE /api/agents/:id", "POST /api/agents/:id/sandbox", "POST /api/agents/:id/avatar", "DELETE /api/agents/:id/avatar"]],
   ["departments:manage", [
     "GET /api/departments", "GET /api/departments/:id", "PATCH /api/departments/:id", "GET /api/routing-rules", "POST /api/routing-rules", "PUT /api/routing-rules/order",
     "POST /api/routing-rules/test", "PATCH /api/routing-rules/:id", "DELETE /api/routing-rules/:id",

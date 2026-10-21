@@ -6,7 +6,7 @@ import type { AiAgent, AgentTurn } from "../../api/types";
 import { AiAgentsSettings } from "./AiAgentsSettings";
 
 const agent = (over: Partial<AiAgent> = {}): AiAgent => ({
-  id: "agt_1", name: "Aria", avatar_url: null, persona: "Be kind", tone: "friendly", languages: [], greeting: "", department_ids: [], hours: { enabled: false, timezone: "UTC", days: [] }, kb_collections: [], autonomy: "auto_answer",
+  id: "agt_1", name: "Aria", avatar_url: null, avatar_alt: "", avatar_uploaded: false, persona: "Be kind", tone: "friendly", languages: [], greeting: "", department_ids: [], hours: { enabled: false, timezone: "UTC", days: [] }, kb_collections: [], autonomy: "auto_answer",
   confidence_threshold: 0.6, coverage_threshold: 0.5, max_turns: 6, max_attempts: 2, allowed_actions: ["route", "quick_replies"], waiting_behavior: "gather_info", disclosure_label: "AI assistant", channels: ["widget"], enabled: true, created_at: "", updated_at: "",
   handoff_triggers: { human_request: true, low_confidence: true, repeated_rephrase: true, negative_sentiment: true, high_urgency: true, sensitive_topic: true, vip_contact: true, tool_failure: true, sensitive_topics: ["refund"] }, ...over,
 });
@@ -84,6 +84,7 @@ describe("AiAgentsSettings", () => {
   it("creates an agent with the disclosure label, the topics as a list and the chosen actions", async () => {
     mount();
     await userEvent.click(await screen.findByRole("button", { name: /new agent/i }));
+    await userEvent.click(within(screen.getByRole("group", { name: "Start from a preset" })).getByText("Blank").closest("button")!);
     const form = await screen.findByRole("form", { name: "New AI agent" });
     await userEvent.type(within(form).getByLabelText("Name"), "Max");
     await userEvent.type(within(form).getByLabelText(/Sensitive topics/), "refund, Lawsuit ,refund");
@@ -116,5 +117,48 @@ describe("AiAgentsSettings", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Unanswered" }));
     expect(await screen.findByText(/Asked 3 times/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Write an entry for how do I change my invoice email/ })).toBeInTheDocument();
+  });
+
+  it("creates the first agent with the Aria preset: photo, description, label and persona", async () => {
+    agents = [];
+    mount();
+    await waitFor(() => expect(calls.filter((c) => c.method === "POST" && c.path === "/api/agents")).toHaveLength(1));
+    expect(JSON.parse(calls.find((c) => c.method === "POST")!.body!)).toMatchObject({ name: "Aria", avatar_url: "/avatars/aria.webp", disclosure_label: "AI assistant", tone: "friendly", enabled: true });
+    expect(JSON.parse(calls.find((c) => c.method === "POST")!.body!).avatar_alt).toMatch(/Portrait of Aria/);
+  });
+
+  it("New agent offers presets (Aria, vb) and a blank start; a preset fills the form and keeps the AI label", async () => {
+    mount();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "New agent" }));
+    const group = screen.getByRole("group", { name: "Start from a preset" });
+    expect(within(group).getByText("Aria")).toBeInTheDocument();
+    expect(within(group).getByText("vb")).toBeInTheDocument();
+    expect(within(group).getByText("Blank")).toBeInTheDocument();
+    await user.click(within(group).getByText("vb").closest("button")!);
+    expect(await screen.findByRole("form", { name: "New AI agent" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Name")).toHaveValue("vb");
+    expect(screen.getByLabelText(/Label shown to visitors/)).toHaveValue("AI assistant");
+    expect(screen.getByLabelText("Greeting")).toHaveValue("Hi, I'm vb. What do you need help with?");
+    expect((screen.getByLabelText("Description of the picture") as HTMLInputElement).value).toMatch(/Portrait of vb/);
+    // the note about rights and the label is on screen next to the picture controls
+    expect(screen.getByRole("note")).toHaveTextContent(/right to use/);
+    expect(screen.getByRole("note")).toHaveTextContent(/always shown together with the label/);
+    await user.click(screen.getByRole("button", { name: "Save agent" }));
+    await waitFor(() => expect(calls.some((c) => c.method === "POST" && c.path === "/api/agents" && JSON.parse(c.body!).name === "vb")).toBe(true));
+    const body = JSON.parse(calls.filter((c) => c.method === "POST" && c.path === "/api/agents").at(-1)!.body!);
+    expect(body).toMatchObject({ avatar_url: "/avatars/vb.webp", disclosure_label: "AI assistant", tone: "concise" });
+  });
+
+  it("the picture can be switched between the presets and removed, and the list shows it", async () => {
+    agents = [agent({ avatar_url: "/avatars/aria.webp", avatar_alt: "Portrait of Aria" })];
+    mount();
+    const user = userEvent.setup();
+    const row = (await screen.findByText("Aria")).closest("li")!;
+    expect(row.querySelector("img")!.getAttribute("src")).toBe("/avatars/aria.webp");
+    await user.click(screen.getByRole("button", { name: "Edit Aria" }));
+    await user.click(await screen.findByRole("button", { name: "Use the vb picture" }));
+    await user.click(screen.getByRole("button", { name: "Save agent" }));
+    await waitFor(() => expect(calls.some((c) => c.method === "PATCH" && JSON.parse(c.body!).avatar_url === "/avatars/vb.webp")).toBe(true));
   });
 });

@@ -246,15 +246,27 @@
   function isNearBottom() { var l = els.list; return !l || l.scrollHeight - l.scrollTop - l.clientHeight < 90; }
   function scrollToBottom() { if (els.list) els.list.scrollTop = els.list.scrollHeight; if (els.jump) els.jump.hidden = true; }
 
+  /** an AI agent's picture: this app's own bundled pictures (a path on this origin) or an https address; the page's CSP decides whether the latter loads */
+  function avatarSrc(u) {
+    if (!u) return null;
+    if (/^\/avatars\/[a-z0-9._-]+$/i.test(u)) return global.location.origin + u;
+    return /^https:\/\//i.test(u) ? u : null;
+  }
   function renderHeader() {
     var w = state.config.widget;
     els.head.textContent = "";
+    var ai = state.config.ai;
+    var aiPic = ai && avatarSrc(ai.avatar_url);
     if (w.logo_url && /^https:\/\//.test(w.logo_url)) els.head.appendChild(h("img", { src: w.logo_url, alt: "" }));
+    else if (aiPic) els.head.appendChild(h("img", { src: aiPic, alt: ai.avatar_alt || (ai.name + ", " + ai.label), referrerpolicy: "no-referrer", class: "aipic" }));
     var sub = h("div", { class: "sub" });
     var online = state.config.agents_available > 0 && state.config.office_open !== false;
     if (online) sub.appendChild(h("span", { class: "on", "aria-hidden": "true" }));
     sub.appendChild(doc.createTextNode(w.intro));
-    els.head.appendChild(h("div", { class: "who" }, [h("div", { class: "ttl", role: "heading", "aria-level": "1", text: w.title }), sub]));
+    var ttl = h("div", { class: "ttl", role: "heading", "aria-level": "1", text: w.title });
+    // a picture that looks like a person is always labelled as an AI next to the name
+    if (!(w.logo_url && /^https:\/\//.test(w.logo_url)) && aiPic) ttl.appendChild(h("span", { class: "tag", text: ai.label || t("ai_tag") }));
+    els.head.appendChild(h("div", { class: "who" }, [ttl, sub]));
     if (P.close_button || bridge.transport.name !== "none") {
       if (P.close_button) els.head.appendChild(h("button", { type: "button", class: "icon-btn", "aria-label": t("close"), onclick: function () { emit("close_requested", {}); } }, [icon("x", 22)]));
     }
@@ -286,6 +298,8 @@
       var body = h("div", { class: cls, "data-id": m.id || null, "data-qid": m.client_msg_id || null });
       if (!mine && sender.type !== "system" && sender.name) {
         var who = h("span", { class: "who", text: sender.name });
+        var pic = m.meta && m.meta.ai && m.meta.agent && avatarSrc(m.meta.agent.avatar_url);
+        if (pic) who.insertBefore(h("img", { class: "av", src: pic, alt: "", referrerpolicy: "no-referrer" }), who.firstChild);
         if (m.meta && m.meta.ai) who.appendChild(h("span", { class: "tag", text: (m.meta.agent && m.meta.agent.label) || t("ai_tag") }));
         body.appendChild(who);
       }

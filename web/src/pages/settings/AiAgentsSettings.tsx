@@ -3,6 +3,8 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router";
 import { useAgentMutations, useAgents, useAgentTurns, useSandbox, useUnanswered, type AgentDraft, type TurnFilters } from "../../api/agentHooks";
 import { useDepartments } from "../../api/departmentHooks";
+import { AGENT_PRESETS, type AgentPreset } from "../../api/agentPresets";
+import { AgentAvatar, PictureCropper } from "./AgentPicture";
 import type { AgentAction, AgentAutonomy, AgentTone, AgentTurn, AgentTurnOutcome, AiAgent, HandoffTriggers, SandboxResult } from "../../api/types";
 import { ConfirmDialog } from "../../components/settings/ConfirmDialog";
 import { HoursEditor } from "../../components/settings/HoursEditor";
@@ -24,6 +26,7 @@ const ACTIONS: { id: AgentAction; label: string; built: boolean }[] = [
   { id: "collect_info", label: "Ask for contact details", built: true },
   { id: "schedule_callback", label: "Offer a callback", built: true },
   { id: "offer_call", label: "Offer a voice or video call", built: true },
+  { id: "ai_call", label: "Talk with visitors by voice or video (speech runs in the visitor's browser; switch it on in Settings > Calls)", built: true },
 ];
 const TRIGGERS: { id: keyof Omit<HandoffTriggers, "sensitive_topics">; label: string }[] = [
   { id: "human_request", label: "The visitor asks for a person" },
@@ -44,19 +47,21 @@ const REASON_LABEL: Record<string, string> = {
 
 const list = (s: string) => [...new Set(s.split(/[,\n]/).map((x) => x.trim()).filter(Boolean))];
 const blank = (): AgentDraft => ({
-  name: "", avatar_url: null, persona: "", tone: "friendly", languages: [], greeting: "", department_ids: [], hours: { enabled: false, timezone: "UTC", days: [] }, kb_collections: [], autonomy: "auto_answer", confidence_threshold: 0.6, coverage_threshold: 0.5,
+  name: "", avatar_url: null, avatar_alt: "", persona: "", tone: "friendly", languages: [], greeting: "", department_ids: [], hours: { enabled: false, timezone: "UTC", days: [] }, kb_collections: [], autonomy: "auto_answer", confidence_threshold: 0.6, coverage_threshold: 0.5,
   max_turns: 6, max_attempts: 2, allowed_actions: ACTIONS.map((a) => a.id), handoff_triggers: { human_request: true, low_confidence: true, repeated_rephrase: true, negative_sentiment: true, high_urgency: true, sensitive_topic: true, vip_contact: true, tool_failure: true, sensitive_topics: [] },
   waiting_behavior: "gather_info", disclosure_label: "AI assistant", channels: ["widget"], enabled: false,
 });
 
 /** The agent a workspace gets the first time it opens this screen with none: on, answering from the knowledge base, handing over when it should. */
 export const DEFAULT_AGENT: Partial<AgentDraft> & { name: string } = {
-  name: "Aria",
-  persona: "You are a helpful, polite support assistant. Answer only from the knowledge base. If you do not know, say so and offer a person.",
-  greeting: "Hi! I'm an AI assistant. Ask me anything, or ask for a person at any time.",
+  ...fromPreset(AGENT_PRESETS[0]!),
+  persona: `${AGENT_PRESETS[0]!.persona} Answer only from the knowledge base. If you do not know, say so and offer a person.`,
   autonomy: "auto_answer",
   enabled: true,
 };
+function fromPreset(p: AgentPreset): Partial<AgentDraft> & { name: string } {
+  return { name: p.name, tone: p.tone, persona: p.persona, greeting: p.greeting, avatar_url: p.avatar_url, avatar_alt: p.avatar_alt, disclosure_label: p.disclosure_label };
+}
 const OFFERED_KEY = "conversations.default-agent-offered";
 const offered = () => {
   try {
@@ -151,10 +156,12 @@ function Sandbox({ agent }: { agent: AiAgent }) {
   );
 }
 
-function AgentEditor({ agent, onClose }: { agent: AiAgent | null; onClose: () => void }) {
+function AgentEditor({ agent, preset, onClose }: { agent: AiAgent | null; preset?: AgentPreset | null; onClose: () => void }) {
   const depts = useDepartments();
-  const { create, update } = useAgentMutations();
-  const [d, setD] = useState<AgentDraft>(() => (agent ? { ...agent } : blank()));
+  const { create, update, uploadAvatar } = useAgentMutations();
+  const [d, setD] = useState<AgentDraft>(() => (agent ? { ...agent } : { ...blank(), ...(preset ? fromPreset(preset) : {}) }));
+  // a cropped upload waiting to be sent when the agent is saved
+  const [upload, setUpload] = useState<Blob | null>(null);
   const [topics, setTopics] = useState(() => (agent ?? blank()).handoff_triggers.sensitive_topics.join(", "));
   const [langs, setLangs] = useState(() => (agent ?? blank()).languages.join(", "));
   const [colls, setColls] = useState(() => (agent ?? blank()).kb_collections.join(", "));
@@ -164,8 +171,10 @@ function AgentEditor({ agent, onClose }: { agent: AiAgent | null; onClose: () =>
     e.preventDefault();
     const body = { ...d, languages: list(langs), kb_collections: list(colls), handoff_triggers: { ...d.handoff_triggers, sensitive_topics: list(topics).map((t) => t.toLowerCase()) } };
     const done = () => (toast({ title: "AI agent saved", tone: "success" }), onClose());
-    if (agent) update.mutate({ id: agent.id, ...body }, { onSuccess: done });
-    else create.mutate(body, { onSuccess: done });
+    // the picture goes up after the agent exists (it needs the agent's id); an upload replaces the address, so the old one is not sent with it
+    const withUpload = (saved: AiAgent) => (upload ? uploadAvatar.mutate({ id: saved.id, blob: upload, alt: d.avatar_alt }, { onSuccess: done }) : done());
+    if (agent) update.mutate({ id: agent.id, ...body, ...(upload ? { avatar_url: agent.avatar_url } : {}) }, { onSuccess: withUpload });
+    else create.mutate({ ...body, ...(upload ? { avatar_url: null } : {}) }, { onSuccess: withUpload });
   };
   const toggle = <T,>(arr: T[], v: T, on: boolean) => (on ? [...arr, v] : arr.filter((x) => x !== v));
   const num = (v: string, fallback: number) => (Number.isFinite(Number(v)) && v !== "" ? Number(v) : fallback);
@@ -196,6 +205,35 @@ function AgentEditor({ agent, onClose }: { agent: AiAgent | null; onClose: () =>
               <Input value={langs} onChange={(e) => setLangs(e.target.value)} />
             </Field>
           </div>
+        </fieldset>
+
+        <fieldset className="flex flex-col gap-3 rounded-lg border border-border p-4">
+          <legend className="px-1 text-[13px] font-semibold">Picture</legend>
+          <div className="flex flex-wrap items-center gap-4">
+            <AgentAvatar url={upload ? null : d.avatar_url} name={d.name} size={72} />
+            <div className="flex flex-col gap-2 text-sm">
+              <div className="flex flex-wrap gap-2">
+                {AGENT_PRESETS.map((p) => (
+                  <Button key={p.key} variant="outline" size="sm" aria-pressed={!upload && d.avatar_url === p.avatar_url} onClick={() => (setUpload(null), setD((x) => ({ ...x, avatar_url: p.avatar_url, avatar_alt: p.avatar_alt })))}>
+                    Use the {p.name} picture
+                  </Button>
+                ))}
+                {(d.avatar_url || upload) && (
+                  <Button variant="ghost" size="sm" onClick={() => (setUpload(null), setD((x) => ({ ...x, avatar_url: null, avatar_alt: "" })))}>
+                    Remove the picture
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-subtle">Without a picture visitors see a drawn animated face.</p>
+            </div>
+          </div>
+          <PictureCropper onChange={setUpload} />
+          <Field label="Description of the picture" hint="Read out by screen readers. Say what the picture shows, for example the person's look. Empty means the agent's name.">
+            <Input value={d.avatar_alt} maxLength={200} onChange={(e) => set("avatar_alt", e.target.value)} />
+          </Field>
+          <p className="rounded-md bg-surface-2 px-3 py-2 text-xs text-muted-foreground" role="note">
+            Only use pictures you have the right to use. A picture of a person on an AI agent is always shown together with the label above ("{d.disclosure_label || "AI assistant"}"): visitors are told they are talking to an AI, and that label cannot be removed. Uploads are PNG, JPEG or WebP up to 1 MB, cropped to a square here, stripped of camera and location data on the server, and shown publicly to your visitors. Aria and vb come with pictures supplied by the owner of this installation.
+          </p>
         </fieldset>
 
         <fieldset className="flex flex-col gap-3 rounded-lg border border-border p-4">
@@ -254,9 +292,10 @@ function AgentEditor({ agent, onClose }: { agent: AiAgent | null; onClose: () =>
 
         <Switch label="Switched on" hint="An agent that is off never talks to visitors." checked={d.enabled} onChange={(on) => set("enabled", on)} />
         {save.isError && <ErrorNotice error={save.error} />}
+        {uploadAvatar.isError && <ErrorNotice error={uploadAvatar.error} />}
         <div className="flex gap-2">
-          <Button type="submit" loading={save.isPending}>
-            {save.isPending ? "Saving…" : "Save agent"}
+          <Button type="submit" loading={save.isPending || uploadAvatar.isPending}>
+            {save.isPending || uploadAvatar.isPending ? "Saving…" : "Save agent"}
           </Button>
           <Button variant="ghost" onClick={onClose}>
             Cancel
@@ -282,6 +321,8 @@ function Agents() {
     create.mutate(DEFAULT_AGENT, { onSuccess: () => setCreatedDefault(true), onError: () => markOffered(false) });
   }, [agents.data, create]);
   const [editing, setEditing] = useState<string | "new" | null>(null);
+  const [preset, setPreset] = useState<AgentPreset | null>(null);
+  const startNew = (p: AgentPreset | null) => (setPreset(p), setEditing("new"));
   const [confirm, setConfirm] = useState<AiAgent | null>(null);
   const data = agents.data ?? [];
   const current = data.find((a) => a.id === editing) ?? null;
@@ -291,7 +332,7 @@ function Agents() {
       title="AI agents"
       description="An agent answers visitors from your knowledge base, collects what your team needs, and hands over to a person when it should. Visitors always know it is an AI and can ask for a person at any time."
       actions={
-        <Button size="sm" disabled={data.length >= MAX_AGENTS} onClick={() => setEditing("new")}>
+        <Button size="sm" disabled={data.length >= MAX_AGENTS} onClick={() => startNew(null)}>
           <Plus aria-hidden="true" /> New agent
         </Button>
       }
@@ -308,7 +349,7 @@ function Agents() {
         </p>
       )}
       {agents.data && data.length === 0 && editing === null && !create.isPending && (
-        <EmptyState icon={Bot} title="No AI agents yet" hint="Add your help-centre answers under Knowledge base first, then create an agent and try it before switching it on." action={<Button onClick={() => setEditing("new")}>New agent</Button>} />
+        <EmptyState icon={Bot} title="No AI agents yet" hint="Add your help-centre answers under Knowledge base first, then create an agent and try it before switching it on." action={<Button onClick={() => startNew(null)}>New agent</Button>} />
       )}
       {data.length > 0 && (
         <RowList>
@@ -327,9 +368,7 @@ function Agents() {
               }
             >
               <div className="flex items-center gap-3">
-                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary-soft text-primary-text">
-                  <Bot className="size-[18px]" aria-hidden="true" />
-                </span>
+                <AgentAvatar url={a.avatar_url} name={a.name} size={36} />
                 <div className="min-w-0">
                   <strong className="block truncate text-sm">{a.name}</strong>
                   <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-muted-foreground">
@@ -348,7 +387,32 @@ function Agents() {
       )}
       {update.isError && <ErrorNotice error={update.error} />}
       {remove.isError && <ErrorNotice error={remove.error} />}
-      {editing !== null && <AgentEditor key={editing} agent={editing === "new" ? null : current} onClose={() => setEditing(null)} />}
+      {editing === "new" && !preset && data.length < MAX_AGENTS && (
+        <div className="flex flex-col gap-2 rounded-lg border border-border p-4" role="group" aria-label="Start from a preset">
+          <p className="text-[13px] font-semibold">Start from a preset</p>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {AGENT_PRESETS.map((p) => (
+              <button key={p.key} type="button" onClick={() => setPreset(p)} className="flex items-center gap-3 rounded-md border border-border p-3 text-left hover:bg-surface-2 focus-visible:ring-2 focus-visible:ring-ring">
+                <AgentAvatar url={p.avatar_url} name={p.name} size={44} />
+                <span className="min-w-0">
+                  <strong className="block text-sm">{p.name}</strong>
+                  <span className="block text-xs text-muted-foreground">{p.tagline}</span>
+                </span>
+              </button>
+            ))}
+            <button type="button" onClick={() => setPreset({ key: "aria", name: "", tagline: "", tone: "friendly", persona: "", greeting: "", avatar_url: "", avatar_alt: "", disclosure_label: "AI assistant" })} className="flex items-center gap-3 rounded-md border border-dashed border-border p-3 text-left hover:bg-surface-2 focus-visible:ring-2 focus-visible:ring-ring">
+              <span className="grid size-11 place-items-center rounded-full bg-surface-2 text-subtle" aria-hidden="true">
+                <Plus className="size-4" />
+              </span>
+              <span>
+                <strong className="block text-sm">Blank</strong>
+                <span className="block text-xs text-muted-foreground">Write it from scratch</span>
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
+      {editing !== null && (editing !== "new" || preset) && <AgentEditor key={`${editing}:${preset?.key ?? ""}:${preset?.name ?? ""}`} preset={preset && preset.name ? preset : null} agent={editing === "new" ? null : current} onClose={() => (setEditing(null), setPreset(null))} />}
       {confirm && <ConfirmDialog title="Delete AI agent" message={`Delete ${confirm.name}? Tickets it is handling go back to your team.`} onCancel={() => setConfirm(null)} onConfirm={() => (remove.mutate(confirm.id), setConfirm(null))} />}
     </SettingsSection>
   );

@@ -104,7 +104,7 @@ describe("what the agent says and does (rules agent)", () => {
     expect(JSON.stringify(bot.meta)).not.toContain("confidence");
     expect(JSON.stringify(bot.meta)).not.toContain("kb_ids");
     const cfg = await w.http.get("/public/widget/config", undefined, w.h());
-    expect(cfg.body.ai).toEqual({ name: "Aria", label: "AI helper", avatar_url: null });
+    expect(cfg.body.ai).toEqual({ name: "Aria", label: "AI helper", avatar_url: null, avatar_alt: "" });
   });
 
   it("asks for details first, then hands over when the knowledge base has nothing, routed to a department with a note and a message", async () => {

@@ -165,8 +165,10 @@ describe("starting", () => {
   it("the video call shows an avatar, says the assistant cannot see the visitor and does not touch the camera", async () => {
     sock.replies["aicall:start"] = () => ({ ok: true, call: { ...CALL, kind: "ai_video" }, ai: AI });
     await started("video");
-    expect(overlay().querySelector("svg.ai-avatar")).not.toBeNull();
-    expect(overlay().querySelector("svg.ai-avatar")!.getAttribute("aria-label")).toBe("Aria, animated AI avatar");
+    expect(overlay().dataset.kind).toBe("video");
+    expect(overlay().querySelector(".face[data-mode=svg] svg")).not.toBeNull(); // no photo for this agent: the drawn face
+    expect(overlay().querySelector(".face")!.getAttribute("aria-label")).toBe("Aria, animated AI avatar (AI assistant)");
+    expect(overlay().querySelector(".face-label")!.textContent).toBe("AI assistant");
     expect(overlay().textContent).toContain("cannot see you");
     expect(overlay().textContent).toContain("not sent anywhere");
     expect(media.calls).toEqual([{ audio: true }]); // no camera
@@ -480,5 +482,156 @@ describe("speech engine details", () => {
     expect(caps()[0]).toContain("Hi, I'm Aria");
     expect(overlay().dataset.phase).toBe("listening");
     c.destroy();
+  });
+});
+
+describe("the face", () => {
+  const Face = Ai.createFace;
+  const mkFace = (o: Record<string, unknown> = {}) => Face(document, window, { name: "Aria", label: "AI assistant", ...o });
+
+  it("is the agent's photo when there is one: never lip-synced, always labelled as an AI, with the alt text for screen readers", () => {
+    const f = mkFace({ photo: "https://pictures.example.test/aria.webp", alt: "Portrait of Aria" });
+    expect(f.mode()).toBe("photo");
+    expect(f.el.querySelector("img")!.getAttribute("src")).toBe("https://pictures.example.test/aria.webp");
+    expect(f.el.querySelector("img")!.getAttribute("alt")).toBe(""); // decorative: the face itself carries the description
+    expect(f.el.getAttribute("role")).toBe("img");
+    expect(f.el.getAttribute("aria-label")).toBe("Portrait of Aria (AI assistant)");
+    expect(f.el.querySelector(".face-label")!.textContent).toBe("AI assistant");
+    expect(f.el.querySelector(".mouth")).toBeNull(); // nothing pretends to be a mouth on a photograph
+    expect(f.el.querySelector("img")!.getAttribute("referrerpolicy")).toBe("no-referrer");
+  });
+
+  it("turns into the drawn face when the picture fails to load, and keeps its label", () => {
+    let failed = 0;
+    const f = mkFace({ photo: "https://pictures.example.test/gone.webp", onPhotoFail: () => failed++ });
+    f.el.querySelector("img")!.dispatchEvent(new Event("error"));
+    expect(f.mode()).toBe("svg");
+    expect(failed).toBe(1);
+    expect(f.el.querySelector("svg .mouth")).not.toBeNull();
+    expect(f.el.querySelector(".face-label")!.textContent).toBe("AI assistant");
+  });
+
+  it("only this app's pictures and https addresses are used as a photo: anything else is the drawn face", async () => {
+    sock.replies["aicall:start"] = () => ({ ok: true, call: CALL, ai: { ...AI, agent: { ...AI.agent, avatar_url: "javascript:alert(1)" } } });
+    await started();
+    expect(overlay().querySelector(".face")!.getAttribute("data-mode")).toBe("svg");
+    ctl.destroy();
+    for (const [url, want] of [["/avatars/aria.webp", "http://chat.test/avatars/aria.webp"], ["https://cdn.example.test/a.png", "https://cdn.example.test/a.png"], ["http://cdn.example.test/a.png", null], ["//evil.test/a.png", null], ["/other/a.png", null]] as const) {
+      const c = mk({ apiBase: "http://chat.test" });
+      c.bind(sock);
+      sock.replies["aicall:start"] = () => ({ ok: true, call: { ...CALL, id: `c-${url}` }, ai: { ...AI, agent: { ...AI.agent, avatar_url: url } } });
+      const p = c.start("voice");
+      await flush();
+      await p;
+      const img = container.querySelector(".aicall .face img");
+      expect(img ? img.getAttribute("src") : null, url).toBe(want);
+      c.destroy();
+    }
+  });
+
+  it("states: listening, thinking, speaking and idle are shown on the face and follow the call", async () => {
+    sock.replies["aicall:start"] = () => ({ ok: true, call: { ...CALL, kind: "ai_video" }, ai: AI });
+    await started("video");
+    const face = () => overlay().querySelector(".face")!.getAttribute("data-state");
+    expect(face()).toBe("speaking"); // the greeting
+    synth.finish();
+    await flush();
+    expect(face()).toBe("listening");
+    sock.replies["aicall:say"] = () => answer("Sure.");
+    await speak("hello there");
+    expect(face()).toBe("speaking");
+    synth.finish();
+    await flush();
+    btn("mute").click();
+    expect(face()).toBe("idle");
+    btn("end").click();
+    await flush();
+    expect(face()).toBe("idle");
+  });
+
+  it("the state machine: events lead to the documented states, unknown input changes nothing", () => {
+    const { faceNext, FACE_STATES } = Ai;
+    expect(faceNext("idle", "listen")).toBe("listening");
+    expect(faceNext("listening", "think")).toBe("thinking");
+    expect(faceNext("thinking", "speak")).toBe("speaking");
+    expect(faceNext("speaking", "end")).toBe("listening");
+    expect(faceNext("speaking", "stop")).toBe("idle");
+    expect(faceNext("speaking", "mute")).toBe("idle");
+    expect(faceNext("speaking", "dance")).toBe("speaking");
+    expect(faceNext("bogus", "dance")).toBe("idle");
+    // any walk over any events stays inside the four states
+    const events = ["listen", "think", "speak", "stop", "mute", "end", "x", ""];
+    let cur = "idle";
+    let seed = 7;
+    for (let i = 0; i < 500; i++) {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      cur = faceNext(cur, events[seed % events.length]);
+      expect(FACE_STATES).toContain(cur);
+    }
+  });
+
+  it("the glow follows the level of the voice: an analyser on the audio when there is one, word-boundary pulses otherwise", () => {
+    const f = mkFace({ photo: "https://pictures.example.test/a.webp" });
+    f.setState("speaking");
+    const lvl = () => Number(f.el.style.getPropertyValue("--lvl"));
+    for (let i = 0; i < 10; i++) f.tick(i * 16);
+    expect(lvl()).toBe(0);
+    f.pulse(0.9);
+    f.tick(200);
+    expect(lvl()).toBeGreaterThan(0.3);
+    for (let i = 0; i < 80; i++) f.tick(300 + i * 16); // it relaxes between words
+    expect(lvl()).toBeLessThan(0.05);
+    // a real analyser: loud samples raise it, silence lowers it
+    let loud = true;
+    f.attachAnalyser({ fftSize: 64, getByteTimeDomainData: (a: Uint8Array) => a.forEach((_, i) => (a[i] = loud ? (i % 2 ? 250 : 5) : 128)) });
+    for (let i = 0; i < 6; i++) f.tick(1000 + i * 16);
+    expect(lvl()).toBeGreaterThan(0.6);
+    loud = false;
+    for (let i = 0; i < 40; i++) f.tick(2000 + i * 16);
+    expect(lvl()).toBeLessThan(0.05);
+    // the level only moves the face while it is speaking
+    loud = true;
+    f.setState("thinking");
+    for (let i = 0; i < 6; i++) f.tick(3000 + i * 16);
+    expect(lvl()).toBe(0);
+  });
+
+  it("the drawn face's mouth follows the voice and it blinks; a photo does neither", () => {
+    const f = mkFace();
+    f.setState("speaking");
+    f.pulse(1);
+    for (let i = 0; i < 4; i++) f.tick(i * 16);
+    expect(Number(f.el.style.getPropertyValue("--mouth"))).toBeGreaterThan(0.5);
+    let blinks = 0;
+    let longest = 0;
+    let since = -1;
+    let was = false;
+    for (let t = 0; t < 30_000; t += 16) {
+      f.tick(t);
+      const on = f.el.classList.contains("blink");
+      if (on && !was) { blinks++; since = t; }
+      if (on) longest = Math.max(longest, t - since);
+      was = on;
+    }
+    expect(blinks).toBeGreaterThanOrEqual(5); // every few seconds
+    expect(longest).toBeLessThan(250); // and each one is brief
+    const p = mkFace({ photo: "https://pictures.example.test/a.webp" });
+    p.setState("speaking");
+    for (let t = 0; t < 30_000; t += 16) {
+      p.tick(t);
+      expect(p.el.classList.contains("blink")).toBe(false);
+    }
+    expect(p.el.style.getPropertyValue("--mouth")).toBe("");
+  });
+
+  it("with reduced motion nothing animates by itself: no animation frames are requested, the state is still shown", () => {
+    const raf = vi.fn();
+    const win = { matchMedia: () => ({ matches: true }), requestAnimationFrame: raf } as unknown as Window;
+    const f = Face(document, win, { name: "Aria", label: "AI assistant" });
+    f.setState("speaking");
+    f.pulse(1);
+    expect(raf).not.toHaveBeenCalled();
+    expect(f.el.getAttribute("data-state")).toBe("speaking");
+    expect(f.el.querySelector(".face-label")!.textContent).toBe("AI assistant");
   });
 });

@@ -10,6 +10,7 @@ import { parseJson } from "../util/json.js";
 import { recordAudit } from "../services/audit.js";
 import { isOpen } from "../services/office.js";
 import { DEFAULT_SENSITIVE_TOPICS } from "./humanRequest.js";
+import { BUNDLED_AVATAR_PATH } from "./presets.js";
 
 /** What an AI agent may do on its own. Everything else is a person's decision; there is no plugin or free-form HTTP tool in v1 (docs/AI-AGENTS.md). */
 export const AGENT_ACTIONS = ["collect_info", "route", "resolve", "quick_replies", "request_human", "schedule_callback", "offer_call", "ai_call"] as const;
@@ -33,11 +34,13 @@ export const HandoffTriggersSchema = z.object({
 export type HandoffTriggers = z.infer<typeof HandoffTriggersSchema>;
 
 const language = z.string().trim().toLowerCase().regex(/^[a-z]{2,3}(-[a-z0-9]{2,8})?$/, "Use a language code such as en or pt-br");
-const url = z.string().trim().url().max(500).refine((u) => /^https?:\/\//i.test(u), "Use an http or https address");
+const url = z.string().trim().max(500).refine((u) => BUNDLED_AVATAR_PATH.test(u) || (/^https?:\/\//i.test(u) && z.url().safeParse(u).success), "Use an http or https address, or one of the bundled pictures");
 
 export const AgentBodySchema = z.object({
   name: z.string().trim().min(1).max(60),
   avatar_url: url.nullable().default(null),
+  /** what a screen reader says about the portrait (empty = the agent's name and label) */
+  avatar_alt: z.string().trim().max(200).default(""),
   persona: z.string().trim().max(2000).default(""),
   tone: z.enum(["friendly", "professional", "concise", "empathetic"]).default("friendly"),
   languages: z.array(language).max(10).default([]),
@@ -57,7 +60,8 @@ export const AgentBodySchema = z.object({
   channels: z.array(z.enum(AGENT_CHANNELS)).min(1).max(1).default(["widget"]),
   enabled: z.boolean().default(false),
 });
-export const AgentPatchSchema = AgentBodySchema.partial();
+/** A patch names only what changes: `.partial()` of the body would fill every field it leaves out with its default (and reset persona, hours, picture...). */
+export const AgentPatchSchema = z.object(Object.fromEntries(Object.entries(AgentBodySchema.shape).map(([k, v]) => [k, (v instanceof z.ZodDefault ? v.removeDefault() : v).optional()]))) as unknown as z.ZodType<Partial<z.infer<typeof AgentBodySchema>>>;
 export type AgentBody = z.infer<typeof AgentBodySchema>;
 
 export interface AgentRow {
@@ -65,6 +69,8 @@ export interface AgentRow {
   workspace_id: string;
   name: string;
   avatar_url: string | null;
+  avatar_key: string | null;
+  avatar_alt: string;
   persona: string;
   tone: AgentBody["tone"];
   languages: string;
@@ -91,6 +97,9 @@ export const agentDto = (a: AgentRow) => ({
   id: a.id,
   name: a.name,
   avatar_url: a.avatar_url,
+  avatar_alt: a.avatar_alt,
+  /** the picture is an upload held by this app (rather than a link to a picture elsewhere) */
+  avatar_uploaded: !!a.avatar_key,
   persona: a.persona,
   tone: a.tone,
   languages: parseJson<string[]>(a.languages, []),
@@ -134,6 +143,7 @@ async function assertDepartments(ctx: AppContext, ws: string, ids: string[]) {
 const toColumns = (b: AgentBody) => [
   b.name,
   b.avatar_url,
+  b.avatar_alt,
   b.persona,
   b.tone,
   JSON.stringify([...new Set(b.languages)]),
@@ -153,7 +163,7 @@ const toColumns = (b: AgentBody) => [
   JSON.stringify([...new Set(b.channels)]),
   b.enabled,
 ];
-const COLS = "name, avatar_url, persona, tone, languages, greeting, department_ids, hours, kb_collections, autonomy, confidence_threshold, coverage_threshold, max_turns, max_attempts, allowed_actions, handoff_triggers, waiting_behavior, disclosure_label, channels, enabled";
+const COLS = "name, avatar_url, avatar_alt, persona, tone, languages, greeting, department_ids, hours, kb_collections, autonomy, confidence_threshold, coverage_threshold, max_turns, max_attempts, allowed_actions, handoff_triggers, waiting_behavior, disclosure_label, channels, enabled";
 
 export async function createAgent(ctx: AppContext, actor: Actor, body: AgentBody): Promise<AgentRow> {
   requireManage(actor);
@@ -172,6 +182,11 @@ export async function updateAgent(ctx: AppContext, actor: Actor, id: string, pat
   const cur = await getAgent(ctx, actor.workspaceId, id);
   if (patch.department_ids) await assertDepartments(ctx, actor.workspaceId, patch.department_ids);
   const merged = AgentBodySchema.parse({ ...agentDtoBody(cur), ...patch });
+  // pointing the picture somewhere else (or clearing it) replaces an upload: the stored file goes away with it
+  if (cur.avatar_key && patch.avatar_url !== undefined && patch.avatar_url !== cur.avatar_url) {
+    await ctx.storage.remove(cur.avatar_key).catch(() => {});
+    await ctx.db.run("UPDATE ai_agents SET avatar_key = NULL WHERE id = ?", id);
+  }
   await ctx.db.run(`UPDATE ai_agents SET ${COLS.split(", ").map((c) => `${c} = ?`).join(", ")}, updated_at = ? WHERE id = ?`, ...toColumns(merged), nowIso(ctx), id);
   await invalidateAgents(ctx, actor.workspaceId);
   await recordAudit(ctx, { workspaceId: actor.workspaceId, actor: { type: "member", id: actor.memberId }, action: "ai_agent.updated", target: id, detail: { fields: Object.keys(patch) } });
@@ -185,7 +200,8 @@ const agentDtoBody = (a: AgentRow): AgentBody => {
 
 export async function deleteAgent(ctx: AppContext, actor: Actor, id: string): Promise<void> {
   requireManage(actor);
-  await getAgent(ctx, actor.workspaceId, id);
+  const gone = await getAgent(ctx, actor.workspaceId, id);
+  if (gone.avatar_key) await ctx.storage.remove(gone.avatar_key).catch(() => {});
   await ctx.db.tx(async () => {
     // tickets the agent was handling go back to people
     await ctx.db.run("UPDATE tickets SET handler = NULL, status = CASE WHEN status = 'bot_handling' THEN 'new' ELSE status END WHERE workspace_id = ? AND handler = ? AND status <> 'closed'", actor.workspaceId, `bot:${id}`);

@@ -143,8 +143,9 @@ export const api = {
   put: <T>(path: string, body?: unknown) => request<T>("PUT", path, { body: body ?? {} }),
   patch: <T>(path: string, body?: unknown) => request<T>("PATCH", path, { body }),
   delete: <T = void>(path: string) => request<T>("DELETE", path),
-  upload: <T>(path: string, file: File | Blob, name?: string) => {
+  upload: <T>(path: string, file: File | Blob, name?: string, fields?: Record<string, string>) => {
     const form = new FormData();
+    for (const [k, v] of Object.entries(fields ?? {})) form.append(k, v);
     form.append("file", file, name ?? (file instanceof File ? file.name : "upload"));
     return request<T>("POST", path, { form });
   },
