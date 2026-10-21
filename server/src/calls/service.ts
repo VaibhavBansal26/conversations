@@ -18,6 +18,7 @@ import { getSettings } from "../services/workspaces.js";
 import { canDo, isLive, next, IllegalTransition, type CallEvent, type CallState } from "./machine.js";
 import { iceConfig, type IceConfig } from "./turn.js";
 import { sweepPhone } from "./phone.js";
+import { sweepAi } from "./aiCall.js";
 
 /**
  * Calls between a team member and a visitor (docs/CALLS.md). This service owns the database row and the thread card; the sockets carry the
@@ -31,8 +32,8 @@ export interface CallRow {
   room_id: string;
   ticket_id: string | null;
   contact_id: string;
-  transport: "webrtc" | "phone";
-  kind: "voice" | "video";
+  transport: "webrtc" | "phone" | "ai";
+  kind: "voice" | "video" | "ai_voice" | "ai_video";
   state: CallState;
   initiated_by: string;
   agent_socket: string | null;
@@ -46,6 +47,9 @@ export interface CallRow {
   message_id: string | null;
   meta: string;
   updated_at: string;
+  ai_agent_id: string | null;
+  engine: string | null;
+  handoff_reason: string | null;
 }
 
 /** seconds a connecting call may take to carry media, and how long a side may be gone (network change) before the call ends */
@@ -66,15 +70,18 @@ export const callDto = (c: CallRow) => ({
   duration_s: c.duration_s,
   ended_by: c.ended_by,
   end_reason: c.end_reason,
+  ai_agent_id: c.ai_agent_id,
+  handoff_reason: c.handoff_reason,
 });
 /** What a visitor may know of a call: no member ids. */
-export const visitorCallDto = (c: CallRow, agentName: string) => ({ id: c.id, room_id: c.room_id, transport: c.transport, kind: c.kind, state: c.state, duration_s: c.duration_s, ended_by: c.ended_by, end_reason: c.end_reason, agent_name: agentName });
+export const visitorCallDto = (c: CallRow, agentName: string) => ({ id: c.id, room_id: c.room_id, transport: c.transport, kind: c.kind, state: c.state, duration_s: c.duration_s, ended_by: c.ended_by, end_reason: c.end_reason, agent_name: agentName, ...(c.transport === "ai" ? { handoff_reason: c.handoff_reason } : {}) });
 
 const getCall = async (ctx: AppContext, id: string): Promise<CallRow> => {
   const c = await ctx.db.get<CallRow>("SELECT * FROM calls WHERE id = ?", id);
   if (!c) throw notFound("Call");
   return c;
 };
+const aiNameOf = (c: CallRow): string => parseJson<{ agent_name?: string }>(c.meta, {}).agent_name ?? "AI assistant";
 const nameOf = async (ctx: AppContext, ws: string, memberId: string): Promise<string> => (await ctx.db.get<{ name: string }>("SELECT u.name AS name FROM members m JOIN users u ON u.id = m.user_id WHERE m.id = ? AND m.workspace_id = ?", memberId, ws))?.name.split(" ")[0] ?? "Our team";
 
 export async function callSettings(ctx: AppContext, ws: string) {
@@ -83,9 +90,17 @@ export async function callSettings(ctx: AppContext, ws: string) {
 
 /* ---------- the card in the thread ---------- */
 
-const KIND_LABEL = { voice: "Voice call", video: "Video call" } as const;
-export function cardText(c: Pick<CallRow, "kind" | "state" | "duration_s" | "ended_by" | "end_reason"> & { transport?: "webrtc" | "phone" }): string {
+const KIND_LABEL = { voice: "Voice call", video: "Video call", ai_voice: "AI voice call", ai_video: "AI video call (avatar)" } as const;
+const AI_END: Record<string, string> = { handoff: "handed to a person", taken_over: "a person took over", idle: "ended after silence", max_duration: "reached the time limit", resolved: "resolved", silence: "ended after silence", unsupported: "ended: speech is not available in this browser", error: "ended after an error" };
+export function cardText(c: Pick<CallRow, "kind" | "state" | "duration_s" | "ended_by" | "end_reason"> & { transport?: "webrtc" | "phone" | "ai" }): string {
   const k = c.transport === "phone" ? "Phone call" : KIND_LABEL[c.kind];
+  if (c.transport === "ai" && c.state !== "active") {
+    const secs = c.duration_s ?? 0;
+    const dur = secs < 60 ? `${secs} s` : `${Math.max(1, Math.round(secs / 60))} min`;
+    if (c.state === "failed") return `${k} failed`;
+    const why = (c.end_reason && AI_END[c.end_reason]) ?? `ended by ${c.ended_by === "visitor" ? "the visitor" : "the system"}`;
+    return `${k}, ${dur}, ${why}`;
+  }
   switch (c.state) {
     case "ringing":
       return c.transport === "phone" ? `${k}: calling the agent's phone` : `${k}: ringing`;
@@ -121,7 +136,7 @@ async function postCard(ctx: AppContext, room: RoomRow, c: CallRow): Promise<str
     source: "dm",
     content: cardText(c),
     contentText: cardText(c),
-    meta: { sub_type: "call", call: { id: c.id, kind: c.kind, state: c.state, duration_s: c.duration_s, ended_by: c.ended_by } },
+    meta: { sub_type: "call", call: { id: c.id, kind: c.kind, transport: c.transport, state: c.state, duration_s: c.duration_s, ended_by: c.ended_by } },
   });
   await emitInserted(ctx, r);
   return r.message.id;
@@ -131,14 +146,14 @@ async function updateCard(ctx: AppContext, c: CallRow): Promise<void> {
   const m = await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE id = ? AND room_id = ?", c.message_id, c.room_id);
   if (!m) return;
   const text = cardText(c);
-  await ctx.db.run("UPDATE messages SET content = ?, content_text = ?, meta = ? WHERE id = ? AND room_id = ?", text, text, JSON.stringify({ sub_type: "call", call: { id: c.id, kind: c.kind, state: c.state, duration_s: c.duration_s, ended_by: c.ended_by } }), m.id, m.room_id);
+  await ctx.db.run("UPDATE messages SET content = ?, content_text = ?, meta = ? WHERE id = ? AND room_id = ?", text, text, JSON.stringify({ sub_type: "call", call: { id: c.id, kind: c.kind, transport: c.transport, state: c.state, duration_s: c.duration_s, ended_by: c.ended_by } }), m.id, m.room_id);
   const fresh = (await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE id = ? AND room_id = ?", m.id, m.room_id))!;
   await emitMessage(ctx, await getRoomRow(ctx, c.workspace_id, c.room_id), fresh, "message:updated");
 }
 
 /** Tell everybody who may see the room (team) and the visitor that the state changed. Never carries signalling. */
 export async function publish(ctx: AppContext, c: CallRow): Promise<void> {
-  const agentName = await nameOf(ctx, c.workspace_id, c.initiated_by);
+  const agentName = c.transport === "ai" ? aiNameOf(c) : await nameOf(ctx, c.workspace_id, c.initiated_by);
   ctx.bus.toRoom(c.workspace_id, c.room_id, "call:state", { call: callDto(c) }, { visitor: { call: visitorCallDto(c, agentName) } });
 }
 
@@ -149,6 +164,7 @@ export interface Patch {
   visitor_socket?: string | null;
   ended_by?: string;
   end_reason?: string;
+  handoff_reason?: string;
 }
 
 /** Move a call by one event with a compare-and-set on its current state. Throws IllegalTransition (as 409) when the call already moved. */
@@ -174,13 +190,14 @@ async function step(ctx: AppContext, c: CallRow, event: CallEvent, patch: Patch 
   const duration = final ? (answered ? Math.max(0, Math.round((Date.parse(now) - Date.parse(answered)) / 1000)) : 0) : null;
   const row = await ctx.db.get<CallRow>(
     `UPDATE calls SET state = ?, answered_at = ?, ended_at = ?, duration_s = ?, ended_by = COALESCE(?, ended_by), end_reason = COALESCE(?, end_reason),
-       agent_socket = ?, visitor_socket = ?, updated_at = ? WHERE id = ? AND state = ? RETURNING *`,
+       handoff_reason = COALESCE(?, handoff_reason), agent_socket = ?, visitor_socket = ?, updated_at = ? WHERE id = ? AND state = ? RETURNING *`,
     to,
     answered,
     final ? now : null,
     duration,
     patch.ended_by ?? null,
     patch.end_reason ?? null,
+    patch.handoff_reason ?? null,
     patch.agent_socket === undefined ? c.agent_socket : patch.agent_socket,
     patch.visitor_socket === undefined ? c.visitor_socket : patch.visitor_socket,
     now,
@@ -201,8 +218,10 @@ const asAppError = (e: unknown): never => {
 
 async function afterCall(ctx: AppContext, c: CallRow): Promise<void> {
   const ticket = c.ticket_id ? await ctx.db.get<import("../services/tickets.js").TicketRow>("SELECT * FROM tickets WHERE id = ?", c.ticket_id) : undefined;
-  if (ticket) await recordTicketEvent(ctx, ticket, c.state === "ended" ? "call_ended" : `call_${c.state}`, { type: "member", id: c.initiated_by }, { call_id: c.id, kind: c.transport === "phone" ? "phone" : c.kind, duration_s: c.duration_s, reason: c.end_reason });
-  await recordAudit(ctx, { workspaceId: c.workspace_id, actor: { type: "member", id: c.initiated_by }, action: `call.${c.state}`, target: c.id, detail: { room_id: c.room_id, kind: c.kind, transport: c.transport, duration_s: c.duration_s, reason: c.end_reason } });
+  const who = c.transport === "ai" ? ({ type: "bot", id: c.ai_agent_id ?? "" } as const) : ({ type: "member", id: c.initiated_by } as const);
+  if (c.transport === "ai") await ctx.ratelimit.release("ai.concurrency", c.workspace_id, c.id).catch(() => {});
+  if (ticket) await recordTicketEvent(ctx, ticket, c.state === "ended" ? "call_ended" : `call_${c.state}`, who, { call_id: c.id, kind: c.transport === "phone" ? "phone" : c.kind, duration_s: c.duration_s, reason: c.end_reason, ...(c.handoff_reason ? { handoff_reason: c.handoff_reason } : {}) });
+  await recordAudit(ctx, { workspaceId: c.workspace_id, actor: c.transport === "ai" ? { type: "system" } : { type: "member", id: c.initiated_by }, action: `call.${c.state}`, target: c.id, detail: { room_id: c.room_id, kind: c.kind, transport: c.transport, duration_s: c.duration_s, reason: c.end_reason } });
   // a call nobody took leaves a way to reach the visitor: the callback form
   if ((c.state === "missed" || c.state === "declined") && ticket && c.transport === "webrtc") {
     await requestVisitorInfo(ctx, ticket.id, "callback", { text: c.state === "missed" ? "Sorry we missed each other. Leave a number and we will call you back." : "No problem. If you would like us to call you back later, leave a number." }).catch(() => null);
@@ -343,6 +362,7 @@ export async function relaySignal(ctx: AppContext, who: { actor?: Actor; session
 export async function resumeCall(ctx: AppContext, who: { actor?: Actor; session?: SessionRow }, socketId: string, callId: string): Promise<CallStart> {
   const c = await participantCall(ctx, who, callId);
   if (!isLive(c.state)) throw new AppError(409, "CALL_STATE", `The call is ${c.state}`, { state: c.state });
+  if (c.transport === "ai" && who.actor) throw new AppError(403, "NOT_YOUR_CALL", "A call with the AI assistant belongs to the visitor");
   const meta = parseJson<Record<string, unknown>>(c.meta, {});
   const side = who.actor ? "agent" : "visitor";
   const gone = { ...(meta.gone as Record<string, string> | undefined) };
@@ -352,6 +372,8 @@ export async function resumeCall(ctx: AppContext, who: { actor?: Actor; session?
   if (!row) throw new AppError(409, "CALL_STATE_CHANGED", "The call has already ended");
   const peer = who.actor ? row.visitor_socket : row.agent_socket;
   if (peer) ctx.bus.toSocket(row.workspace_id, peer, "call:peer", { call_id: row.id, event: "resumed" });
+  // a call with the AI has no media connection to restart: the visitor's browser only needs its socket bound again
+  if (row.transport === "ai") return { call: callDto(row), ice: { provider: "none", iceServers: [], expiresAt: null, warning: null } };
   const s = await callSettings(ctx, row.workspace_id);
   return { call: callDto(row), ice: await iceConfig(ctx, row.workspace_id, s.turn_provider, row.id) };
 }
@@ -424,6 +446,11 @@ export async function sweepCalls(ctx: AppContext): Promise<{ missed: number; fai
     try {
       if (c.transport === "phone") {
         if ((await sweepPhone(ctx, c)) === "ended") out.failed++;
+        continue;
+      }
+      if (c.transport === "ai") {
+        const r = await sweepAi(ctx, c);
+        if (r) out.ended++;
         continue;
       }
       if (c.state === "ringing") {

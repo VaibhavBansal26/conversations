@@ -1145,6 +1145,40 @@
                               "twilio"
                             ]
                           },
+                          "ai": {
+                            "type": "object",
+                            "properties": {
+                              "enabled": {
+                                "type": "boolean"
+                              },
+                              "voice": {
+                                "type": "boolean"
+                              },
+                              "video": {
+                                "type": "boolean"
+                              },
+                              "max_duration_s": {
+                                "type": "integer",
+                                "minimum": 60,
+                                "maximum": 1800
+                              },
+                              "idle_timeout_s": {
+                                "type": "integer",
+                                "minimum": 30,
+                                "maximum": 600
+                              },
+                              "max_concurrent": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 20
+                              },
+                              "daily_limit": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 1000
+                              }
+                            }
+                          },
                           "phone": {
                             "type": "object",
                             "properties": {
@@ -5816,6 +5850,40 @@
                       "twilio"
                     ]
                   },
+                  "ai": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean"
+                      },
+                      "voice": {
+                        "type": "boolean"
+                      },
+                      "video": {
+                        "type": "boolean"
+                      },
+                      "max_duration_s": {
+                        "type": "integer",
+                        "minimum": 60,
+                        "maximum": 1800
+                      },
+                      "idle_timeout_s": {
+                        "type": "integer",
+                        "minimum": 30,
+                        "maximum": 600
+                      },
+                      "max_concurrent": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 20
+                      },
+                      "daily_limit": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1000
+                      }
+                    }
+                  },
                   "phone": {
                     "type": "object",
                     "properties": {
@@ -7241,9 +7309,10 @@
                       "quick_replies",
                       "request_human",
                       "schedule_callback",
-                      "offer_call"
+                      "offer_call",
+                      "ai_call"
                     ],
-                    "maxItems": 7,
+                    "maxItems": 8,
                     "type": "array",
                     "items": {
                       "type": "string",
@@ -7254,7 +7323,8 @@
                         "quick_replies",
                         "request_human",
                         "schedule_callback",
-                        "offer_call"
+                        "offer_call",
+                        "ai_call"
                       ]
                     }
                   },
@@ -7966,9 +8036,10 @@
                       "quick_replies",
                       "request_human",
                       "schedule_callback",
-                      "offer_call"
+                      "offer_call",
+                      "ai_call"
                     ],
-                    "maxItems": 7,
+                    "maxItems": 8,
                     "type": "array",
                     "items": {
                       "type": "string",
@@ -7979,7 +8050,8 @@
                         "quick_replies",
                         "request_human",
                         "schedule_callback",
-                        "offer_call"
+                        "offer_call",
+                        "ai_call"
                       ]
                     }
                   },

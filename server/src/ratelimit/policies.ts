@@ -70,6 +70,8 @@ export const POLICIES: Policy[] = [
   P({ id: "ai.concurrency", description: "Concurrent AI calls per workspace", keyBy: "workspace", algo: "concurrency", limit: 4, windowSec: 60, ttlMs: 60_000, onFail: "open" }),
 
   // ---- phone calls (click-to-call costs money: every limit fails closed) ----
+  P({ id: "calls.ai.visitor", description: "Calls with the AI assistant a visitor may start per hour (spend guard; the workspace's daily limit is a setting)", keyBy: "composite", algo: "window", limit: 6, windowSec: 3600, onFail: "closed" }),
+  P({ id: "calls.ai.say", description: "Things a visitor says to the AI assistant in a call, per visitor (20 a minute, bursts of 8): each one is a model turn", keyBy: "composite", algo: "gcra", limit: 20, windowSec: 60, burst: 8, onFail: "open" }),
   P({ id: "calls.phone.agent", description: "Phone calls a team member may place per hour (spend guard; the workspace's daily limit is a setting)", keyBy: "composite", algo: "window", limit: 10, windowSec: 3600, onFail: "closed" }),
 
   // ---- analytics API (API keys) ----

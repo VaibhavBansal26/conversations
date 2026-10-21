@@ -411,14 +411,14 @@ async function saveCounters(ctx: AppContext, ticketId: string, patch: Partial<Bo
   await ctx.db.run("UPDATE tickets SET meta = ? WHERE id = ?", JSON.stringify({ ...meta, bot }), ticketId);
 }
 
-const agentMeta = (a: AgentDto) => ({ id: a.id, name: a.name, label: a.disclosure_label, avatar_url: a.avatar_url });
+export const agentMeta = (a: AgentDto) => ({ id: a.id, name: a.name, label: a.disclosure_label, avatar_url: a.avatar_url });
 
 function typing(ctx: AppContext, room: RoomRow, a: AgentDto, on: boolean) {
   const who = { type: "agent", id: "bot", name: a.name };
   ctx.bus.toRoom(room.workspace_id, room.id, "typing", { room_id: room.id, typing: on, who }, { visitor: { room_id: room.id, typing: on, who: { type: "agent", name: a.name } } });
 }
 
-async function postBot(ctx: AppContext, room: RoomRow, a: AgentDto, text: string, meta: Record<string, unknown>, kind: "text" | "note" = "text"): Promise<MessageRow> {
+export async function postBot(ctx: AppContext, room: RoomRow, a: AgentDto, text: string, meta: Record<string, unknown>, kind: "text" | "note" = "text"): Promise<MessageRow> {
   const r = await insertMessage(ctx, {
     workspaceId: room.workspace_id,
     roomId: room.id,
@@ -446,6 +446,21 @@ export const QUICK_REPLY_SOLVED = {
   ],
 } as const;
 
+/** What one turn did, for callers that need the answer itself (the AI call speaks it). Filled by `applyDecision`. */
+export interface TurnCapture {
+  decision?: Decision;
+  outcome?: "posted" | "handoff" | "aborted" | "resolved" | "none";
+  messageId?: string | null;
+}
+
+/** The ticket is the agent's: mark it (once), stop the first-response clock, remember which agent. */
+export async function assignBot(ctx: AppContext, live: TicketRow, a: Pick<AgentDto, "id" | "name">): Promise<void> {
+  if (live.handler !== `bot:${a.id}` || live.status === "new") {
+    await ctx.db.run("UPDATE tickets SET handler = ?, status = CASE WHEN status IN ('new','bot_handling') THEN 'bot_handling' ELSE status END, sla_first_response_due_at = CASE WHEN handoff_at IS NULL THEN NULL ELSE sla_first_response_due_at END, updated_at = ? WHERE id = ?", `bot:${a.id}`, nowIso(ctx), live.id);
+    await recordTicketEvent(ctx, live, "bot_assigned", { type: "bot", id: a.id }, { agent: a.name });
+  }
+}
+
 export interface ApplyInput {
   room: RoomRow;
   ticket: TicketRow;
@@ -454,6 +469,8 @@ export interface ApplyInput {
   trigger: MessageRow | null;
   query: string;
   departments: DepartmentChoice[];
+  /** the caller wants to know what happened (the AI call) */
+  capture?: TurnCapture;
 }
 
 /** The ticket is still the agent's to work: nobody took it over, nothing ended it, while the model was thinking. */
@@ -518,6 +535,15 @@ async function summaryNote(ctx: AppContext, i: ApplyInput): Promise<string> {
  * bot says nothing.
  */
 export async function applyDecision(ctx: AppContext, i: ApplyInput): Promise<"posted" | "handoff" | "aborted" | "resolved"> {
+  const out = await applyDecisionInner(ctx, i);
+  if (i.capture) {
+    i.capture.decision = i.decision;
+    i.capture.outcome = out;
+  }
+  return out;
+}
+
+async function applyDecisionInner(ctx: AppContext, i: ApplyInput): Promise<"posted" | "handoff" | "aborted" | "resolved"> {
   const a = agentDto(i.agentRow);
   const d = i.decision;
   const live = await stillMine(ctx, i.ticket.id, a.id);
@@ -525,11 +551,7 @@ export async function applyDecision(ctx: AppContext, i: ApplyInput): Promise<"po
   const counters = botCounters(live);
   const ws = i.room.workspace_id;
 
-  // the ticket is the agent's: mark it (once), stop the first-response clock, remember which agent
-  if (live.handler !== `bot:${a.id}` || live.status === "new") {
-    await ctx.db.run("UPDATE tickets SET handler = ?, status = CASE WHEN status IN ('new','bot_handling') THEN 'bot_handling' ELSE status END, sla_first_response_due_at = CASE WHEN handoff_at IS NULL THEN NULL ELSE sla_first_response_due_at END, updated_at = ? WHERE id = ?", `bot:${a.id}`, nowIso(ctx), live.id);
-    await recordTicketEvent(ctx, live, "bot_assigned", { type: "bot", id: a.id }, { agent: a.name });
-  }
+  await assignBot(ctx, live, a);
   if (d.subject && live.subject_set_by === "auto" && counters.turns === 0) {
     await ctx.db.run("UPDATE tickets SET subject = ? WHERE id = ? AND subject_set_by = 'auto'", d.subject.slice(0, 120), live.id);
   }
@@ -554,6 +576,7 @@ export async function applyDecision(ctx: AppContext, i: ApplyInput): Promise<"po
     const card = d.kind === "answer" && d.quickReplies ? { card: QUICK_REPLY_SOLVED } : {};
     const msg = await postBot(ctx, i.room, a, d.text, { confidence: d.confidence, kb_ids: d.sources.map((s) => s.id), sources: d.sources.filter((s) => s.url).map((s) => ({ title: s.question, url: s.url })), ...card });
     typing(ctx, i.room, a, false);
+    if (i.capture) i.capture.messageId = msg.id;
     if (d.kind === "clarify") next.attempts = counters.attempts + 1;
     if (d.kind === "refuse") next.refusals = counters.refusals + 1;
     if (d.kind === "answer") next.attempts = 0;
@@ -644,14 +667,15 @@ function routeHandoff(d: Decision, t: TurnInput, cfg: AgentDto): Decision {
 /** Run one turn for `message` if an AI agent works this conversation. 'handled' = skip the old auto-responder, notifications and away message. */
 export async function handleCustomerMessage(ctx: AppContext, room: RoomRow, message: MessageRow, opts: { provider?: AiProvider } = {}): Promise<"handled" | "none"> {
   if (message.sender_type !== "contact" || message.source !== "dm") return "none";
-  const meta = parseJson<{ quick_reply?: unknown; human_request?: unknown; form_submission?: unknown }>(message.meta, {});
-  // messages the server wrote for the visitor (a tap, "talk to a person", a submitted form) are acted on by their own handler, not answered
-  if (meta.quick_reply || meta.human_request || meta.form_submission) return "handled";
+  const meta = parseJson<{ quick_reply?: unknown; human_request?: unknown; form_submission?: unknown; call_utterance?: unknown; ai_call?: unknown }>(message.meta, {});
+  // messages the server wrote for the visitor (a tap, "talk to a person", a submitted form) are acted on by their own handler, not answered;
+  // what is said in an AI call is answered by the call itself (it needs the answer in its own reply), and the call's first line only opens the ticket
+  if (meta.quick_reply || meta.human_request || meta.form_submission || meta.call_utterance || meta.ai_call) return "handled";
   return handleAgentTurn(ctx, room, message, opts);
 }
 
 /** The turn itself (also run after "Not quite", which has its own handler and needs `dissatisfied`). */
-export async function handleAgentTurn(ctx: AppContext, room: RoomRow, message: MessageRow, opts: { provider?: AiProvider; dissatisfied?: boolean } = {}): Promise<"handled" | "none"> {
+export async function handleAgentTurn(ctx: AppContext, room: RoomRow, message: MessageRow, opts: { provider?: AiProvider; dissatisfied?: boolean; capture?: TurnCapture } = {}): Promise<"handled" | "none"> {
   const ticket = await liveTicketOf(ctx, room.id);
   if (!ticket || ticket.status === "resolved") return "none";
   const sel = await selectAgent(ctx, room.workspace_id, { channel: "widget", departmentId: ticket.department_id ?? room.inbox_id });
@@ -673,7 +697,7 @@ export async function handleAgentTurn(ctx: AppContext, room: RoomRow, message: M
   return lock();
 }
 
-async function turn(ctx: AppContext, room: RoomRow, message: MessageRow, agentRow: AgentRow, opts: { provider?: AiProvider; dissatisfied?: boolean }): Promise<"handled" | "none"> {
+async function turn(ctx: AppContext, room: RoomRow, message: MessageRow, agentRow: AgentRow, opts: { provider?: AiProvider; dissatisfied?: boolean; capture?: TurnCapture }): Promise<"handled" | "none"> {
   const ticket = await stillMine(ctx, (await liveTicketOf(ctx, room.id))?.id ?? "", agentRow.id);
   if (!ticket) return "none";
   // a newer visitor message is already waiting: its own turn answers both
@@ -709,6 +733,6 @@ async function turn(ctx: AppContext, room: RoomRow, message: MessageRow, agentRo
   if (cfg.autonomy === "suggest_only" && (decision.kind === "answer" || decision.kind === "clarify")) {
     decision = { ...decision, kind: "suggest", handoff: { reason: "suggest_only", departmentId: null, skills: [] } };
   }
-  await applyDecision(ctx, { room: fresh, ticket, agentRow, decision, trigger: message, query: message.content_text, departments });
+  await applyDecision(ctx, { room: fresh, ticket, agentRow, decision, trigger: message, query: message.content_text, departments, capture: opts.capture });
   return "handled";
 }

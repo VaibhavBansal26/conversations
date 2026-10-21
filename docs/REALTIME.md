@@ -38,6 +38,10 @@ Every event is acknowledged: `{ok: true, ...}` or `{ok: false, error: {code, mes
 | `presence:list` | team | `members:read` | 1 | none |
 | `call:invite` | team | `calls:make` | 5 | `room_id*`, `kind*` |
 | `call:request` | visitor | visitor session | 5 | `room_id*`, `kind*` |
+| `aicall:start` | visitor | visitor session | 5 | `room_id*`, `kind*`, `locale`, `speech` |
+| `aicall:say` | visitor | visitor session | 2 | `call_id*`, `text*`, `seq*`, `via` |
+| `aicall:end` | visitor | visitor session | 2 | `call_id*`, `reason` |
+| `aicall:handoff` | visitor | visitor session | 5 | `call_id*` |
 | `call:accept` | visitor | visitor session | 2 | `call_id*` |
 | `call:decline` | visitor | visitor session | 2 | `call_id*` |
 | `call:end` | team, visitor | `calls:make` | 2 | `call_id*` |
@@ -72,6 +76,7 @@ Internal chat between workspace members uses the same namespace and the same aut
 | `room:deleted` | members who lost it | `{room_id}` | archived or no longer visible |
 | `ticket:updated` | room audience (visitor gets a minimal copy) | `{ticket}` / visitor `{room_id, ticket: {id, number, status, resolved, csat_pending}}` | a ticket opened, was answered, taken over, resolved, rated, reopened, merged or closed |
 | `call:state` | room audience (the visitor gets `{call: {id, room_id, kind, state, duration_s, ended_by, end_reason, agent_name}}`) | `{call}` | a call rang, connected, ended, was missed, declined or failed ([CALLS.md](CALLS.md)); never carries signalling |
+| `call:state` (AI call) | as above | `{call}` with `transport: "ai"`, `kind: ai_voice\|ai_video`, `ai_agent_id`, `handoff_reason` for the team; the visitor copy has `agent_name` (the AI agent's name) and `handoff_reason` | a call with the AI assistant started, ended, was handed to a person or timed out ([CALLS.md](CALLS.md#calls-with-the-ai-assistant)) |
 | `call:offer`, `call:answer`, `call:ice` | one socket: the other party of the call | `{call_id, data}` | WebRTC signalling relayed to the other side's bound socket and to nobody else |
 | `call:peer` | one socket: the other party | `{call_id, event: lost\|resumed}` | the other side's connection dropped or came back (restart ICE on `resumed`) |
 | `room:unread` | the member | `{room_id, unread_count}` | unread count changed |

@@ -18,6 +18,10 @@ export const PAYLOADS: Record<string, z.ZodType | null> = {
   "presence:list": null,
   "call:invite": S.CallInviteBody,
   "call:request": S.CallRequestBody,
+  "aicall:start": S.AiCallStartBody,
+  "aicall:say": S.AiCallSayBody,
+  "aicall:end": S.AiCallEndBody,
+  "aicall:handoff": S.CallIdBody,
   "call:accept": S.CallIdBody,
   "call:decline": S.CallIdBody,
   "call:end": S.CallIdBody,
@@ -32,7 +36,7 @@ export const PAYLOADS: Record<string, z.ZodType | null> = {
   "team:read": S.TeamSocketRead,
   "team:reaction": S.TeamSocketReaction,
 };
-const WHO: Record<string, string> = { "message:send": "team, visitor", "message:read": "team, visitor", "room:create": "team, visitor", "room:update": "team", "room:assign": "team", typing: "team, visitor", "otp:verify": "visitor", "presence:list": "team", "call:invite": "team", "call:request": "visitor", "call:accept": "visitor", "call:decline": "visitor", "call:end": "team, visitor", "call:connected": "team, visitor", "call:failed": "team, visitor", "call:resume": "team, visitor", "call:offer": "team, visitor", "call:answer": "team, visitor", "call:ice": "team, visitor", "team:message:send": "team", "team:typing": "team", "team:read": "team", "team:reaction": "team" };
+const WHO: Record<string, string> = { "message:send": "team, visitor", "message:read": "team, visitor", "room:create": "team, visitor", "room:update": "team", "room:assign": "team", typing: "team, visitor", "otp:verify": "visitor", "presence:list": "team", "call:invite": "team", "call:request": "visitor", "aicall:start": "visitor", "aicall:say": "visitor", "aicall:end": "visitor", "aicall:handoff": "visitor", "call:accept": "visitor", "call:decline": "visitor", "call:end": "team, visitor", "call:connected": "team, visitor", "call:failed": "team, visitor", "call:resume": "team, visitor", "call:offer": "team, visitor", "call:answer": "team, visitor", "call:ice": "team, visitor", "team:message:send": "team", "team:typing": "team", "team:read": "team", "team:reaction": "team" };
 
 const fields = (s: z.ZodType | null) => {
   if (!s) return "none";

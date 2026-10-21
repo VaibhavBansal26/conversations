@@ -12,7 +12,7 @@ import { isOpen } from "../services/office.js";
 import { DEFAULT_SENSITIVE_TOPICS } from "./humanRequest.js";
 
 /** What an AI agent may do on its own. Everything else is a person's decision; there is no plugin or free-form HTTP tool in v1 (docs/AI-AGENTS.md). */
-export const AGENT_ACTIONS = ["collect_info", "route", "resolve", "quick_replies", "request_human", "schedule_callback", "offer_call"] as const;
+export const AGENT_ACTIONS = ["collect_info", "route", "resolve", "quick_replies", "request_human", "schedule_callback", "offer_call", "ai_call"] as const;
 export type AgentAction = (typeof AGENT_ACTIONS)[number];
 /** Chat (the widget and the hosted page). SMS and email replies would go through the delivery pipeline and its credits: not built in v1. */
 export const AGENT_CHANNELS = ["widget"] as const;
@@ -50,7 +50,7 @@ export const AgentBodySchema = z.object({
   coverage_threshold: z.number().min(0).max(1).default(0.5),
   max_turns: z.number().int().min(1).max(30).default(6),
   max_attempts: z.number().int().min(1).max(10).default(2),
-  allowed_actions: z.array(z.enum(AGENT_ACTIONS)).max(7).default([...AGENT_ACTIONS]),
+  allowed_actions: z.array(z.enum(AGENT_ACTIONS)).max(8).default([...AGENT_ACTIONS]),
   handoff_triggers: HandoffTriggersSchema.default(() => HandoffTriggersSchema.parse({})),
   waiting_behavior: z.enum(["silent", "gather_info"]).default("gather_info"),
   disclosure_label: z.string().trim().min(2).max(40).default("AI assistant"),

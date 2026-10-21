@@ -1,3 +1,4 @@
+import { aiCallAvailability } from "../calls/aiCall.js";
 import { FormSubmission, skipContactForm, submitContactForm } from "../services/visitorInfo.js";
 import { Hono } from "hono";
 import type { Context } from "hono";
@@ -83,7 +84,7 @@ export function publicRoutes(ctx: AppContext) {
       office_open: isOpen(widget.office_hours, ctx.clock()),
       live_routing_inboxes: inboxes,
       ai,
-      calls: { browser: { enabled: settings.calls.browser.enabled, voice: settings.calls.browser.voice, video: settings.calls.browser.video } },
+      calls: { browser: { enabled: settings.calls.browser.enabled, voice: settings.calls.browser.voice, video: settings.calls.browser.video }, ai: await aiCallAvailability(ctx, ws.id, widget.default_inbox_id) },
       departments,
       agents_available: agents.length,
       agents: agents.slice(0, 3),

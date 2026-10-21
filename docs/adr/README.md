@@ -34,3 +34,4 @@ Short records of decisions that shaped the system. Add one when you make a decis
 * [0030](./0030-forms-in-the-thread.md) Details are collected with form cards in the thread, and never merge contacts
 * [0031](./0031-calls-signalling-over-sockets.md) Calls: signalling over the existing sockets, a pure state machine, and the database as arbiter
 * [0032](./0032-phone-calls-through-the-workspaces-twilio.md) Phone calls: the workspace's own Twilio, agent first, consent before the first ring
+* [0033](./0033-ai-calls-browser-speech.md) Calls with the AI agent: the visitor's browser does the speech, the server only sees text

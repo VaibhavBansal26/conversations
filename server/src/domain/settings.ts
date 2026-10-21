@@ -103,6 +103,23 @@ export const CallSettingsSchema = z.object({
         .default(() => ({ enabled: true, start: "21:00", end: "08:00" })),
     })
     .default(() => ({ enabled: false, caller_id: null, daily_limit: 50, allowed_countries: [], max_duration_s: 1800, quiet_hours: { enabled: true, start: "21:00", end: "08:00" } })),
+  /** calls with the AI agent (ADR 0033): off until a manager switches them on. The visitor's browser does the speech; no audio reaches this server and nothing is recorded. */
+  ai: z
+    .object({
+      enabled: z.boolean().default(false),
+      voice: z.boolean().default(true),
+      /** "video" with the AI is an animated avatar: the visitor's camera is never sent anywhere */
+      video: z.boolean().default(true),
+      /** hard limit of one call */
+      max_duration_s: z.number().int().min(60).max(1800).default(600),
+      /** a call with no speech for this long ends */
+      idle_timeout_s: z.number().int().min(30).max(600).default(120),
+      /** calls with the AI at the same time in this workspace (also bounded by the ai.concurrency policy) */
+      max_concurrent: z.number().int().min(1).max(20).default(3),
+      /** AI calls started per workspace per UTC day (spend guard) */
+      daily_limit: z.number().int().min(1).max(1000).default(100),
+    })
+    .default(() => ({ enabled: false, voice: true, video: true, max_duration_s: 600, idle_timeout_s: 120, max_concurrent: 3, daily_limit: 100 })),
   /** how long a call rings before it counts as missed */
   ring_seconds: z.number().int().min(15).max(120).default(45),
   /** where relay (TURN) credentials come from: none = STUN only (calls fail behind strict NATs), static = the server's TURN_URLS and TURN_SECRET, twilio = the workspace's own Twilio account */
@@ -114,6 +131,18 @@ export const CallsPatchSchema = z.object({
   browser: z.object({ enabled: z.boolean(), voice: z.boolean(), video: z.boolean(), screen_share: z.boolean() }).partial().optional(),
   ring_seconds: z.number().int().min(15).max(120).optional(),
   turn_provider: z.enum(["none", "static", "twilio"]).optional(),
+  ai: z
+    .object({
+      enabled: z.boolean(),
+      voice: z.boolean(),
+      video: z.boolean(),
+      max_duration_s: z.number().int().min(60).max(1800),
+      idle_timeout_s: z.number().int().min(30).max(600),
+      max_concurrent: z.number().int().min(1).max(20),
+      daily_limit: z.number().int().min(1).max(1000),
+    })
+    .partial()
+    .optional(),
   phone: z
     .object({
       enabled: z.boolean(),
@@ -227,7 +256,7 @@ export function mergeSettings(cur: WorkspaceSettings, patch: z.infer<typeof Work
     ...rest,
     tickets: { ...cur.tickets, ...(tickets ?? {}) },
     routing: { ...cur.routing, ...(routing ?? {}) },
-    calls: { ...cur.calls, ...(calls ?? {}), browser: { ...cur.calls.browser, ...(calls?.browser ?? {}) }, phone: { ...cur.calls.phone, ...(calls?.phone ?? {}), quiet_hours: { ...cur.calls.phone.quiet_hours, ...(calls?.phone?.quiet_hours ?? {}) } } },
+    calls: { ...cur.calls, ...(calls ?? {}), browser: { ...cur.calls.browser, ...(calls?.browser ?? {}) }, ai: { ...cur.calls.ai, ...(calls?.ai ?? {}) }, phone: { ...cur.calls.phone, ...(calls?.phone ?? {}), quiet_hours: { ...cur.calls.phone.quiet_hours, ...(calls?.phone?.quiet_hours ?? {}) } } },
     widget: { ...cur.widget, ...(widget ?? {}) },
   });
 }

@@ -290,4 +290,13 @@ export const CallRequestBody = z.object({ room_id: id, kind: CallKind });
 export const CallIdBody = z.object({ call_id: id });
 export const CallFailedBody = z.object({ call_id: id, reason: z.string().max(40).default("failed") });
 /** an SDP or an ICE candidate; the service checks sizes and the shape per kind */
+/* AI calls (ADR 0033): the visitor's browser does the speech, these events carry text */
+export const AiCallStartBody = z.object({
+  room_id: id,
+  kind: CallKind,
+  locale: z.string().trim().max(20).optional(),
+  speech: z.object({ stt: z.boolean(), tts: z.boolean() }).optional(),
+});
+export const AiCallSayBody = z.object({ call_id: id, text: z.string().max(2000), seq: z.number().int().min(0).max(100000), via: z.enum(["voice", "typed"]).default("voice") });
+export const AiCallEndBody = z.object({ call_id: id, reason: z.enum(["completed", "silence", "unsupported", "error"]).default("completed") });
 export const CallSignalBody = z.object({ call_id: id, data: z.record(z.string(), z.unknown()) });

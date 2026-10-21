@@ -1,11 +1,13 @@
 # Voice and video calls
 
-Two ways for a team member to talk to a visitor, both off until a manager switches them on and both without recording:
+Three kinds of call, all off until a manager switches them on and all without recording. Two are a team member talking to a visitor; the third is the visitor talking to the AI agent:
 
 1. **Browser calls** (WebRTC): voice and video between the inbox and the visitor's page (the embedded widget, the hosted chat or a mobile web view). Built and tested; real-network behaviour is not verified (see [What is verified](#what-is-verified)).
 2. **Phone calls** (Twilio Voice click-to-call): the app rings the agent's phone and then bridges the visitor's phone. Built and tested against a mocked Twilio only. See [Phone calls](#phone-calls).
 
-Decisions: [ADR 0031](adr/0031-calls-signalling-over-sockets.md).
+3. **Calls with the AI assistant** (voice, and "video" with an animated avatar): the visitor's browser listens and speaks, the server receives text. See [Calls with the AI assistant](#calls-with-the-ai-assistant).
+
+Decisions: [ADR 0031](adr/0031-calls-signalling-over-sockets.md), [ADR 0032](adr/0032-phone-calls-through-the-workspaces-twilio.md), [ADR 0033](adr/0033-ai-calls-browser-speech.md).
 
 ## Browser calls
 
@@ -136,3 +138,57 @@ Click-to-call through the workspace's **own** Twilio account (there is no platfo
 **Privacy and cost**: full numbers are not written to the audit log, ticket events or the call row (last four digits only); Twilio sees them, necessarily. Relayed media of browser calls and the minutes of phone calls are billed by Twilio to the workspace's account, not by this app, and credits are not charged. Twilio's own geo-permissions must also allow the destination, and a trial account only calls verified numbers (the refusal text from Twilio is shown).
 
 **Not verified**: any real Twilio call. Tested with a mocked Twilio (request bodies, signatures, TwiML, every callback status, races and guards). The TwiML attributes (`answerOnBridge`, `timeLimit`, `<Number statusCallbackEvent>`) follow Twilio's documentation but were not run against Twilio. Voice-capable caller IDs are not checked (Twilio refuses a number without voice and the message is shown). No browser-based Twilio Voice SDK for the agent side (optional in the design).
+
+## Calls with the AI assistant
+
+A visitor can talk to the AI agent that answers their chat ([AI-AGENTS.md](AI-AGENTS.md) section 3): the same agent, the same knowledge base, the same safety rules, spoken. Decision record: [ADR 0033](adr/0033-ai-calls-browser-speech.md).
+
+### What the visitor needs, said plainly
+
+- A browser with **speech recognition**: Chrome, Edge and Safari have it (under the name `SpeechRecognition` or `webkitSpeechRecognition`); **Firefox does not**. Without it the widget says so and opens the same assistant in the text chat instead. Speaking the replies (`speechSynthesis`) is available in all current browsers.
+- **Microphone permission** and an HTTPS page. A refused microphone ends the voice call with a message; the visitor can type to the assistant inside the call instead.
+- The speech-to-text is done by the browser's own recognizer. In Chrome that is a Google service and in Safari an Apple one, so the browser vendor may process the audio. This app never receives, stores or forwards audio; it only receives the text the recognizer produced.
+
+### What the visitor sees
+
+The widget and the hosted chat show **Talk to our AI assistant (voice)** and, when video is on, **Video call with our AI assistant (avatar)** under the message list, when the workspace has switched AI calls on and an agent may take them. The AI is disclosed three times: in the button, in the greeting (spoken and written in the thread: "Hi, I'm Aria (AI assistant), not a person. This call is not recorded.") and in the call screen header. During the call: live captions of both sides, a level indicator, a **push-to-talk** toggle, **barge-in** (speaking while the assistant talks cuts its voice at once), a text box ("type instead"), mute, **Talk to a person** (always visible) and **End call**. "Video" shows the agent's avatar, moving with its voice. It never claims to see the visitor: the visitor's camera is not requested unless they press "Show my camera", which is a local self-view that is not sent anywhere (no video leaves the browser in an AI call).
+
+If nothing is heard for about 20 seconds the assistant asks whether the visitor is still there; after a longer silence (server: `idle_timeout_s`, default 2 minutes) the call ends. A call also ends at the hard maximum duration (default 10 minutes), and the assistant says why.
+
+**Talk to a person** (button, spoken request or any hand-off trigger such as a sensitive topic) ends the AI call with a reason, hands the ticket to a person through the routing engine, and, when browser calls are on, leaves the usual call request for the team: the call screen stays open as "waiting for a person" and the incoming-call screen of a human call takes its place when a person rings. With browser calls off it tells the visitor that a person will answer in the chat.
+
+### What is stored
+
+The call row (`transport ai`, `kind ai_voice` or `ai_video`, the agent, `engine`, duration, how it ended, `handoff_reason`), one card in the thread ("AI voice call, 2 min, handed to a person"), ticket events (`call_started`, `call_ended`) and audit entries (`call.ai_started`, `call.ended`). What was said and answered is stored as **ordinary visitor and bot messages tagged with the call id** (`meta.call_id`, `meta.via` = `voice` or `typed`), so the thread reads as a transcript and retention and erasure treat it like any message. With *redact personal data* on (Settings > AI assistant) emails and phone numbers are masked before anything is stored or reaches a model, which matters because recognizers mishear numbers and a transcript should not hold them. No audio, no video, no recording.
+
+### Settings and limits (`calls.ai`, Settings > Calls)
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | off | switch calls with the AI on; the agent also needs the allowed action `ai_call` (Settings > AI agents), and must not be "suggest only" |
+| `voice`, `video` | on, on | which kinds are offered (video is the avatar) |
+| `max_duration_s` | 600 | hard limit of one call (60 to 1800) |
+| `idle_timeout_s` | 120 | a call without speech this long ends (30 to 600) |
+| `max_concurrent` | 3 | AI calls at once per workspace (also bounded by the `ai.concurrency` policy) |
+| `daily_limit` | 100 | AI calls started per UTC day: the row is written first and counted up to it, so parallel starts can only over-refuse; refused starts do not count |
+
+Also: 6 call starts per visitor per hour (`calls.ai.visitor`), 20 utterances per visitor per minute (`calls.ai.say`), the existing per-workspace daily AI budget (`ai.workspace`: past it the rules agent answers, so the call still works), 600 characters per utterance. Refusals: `AI_CALLS_DISABLED`, `AI_CALL_KIND_DISABLED`, `AI_CALL_UNAVAILABLE` (no agent, not allowed, outside its hours, suggest only), `HUMAN_HANDLING` (a person has the conversation), `CALL_IN_PROGRESS`, `AI_DAILY_LIMIT`, `AI_BUSY`, `RATE_LIMITED`.
+
+### Socket events (visitor session only)
+
+| Event | Payload | Answer |
+| --- | --- | --- |
+| `aicall:start` | `{room_id, kind, locale?, speech?: {stt, tts}}` | `{call, ai: {agent, greeting, disclosure, engine, speech_lang, max_duration_s, idle_timeout_s, max_utterance_chars}}`; opens a ticket if there is none |
+| `aicall:say` | `{call_id, text, seq, via?: voice\|typed}` | `{reply: {kind, text, speech, message_id, ended}, call}`; `speech` is the text without links and markdown, `text` is the caption; `ended` is set when this reply closes the call (hand-off, resolved, time limit, person took over). Idempotent per `seq` |
+| `aicall:end` | `{call_id, reason?: completed\|silence\|unsupported\|error}` | `{call}` |
+| `aicall:handoff` | `{call_id}` | `{call, ticket, human_call, text}` |
+
+`call:resume` re-binds a reconnected visitor socket to a running AI call (the server ends a call whose visitor has been gone for 20 seconds). The team sees `call:state` with `transport: "ai"`. Nothing else about AI calls is visible to team members except the thread and the card; they cannot control or join an AI call.
+
+### Speech engines
+
+`SpeechProvider` (`server/src/calls/speech.ts`) is the seam for a server-side engine (a hosted realtime speech API): `transcribe(audio)` and `synthesize(text)`. Only `browser` is built; `FakeSpeechProvider` is for tests. Adding another engine is a new provider plus a media path (WebSocket or WebRTC audio to the server), consent wording and a retention decision; none of that exists.
+
+### What is verified
+
+Server (SQLite and PostgreSQL): `ai-calls.test.ts` (start and its refusals, the loop, idempotent retries, hand-over by request, by trigger and by button, a person taking over, resolution, redaction, the budget fallback, time limits and sweeps, resume, daily, concurrency and rate limits, isolation) and migration 036 upgrade tests. **Not verified**: speech quality, recognizer accuracy and latency in any real browser, Safari and Firefox behaviour, real devices and real microphones, and any real language model (the tests use the offline rules agent and scripted models).

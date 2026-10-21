@@ -5,8 +5,9 @@ import type { z } from "zod";
 import type { AppContext } from "../context.js";
 import { seesAll, type Actor } from "../domain/types.js";
 import { AppError, unauthorized } from "../errors.js";
+import { aiSay, endAiCall, handoffAiCall, startAiCall } from "../calls/aiCall.js";
 import { acceptCall, declineCall, endCall, inviteCall, relaySignal, reportConnected, reportFailed, requestCall, resumeCall, socketGone } from "../calls/service.js";
-import { CallFailedBody, CallIdBody, CallInviteBody, CallRequestBody, CallSignalBody, AssignBody, OtpVerify, ReadBody, RoomCreate, RoomPatch, SendMessageBody, TeamSocketReaction, TeamSocketRead, TeamSocketSend, TeamSocketTyping, TypingBody, id } from "../schemas.js";
+import { AiCallEndBody, AiCallSayBody, AiCallStartBody, CallFailedBody, CallIdBody, CallInviteBody, CallRequestBody, CallSignalBody, AssignBody, OtpVerify, ReadBody, RoomCreate, RoomPatch, SendMessageBody, TeamSocketReaction, TeamSocketRead, TeamSocketSend, TeamSocketTyping, TypingBody, id } from "../schemas.js";
 import { accessChannel, markTeamRead, sendTeamMessage, toggleReaction } from "../services/teamChat.js";
 import { actorFromToken } from "../services/auth.js";
 import { audienceChannels } from "../services/audience.js";
@@ -763,6 +764,10 @@ function registerHandlers(ctx: AppContext, socket: Socket, ready: Promise<void>)
   /* ---- calls: signalling only. The service owns the call row and decides who may do what; offers and candidates go to the other side's socket and nobody else ---- */
   on("call:invite", CallInviteBody, "team", async (p, { actor }) => await inviteCall(ctx, actor!, socket.id, p));
   on("call:request", CallRequestBody, "visitor", async (p, { session }) => await requestCall(ctx, session!, p.room_id, p.kind));
+  on("aicall:start", AiCallStartBody, "visitor", async (p, { session }) => await startAiCall(ctx, session!, socket.id, p));
+  on("aicall:say", AiCallSayBody, "visitor", async (p, { session }) => await aiSay(ctx, session!, p));
+  on("aicall:end", AiCallEndBody, "visitor", async (p, { session }) => await endAiCall(ctx, session!, p.call_id, p.reason));
+  on("aicall:handoff", CallIdBody, "visitor", async (p, { session }) => await handoffAiCall(ctx, session!, p.call_id));
   on("call:accept", CallIdBody, "visitor", async (p, { session }) => await acceptCall(ctx, session!, socket.id, p.call_id));
   on("call:decline", CallIdBody, "visitor", async (p, { session }) => ({ call: callPublic(await declineCall(ctx, session!, p.call_id)) }));
   on("call:end", CallIdBody, undefined, async (p, who) => ({ call: callPublic(await endCall(ctx, who, p.call_id)) }));

@@ -1038,3 +1038,126 @@ describe.skipIf(!postgres)("PostgreSQL: calls migrations on a populated database
     }
   });
 });
+
+// ---- AI calls (migration 036): the release before it is 035 ---------------------------------------------------------------------------
+
+const PRE_AI_CALLS = 35;
+
+/** one finished call of each existing transport, written with the schema of release 035 */
+async function seedCallsAt035(db: Db) {
+  const ins = (id: string, transport: string, kind: string, state: string, room: string) =>
+    db.run("INSERT INTO calls(id, workspace_id, room_id, contact_id, transport, kind, state, initiated_by, duration_s, ended_by, end_reason, created_at, updated_at, meta) VALUES (?, 'w1', ?, 'c1', ?, ?, ?, 'm1', 61, 'agent', 'completed', ?, ?, '{\"k\":1}')", id, room, transport, kind, state, T(50), T(50));
+  await ins("cl_web", "webrtc", "video", "ended", "r1");
+  await ins("cl_phone", "phone", "voice", "failed", "r1");
+  await ins("cl_live", "webrtc", "voice", "active", "r2");
+}
+
+async function expectAiCallsMigration(db: Db, before: Record<string, number>, tables: string[]) {
+  expect(await counts(db, tables)).toEqual(before);
+  // rows are copied unchanged, the three new columns start empty
+  const rows = await db.all<any>("SELECT * FROM calls ORDER BY id");
+  expect(rows.map((r) => [r.id, r.transport, r.kind, r.state, r.duration_s, r.ended_by, r.meta])).toEqual([
+    ["cl_live", "webrtc", "voice", "active", 61, "agent", '{"k":1}'],
+    ["cl_phone", "phone", "voice", "failed", 61, "agent", '{"k":1}'],
+    ["cl_web", "webrtc", "video", "ended", 61, "agent", '{"k":1}'],
+  ]);
+  expect(rows.every((r) => r.ai_agent_id === null && r.engine === null && r.handoff_reason === null)).toBe(true);
+  const ins = (id: string, transport: string, kind: string, room: string) =>
+    db.run("INSERT INTO calls(id, workspace_id, room_id, contact_id, transport, kind, state, initiated_by, created_at, updated_at, ai_agent_id, engine) VALUES (?, 'w1', ?, 'c1', ?, ?, 'ended', 'c1', ?, ?, 'agt1', 'browser')", id, room, transport, kind, T(55), T(55));
+  await ins("cl_ai1", "ai", "ai_voice", "r1");
+  await ins("cl_ai2", "ai", "ai_video", "r1");
+  // still strict: unknown values are refused, and the one-live-call-per-conversation index survived the rebuild
+  await expect(ins("cl_bad1", "ai", "hologram", "r1")).rejects.toThrow(/CHECK|check constraint/i);
+  await expect(ins("cl_bad2", "satellite", "voice", "r1")).rejects.toThrow(/CHECK|check constraint/i);
+  await expect(db.run("INSERT INTO calls(id, workspace_id, room_id, contact_id, transport, kind, state, initiated_by, created_at, updated_at) VALUES ('cl_dup', 'w1', 'r2', 'c1', 'ai', 'ai_voice', 'active', 'c1', ?, ?)", T(56), T(56))).rejects.toThrow(/unique|UNIQUE/i);
+  // calls still go with their conversation
+  await db.run("DELETE FROM rooms WHERE id = 'r1'");
+  expect((await db.all<{ id: string }>("SELECT id FROM calls ORDER BY id")).map((r) => r.id)).toEqual(["cl_live"]);
+}
+
+describe("SQLite: AI calls migration on a populated database of the release before it", () => {
+  it("rebuilds calls without losing a row, keeps its indexes, and accepts AI calls", async () => {
+    const { dir, path } = await openSqliteFile();
+    const prev = releaseDir(PRE_AI_CALLS);
+    try {
+      const old = await openDb(path);
+      await migrate(old, prev);
+      await seedPreviousRelease(old);
+      await seedTickets(old);
+      await seedKb(old);
+      await seedCallsAt035(old);
+      const tables = await userTables(old);
+      const before = await counts(old, tables);
+      await old.close();
+      const db = await openDb(path);
+      const applied = await migrate(db);
+      expect(applied[0]).toBe("036_ai_calls.sqlite.sql");
+      expect(await db.all("PRAGMA foreign_key_check")).toEqual([]);
+      await expectAiCallsMigration(db, before, tables);
+      expect(await migrate(db)).toEqual([]);
+      await db.close();
+    } finally {
+      rmSync(prev, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("schema drift guard: a database upgraded from 035 equals a fresh one", async () => {
+    const fresh = await openDb(":memory:");
+    await migrate(fresh);
+    const { dir, path } = await openSqliteFile();
+    const prev = releaseDir(PRE_AI_CALLS);
+    try {
+      const old = await openDb(path);
+      await migrate(old, prev);
+      await seedPreviousRelease(old);
+      await seedCallsAt035(old);
+      await old.close();
+      const upgraded = await openDb(path);
+      await migrate(upgraded);
+      expect(await schemaOf(upgraded)).toEqual(await schemaOf(fresh));
+      await upgraded.close();
+    } finally {
+      await fresh.close();
+      rmSync(prev, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe.skipIf(!postgres)("PostgreSQL: AI calls migration on a populated database of the release before it", () => {
+  it("widens the CHECKs and adds the columns without touching a row, and matches a fresh schema", async () => {
+    const mk = async () => {
+      const schema = `u_${Math.random().toString(16).slice(2, 10)}`;
+      const admin = new pg.Client({ connectionString: process.env.TEST_DATABASE_URL });
+      await admin.connect();
+      await admin.query(`CREATE SCHEMA ${schema}`);
+      const u = new URL(process.env.TEST_DATABASE_URL!);
+      u.searchParams.set("options", `-c search_path=${schema}`);
+      const db = await openDb({ url: u.toString(), poolMax: 4 });
+      return { db, drop: async () => (await db.close(), await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`), await admin.end()) };
+    };
+    const a = await mk();
+    const b = await mk();
+    const prev = releaseDir(PRE_AI_CALLS);
+    try {
+      await migrate(a.db, undefined, { hashPartitions: 2 });
+      await migrate(b.db, prev, { hashPartitions: 2 });
+      await seedPreviousRelease(b.db);
+      await seedTickets(b.db);
+      await seedKb(b.db);
+      await seedCallsAt035(b.db);
+      const tables = await userTables(b.db);
+      const before = await counts(b.db, tables);
+      const applied = await migrate(b.db, undefined, { hashPartitions: 2 });
+      expect(applied[0]).toBe("036_ai_calls.pg.sql");
+      expect(await schemaOf(b.db)).toEqual(await schemaOf(a.db));
+      await expectAiCallsMigration(b.db, before, tables);
+      expect(await migrate(b.db, undefined, { hashPartitions: 2 })).toEqual([]);
+    } finally {
+      rmSync(prev, { recursive: true, force: true });
+      await a.drop();
+      await b.drop();
+    }
+  });
+});
