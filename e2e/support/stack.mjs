@@ -52,6 +52,8 @@ export async function startStack({ port } = {}) {
     // Web Push with a key pair made for this run, and a fake push service on loopback (tests/16-push.spec.ts)
     ...vapid(),
     PUSH_ALLOWED_HOSTS: "127.0.0.1",
+    // the photoreal avatar talks to a built-in fake provider (spends nothing, never reaches D-ID); tests/17-photoreal.spec.ts
+    AVATAR_TEST_PROVIDER: "fake",
   };
   const seed = spawnSync(join(SERVER, "node_modules/.bin/tsx"), ["src/seed.ts"], { cwd: SERVER, env, encoding: "utf8" });
   if (seed.status !== 0) throw new Error(`seed failed: ${seed.stderr || seed.stdout}`);

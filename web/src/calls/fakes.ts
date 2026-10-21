@@ -96,6 +96,9 @@ export class FakePC {
   getTransceivers() {
     return [];
   }
+  async createAnswer() {
+    return { type: "answer", sdp: "v=0 answer" };
+  }
   async createOffer(o?: { iceRestart?: boolean }) {
     return { type: "offer", sdp: `v=0 offer restart=${o?.iceRestart ? 1 : 0}` };
   }

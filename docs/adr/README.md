@@ -40,3 +40,4 @@ Short records of decisions that shaped the system. Add one when you make a decis
 * [0036](./0036-teammate-calls.md) Calls between teammates: the direct message is the permission, one call each
 * [0037](./0037-call-links.md) Call links: an unguessable address that lets one person join one call, and nothing else
 * [0038](./0038-group-calls-mesh.md) Group calls are a WebRTC mesh capped at four
+* [0039](./0039-optional-photoreal-avatar.md) The photoreal avatar is optional, connected per workspace, and never the default

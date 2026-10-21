@@ -63,6 +63,8 @@
     aicall_close: "Close",
     aicall_realtime_note: "Live voice: the assistant's voice and your speech go to a voice service over an encrypted connection (not recorded by us).",
     aicall_switched: "The live voice connection failed, so I switched to your browser's voice.",
+    aicall_photoreal_note: "You are seeing a computer-generated video of an AI assistant, not a real person. Your camera is not sent.",
+    aicall_photoreal_off: "The video avatar is not available, so I switched to the simple avatar.",
     aicall_monitor: "I'm connecting you with a person.",
   };
 
@@ -96,6 +98,8 @@
     ".aicall .face-label{position:absolute;left:50%;top:-12px;transform:translateX(-50%);white-space:nowrap;padding:2px 9px;border-radius:999px;background:#0b0d12;border:1px solid #4b5568;color:#e5e9f0;font-size:11.5px;font-weight:700;letter-spacing:.02em}",
     ".aicall .ai-self{position:absolute;right:10px;bottom:6px;width:84px;aspect-ratio:3/4;object-fit:cover;border-radius:10px;border:2px solid rgba(255,255,255,.6);background:#222;transform:scaleX(-1)}",
     ".aicall .ai-self[hidden]{display:none}",
+    ".aicall .face-frame .face-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;background:#0b0d12}",
+    ".aicall .face[data-mode=video] .face-frame>:not(.face-video){visibility:hidden}",
     ".aicall .ai-status{text-align:center;font-size:13px;min-height:18px;opacity:.9}",
     ".aicall .ai-level{height:4px;margin:4px 24px 0;border-radius:2px;background:#2a2f3a;overflow:hidden}.aicall .ai-level i{display:block;height:100%;width:0;background:#4ade80;transition:width .08s}",
     ".aicall .ai-caps{flex:1;min-height:0;overflow:auto;margin:8px 12px;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.06);font-size:14px;line-height:1.4}",
@@ -270,6 +274,29 @@
       st.mode = "photo";
     }
     if (o.photo) usePhoto(o.photo); else useSvg();
+    var video = null;
+    var before = null;
+    /** the photoreal stream inside the same frame: the ring, the state and the AI label chip stay around it (they are not part of the video) */
+    function setVideo(stream) {
+      if (!stream) {
+        if (video && video.parentNode) video.parentNode.removeChild(video);
+        video = null;
+        if (before) { root.setAttribute("data-mode", before); st.mode = before; before = null; }
+        return;
+      }
+      if (!video) {
+        video = doc.createElement("video");
+        video.className = "face-video";
+        video.autoplay = true;
+        video.setAttribute("playsinline", "");
+        video.setAttribute("aria-hidden", "true");
+        frame.appendChild(video);
+      }
+      video.srcObject = stream;
+      var pl = video.play && video.play();
+      if (pl && pl.catch) pl.catch(function () { /* a tap on the call screen starts it where the browser needs one */ });
+      if (st.mode !== "video") { before = st.mode; st.mode = "video"; root.setAttribute("data-mode", "video"); }
+    }
 
     function readAnalyser() {
       var a = st.analyser;
@@ -323,6 +350,7 @@
       pulse: function (x) { st.target = Math.max(st.target, Math.min(1, x)); schedule(); },
       /** a real audio level source: an AnalyserNode on the assistant's audio */
       attachAnalyser: function (a) { st.analyser = a; st.data = null; schedule(); },
+      setVideo: setVideo,
       tick: tick,
       state: function () { return st.state; },
       mode: function () { return st.mode; },
@@ -357,7 +385,7 @@
 
     var S = fresh();
     function fresh() {
-      return { call: null, ai: null, kind: "voice", lang: "en", phase: "idle", muted: false, ptt: false, held: false, seq: 0, inflight: false, buf: "", mergeTimer: null, promptTimer: null, endTimer: null, prompted: false, since: 0, clock: null, mic: null, meter: null, audioCtx: null, selfStream: null, pending: "", ended: null, speakingTimer: null, typedOnly: false, engineName: "browser", el: null };
+      return { call: null, ai: null, kind: "voice", lang: "en", phase: "idle", muted: false, ptt: false, held: false, seq: 0, inflight: false, buf: "", mergeTimer: null, promptTimer: null, endTimer: null, prompted: false, since: 0, clock: null, mic: null, meter: null, audioCtx: null, selfStream: null, pending: "", ended: null, speakingTimer: null, typedOnly: false, engineName: "browser", el: null, avatar: null };
     }
     var elRef = null;
 
@@ -640,6 +668,7 @@
       if (text) caption("ai", r.ended ? text : r.text);
       if (r.ended) {
         S.ended = r.ended;
+        closeAvatar();
         return sayAloud(spoken, function () { finishFromServer(r.ended, text); });
       }
       // the visitor already said more while this was being worked out: that is the next turn, the voice would only be talked over
@@ -652,6 +681,14 @@
     }
     function sayAloud(text, done) {
       if (S.engineName === "realtime") { done(); return; }
+      // the photoreal avatar says it (the server sent the same text to the provider): no browser voice on top; the face shows speaking for about as long
+      if (S.avatar && S.avatar.live) {
+        if (!text || S.phase === "ended") { done(); return; }
+        state("speaking");
+        clearTimeout(S.avatar.sayTimer);
+        S.avatar.sayTimer = setTimeout(function () { if (S.phase === "speaking") done(); }, Math.min(30000, 900 + String(text).length * 65));
+        return;
+      }
       var sup = engine.supported();
       if (!text || !sup.tts || S.phase === "ended") { done(); return; }
       state("speaking");
@@ -690,6 +727,7 @@
       clearTimeout(S.promptTimer); clearTimeout(S.endTimer); clearInterval(S.clock);
       stopListening();
       closeRt();
+      closeAvatar();
       state("waiting", humanCall ? "human_call" : "chat");
       var u = build();
       u.typeForm.hidden = true; u.level.hidden = true;
@@ -711,6 +749,7 @@
       clearTimeout(S.promptTimer); clearTimeout(S.endTimer); clearTimeout(S.mergeTimer); clearInterval(S.clock); clearInterval(S.speakingTimer);
       stopListening(); engine.cancel();
       closeRt();
+      closeAvatar();
       closeMic();
       state("ended", reason);
       u.typeForm.hidden = true; u.level.hidden = true;
@@ -722,6 +761,7 @@
       clearTimeout(S.promptTimer); clearTimeout(S.endTimer); clearTimeout(S.mergeTimer); clearTimeout(S.waitClose); clearInterval(S.clock); clearInterval(S.speakingTimer);
       try { engine.abort(); engine.cancel(); } catch (e) { /* ignore */ }
       closeRt();
+      closeAvatar();
       closeMic();
       var el = elRef;
       S = fresh();
@@ -914,6 +954,78 @@
       }
     }
 
+    /* ---------- the photoreal avatar (optional; the built-in face otherwise) ---------- */
+    // The provider streams a talking head to this page. This peer connection RECEIVES only: no microphone or camera track is ever added, so the
+    // visitor's video (and audio) never goes to the provider. Its answer and candidates go to this server, which relays them; the page never sees a key.
+    function closeAvatar() {
+      var a = S.avatar;
+      S.avatar = null;
+      if (!a) return;
+      clearTimeout(a.connectTimer); clearTimeout(a.sayTimer); clearTimeout(a.dropTimer);
+      try { a.pc && a.pc.close(); } catch (e) { /* closed */ }
+      if (face && face.setVideo) face.setVideo(null);
+      if (a.note && a.note.parentNode) a.note.parentNode.removeChild(a.note);
+    }
+    function avatarFailed(reason, fromServer) {
+      var a = S.avatar;
+      if (!a || !S.call) return;
+      var greet = a.greetPending;
+      closeAvatar();
+      if (!fromServer) send("aicall:avatar", { call_id: S.call.id, op: "failed", data: String(reason || "client_failed").replace(/[^a-z_]/g, "").slice(0, 30) || "client_failed" });
+      if (S.phase === "ended" || S.phase === "waiting") return;
+      caption("ai", t("aicall_photoreal_off"));
+      // the greeting was waiting for the video: the browser's voice says it now
+      if (greet && S.ai) sayAloud(S.ai.greeting, function () { state("listening"); armSilence(); });
+      else if (S.phase === "speaking") state("listening");
+    }
+    function startPhotoreal(sess) {
+      if (!rtcCtor || !sess || !sess.offer) return false;
+      var callId = S.call.id;
+      var a = S.avatar = { pc: null, live: false, greetPending: true, connectTimer: null, sayTimer: null, dropTimer: null, note: null };
+      var u = build();
+      a.note = h("div", { class: "ai-note", "data-photoreal-note": "true", text: t("aicall_photoreal_note") });
+      u.root.insertBefore(a.note, u.status);
+      var pc;
+      try { pc = new rtcCtor({ iceServers: sess.ice_servers || [] }); } catch (e) { S.avatar = null; return false; }
+      a.pc = pc;
+      pc.ontrack = function (e) {
+        var stream = (e.streams && e.streams[0]) || null;
+        if (stream && face && face.setVideo && S.avatar === a) face.setVideo(stream);
+      };
+      pc.onicecandidate = function (e) {
+        if (S.avatar !== a || !S.call) return;
+        var c = e.candidate;
+        send("aicall:avatar", { call_id: callId, op: "ice", data: c ? { candidate: c.candidate, sdpMid: c.sdpMid, sdpMLineIndex: c.sdpMLineIndex } : {} });
+      };
+      pc.onconnectionstatechange = function () {
+        if (S.avatar !== a) return;
+        var st = pc.connectionState;
+        if (st === "connected" && !a.live) {
+          a.live = true;
+          clearTimeout(a.connectTimer);
+          a.greetPending = false;
+          // the server makes the avatar say the greeting (with the disclosure) now
+          send("aicall:avatar", { call_id: callId, op: "connected" }).then(function (ack) { if (S.avatar === a && ack && ack.ok && ack.mode === "builtin") avatarFailed("server_builtin", true); });
+          state("speaking");
+          clearTimeout(a.sayTimer);
+          a.sayTimer = setTimeout(function () { if (S.phase === "speaking") { state("listening"); armSilence(); } }, Math.min(30000, 900 + String((S.ai && S.ai.greeting) || "").length * 65));
+        } else if (st === "failed") avatarFailed("ice_failed");
+        else if (st === "disconnected") { clearTimeout(a.dropTimer); a.dropTimer = setTimeout(function () { if (S.avatar === a && pc.connectionState !== "connected") avatarFailed("disconnected"); }, 8000); }
+      };
+      a.connectTimer = setTimeout(function () { if (S.avatar === a && !a.live) avatarFailed("connect_timeout"); }, 12000);
+      Promise.resolve(pc.setRemoteDescription(sess.offer))
+        .then(function () { return pc.createAnswer(); })
+        .then(function (ans) { return Promise.resolve(pc.setLocalDescription(ans)).then(function () { return ans; }); })
+        .then(function (ans) { return send("aicall:avatar", { call_id: callId, op: "answer", data: { type: "answer", sdp: ans.sdp } }); })
+        .then(function (ack) { if (S.avatar === a && (!ack || !ack.ok || ack.mode === "builtin")) avatarFailed("answer_refused", !!(ack && ack.ok)); })
+        .catch(function () { if (S.avatar === a) avatarFailed("connect_failed"); });
+      return true;
+    }
+    function onAvatarState(p) {
+      if (!p || !S.call || p.call_id !== S.call.id || !S.avatar) return;
+      if (p.state === "failed" || p.state === "ended") avatarFailed(p.reason, true);
+    }
+
     /* ---------- starting ---------- */
     function start(kind) {
       kind = kind === "video" ? "video" : "voice";
@@ -969,6 +1081,11 @@
             return ack;
           }
           state("listening");
+          // a photoreal avatar says the greeting once its video is connected; until then (and if it never connects) the built-in face is shown
+          if (kind === "video" && ack.ai.avatar && ack.ai.avatar.mode === "photoreal" && startPhotoreal(ack.ai.avatar.session)) {
+            if (!S.typedOnly) startListening();
+            return ack;
+          }
           // the greeting is spoken; listening starts at once so the visitor can interrupt it
           sayAloud(ack.ai.greeting, function () { state("listening"); armSilence(); });
           if (!S.typedOnly) startListening();
@@ -1008,6 +1125,7 @@
     }
     function bind(s) {
       s.on("call:state", onCallState);
+      s.on("aicall:avatar_state", onAvatarState);
       s.on("connect", onSocketConnected);
     }
 

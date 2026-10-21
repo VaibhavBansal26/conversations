@@ -109,6 +109,7 @@ Internal chat between workspace members uses the same namespace and the same aut
 | `gcall:state` | everyone with a row in the group call (invited, joined, left; every tab of each) | `{call: {id, channel_id, kind, state: live\|ended\|missed, host_id, max_participants, sharing_id, duration_s, participants: [{member_id, name, status, joined_at, muted, camera_off}]}}` | someone was invited, joined, left, declined, missed, muted, shared their screen, or the call ended ([CALLS.md](CALLS.md#group-calls)) |
 | `gcall:offer`, `gcall:answer`, `gcall:ice` | one socket: the addressed participant | `{call_id, from, data}` | one link of the mesh; relayed only to the bound socket of the person named in `to` |
 | `gcall:peer` | one socket: another participant | `{call_id, member_id, event: lost\|resumed}` | a participant's connection dropped or came back (the offerer of that link restarts ICE on `resumed`) |
+| `aicall:avatar_state` | one socket: the visitor of an AI call | `{call_id, state: failed\|ended, reason}` | the photoreal avatar stopped (provider error, budget, kill switch, switched off): the page shows the built-in face and uses the browser voice ([CALLS.md](CALLS.md#photoreal-avatar)) |
 | `call:peer` | one socket: the other party | `{call_id, event: lost\|resumed}` | the other side's connection dropped or came back (restart ICE on `resumed`) |
 | `room:unread` | the member | `{room_id, unread_count}` | unread count changed |
 | `typing` | room audience | `{room_id, typing, who}` | typing indicator (coalesced) |
