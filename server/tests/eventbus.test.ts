@@ -321,12 +321,15 @@ describe("transactional outbox", () => {
     const rt = await startOutbox(ctx, 30);
     for (let i = 0; i < 6; i++) await agentSays(ctx, owner, room.id, `out${i}`);
     await until(async () => Number((await ctx.db.get<{ n: number }>("SELECT COALESCE(SUM(messages),0) AS n FROM rollup_messages_daily WHERE direction = 'out'"))!.n) >= 6);
-    expect((await outboxLag(ctx)).unpublished).toBe(0);
+    // the consumer sees an event before the relay has marked its batch as published, so "6 rolled up" does not yet mean "nothing unpublished":
+    // wait for the relay to finish marking, and only then stop it (a running relay could also publish the row written below between its insert
+    // and the check; both races made this test fail intermittently on PostgreSQL)
+    await until(async () => (await outboxLag(ctx)).unpublished === 0);
+    await rt.stop();
     ctx.clockCtl.advance(48 * 3600_000);
     await agentSays(ctx, owner, room.id, "unpublished-later");
     expect(await pruneOutbox(ctx, 24)).toBeGreaterThan(0);
     expect((await ctx.db.get<{ n: number }>("SELECT COUNT(*) n FROM outbox_events WHERE published_at IS NULL"))!.n).toBeGreaterThanOrEqual(1);
-    await rt.stop();
     expect(TOPIC_MESSAGES).toBe("message.events");
   });
 });
