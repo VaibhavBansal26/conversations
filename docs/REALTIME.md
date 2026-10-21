@@ -36,9 +36,17 @@ Every event is acknowledged: `{ok: true, ...}` or `{ok: false, error: {code, mes
 | `typing` | team, visitor | `conversations:reply` | 0.25 | `room_id*`, `typing*`, `internal` |
 | `otp:verify` | visitor | visitor session | 5 | `code*` |
 | `presence:list` | team | `members:read` | 1 | none |
+| `team:message:send` | team | `team_chat:use` | 2 | `content`, `thread_root_id`, `attachment_ids`, `client_msg_id`, `share_room_id`, `channel_id*` |
+| `team:typing` | team | `team_chat:use` | 0.25 | `channel_id*`, `typing*`, `thread_root_id` |
+| `team:read` | team | `team_chat:use` | 1 | `message_id`, `channel_id*` |
+| `team:reaction` | team | `team_chat:use` | 1 | `emoji*`, `message_id*` |
 <!-- END:client-events -->
 
 `message:send` is idempotent on `client_msg_id`; the ack carries the stored message and whether it was newly created.
+
+## Team chat
+
+Internal chat between workspace members uses the same namespace and the same authentication. Events go to each member of the channel through the member's own channel (`member:<id>`), computed from the database when the event is emitted: a private channel (and every direct or group message) does not exist for non-members, and removing someone stops delivery immediately. The `team:*` client events are authorised with `team_chat:use`, rate limited with the same per-socket budget plus `team.send`, `team.channel` and `team.workspace` for messages, and run the same service functions as REST, so membership is checked on every event. History, edits, deletes, pins, search and channel management are REST ([API.md](API.md), tag "Team chat"). Delivery is at-most-once; clients refetch the channel list and the open channel on `server:resync` and after reconnecting, and `seq` (contiguous per channel) exposes gaps.
 
 ## Server to client
 
@@ -59,6 +67,16 @@ Every event is acknowledged: `{ok: true, ...}` or `{ok: false, error: {code, mes
 | `inbox:new`, `inbox:updated` | workspace | inbox record | inbox changes |
 | `contact:updated` | workspace | contact record | contact edit |
 | `notification:new`, `notification:read` | the member | `{notification, unread_count}` / `{id, unread_count}` | in-app notifications (including billing and payment alerts) |
+| `team:message:new` | each member of the channel | `{channel_id, message}` | team chat message stored (a shared conversation card is rendered per viewer) |
+| `team:message:updated` | same | `{channel_id, message}` | edit, pin change, mentions changed |
+| `team:message:deleted` | same | `{channel_id, message_id, thread_root_id}` | soft delete |
+| `team:reaction` | same | `{channel_id, message_id, reactions: [{emoji, count, member_ids}]}` | a reaction was toggled |
+| `team:channel:created` | the members, and for a public channel everyone | `{channel}` | a channel, direct or group message exists for you (or you were added) |
+| `team:channel:updated` | the members | `{channel}` / `{channel_id, muted}` | rename, topic, archive; your own mute |
+| `team:channel:removed` | the member | `{channel_id}` | you left, were removed from, or lost access to the channel |
+| `team:channel:members` | the members | `{channel_id, member_id(s), joined}` | someone joined or left |
+| `team:typing` | the other members | `{channel_id, thread_root_id, typing, member_id, name}` | typing indicator (volatile) |
+| `team:read` | you (channels) or all members (direct and group messages) | `{channel_id, member_id, seq}` | a read cursor moved |
 | `session:verified` | visitor | `{verified}` | OTP verification succeeded |
 | `rate:limited` | the socket | `{reason: "too_many_violations", retry_after_ms}` | the socket exceeded its event budget repeatedly and is being disconnected |
 | `server:draining` | every socket of the node | `{reconnect_in_ms}` | the node is shutting down: reconnect after the staggered delay |

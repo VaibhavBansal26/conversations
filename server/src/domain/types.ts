@@ -14,6 +14,8 @@ export interface NotificationPrefs {
   delayed_msgs: boolean;
   email: boolean;
   mentions: boolean;
+  /** direct and group messages in team chat (channel messages notify on @mention only) */
+  team_messages: boolean;
 }
 
 export const DEFAULT_PREFS: NotificationPrefs = {
@@ -23,6 +25,7 @@ export const DEFAULT_PREFS: NotificationPrefs = {
   delayed_msgs: true,
   email: true,
   mentions: true,
+  team_messages: true,
 };
 
 /** The authenticated team member ("seat") performing a request. */

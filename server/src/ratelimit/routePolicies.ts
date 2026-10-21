@@ -67,7 +67,22 @@ const GROUPS: { spec: RouteSpec; routes: string[] }[] = [
   { spec: { post: ["api.write", "api.workspace"], inHandler: ["channels.verify"] }, routes: ["POST /api/channels/:channel/verify", "POST /api/channels/sms/numbers/import", "POST /api/channels/email/senders/import"] },
   { spec: { post: ["api.write", "api.workspace"], inHandler: ["channels.test"] }, routes: ["POST /api/channels/:channel/test"] },
   { spec: { pre: ["webhook.provider"], inHandler: ["webhook.connection", "webhook.badsig"] }, routes: ["POST /webhooks/c/:id/twilio/sms", "POST /webhooks/c/:id/twilio/status", "POST /webhooks/c/:id/sendgrid/inbound", "POST /webhooks/c/:id/sendgrid/events"] },
-  { spec: { post: ["api.upload", "api.workspace"] }, routes: ["POST /api/attachments"] },
+  { spec: { post: ["api.upload", "api.workspace"] }, routes: ["POST /api/attachments", "POST /api/team/attachments"] },
+  {
+    spec: READ,
+    routes: ["GET /api/team/channels", "GET /api/team/channels/browse", "GET /api/team/channels/:id", "GET /api/team/channels/:id/messages", "GET /api/team/channels/:id/pins", "GET /api/team/messages/:id/thread"],
+  },
+  { spec: { post: ["api.read", "api.workspace"], inHandler: ["team.search"] }, routes: ["GET /api/team/search"] },
+  { spec: { post: ["api.write", "api.workspace"], inHandler: ["team.create"] }, routes: ["POST /api/team/channels", "POST /api/team/dms"] },
+  {
+    spec: WRITE,
+    routes: [
+      "PATCH /api/team/channels/:id", "POST /api/team/channels/:id/join", "POST /api/team/channels/:id/leave", "POST /api/team/channels/:id/members", "DELETE /api/team/channels/:id/members/:memberId",
+      "PUT /api/team/channels/:id/mute", "POST /api/team/channels/:id/read", "PATCH /api/team/messages/:id", "DELETE /api/team/messages/:id", "POST /api/team/messages/:id/reactions",
+      "PUT /api/team/messages/:id/pin", "DELETE /api/team/messages/:id/pin", "DELETE /api/team/channels/:id/messages/:messageId",
+    ],
+  },
+  { spec: { post: ["api.write", "api.workspace"], inHandler: ["team.send", "team.channel", "team.workspace"] }, routes: ["POST /api/team/channels/:id/messages"] },
   { spec: { post: ["api.import", "api.workspace"], inHandler: ["heavy.concurrency"] }, routes: ["POST /api/contacts/import"] },
   { spec: AI_CALL, routes: ["POST /api/ai/suggest-replies", "POST /api/ai/summary", "POST /api/ai/rephrase"] },
 
@@ -123,6 +138,10 @@ export const EVENT_LIMITS: Record<string, EventSpec> = {
   typing: { cost: 0.25 },
   "otp:verify": { cost: 5 },
   "presence:list": { cost: 1 },
+  "team:message:send": { cost: 2, inHandler: ["team.send", "team.channel", "team.workspace"] },
+  "team:typing": { cost: 0.25 },
+  "team:read": { cost: 1 },
+  "team:reaction": { cost: 1 },
 };
 
 export function routeKey(method: string, path: string) {

@@ -1,3 +1,4 @@
+import { ensureGeneral } from "./teamChat.js";
 import { SignJWT, jwtVerify } from "jose";
 import type { AppContext } from "../context.js";
 import { nowIso } from "../context.js";
@@ -83,6 +84,7 @@ export async function register(ctx: AppContext, input: { email: string; password
     await ctx.db.run("INSERT INTO members(id, workspace_id, user_id, role, created_at) VALUES (?,?,?,?,?)", ids.member, ids.ws, ids.user, "owner", now);
   });
   await recordAudit(ctx, { workspaceId: ids.ws, actor: { type: "member", id: ids.member }, action: "workspace.create", target: ids.ws });
+  await ensureGeneral(ctx, ids.ws, ids.member); // every workspace starts with #general
   return await startSession(ctx, (await findMember(ctx, ids.ws, ids.member))!, meta);
 }
 

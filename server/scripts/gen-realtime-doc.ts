@@ -16,8 +16,12 @@ export const PAYLOADS: Record<string, z.ZodType | null> = {
   typing: S.TypingBody,
   "otp:verify": S.OtpVerify,
   "presence:list": null,
+  "team:message:send": S.TeamSocketSend,
+  "team:typing": S.TeamSocketTyping,
+  "team:read": S.TeamSocketRead,
+  "team:reaction": S.TeamSocketReaction,
 };
-const WHO: Record<string, string> = { "message:send": "team, visitor", "message:read": "team, visitor", "room:create": "team, visitor", "room:update": "team", "room:assign": "team", typing: "team, visitor", "otp:verify": "visitor", "presence:list": "team" };
+const WHO: Record<string, string> = { "message:send": "team, visitor", "message:read": "team, visitor", "room:create": "team, visitor", "room:update": "team", "room:assign": "team", typing: "team, visitor", "otp:verify": "visitor", "presence:list": "team", "team:message:send": "team", "team:typing": "team", "team:read": "team", "team:reaction": "team" };
 
 const fields = (s: z.ZodType | null) => {
   if (!s) return "none";

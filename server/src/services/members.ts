@@ -238,6 +238,7 @@ export async function removeMember(ctx: AppContext, actor: Actor, memberId: stri
     await ctx.db.run("DELETE FROM inbox_members WHERE member_id = ?", memberId);
     await ctx.db.run("DELETE FROM contact_followers WHERE member_id = ?", memberId);
     await ctx.db.run("DELETE FROM room_favorites WHERE member_id = ?", memberId);
+    await ctx.db.run("DELETE FROM team_channel_members WHERE member_id = ?", memberId);
   });
   await invalidateMember(ctx, actor.workspaceId, memberId);
   await ctx.cache.invalidate(`counts:${actor.workspaceId}:*`);

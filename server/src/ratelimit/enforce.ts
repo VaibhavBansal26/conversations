@@ -36,3 +36,22 @@ export async function enforceSendLimits(ctx: AppContext, i: SendLimitInput): Pro
     await take("email.workspace", i.workspaceId, i.workspaceId);
   }
 }
+
+export interface TeamSendLimitInput {
+  workspaceId: string;
+  memberId: string;
+  channelId: string;
+  clientMsgId?: string | null;
+}
+
+/** Limits every team chat message passes through (REST and socket): per member, per channel, per workspace and plan. A retry of one client_msg_id is not counted twice. */
+export async function enforceTeamSend(ctx: AppContext, i: TeamSendLimitInput): Promise<void> {
+  const idem = i.clientMsgId ?? undefined;
+  const take = async (policy: string, key: string, workspaceId?: string) => {
+    const d = await ctx.ratelimit.check(policy, { key, workspaceId }, { idempotencyKey: idem });
+    if (!d.allowed) throw new RateLimitedError(d);
+  };
+  await take("team.send", i.memberId, i.workspaceId);
+  await take("team.channel", i.channelId);
+  await take("team.workspace", i.workspaceId, i.workspaceId);
+}

@@ -26,6 +26,7 @@ const prefs = z
     delayed_msgs: z.boolean(),
     email: z.boolean(),
     mentions: z.boolean(),
+    team_messages: z.boolean(),
   })
   .partial();
 
@@ -181,3 +182,32 @@ export const OtpVerify = z.object({ code: z.string().regex(/^\d{5}$/, "Code is 5
 
 export const TypingBody = z.object({ room_id: id, typing: z.boolean(), internal: z.boolean().optional() });
 export const CreditGrant = z.object({ amount: z.number().int().min(1).max(1_000_000), note: z.string().max(200).optional() });
+
+/* ---- team chat ---- */
+const memberId = z.string().regex(/^mem_[0-9a-f]{24}$/, "Invalid member id");
+export const TeamChannelCreate = z.object({
+  name: z.string().trim().min(1).max(60),
+  visibility: z.enum(["public", "private"]).default("public"),
+  topic: z.string().max(250).optional(),
+  member_ids: z.array(memberId).max(200).optional(),
+});
+export const TeamChannelPatch = z.object({ name: z.string().trim().min(1).max(60).optional(), topic: z.string().max(250).optional(), archived: z.boolean().optional() });
+export const TeamDmBody = z.object({ member_ids: z.array(memberId).min(1).max(8) });
+export const TeamMembersBody = z.object({ member_ids: z.array(memberId).min(1).max(200) });
+export const TeamSendBody = z.object({
+  content: z.string().max(4000).optional(),
+  thread_root_id: z.string().max(64).nullable().optional(),
+  attachment_ids: z.array(z.string().max(64)).max(10).optional(),
+  client_msg_id: z.string().min(8).max(64).optional(),
+  share_room_id: z.string().max(64).optional(),
+});
+export const TeamEditBody = z.object({ content: z.string().min(1).max(4000) });
+export const TeamReactionBody = z.object({ emoji: z.string().min(1).max(32) });
+export const TeamMuteBody = z.object({ muted: z.boolean() });
+export const TeamReadBody = z.object({ message_id: z.string().max(64).optional() });
+export const TeamListQuery = z.object({ before: z.string().max(64).optional(), after: z.string().max(64).optional(), limit: z.coerce.number().int().min(1).max(50).default(30) });
+export const TeamSearchQuery = z.object({ q: z.string().trim().min(2).max(100), channel_id: z.string().max(64).optional(), limit: z.coerce.number().int().min(1).max(50).default(20) });
+export const TeamSocketSend = TeamSendBody.extend({ channel_id: id });
+export const TeamSocketTyping = z.object({ channel_id: id, typing: z.boolean(), thread_root_id: id.optional() });
+export const TeamSocketRead = TeamReadBody.extend({ channel_id: id });
+export const TeamSocketReaction = TeamReactionBody.extend({ message_id: id });

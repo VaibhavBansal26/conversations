@@ -5,7 +5,8 @@ import type { z } from "zod";
 import type { AppContext } from "../context.js";
 import { seesAll, type Actor } from "../domain/types.js";
 import { AppError, unauthorized } from "../errors.js";
-import { AssignBody, OtpVerify, ReadBody, RoomCreate, RoomPatch, SendMessageBody, TypingBody, id } from "../schemas.js";
+import { AssignBody, OtpVerify, ReadBody, RoomCreate, RoomPatch, SendMessageBody, TeamSocketReaction, TeamSocketRead, TeamSocketSend, TeamSocketTyping, TypingBody, id } from "../schemas.js";
+import { accessChannel, markTeamRead, sendTeamMessage, toggleReaction } from "../services/teamChat.js";
 import { actorFromToken } from "../services/auth.js";
 import { audienceChannels } from "../services/audience.js";
 import { listInboxes } from "../services/inboxes.js";
@@ -729,6 +730,26 @@ function registerHandlers(ctx: AppContext, socket: Socket, ready: Promise<void>)
     }
     return {};
   });
+
+  /* ---- team chat: same services as REST, so the same membership checks apply to every event ---- */
+  on("team:message:send", TeamSocketSend, "team", async (p, { actor }) => {
+    const { channel_id, ...input } = p;
+    const r = await sendTeamMessage(ctx, actor!, channel_id, input);
+    return { message: r.message, created: r.created };
+  });
+  on("team:typing", TeamSocketTyping, "team", async (p, { actor }) => {
+    const key = `team:${p.channel_id}:${p.typing}`;
+    const now = Date.now();
+    if (now - (lastTyping.get(key) ?? 0) < TYPING_MIN_GAP_MS) return {};
+    lastTyping.set(key, now);
+    if (lastTyping.size > 200) lastTyping.clear();
+    const { channel } = await accessChannel(ctx, actor!, p.channel_id, { write: true });
+    const ids = (await ctx.db.all<{ member_id: string }>("SELECT member_id FROM team_channel_members WHERE channel_id = ?", channel.id)).map((r) => r.member_id).filter((m) => m !== actor!.memberId);
+    if (ids.length) socket.to(ids.map((m) => `member:${m}`)).volatile.emit("team:typing", { channel_id: channel.id, thread_root_id: p.thread_root_id ?? null, typing: p.typing, member_id: actor!.memberId, name: actor!.name });
+    return {};
+  });
+  on("team:read", TeamSocketRead, "team", async (p, { actor }) => await markTeamRead(ctx, actor!, p.channel_id, p.message_id));
+  on("team:reaction", TeamSocketReaction, "team", async (p, { actor }) => await toggleReaction(ctx, actor!, p.message_id, p.emoji));
 
   on("otp:verify", OtpVerify, "visitor", (p, { session }) => verifyOtp(ctx, session!, p.code));
 

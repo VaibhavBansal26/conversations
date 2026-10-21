@@ -11,6 +11,7 @@ import { wakeDueRooms, wakeRoom } from "../services/rooms.js";
 import { nowIso } from "../context.js";
 import { ensureMessagePartitions } from "../db/partitions.js";
 import { retentionSweep } from "../services/archive.js";
+import { teamRetentionSweep } from "../services/teamChat.js";
 import { runAutoRecharge } from "../billing/credits.js";
 import { enqueueJob, runDueJobs, type JobHandler } from "./queue.js";
 
@@ -109,6 +110,7 @@ export async function startScheduler(ctx: AppContext): Promise<() => void> {
       await ctx.locks.withLock("scheduler-daily", 3_600_000, async () => {
         await ensureMessagePartitions(ctx.db, ctx.config.MESSAGE_PARTITION_MONTHS_AHEAD);
         await retentionSweep(ctx);
+        await teamRetentionSweep(ctx);
       });
     }),
     6 * 3600_000,

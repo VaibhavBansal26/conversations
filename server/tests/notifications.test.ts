@@ -74,7 +74,7 @@ describe("in-app feed", () => {
     const feed = await w.http.get("/api/notifications", t);
     expect(feed.body.unread_count).toBe(1);
     expect(feed.body.data[0]).toMatchObject({ type: "message", room_id: room.id, title: "New message from Dana", body: "Where is my order?" });
-    expect(Object.keys(feed.body.data[0]).sort()).toEqual(["body", "created_at", "id", "message_id", "read_at", "room_id", "title", "type"]);
+    expect(Object.keys(feed.body.data[0]).sort()).toEqual(["body", "channel_id", "created_at", "id", "message_id", "read_at", "room_id", "title", "type"]);
     expect((await w.http.get("/api/notifications?unread_only=true", t)).body.data).toHaveLength(1);
     // someone else cannot read my notification
     expect((await w.http.post(`/api/notifications/${feed.body.data[0].id}/read`, {}, await tokenFor(w.ctx, w.bo))).status).toBe(404);

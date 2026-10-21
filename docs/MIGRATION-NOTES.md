@@ -121,7 +121,7 @@ Team chat, channels/prospect, reactions, message forwarding (legacy stub), help-
 
 | Legacy | Now |
 | --- | --- |
-| `User.scope[]` strings and CASL front-end rules | 26 permissions, four built-in roles plus custom roles, enforced in one place for REST and sockets ([RBAC.md](RBAC.md)); legacy `owner/manager/agent` map to Owner/Manager/Agent, and Viewer is new |
+| `User.scope[]` strings and CASL front-end rules | 29 permissions, four built-in roles plus custom roles, enforced in one place for REST and sockets ([RBAC.md](RBAC.md)); legacy `owner/manager/agent` map to Owner/Manager/Agent, and Viewer is new |
 | single non-expiring-style sessions | 15-minute access tokens, rotating single-use refresh tokens, reuse detection, TOTP, password reset, email invitations, append-only audit log |
 | `OnebalanceQueue` wallet | prepaid **credits** in `usage_ledger`, bought with Stripe Checkout, plus plans, auto-recharge and a failed-payment soft lock ([STRIPE.md](STRIPE.md)) |
 | payment-request cards (platform payments) | payment requests paid on the workspace's **own** Stripe account through Connect Standard; the card is `message.meta.card` and updates live |

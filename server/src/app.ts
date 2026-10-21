@@ -23,6 +23,7 @@ import { analyticsApiRoutes } from "./routes/analyticsApi.js";
 import { analyticsRoutes } from "./routes/analytics.js";
 import { billingRoutes } from "./routes/billing.js";
 import { channelRoutes } from "./routes/channels.js";
+import { teamChatRoutes } from "./routes/teamChat.js";
 import { roleRoutes } from "./routes/roles.js";
 import { invitationRoutes } from "./routes/invitations.js";
 import { roomRoutes } from "./routes/rooms.js";
@@ -84,7 +85,7 @@ export function createApp(ctx: AppContext): Hono {
     maxSize: ctx.config.UPLOAD_MAX_BYTES + 64 * 1024,
     onError: (c) => c.json({ error: { code: "FILE_TOO_LARGE", message: "File is too large" } }, 413),
   });
-  app.use("*", async (c, next) => (c.req.path === "/api/attachments" ? await uploadLimit(c, next) : await jsonLimit(c, next)));
+  app.use("*", async (c, next) => (c.req.path === "/api/attachments" || c.req.path === "/api/team/attachments" ? await uploadLimit(c, next) : await jsonLimit(c, next)));
 
   app.get("/healthz", (c) => c.json({ status: "ok" }));
   // readiness reflects every dependency this node needs, and flips to 503 while draining so load balancers stop sending traffic
@@ -113,6 +114,7 @@ export function createApp(ctx: AppContext): Hono {
   api.route("/", analyticsRoutes(ctx));
   api.route("/", billingRoutes(ctx));
   api.route("/", channelRoutes(ctx));
+  api.route("/", teamChatRoutes(ctx));
   api.route("/", invitationRoutes(ctx));
   app.route("/api", api);
 

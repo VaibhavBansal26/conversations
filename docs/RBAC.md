@@ -34,6 +34,9 @@ Source of truth: `server/src/authz/permissions.ts` (a test checks that the built
 | `analytics_identity:manage` | View, set (import) or rotate the analytics identity pepper | yes |  |  |  |
 | `api_keys:manage` | Create and revoke API keys | yes | yes |  |  |
 | `audit:read` | Read the audit log | yes | yes |  |  |
+| `team_chat:use` | Use team chat: read and write in channels you belong to and direct messages, join public channels, react, search | yes | yes | yes | yes |
+| `team_chat:manage_channels` | Create, rename and archive team channels and manage who is in them | yes | yes |  |  |
+| `team_chat:moderate` | Delete other people's team chat messages | yes | yes |  |  |
 
 *Agent* additionally sees only the conversations assigned to them or their inboxes (`inbox_visibility`), whatever permissions they hold; *Manager*, *Owner* and *Viewer* see every conversation of the workspace.
 

@@ -229,7 +229,7 @@ Notable constraints (all enforced by the database, not just by code):
 
 ## 4. Access model
 
-Access is **permission based**: 26 `resource:action` permissions, four immutable built-in roles (Owner, Manager, Agent, Viewer) and custom roles; the same `can()` check guards every REST route and socket event from one declaration table, deny by default. The full model (catalogue, roles, sessions, refresh-token rotation, MFA, invitations, audit) is [RBAC.md](RBAC.md).
+Access is **permission based**: 29 `resource:action` permissions, four immutable built-in roles (Owner, Manager, Agent, Viewer) and custom roles; the same `can()` check guards every REST route and socket event from one declaration table, deny by default. The full model (catalogue, roles, sessions, refresh-token rotation, MFA, invitations, audit) is [RBAC.md](RBAC.md).
 
 A **seat** is a workspace member (`members.id`) with a role, a `live_seat` flag (needed for inbox features), availability `active|away|inactive`, `dnd_until`, notification preferences and `inbox_visibility`. Which *conversations* a seat sees is a separate, single definition (`roomStore.roomVisibility`): Owner, Manager and Viewer see every conversation of the workspace; an Agent sees the rooms assigned to them, plus rooms in inboxes they belong to when `inbox_visibility = assigned_inbox`.
 

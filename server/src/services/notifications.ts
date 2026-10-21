@@ -55,6 +55,8 @@ interface NotificationRow {
   type: string;
   room_id: string | null;
   message_id: string | null;
+  /** set on team chat notifications: the channel to open instead of a conversation */
+  channel_id?: string | null;
   title: string;
   body: string;
   read_at: string | null;
@@ -67,6 +69,7 @@ export const notificationDto = (n: NotificationRow) => ({
   type: n.type,
   room_id: n.room_id,
   message_id: n.message_id,
+  channel_id: n.channel_id ?? null,
   title: n.title,
   body: n.body,
   read_at: n.read_at,
@@ -128,7 +131,7 @@ export async function notifySnoozeEnded(ctx: AppContext, room: RoomRow, snoozedB
 
 /** Job handler: re-check presence/DND at send time, then email. */
 export async function sendNotificationEmail(ctx: AppContext, payload: { notification_id: string }): Promise<void> {
-  const n = await ctx.db.get<{ id: string; workspace_id: string; member_id: string; title: string; body: string; room_id: string | null; emailed_at: string | null }>(
+  const n = await ctx.db.get<{ id: string; workspace_id: string; member_id: string; title: string; body: string; room_id: string | null; channel_id: string | null; emailed_at: string | null }>(
     "SELECT * FROM notifications WHERE id = ?",
     payload.notification_id,
   );
@@ -137,13 +140,13 @@ export async function sendNotificationEmail(ctx: AppContext, payload: { notifica
   if (!m || !(await canEmail(ctx, m))) return;
   const room = n.room_id ? await ctx.db.get<RoomRow>("SELECT * FROM rooms WHERE id = ?", n.room_id) : undefined;
   if (room && isSnoozed(ctx, room)) return;
-  const link = `${ctx.config.PUBLIC_URL.replace(/\/$/, "")}/inbox/${n.room_id ?? ""}`;
+  const link = n.channel_id ? `${ctx.config.PUBLIC_URL.replace(/\/$/, "")}/team/${n.channel_id}` : `${ctx.config.PUBLIC_URL.replace(/\/$/, "")}/inbox/${n.room_id ?? ""}`;
   await ctx.email.send({
     from: { address: ctx.config.SYSTEM_EMAIL_FROM, name: "Conversations" },
     to: m.email,
     subject: n.title,
-    text: `${n.body}\n\nOpen the conversation: ${link}`,
-    html: `<p>${escape(n.body)}</p><p><a href="${link}">Open the conversation</a></p>`,
+    text: `${n.body}\n\n${n.channel_id ? "Open the chat" : "Open the conversation"}: ${link}`,
+    html: `<p>${escape(n.body)}</p><p><a href="${link}">${n.channel_id ? "Open the chat" : "Open the conversation"}</a></p>`,
     messageId: `<${newId("n")}@${ctx.config.SYSTEM_EMAIL_FROM.split("@")[1] ?? "localhost"}>`,
   });
   await ctx.db.run("UPDATE notifications SET emailed_at = ? WHERE id = ?", nowIso(ctx), n.id);

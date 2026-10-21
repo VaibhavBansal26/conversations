@@ -49,6 +49,13 @@ export const POLICIES: Policy[] = [
   P({ id: "msg.room", description: "Messages per room (visitor + agents together): stops a runaway client or loop", keyBy: "composite", algo: "window", limit: 300, windowSec: 60, onFail: "open" }),
   P({ id: "msg.workspace", description: "Messages per workspace per hour, by plan", keyBy: "workspace", algo: "window", limit: 5000, windowSec: 3600, tiers: { free: 5000, pro: 50000, business: 500000 }, onFail: "open" }),
 
+  // ---- team chat (internal messages between members) ----
+  P({ id: "team.send", description: "Team chat messages, per member (REST and socket)", keyBy: "user", algo: "gcra", limit: 90, windowSec: 60, burst: 40, onFail: "open" }),
+  P({ id: "team.channel", description: "Team chat messages per channel per minute: stops a runaway client or loop", keyBy: "composite", algo: "window", limit: 300, windowSec: 60, onFail: "open" }),
+  P({ id: "team.workspace", description: "Team chat messages per workspace per hour, by plan", keyBy: "workspace", algo: "window", limit: 20000, windowSec: 3600, tiers: { free: 20000, pro: 200000, business: 2000000 }, onFail: "open" }),
+  P({ id: "team.search", description: "Team chat searches, per member (20 per minute)", keyBy: "user", algo: "gcra", limit: 20, windowSec: 60, burst: 10, onFail: "open" }),
+  P({ id: "team.create", description: "Channel and group message creation per workspace per hour", keyBy: "workspace", algo: "window", limit: 100, windowSec: 3600, onFail: "open" }),
+
   // ---- authenticated API ----
   P({ id: "api.read", description: "Authenticated reads, per user", keyBy: "user", algo: "gcra", limit: 20, windowSec: 1, burst: 100, onFail: "open", lease: true }),
   P({ id: "api.write", description: "Authenticated writes, per user", keyBy: "user", algo: "gcra", limit: 10, windowSec: 1, burst: 50, onFail: "open", lease: true }),
