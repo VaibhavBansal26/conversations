@@ -3,7 +3,8 @@ import type { AppContext } from "../context.js";
 import { nowIso } from "../context.js";
 import type { Actor } from "../domain/types.js";
 import { AppError, forbidden, unauthorized, unprocessable } from "../errors.js";
-import { hmacHex, openSecret, randomToken, safeEqual, sealSecret } from "../util/crypto.js";
+import { hmacHex, randomToken, safeEqual } from "../util/crypto.js";
+import { decryptWithDataKey, encryptWithDataKey } from "../util/dataCrypto.js";
 import { normalizeEmail } from "../util/phone.js";
 import { recordAudit } from "./audit.js";
 
@@ -18,7 +19,7 @@ import { recordAudit } from "./audit.js";
  *   secret, no hash, enforce off        legacy behaviour: typed email/phone identify the contact and may need the OTP; external_id is ignored
  *   secret, no hash, enforce on         email, phone and external_id are ignored: the visitor stays anonymous
  */
-const PURPOSE = "workspace-identity-v1";
+const aad = (workspaceId: string) => `identity:${workspaceId}`;
 export const IDENTITY_HASH_RE = /^[0-9a-f]{64}$/;
 
 export const identityMessage = (externalId: string | undefined | null, email: string | undefined | null) => `${(externalId ?? "").trim()}|${(email ?? "").trim().toLowerCase()}`;
@@ -35,9 +36,14 @@ interface IdentityRow {
 export async function identityConfig(ctx: AppContext, workspaceId: string): Promise<{ secret: string; enforce: boolean; rotated_at: string } | null> {
   const row = await ctx.db.get<IdentityRow>("SELECT * FROM workspace_identity WHERE workspace_id = ?", workspaceId);
   if (!row) return null;
-  const secret = openSecret(ctx.config.JWT_SECRET, PURPOSE, row.secret);
-  // an unreadable secret (JWT_SECRET was rotated) is treated as "not configured" rather than silently accepting everything
-  return secret ? { secret, enforce: !!row.enforce, rotated_at: row.rotated_at } : null;
+  try {
+    const { plain, needsRewrite } = decryptWithDataKey(ctx.config, row.secret, aad(workspaceId));
+    if (needsRewrite) await ctx.db.run("UPDATE workspace_identity SET secret = ? WHERE workspace_id = ?", encryptWithDataKey(ctx.config, plain, aad(workspaceId)), workspaceId);
+    return { secret: plain, enforce: !!row.enforce, rotated_at: row.rotated_at };
+  } catch {
+    // an unreadable secret (DATA_ENCRYPTION_KEY lost) is treated as "not configured" rather than silently accepting everything
+    return null;
+  }
 }
 
 export async function identityStatus(ctx: AppContext, actor: Actor) {
@@ -51,7 +57,7 @@ export async function rotateIdentitySecret(ctx: AppContext, actor: Actor) {
   if (!can(actor, "tokens:manage")) throw forbidden("Only managers can manage identity verification");
   const secret = `cvi_${randomToken(32)}`;
   const now = nowIso(ctx);
-  const sealed = sealSecret(ctx.config.JWT_SECRET, PURPOSE, secret);
+  const sealed = encryptWithDataKey(ctx.config, secret, aad(actor.workspaceId));
   const updated = await ctx.db.run("UPDATE workspace_identity SET secret = ?, rotated_at = ? WHERE workspace_id = ?", sealed, now, actor.workspaceId);
   if (!updated.changes) await ctx.db.run("INSERT INTO workspace_identity(workspace_id, secret, enforce, rotated_at, created_at) VALUES (?,?,?,?,?)", actor.workspaceId, sealed, false, now, now);
   await recordAudit(ctx, { workspaceId: actor.workspaceId, actor: { type: "member", id: actor.memberId }, action: "identity.secret_rotated" });

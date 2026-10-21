@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { identityMessage, signIdentity } from "../src/services/identity.js";
-import { openSecret, sealSecret } from "../src/util/crypto.js";
+import { encryptWithDataKey } from "../src/util/dataCrypto.js";
 import { addMemberRaw, fullApp, mkContact, seedWorkspace, tokenFor } from "./helpers.js";
 
 const OWN = "http://localhost:3000";
@@ -31,7 +31,7 @@ describe("identity secret management", () => {
     // stored sealed, not in clear
     const stored = (await w.ctx.db.get<{ secret: string }>("SELECT secret FROM workspace_identity WHERE workspace_id = ?", w.wsId))!.secret;
     expect(stored).not.toContain(first.body.secret);
-    expect(stored.startsWith("v1.")).toBe(true);
+    expect(stored.startsWith("enc2.")).toBe(true);
     const second = await w.http.post("/api/identity/rotate", {}, w.token);
     expect(second.body.secret).not.toBe(first.body.secret);
     expect(await w.ctx.db.get("SELECT COUNT(*) n FROM workspace_identity")).toEqual({ n: 1 });
@@ -46,15 +46,6 @@ describe("identity secret management", () => {
     expect((await w.http.get("/api/identity", await tokenFor(w.ctx, other.owner))).body.configured).toBe(false);
   });
 
-  it("sealed secrets round-trip, are salted, bound to their purpose and to the server secret", () => {
-    const a = sealSecret("k".repeat(32), "p", "hello");
-    expect(sealSecret("k".repeat(32), "p", "hello")).not.toBe(a);
-    expect(openSecret("k".repeat(32), "p", a)).toBe("hello");
-    expect(openSecret("k".repeat(32), "other", a)).toBeNull();
-    expect(openSecret("j".repeat(32), "p", a)).toBeNull();
-    expect(openSecret("k".repeat(32), "p", a.slice(0, -2) + "xx")).toBeNull();
-    expect(openSecret("k".repeat(32), "p", "garbage")).toBeNull();
-  });
 });
 
 describe("identity_hash verification matrix", () => {
@@ -197,10 +188,10 @@ describe("identity_hash verification matrix", () => {
     expect(await a.ctx.db.get("SELECT COUNT(*) n FROM contacts WHERE external_id = 'u_1'")).toEqual({ n: 2 });
   });
 
-  it("an unreadable stored secret (server secret rotated) counts as not configured, never as 'accept anything'", async () => {
+  it("an unreadable stored secret (data key lost) counts as not configured, never as 'accept anything'", async () => {
     const w = await world();
     const secret = await w.secret();
-    await w.ctx.db.run("UPDATE workspace_identity SET secret = ? WHERE workspace_id = ?", sealSecret("another-server-secret-another-server", "workspace-identity-v1", secret), w.wsId);
+    await w.ctx.db.run("UPDATE workspace_identity SET secret = ? WHERE workspace_id = ?", encryptWithDataKey({ NODE_ENV: "test", JWT_SECRET: "x".repeat(32), DATA_ENCRYPTION_KEY: "ab".repeat(32) }, secret, `identity:${w.wsId}`), w.wsId);
     const r = await w.session({ email: "a@example.com", external_id: "u_1", identity_hash: signIdentity(secret, "u_1", "a@example.com") });
     expect(r.body.error.code).toBe("IDENTITY_NOT_CONFIGURED");
   });
