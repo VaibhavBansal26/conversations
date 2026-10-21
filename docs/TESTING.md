@@ -2,7 +2,7 @@
 
 ## Strategy
 
-- **Vitest everywhere.** `server/tests` (763 test cases: 711 run on the default in-memory SQLite configuration and 52 more only with PostgreSQL or Redis; the PostgreSQL/Redis jobs run them in CI against `postgres:17` and `redis:7`), `web/src` (219) and `edge` (3), plus 63 browser tests in `e2e/` (Playwright, real Chrome). Counts as of 2026-10-20; the server count includes tests added by the billing, operator and widget work since the earlier 741.
+- **Vitest everywhere.** `server/tests` (1,634 test cases in 85 files: on the default SQLite run 1,565 pass and 69 are skipped because they need PostgreSQL or Redis; with `TEST_DB=postgres` 1,591 pass and 43 are skipped), `web/src` (562 tests in 64 files) and `edge` (3), plus 240 browser tests in 30 files in `e2e/` (Playwright, real Chrome: 105 in the `app` project, the rest are the screenshot matrix). Counts as of 2026-10-21 (the full run is listed in [the counts section](#counts-of-the-last-full-run)).
 - **Services are tested directly** with an in-memory SQLite database (`:memory:`), a fake clock, a `RecordingBus` (captures realtime events), `FakeSmsProvider` / `FakeEmailProvider` (deterministic ids, programmable failures) and an injected `AiProvider`.
 - **HTTP integration** goes through `app.request()` (no port): auth, tenancy, validation, error envelope, webhooks, widget/public endpoints, uploads.
 - **Realtime tests use real Socket.IO**: `tests/rt-helpers.ts` boots the real Hono server + `SocketBus` on an ephemeral port and connects real `socket.io-client` sockets (team JWT and visitor sessions), so namespace middleware, joins, acks, rate limits and presence run for real.
@@ -11,7 +11,7 @@
 - **End-to-end proof** against the *built* server: `npm run e2e` (see below).
 - Each test builds its own world (`fullApp()`, `seedWorkspace()`), so tests are independent and order-free.
 
-- **The same suite on every backend.** `TEST_DATABASE_URL=postgres://...` gives each test its own schema in a real PostgreSQL; `TEST_REDIS_URL=redis://...` runs the whole suite on the Redis paths (limiter, presence, locks, cache invalidation) with a per-context key prefix. The default run needs neither. The last full run before this document: SQLite 689 passed, 52 skipped; PostgreSQL + Redis 741 passed (against a local PostgreSQL 18 and Redis; CI uses `postgres:17`, `redis:7`).
+- **The same suite on every backend.** `TEST_DATABASE_URL=postgres://...` gives each test its own schema in a real PostgreSQL; `TEST_REDIS_URL=redis://...` runs the whole suite on the Redis paths (limiter, presence, locks, cache invalidation) with a per-context key prefix. The default run needs neither. `TEST_DB=postgres` starts an embedded PostgreSQL for the run. Counts of the last full run are at the end of this document.
 - **Contracts are tested against schemas and declarations.** Analytics responses are validated with Ajv against the JSON Schemas; every REST route and socket event must appear in the authorisation, rate-limit and API-documentation tables (a test per pair); a role-by-route matrix sends a request for every protected route as owner, manager, agent and viewer.
 - **Documentation is tested.** `tests/docs.test.ts` runs the same checks as `npm run docs:check`: relative links and anchors, the docs index, generated files (configuration, API, OpenAPI, realtime events, rate-limit table, analytics schemas), Mermaid parsing, route/event/permission coverage, changelog. `tests/docs.examples.test.ts` runs the curl flow of `docs/API.md` against an in-process app.
 - **Fakes for money.** `FakeBilling` records every Stripe call and builds correctly signed webhook payloads; `StripeBilling` is tested against a recording stub of the SDK. Nothing in the suite talks to Stripe.
@@ -162,7 +162,7 @@ Notes: the widget is exercised from a second origin because a same-origin page s
 
 ## Web tests
 
-`web/src/**/*.test.ts(x)` (219 tests, Vitest + Testing Library + jsdom):
+`web/src/**/*.test.ts(x)` (562 tests, Vitest + Testing Library + jsdom):
 
 - socket-to-cache bridge (`message:new` dedupe by id and `client_msg_id`, updated/deleted/receipt, room reorder + unread bump, `room:*`, notifications)
 - optimistic send state machine (ack before/after broadcast, failure, retry with the same `client_msg_id`, socket-to-REST fallback)
@@ -170,6 +170,11 @@ Notes: the widget is exercised from a second origin because a same-origin page s
 - unread badge logic, keyboard shortcuts (ignored while typing), grouping/day separators, mentions, relative times, filter params
 - components: login, API error display incl. `AI_UNAVAILABLE`, message bubble variants (notes, system lines, ticks, failed + retry, quotes, attachments, voice-note player, image viewer), room list item (mentions shown as names), snooze menu, dropdown menu keyboard behaviour (Radix), widget preview and its contrast helper, settings and admin pages, charts
 - `widget.test.ts`: the embeddable `server/public/widget.js` in jsdom with a fake fetch and fake Socket.IO client: shadow-DOM rendering, pre-chat form, optimistic send + ack merge, same-`client_msg_id` retry, REST fallback and resend on reconnect, typing/unread/receipts, safe text rendering, OTP flow, polling fallback, session restore
+
+### Support automation, calls and AI
+
+| Where | What |
+| --- | --- |
 | `migrations.upgrade.test.ts` (AI agents part) | migrations 031 and 032 on a populated 030 database (SQLite, PostgreSQL): nothing lost, knowledge entries read as ungrouped, constraints, cascades, `agents:manage` for owner and manager only, drift against a fresh schema |
 | `web/src/calls/*.test.ts`, `CallSettings.test.tsx`, widget tests | the team engine and the visitor module under jsdom with a fake `RTCPeerConnection` (ringing, accept, negotiation, candidates queued before the description, mute and camera, screen share, resume after reconnect, ICE restart, failure reports, translation fallback), the call panel and the settings page |
 | `ai-calls.test.ts`, `ai-calls.realtime.test.ts` | calls with the AI (SQLite and PostgreSQL): start and refusals, the loop, idempotent retries, hand-over, redaction, budgets, limits, sweeps, resume; the realtime engine against a local fake of the provider (secret minting, tools, the transcript monitor, budgets, the kill switch, every fallback), migration 036 |
@@ -184,3 +189,31 @@ Notes: the widget is exercised from a second origin because a same-origin page s
 | `agents.eval.test.ts`, `agents.eval.report.test.ts` | 51 golden cases with thresholds (`npm run eval:agent` prints the table), injection and hand-off cases never reach the model, a hostile model cannot get banned claims, ungrounded promises or invented links through |
 | `seed-ai.test.ts` | `SEED_AI=1` builds the departments, the AI agent, entries with links and calls; the plain seed has none of it |
 | `web/src/pages/SupportAnalytics.test.tsx` | the dashboard's support section |
+| `group-calls.test.ts`, `web/src/calls/groupEngine.test.ts` | group calls (SQLite and PostgreSQL): the participant state table, ringing on every tab, cards, signalling to the addressed person only, refusals (off, direct messages, too many people, permission, viewers), busy and do-not-disturb people skipped, two joins for the last place, leaves during an offer, one screen share, mute and camera flags, inviting up to the cap, missed invitees, resume and the grace period, tenant isolation, a randomized test of the invariants; migration 041; the browser mesh engine with a fake `RTCPeerConnection` (the newcomer offers, ICE restart only where it is the offerer, speaker highlight, screen share replacing the video on every link) |
+| `push.test.ts`, `web/src/pages/settings/PushSettings.test.tsx` | Web Push: RFC 8291 encryption against the RFC's worked example, VAPID JWT verified with the public key, subscriptions (own devices only, endpoint never returned, allow-list of push services, limits), expired and failing devices, which events are pushed when (app open or closed, do not disturb, previews off), rate limits, retries through the queue, tenant isolation; migration 042; the settings section |
+| `avatar.test.ts`, `web/src/calls/aicall.photoreal.test.ts`, `PhotorealAvatarSettings.test.tsx` | the photoreal avatar against a local fake of the D-ID endpoints: connect (encrypted, write-only, last four only, never in logs or audit), test connection, disconnect, the instance key and the kill switch, avatars and consent, per-agent choice, negotiation, SDP and ICE relay, speaking replies, budget and concurrency, every failure falls back to the built-in face, sweeps; migration 043; the visitor's video element and fallback; the settings page. Nothing runs against D-ID |
+| `ai-channels.test.ts`, `AiChannelSettings.test.tsx` | AI agents on SMS and email with fake providers and a scripted model (see [AI-AGENTS.md](AI-AGENTS.md#ai-agents-on-sms-and-email)) |
+| `transcripts.test.ts`, `TranscriptSettings.test.tsx`, widget tests | transcripts: who may receive a copy (verified session, consent outside the pre-chat form), contents (no notes or internal lines), masking, limits, the automatic copy once per ticket, unsubscribe, the AI tool, test mode, audit; migration 044 |
+| `prechat.test.ts`, `DepartmentSettings.test.tsx`, widget tests | pre-chat custom fields: required fields enforced at session start, optional ones stored once and not asked again in the thread, checkbox values, consent required with an email or phone, department overrides of field modes and consent wording |
+| `e2e/tests/15-group-calls.spec.ts` | three Chrome contexts: a group video call rings two people, a mesh of connections with media both ways, speaker highlight, mute, one screen share at a time, the host leaves and it goes on, the last leaves and it ends |
+| `e2e/tests/16-push.spec.ts` | Settings lists a device and sends a test through a fake push service on loopback; the real service worker shows a pushed notification (delivered through DevTools); a missed teammate call is pushed. Not exercised: real push services |
+| `e2e/tests/17-photoreal.spec.ts` | connect a key, test it, add an avatar, give it to an agent, switch it on; a video call whose stream cannot connect falls back to the built-in face (fake provider) |
+| `e2e/tests/18-ai-sms-email.spec.ts` | a text and an email through the built server's webhooks are answered by the AI in plain text with the disclosure, shown as not sent in test mode; an out-of-office reply is not answered |
+| `e2e/tests/19-transcripts.spec.ts` | a visitor asks for a copy, gives an address with consent in the chat and gets it (test mode says so); a team member sends one from the conversation menu |
+| `e2e/tests/20-prechat-fields.spec.ts` | the pre-chat form with custom fields in the widget and the hosted chat, validation, consent, and an axe check |
+
+## Counts of the last full run
+
+Run on 2026-10-21 on one development machine (macOS, Node 24), with the e2e suite running at the same time as the unit suites:
+
+| Suite | Command | Result |
+| --- | --- | --- |
+| Server, SQLite | `npm test --prefix server` | 1,565 passed, 69 skipped (85 files) |
+| Server, PostgreSQL | `TEST_DB=postgres npm test --prefix server` | 1,591 passed, 43 skipped |
+| Web | `npm test --prefix web` | 562 tests in 64 files |
+| Edge | `npm test --prefix edge` | 3 passed |
+| End-to-end script | `npm run e2e` | passed |
+| Browser (Playwright, `app` project) | `npx playwright test --project=app` | 105 tests |
+| Docs | `npm run docs:check --prefix server` | ok |
+
+Known flaky under heavy load: the team-chat history paging test (`09-team-chat`, scrolls 160 messages) and the transcripts e2e have each failed once while other suites ran alongside and passed when re-run.
