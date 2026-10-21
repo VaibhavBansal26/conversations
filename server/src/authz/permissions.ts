@@ -38,6 +38,8 @@ export const PERMISSIONS = {
   "tickets:merge": "Merge duplicate tickets of one conversation",
   "departments:manage": "Configure departments: hours, routing mode, capacity, service levels, skills and the routing rules",
   "agents:manage": "Create and configure AI support agents, try them in the sandbox, review their transcripts and the questions they could not answer",
+  "calls:make": "Place voice and video calls to visitors from a conversation and take call requests",
+  "calls:settings": "Switch calls on, choose the TURN provider and the phone-call limits",
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -71,7 +73,7 @@ export const SYSTEM_ROLES: SystemRole[] = [
     name: "Agent",
     description: "Works conversations assigned to them (and their inboxes)",
     baseRole: "agent",
-    permissions: ["conversations:read", "conversations:reply", "contacts:read", "contacts:write", "members:read", "settings:read", "ai:use", "payments:request", "team_chat:use", "tickets:read", "tickets:write", "tickets:close"],
+    permissions: ["conversations:read", "conversations:reply", "contacts:read", "contacts:write", "members:read", "settings:read", "ai:use", "payments:request", "team_chat:use", "tickets:read", "tickets:write", "tickets:close", "calls:make"],
   },
   {
     id: "role_viewer",

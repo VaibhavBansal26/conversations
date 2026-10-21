@@ -75,6 +75,29 @@ export const DepartmentInfoSchema = z.object({
 });
 export type DepartmentInfo = z.infer<typeof DepartmentInfoSchema>;
 
+/** Voice and video calls (docs/CALLS.md). Everything is off until a manager switches it on. */
+export const CallSettingsSchema = z.object({
+  browser: z
+    .object({
+      enabled: z.boolean().default(false),
+      voice: z.boolean().default(true),
+      video: z.boolean().default(true),
+      screen_share: z.boolean().default(true),
+    })
+    .default(() => ({ enabled: false, voice: true, video: true, screen_share: true })),
+  /** how long a call rings before it counts as missed */
+  ring_seconds: z.number().int().min(15).max(120).default(45),
+  /** where relay (TURN) credentials come from: none = STUN only (calls fail behind strict NATs), static = the server's TURN_URLS and TURN_SECRET, twilio = the workspace's own Twilio account */
+  turn_provider: z.enum(["none", "static", "twilio"]).default("none"),
+});
+export type CallSettings = z.infer<typeof CallSettingsSchema>;
+/** A patch names only what changes: `.partial()` of the schema above would put the defaults back for everything it leaves out. */
+export const CallsPatchSchema = z.object({
+  browser: z.object({ enabled: z.boolean(), voice: z.boolean(), video: z.boolean(), screen_share: z.boolean() }).partial().optional(),
+  ring_seconds: z.number().int().min(15).max(120).optional(),
+  turn_provider: z.enum(["none", "static", "twilio"]).optional(),
+});
+
 const WidgetShape = z.object({
   title: z.string().max(80).default("Chat with us"),
   intro: z.string().max(240).default("We usually reply within a few minutes."),
@@ -123,6 +146,7 @@ export const WorkspaceSettingsSchema = z.object({
   ai_tone: z.enum(["friendly", "professional", "concise", "empathetic"]).default("friendly"),
   tickets: TicketSettingsSchema.default(() => TicketSettingsSchema.parse({})),
   routing: RoutingSettingsSchema.default(() => RoutingSettingsSchema.parse({})),
+  calls: CallSettingsSchema.default(() => CallSettingsSchema.parse({})),
   widget: WidgetShape.default(() => WidgetShape.parse({})),
 });
 
@@ -142,6 +166,7 @@ export const WorkspaceSettingsPatchSchema = z.object({
   ai_tone: WorkspaceSettingsSchema.shape.ai_tone.optional(),
   tickets: TicketSettingsSchema.partial().optional(),
   routing: RoutingSettingsSchema.partial().optional(),
+  calls: CallsPatchSchema.optional(),
   widget: WidgetShape.partial().optional(),
 });
 
@@ -157,12 +182,13 @@ export function parseSettings(raw: string | null | undefined): WorkspaceSettings
 }
 
 export function mergeSettings(cur: WorkspaceSettings, patch: z.infer<typeof WorkspaceSettingsPatchSchema>): WorkspaceSettings {
-  const { widget, tickets, routing, ...rest } = patch;
+  const { widget, tickets, routing, calls, ...rest } = patch;
   return WorkspaceSettingsSchema.parse({
     ...cur,
     ...rest,
     tickets: { ...cur.tickets, ...(tickets ?? {}) },
     routing: { ...cur.routing, ...(routing ?? {}) },
+    calls: { ...cur.calls, ...(calls ?? {}), browser: { ...cur.calls.browser, ...(calls?.browser ?? {}) } },
     widget: { ...cur.widget, ...(widget ?? {}) },
   });
 }

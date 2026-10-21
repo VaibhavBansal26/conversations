@@ -20,6 +20,8 @@ interface SocketValue {
   status: ConnectionStatus;
   connected: boolean;
   emit<T extends object>(event: string, payload: object, timeoutMs?: number): Promise<Ack<T>>;
+  /** listen to a server event on the live socket (call signalling); returns the unsubscribe function */
+  subscribe(event: string, handler: (payload: never) => void): () => void;
   /** room id -> who is typing right now */
   typing: Record<string, TypingEvent["who"]>;
   onlineMembers: ReadonlySet<string>;
@@ -192,9 +194,16 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     return socket.timeout(timeoutMs).emitWithAck(event, payload) as Promise<Ack<T>>;
   }, []);
 
+  const subscribe = useCallback((event: string, handler: (payload: never) => void) => {
+    const socket = socketRef.current;
+    if (!socket) return () => {};
+    socket.on(event, handler as never);
+    return () => void socket.off(event, handler as never);
+  }, []);
+
   const value = useMemo<SocketValue>(
-    () => ({ status, connected: status === "connected", emit, typing, onlineMembers: online, visitorOnline, teamTyping }),
-    [status, emit, typing, online, visitorOnline, teamTyping],
+    () => ({ status, connected: status === "connected", emit, subscribe, typing, onlineMembers: online, visitorOnline, teamTyping }),
+    [status, emit, subscribe, typing, online, visitorOnline, teamTyping],
   );
   return <SocketContext.Provider value={value}>{children}</SocketContext.Provider>;
 }

@@ -43,6 +43,8 @@ Source of truth: `server/src/authz/permissions.ts` (a test checks that the built
 | `tickets:merge` | Merge duplicate tickets of one conversation | yes | yes |  |  |
 | `departments:manage` | Configure departments: hours, routing mode, capacity, service levels, skills and the routing rules | yes | yes |  |  |
 | `agents:manage` | Create and configure AI support agents, try them in the sandbox, review their transcripts and the questions they could not answer | yes | yes |  |  |
+| `calls:make` | Place voice and video calls to visitors from a conversation and take call requests | yes | yes | yes |  |
+| `calls:settings` | Switch calls on, choose the TURN provider and the phone-call limits | yes | yes |  |  |
 
 *Agent* additionally sees only the conversations assigned to them or their inboxes (`inbox_visibility`), whatever permissions they hold; *Manager*, *Owner* and *Viewer* see every conversation of the workspace.
 

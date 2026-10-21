@@ -174,6 +174,8 @@ Every command is answered with an `ack` whose `reply_to` is the command's id: `{
 | `contact_info_submitted` | `{room_id, fields[]}` | the visitor shared details; `fields` are the names, never the values |
 | `handoff_started` | `{room_id, status: waiting_for_human\|open}` | the conversation went from the AI agent to a person (queued or assigned) |
 | `agent_joined` | `{room_id}` | a person joined the conversation (use it for a local notification) |
+| `call_requested` | `{room_id, kind: voice\|video}` | the visitor asked for a call from the page |
+| `call_state` | `{room_id, call_id, state: ringing\|connecting\|active\|declined\|missed\|ended\|failed, kind}` | informational: a call in this conversation changed state. The page draws the incoming-call screen and the controls itself; use this to keep the host's audio session or an in-call indicator in step. A web view needs the microphone (and camera) permission, see [CALLS.md](CALLS.md) |
 | `link_clicked` | `{url, source: message\|attachment\|payment}` | the visitor tapped a link. `url` is validated to `https:`, `mailto:` or `tel:`. Open it yourself and ack `{ok: true, handled: true}`; without that ack within 800 ms the page tries `window.open` |
 | `attachment_requested` | `{kinds: ["image", "pdf"]}` | informational: the visitor tapped the attach button; the file chooser opens in the same tap (a web view needs the camera and photo permissions, see [MOBILE-SDKS.md](MOBILE-SDKS.md)) |
 | `auth_required` | `{reason: identity_invalid\|verification_required\|session_expired\|conflict}` | sign-in problems: refresh your signed identity and call `identify`, or let the visitor continue |

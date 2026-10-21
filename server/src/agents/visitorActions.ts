@@ -9,9 +9,11 @@ import { announceResolved, liveTicketOf, publishTickets, resolveTicketRow, visit
 import type { SessionRow } from "../services/visitors.js";
 import { getVisitorRoom, visitorSend } from "../services/visitorChat.js";
 import { handleAgentTurn } from "./pipeline.js";
+import { requestCall } from "../calls/service.js";
 
 interface Card {
   type: string;
+  kind?: string;
   purpose?: string;
   reason?: string;
   answered?: string;
@@ -52,6 +54,8 @@ export async function visitorQuickReply(ctx: AppContext, session: SessionRow, ro
     } else {
       await handleAgentTurn(ctx, fresh, sent.message, { dissatisfied: true });
     }
+  } else if (card.purpose === "call") {
+    if (option.id === "yes") await requestCall(ctx, session, room.id, card.kind === "video" ? "video" : "voice");
   } else if (card.purpose === "department" && option.id.startsWith("dept:")) {
     await handoffTicket(ctx, ticket.id, { reason: card.reason ?? "model_handoff", by: { type: "contact" }, departmentId: option.id.slice("dept:".length) });
   }

@@ -22,6 +22,7 @@ const MemberSettings = lazy(() => import("./pages/settings/MemberSettings").then
 const NotificationSettings = lazy(() => import("./pages/settings/NotificationSettings").then((m) => ({ default: m.NotificationSettings })));
 const AiAgentsSettings = lazy(() => import("./pages/settings/AiAgentsSettings").then((m) => ({ default: m.AiAgentsSettings })));
 const VisitorInfoSettings = lazy(() => import("./pages/settings/VisitorInfoSettings").then((m) => ({ default: m.VisitorInfoSettings })));
+const CallSettings = lazy(() => import("./pages/settings/CallSettings").then((m) => ({ default: m.CallSettings })));
 const DepartmentSettings = lazy(() => import("./pages/settings/DepartmentSettings").then((m) => ({ default: m.DepartmentSettings })));
 const TicketSettings = lazy(() => import("./pages/settings/TicketSettings").then((m) => ({ default: m.TicketSettings })));
 const TemplateSettings = lazy(() => import("./pages/settings/TemplateSettings").then((m) => ({ default: m.TemplateSettings })));
@@ -71,6 +72,7 @@ export function App() {
             <Route path="contacts" element={<ContactSettings />} />
             <Route path="knowledge-base" element={<KnowledgeBaseSettings />} />
             <Route path="ai" element={<AiSettings />} />
+            <Route path="calls" element={<CallSettings />} />
             <Route path="visitor-info" element={<VisitorInfoSettings />} />
             <Route path="ai-agents" element={<AiAgentsSettings />} />
             <Route path="security" element={<SecuritySettings />} />

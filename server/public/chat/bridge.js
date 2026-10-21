@@ -17,7 +17,7 @@
   var ACK_TIMEOUT_MS = 800;
 
   var COMMAND_TYPES = ["identify", "setLanguage", "setTheme", "setCustomAttributes", "open", "close", "sendMessage", "reset", "restoreSession", "back", "ack"];
-  var EVENT_TYPES = ["ready", "unread_count_changed", "message_received", "conversation_started", "conversation_closed", "form_requested", "contact_info_submitted", "handoff_started", "agent_joined", "link_clicked", "attachment_requested", "auth_required", "error", "close_requested", "ack"];
+  var EVENT_TYPES = ["ready", "unread_count_changed", "message_received", "conversation_started", "conversation_closed", "form_requested", "contact_info_submitted", "handoff_started", "agent_joined", "call_requested", "call_state", "link_clicked", "attachment_requested", "auth_required", "error", "close_requested", "ack"];
 
   var HEX64 = /^[0-9a-f]{64}$/;
   var DEVICE_ID = /^[A-Za-z0-9_-]{8,64}$/;
@@ -128,6 +128,8 @@
       return Array.isArray(p.fields) && p.fields.every(function (f) { return isStr(f, 60, 1); }) ? null : "fields must be a list of field names (never the values)";
     },
     handoff_started: function (p) { return isStr(p.room_id, 64, 1) && ["waiting_for_human", "open"].indexOf(p.status) >= 0 ? null : "room_id and status (waiting_for_human or open) are required"; },
+    call_requested: function (p) { return isStr(p.room_id, 64, 1) && ["voice", "video"].indexOf(p.kind) >= 0 ? null : "room_id and kind (voice or video) are required"; },
+    call_state: function (p) { return isStr(p.room_id, 64, 1) && isStr(p.call_id, 64, 1) && ["ringing", "connecting", "active", "declined", "missed", "ended", "failed"].indexOf(p.state) >= 0 && ["voice", "video"].indexOf(p.kind) >= 0 ? null : "room_id, call_id, state and kind are required"; },
     agent_joined: function (p) { return isStr(p.room_id, 64, 1) ? null : "room_id is required"; },
     link_clicked: function (p) {
       if (typeof p.url !== "string" || !validateLink(p.url, {}).ok) return "url must be https, mailto or tel";

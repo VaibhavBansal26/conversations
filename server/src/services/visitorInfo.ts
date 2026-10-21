@@ -66,6 +66,8 @@ export function fieldsToAsk(info: VisitorInfoSettings, contact: ContactRow, mome
   const attrs = parseJson<Record<string, unknown>>(contact.attrs, {});
   const out: CardField[] = [];
   const consider = (key: string, mode: string) => {
+    // a callback needs a number, whatever the workspace says about asking for phone numbers in general
+    if (moment === "callback" && key === "phone") mode = "required";
     if (mode === "off") return;
     if (only && !only.includes(key)) return;
     if (moment === "after" && key !== "email") return;

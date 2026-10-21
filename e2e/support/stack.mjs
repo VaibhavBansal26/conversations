@@ -39,6 +39,8 @@ export async function startStack({ port } = {}) {
     WEB_DIST: join(root, "web/dist"),
     LOG_LEVEL: "warn",
     RATE_LIMIT_SCALE: "50",
+    // calls connect over loopback in the tests: no STUN lookups to the internet
+    STUN_URLS: "",
   };
   const seed = spawnSync(join(SERVER, "node_modules/.bin/tsx"), ["src/seed.ts"], { cwd: SERVER, env, encoding: "utf8" });
   if (seed.status !== 0) throw new Error(`seed failed: ${seed.stderr || seed.stdout}`);

@@ -86,6 +86,12 @@ export interface DepartmentVisitorInfo {
 
 export type AiTone = "friendly" | "professional" | "concise" | "empathetic";
 
+export interface CallSettings {
+  browser: { enabled: boolean; voice: boolean; video: boolean; screen_share: boolean };
+  ring_seconds: number;
+  turn_provider: "none" | "static" | "twilio";
+}
+
 export interface WorkspaceSettings {
   default_region: string;
   edit_window_seconds: number;
@@ -96,6 +102,7 @@ export interface WorkspaceSettings {
   ai_tone: AiTone;
   tickets: TicketSettings;
   routing?: { require_online: boolean };
+  calls?: CallSettings;
   widget: WidgetSettings;
 }
 

@@ -403,7 +403,9 @@
         country.addEventListener("change", function () { draft.__country = country.value; });
         control = h("div", { class: "phone" }, [country, input]);
       }
-      form.appendChild(h("label", null, [f.label, f.required ? null : h("span", { class: "opt", text: " (" + t("optional") + ")" }), control, err]));
+      var fid = "cf-" + m.id + "-" + f.key;
+      input.id = fid;
+      form.appendChild(h("div", { class: "fld" }, [h("label", { for: fid }, [f.label, f.required ? null : h("span", { class: "opt", text: " (" + t("optional") + ")" })]), control, err]));
     });
     var consent = null, consentErr = h("div", { class: "fe", role: "alert" });
     if (card.consent) {
@@ -581,6 +583,7 @@
     els.body.appendChild(wrap);
     els.body.appendChild(els.typing);
     els.body.appendChild(els.human);
+    mountCallBar();
     els.body.appendChild(els.chips);
     els.body.appendChild(els.file);
     els.body.appendChild(els.compose);
@@ -817,12 +820,28 @@
   }
 
   /* ---------- sockets ---------- */
+  /* calls: the visitor side is public/chat/calls.js; the controller is created once the workspace has calls switched on */
+  function mountCalls(socket) {
+    var c = state.config && state.config.calls;
+    var C = global.ConversationsCalls;
+    if (!C || !c || !c.browser || !c.browser.enabled) return;
+    if (!state.calls) {
+      state.calls = C.create({ doc: doc, win: global, container: els.app, getSocket: function () { return state.socket; }, getRoomId: function () { return state.room && state.room.id; }, config: c, emit: emit, t: function (k, v) { return t(k, v); } });
+      state.callBar = state.calls.requestBar();
+    }
+    state.calls.bind(socket);
+    mountCallBar();
+  }
+  function mountCallBar() {
+    if (state.callBar && els.human && els.human.parentNode && state.callBar.parentNode !== els.human.parentNode) els.human.parentNode.insertBefore(state.callBar, els.human);
+  }
   function connectSocket() {
     if (state.socket || !state.session || !state.room) return;
     var io = global.io;
     if (!io) { startPolling(); return; }
     var socket = io("/ws/" + state.session.workspace_id, { auth: { session: state.session.session_token, deviceId: deviceId }, transports: ["websocket", "polling"], reconnection: true, reconnectionDelay: 1000, reconnectionDelayMax: 30000, randomizationFactor: 0.8 });
     state.socket = socket;
+    mountCalls(socket);
     socket.on("connect", function () {
       state.connected = true; stopPolling(); updateBanner();
       loadMessages(false).then(function () { renderMessages(); flushQueue(); }).catch(function () {});

@@ -1,3 +1,5 @@
+import { getSettings } from "../services/workspaces.js";
+import { emitInserted, insertMessage } from "../services/messageStore.js";
 import { requestVisitorInfo } from "../services/visitorInfo.js";
 import { z } from "zod";
 import type { AppContext } from "../context.js";
@@ -82,6 +84,27 @@ toolHandlers.collect_contact_info = async (ctx, t) => {
   if (t.action.tool !== "collect_contact_info") return { ok: false, summary: "asked for contact details" };
   const m = await requestVisitorInfo(ctx, t.ticket.id, "agent", { only: t.action.fields });
   return m ? { ok: true, summary: `asked the visitor for ${t.action.fields.join(", ")}` } : { ok: false, detail: "nothing to ask", summary: "had nothing to ask: already known, switched off in the settings or already asked" };
+};
+toolHandlers.offer_call = async (ctx, t) => {
+  if (t.action.tool !== "offer_call") return { ok: false, summary: "offered a call" };
+  const s = (await getSettings(ctx, t.room.workspace_id)).calls;
+  const kind = t.action.kind;
+  if (!s.browser.enabled || !s.browser[kind]) return { ok: false, detail: "calls off", summary: "wanted to offer a call, but calls are switched off" };
+  const text = kind === "video" ? "Would you like a video call with our team?" : "Would you like a voice call with our team?";
+  const r = await insertMessage(ctx, {
+    workspaceId: t.room.workspace_id,
+    roomId: t.room.id,
+    senderType: "bot",
+    senderId: t.agent.id,
+    senderName: t.agent.name,
+    kind: "text",
+    source: "dm",
+    content: text,
+    contentText: text,
+    meta: { ai: true, agent: { id: t.agent.id, name: t.agent.name, label: t.agent.disclosure_label }, card: { type: "quick_replies", purpose: "call", kind, prompt: text, options: [{ id: "yes", label: "Yes, please" }, { id: "no", label: "No, thanks" }] } },
+  });
+  await emitInserted(ctx, r);
+  return { ok: true, summary: `offered the visitor a ${kind} call` };
 };
 toolHandlers.schedule_callback = async (ctx, t) => {
   const m = await requestVisitorInfo(ctx, t.ticket.id, "callback");

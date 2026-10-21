@@ -374,6 +374,7 @@ async function notifyRouting(ctx: AppContext, r: RouteResult, room: RoomRow, rea
 export const handoffReasonText = (reason: string): string =>
   ({
     customer_requested_human: "The customer asked for a person.",
+    call_requested: "The customer asked for a call.",
     low_confidence: "The AI agent could not answer confidently.",
     no_answer: "The AI agent found no answer.",
     repeated_rephrase: "The customer had to rephrase repeatedly.",

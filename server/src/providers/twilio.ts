@@ -94,6 +94,20 @@ export class TwilioSmsProvider implements SmsProvider {
       }));
   }
 
+  /**
+   * Network Traversal Service: short-lived STUN and TURN credentials for one call, minted with this workspace's own Twilio account.
+   * (Twilio bills relayed media to that account; the token itself is free.)
+   */
+  async networkTraversalToken(ttlSeconds: number): Promise<{ iceServers: { urls: string[]; username?: string; credential?: string }[]; ttl: number }> {
+    const { res, json } = await this.call("/Tokens.json", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ Ttl: String(ttlSeconds) }) });
+    if (!res.ok) throw this.fail(res.status, json);
+    if (!Array.isArray(json.ice_servers)) throw new ProviderError("Twilio answered without ICE servers", false, res.status, "malformed_response", "Twilio returned an unexpected answer.");
+    const iceServers = (json.ice_servers as Record<string, unknown>[])
+      .map((s) => ({ urls: [String(s.urls ?? s.url ?? "")].filter((u) => /^(stun|turn)s?:/i.test(u)), username: typeof s.username === "string" ? s.username : undefined, credential: typeof s.credential === "string" ? s.credential : undefined }))
+      .filter((s) => s.urls.length);
+    return { iceServers, ttl: Number(json.ttl) > 0 ? Number(json.ttl) : ttlSeconds };
+  }
+
   async fetchStatus(id: string): Promise<{ state: ProviderDeliveryState; error?: string }> {
     const { res, json: j } = await this.call(`/Messages/${encodeURIComponent(id)}.json`);
     if (!res.ok) return { state: "unknown" };

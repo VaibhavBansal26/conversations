@@ -36,6 +36,17 @@ Every event is acknowledged: `{ok: true, ...}` or `{ok: false, error: {code, mes
 | `typing` | team, visitor | `conversations:reply` | 0.25 | `room_id*`, `typing*`, `internal` |
 | `otp:verify` | visitor | visitor session | 5 | `code*` |
 | `presence:list` | team | `members:read` | 1 | none |
+| `call:invite` | team | `calls:make` | 5 | `room_id*`, `kind*` |
+| `call:request` | visitor | visitor session | 5 | `room_id*`, `kind*` |
+| `call:accept` | visitor | visitor session | 2 | `call_id*` |
+| `call:decline` | visitor | visitor session | 2 | `call_id*` |
+| `call:end` | team, visitor | `calls:make` | 2 | `call_id*` |
+| `call:connected` | team, visitor | `calls:make` | 1 | `call_id*` |
+| `call:failed` | team, visitor | `calls:make` | 1 | `call_id*`, `reason` |
+| `call:resume` | team, visitor | `calls:make` | 2 | `call_id*` |
+| `call:offer` | team, visitor | `calls:make` | 2 | `call_id*`, `data*` |
+| `call:answer` | team, visitor | `calls:make` | 2 | `call_id*`, `data*` |
+| `call:ice` | team, visitor | `calls:make` | 0.25 | `call_id*`, `data*` |
 | `team:message:send` | team | `team_chat:use` | 2 | `content`, `thread_root_id`, `attachment_ids`, `client_msg_id`, `share_room_id`, `channel_id*` |
 | `team:typing` | team | `team_chat:use` | 0.25 | `channel_id*`, `typing*`, `thread_root_id` |
 | `team:read` | team | `team_chat:use` | 1 | `message_id`, `channel_id*` |
@@ -60,6 +71,9 @@ Internal chat between workspace members uses the same namespace and the same aut
 | `room:updated` | room audience | `{room, reason?}` | status, assignment, snooze, priority, subject, unread |
 | `room:deleted` | members who lost it | `{room_id}` | archived or no longer visible |
 | `ticket:updated` | room audience (visitor gets a minimal copy) | `{ticket}` / visitor `{room_id, ticket: {id, number, status, resolved, csat_pending}}` | a ticket opened, was answered, taken over, resolved, rated, reopened, merged or closed |
+| `call:state` | room audience (the visitor gets `{call: {id, room_id, kind, state, duration_s, ended_by, end_reason, agent_name}}`) | `{call}` | a call rang, connected, ended, was missed, declined or failed ([CALLS.md](CALLS.md)); never carries signalling |
+| `call:offer`, `call:answer`, `call:ice` | one socket: the other party of the call | `{call_id, data}` | WebRTC signalling relayed to the other side's bound socket and to nobody else |
+| `call:peer` | one socket: the other party | `{call_id, event: lost\|resumed}` | the other side's connection dropped or came back (restart ICE on `resumed`) |
 | `room:unread` | the member | `{room_id, unread_count}` | unread count changed |
 | `typing` | room audience | `{room_id, typing, who}` | typing indicator (coalesced) |
 | `presence:update` | workspace | `{member_id, online}` | team presence |

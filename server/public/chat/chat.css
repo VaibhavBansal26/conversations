@@ -150,12 +150,13 @@ svg { display: block; flex: none; }
 .human button { border: 0; background: transparent; color: var(--muted); text-decoration: underline; font-size: 14px; min-height: 44px; padding: 0 12px; }
 
 .cform { align-self: stretch; margin: 2px 4px 8px; padding: 14px; border: 1px solid var(--line); border-radius: var(--r); background: var(--bg); display: flex; flex-direction: column; gap: 12px; }
-.cform label { font-size: 15px; font-weight: 550; display: flex; flex-direction: column; gap: 5px; color: var(--fg); }
+.cform .fld { display: flex; flex-direction: column; gap: 5px; }
+.cform label { font-size: 15px; font-weight: 550; color: var(--fg); }
 .cform .opt { font-weight: 400; color: var(--muted); }
 .cform input[type="text"], .cform input[type="email"], .cform input[type="tel"], .cform select { border: 1px solid var(--line); background: var(--bg2); color: var(--fg); border-radius: calc(var(--r) * 0.6); padding: 10px 12px; font-size: 16px; min-height: 44px; inline-size: 100%; }
 .cform .phone { display: flex; gap: 8px; }
 .cform .phone select { inline-size: 42%; flex: none; }
-.cform .consent { flex-direction: row; align-items: flex-start; gap: 10px; font-weight: 400; font-size: 14px; }
+.cform label.consent { display: flex; flex-direction: row; align-items: flex-start; gap: 10px; font-weight: 400; font-size: 14px; }
 .cform .consent input { margin-block-start: 3px; inline-size: 20px; block-size: 20px; }
 .cform .fe { color: var(--err); font-size: 14px; }
 .cform .fe:empty { display: none; }
@@ -164,3 +165,27 @@ svg { display: block; flex: none; }
 .cform .skip { background: transparent; border: 0; color: var(--muted); text-decoration: underline; min-height: 44px; font-size: 15px; }
 .cform .hp { position: absolute; inset-inline-start: -10000px; inline-size: 1px; block-size: 1px; overflow: hidden; }
 .cform input:focus-visible, .cform select:focus-visible, .cform button:focus-visible { outline: 2px solid var(--ring, var(--fg)); outline-offset: 2px; }
+
+/* calls: generated from public/chat/calls.js (ConversationsCalls.css); keep in step */
+.app { position: relative; }
+.call{position:absolute;inset:0;z-index:30;display:flex;flex-direction:column;background:#10131a;color:#fff;font-family:inherit}
+.call[hidden]{display:none}
+.call .stage{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#0b0d12;overflow:hidden}
+.call video.remote{width:100%;height:100%;object-fit:contain;background:#0b0d12}
+.call video.local{position:absolute;right:12px;bottom:12px;width:28%;max-width:140px;aspect-ratio:3/4;object-fit:cover;border-radius:10px;border:2px solid rgba(255,255,255,.6);background:#222;transform:scaleX(-1)}
+.call video.local[hidden]{display:none}
+.call .who{position:absolute;top:14px;left:0;right:0;text-align:center;font-size:15px;font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.call .sub{display:block;font-size:12.5px;font-weight:400;opacity:.9;margin-top:2px}
+.call .q{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:#9aa0aa;vertical-align:0}.call .q.good{background:#4ade80}.call .q.fair{background:#facc15}.call .q.poor{background:#f87171}
+.call .note{position:absolute;bottom:60px;left:12px;right:12px;text-align:center;font-size:13px;background:rgba(0,0,0,.55);border-radius:8px;padding:6px 10px}.call .note:empty{display:none}
+.call .bar{display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap;padding:12px;background:#10131a}
+.call .bar button{min-width:48px;height:48px;border-radius:50%;border:0;background:#2a2f3a;color:#fff;cursor:pointer;font-size:13px;font-weight:600;padding:0 12px}
+.call .bar button:hover,.call .bar button:focus-visible{background:#3a4150;outline:2px solid #fff;outline-offset:2px}
+.call .bar button[aria-pressed=true]{background:#fff;color:#10131a}
+.call .bar .end{background:#d92d20}.call .bar .end:hover{background:#b42318}
+.call .bar .accept{background:#16a34a}.call .bar .accept:hover{background:#15803d}
+.call .bar .decline{background:#d92d20}
+.call .dev{padding:0 12px 12px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center;background:#10131a}.call .dev[hidden]{display:none}
+.call .dev label{font-size:12px;display:flex;flex-direction:column;gap:3px}.call .dev select{max-width:160px;background:#2a2f3a;color:#fff;border:1px solid #444b59;border-radius:6px;padding:4px}
+.call .timer{font-variant-numeric:tabular-nums}
+.callreq{display:flex;gap:6px;justify-content:center;padding:2px 8px}.callreq[hidden]{display:none}.callreq button{border:0;background:transparent;color:var(--muted,#555);text-decoration:underline;cursor:pointer;font-size:12.5px;padding:3px 6px}

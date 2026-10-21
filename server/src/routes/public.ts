@@ -83,6 +83,7 @@ export function publicRoutes(ctx: AppContext) {
       office_open: isOpen(widget.office_hours, ctx.clock()),
       live_routing_inboxes: inboxes,
       ai,
+      calls: { browser: { enabled: settings.calls.browser.enabled, voice: settings.calls.browser.voice, video: settings.calls.browser.video } },
       departments,
       agents_available: agents.length,
       agents: agents.slice(0, 3),

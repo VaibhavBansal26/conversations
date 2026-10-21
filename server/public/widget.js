@@ -150,9 +150,9 @@
     ".qr button{border:1px solid var(--c);background:var(--bg);color:var(--fg);border-radius:999px;padding:7px 13px;font-size:13.5px;font-weight:550;cursor:pointer;min-height:34px}.qr button:hover,.qr button:focus-visible{background:var(--c);color:var(--t)}",
     ".fb{align-self:flex-start;display:flex;gap:4px;align-items:center;font-size:12px;color:var(--muted);margin:-2px 0 4px 2px}.fb button{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;padding:4px 6px;border-radius:6px}.fb button:hover,.fb button:focus-visible{background:var(--bg);color:var(--fg)}.fb button[aria-pressed=true]{color:var(--c)}",
     ".cform{align-self:stretch;margin:2px 4px 6px;padding:12px;border:1px solid var(--line);border-radius:calc(var(--r,16px)*.8);background:var(--bg);display:flex;flex-direction:column;gap:10px}",
-    ".cform label{font-size:13px;font-weight:550;display:flex;flex-direction:column;gap:4px;color:var(--fg)}.cform .opt{font-weight:400;color:var(--muted)}",
+    ".cform .fld{display:flex;flex-direction:column;gap:4px}.cform label{font-size:13px;font-weight:550;color:var(--fg)}.cform .opt{font-weight:400;color:var(--muted)}",
     ".cform input[type=text],.cform input[type=email],.cform input[type=tel],.cform select{border:1px solid var(--line);background:var(--bg2);color:var(--fg);border-radius:calc(var(--r,16px)*.6);padding:9px 11px;font-size:14px;min-height:40px;width:100%}",
-    ".cform .phone{display:flex;gap:6px}.cform .phone select{width:42%;flex:none}.cform .consent{flex-direction:row;align-items:flex-start;gap:8px;font-weight:400;font-size:12.5px}.cform .consent input{margin-top:2px}",
+    ".cform .phone{display:flex;gap:6px}.cform .phone select{width:42%;flex:none}.cform label.consent{display:flex;flex-direction:row;align-items:flex-start;gap:8px;font-weight:400;font-size:12.5px}.cform .consent input{margin-top:2px}",
     ".cform .fe{color:var(--err);font-size:12.5px}.cform .fe:empty{display:none}.cform .row{display:flex;gap:8px;align-items:center}",
     ".cform .go{background:var(--c);color:var(--t);border:0;border-radius:calc(var(--r,16px)*.6);padding:0 16px;min-height:40px;font-weight:600;cursor:pointer}.cform .skip{background:transparent;border:0;color:var(--muted);text-decoration:underline;cursor:pointer;font-size:13px}",
     ".cform .hp{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}",
@@ -383,7 +383,9 @@
           country.addEventListener("change", function () { draft.__country = country.value; });
           control = h(doc, "div", { class: "phone" }, [country, input]);
         }
-        form.appendChild(h(doc, "label", null, [f.label + "", f.required ? null : h(doc, "span", { class: "opt", text: " (optional)" }), control, err]));
+        var fid = "cf-" + m.id + "-" + f.key;
+        input.id = fid;
+        form.appendChild(h(doc, "div", { class: "fld" }, [h(doc, "label", { for: fid }, [f.label + "", f.required ? null : h(doc, "span", { class: "opt", text: " (optional)" })]), control, err]));
       });
       var consent = null, consentErr = h(doc, "div", { class: "fe", role: "alert" });
       if (card.consent) {
@@ -526,6 +528,7 @@
       var send = h(doc, "button", { type: "button", class: "send", "aria-label": "Send message", onclick: submit }, [icon(doc, "send", 18)]);
       els.human = h(doc, "div", { class: "human", hidden: true }, [h(doc, "button", { type: "button", "data-human": "1", text: "Talk to a person", onclick: requestHuman })]);
       els.body.appendChild(els.banner); els.body.appendChild(els.list); els.body.appendChild(els.typing); els.body.appendChild(els.human);
+      mountCallBar();
       els.body.appendChild(h(doc, "div", { class: "compose" }, [els.input, send]));
       els.body.style.display = "flex"; els.body.style.flexDirection = "column"; els.body.style.flex = "1"; els.body.style.minHeight = "0";
       els.banner.hidden = state.connected || !state.session;
@@ -657,6 +660,7 @@
       if (!io) { loadSocketScript().then(connectSocket).catch(startPolling); return; }
       var socket = io(base + "/ws/" + state.session.workspace_id, { auth: { session: state.session.session_token, deviceId: deviceId }, transports: ["websocket", "polling"], reconnection: true, reconnectionDelay: 1000, reconnectionDelayMax: 30000, randomizationFactor: 0.8 });
       state.socket = socket;
+      mountCalls(socket);
       socket.on("connect", function () {
         state.connected = true; stopPolling();
         if (els.banner) els.banner.hidden = true;
@@ -694,6 +698,34 @@
         state.typingTimer = setTimeout(function () { renderTyping(""); }, 4000);
       });
       socket.on("session:verified", function () { loadMessages().then(renderMessages); });
+    }
+
+    /* ---------- calls: the visitor side lives in /chat/assets/calls.js, loaded only when the workspace switched calls on ---------- */
+    function loadCalls() {
+      var C = win.ConversationsCalls || opts.calls;
+      if (C) return Promise.resolve(C);
+      return new Promise(function (resolve, reject) {
+        var s = doc.createElement("script");
+        s.src = base + "/chat/assets/calls.js"; s.async = true;
+        s.onload = function () { win.ConversationsCalls ? resolve(win.ConversationsCalls) : reject(new Error("calls unavailable")); };
+        s.onerror = function () { reject(new Error("calls script failed to load")); };
+        doc.head.appendChild(s);
+      });
+    }
+    function mountCalls(socket) {
+      var c = state.config.calls;
+      if (!c || !c.browser || !c.browser.enabled || state.calls || state.callsLoading) return;
+      state.callsLoading = true;
+      loadCalls().then(function (C) {
+        var style = h(doc, "style", { text: C.css }); els.shadow.appendChild(style);
+        state.calls = C.create({ doc: doc, win: win, container: els.panel, getSocket: function () { return state.socket; }, getRoomId: function () { return state.room && state.room.id; }, config: c, emit: function () {}, onRinging: function () { open(); } });
+        state.callBar = state.calls.requestBar();
+        state.calls.bind(socket);
+        mountCallBar();
+      }).catch(function () { state.callsLoading = false; /* calls are optional: the chat works without */ });
+    }
+    function mountCallBar() {
+      if (state.callBar && els.human && els.human.parentNode) els.human.parentNode.insertBefore(state.callBar, els.human);
     }
 
     function loadSocketScript() {

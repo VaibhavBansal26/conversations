@@ -5,7 +5,8 @@ import type { z } from "zod";
 import type { AppContext } from "../context.js";
 import { seesAll, type Actor } from "../domain/types.js";
 import { AppError, unauthorized } from "../errors.js";
-import { AssignBody, OtpVerify, ReadBody, RoomCreate, RoomPatch, SendMessageBody, TeamSocketReaction, TeamSocketRead, TeamSocketSend, TeamSocketTyping, TypingBody, id } from "../schemas.js";
+import { acceptCall, declineCall, endCall, inviteCall, relaySignal, reportConnected, reportFailed, requestCall, resumeCall, socketGone } from "../calls/service.js";
+import { CallFailedBody, CallIdBody, CallInviteBody, CallRequestBody, CallSignalBody, AssignBody, OtpVerify, ReadBody, RoomCreate, RoomPatch, SendMessageBody, TeamSocketReaction, TeamSocketRead, TeamSocketSend, TeamSocketTyping, TypingBody, id } from "../schemas.js";
 import { accessChannel, markTeamRead, sendTeamMessage, toggleReaction } from "../services/teamChat.js";
 import { actorFromToken } from "../services/auth.js";
 import { audienceChannels } from "../services/audience.js";
@@ -121,6 +122,9 @@ export class SocketBus implements RealtimeBus {
   }
   toMember(ws: string, memberId: string, event: string, payload: unknown) {
     this.timed(event, () => this.nsp(ws)?.to(`member:${memberId}`).emit(event, payload));
+  }
+  toSocket(ws: string, socketId: string, event: string, payload: unknown) {
+    this.timed(event, () => this.nsp(ws)?.to(socketId).emit(event, payload));
   }
   toInbox(ws: string, inboxId: string, event: string, payload: unknown) {
     this.timed(event, () => this.nsp(ws)?.to(`inbox:${inboxId}`).emit(event, payload));
@@ -298,6 +302,8 @@ async function joinTeamRooms(ctx: AppContext, s: Socket, a: Actor) {
   for (const i of inboxes) s.join(`inbox:${i.id}`);
   if (!seesAll(a) && a.inboxVisibility === "assigned_inbox") for (const i of inboxes) s.join(`inboxv:${i.id}`);
 }
+
+const callPublic = (c: { id: string; state: string; kind: string }) => ({ id: c.id, state: c.state, kind: c.kind });
 
 function errorAck(e: unknown) {
   if (e instanceof AppError) {
@@ -753,6 +759,20 @@ function registerHandlers(ctx: AppContext, socket: Socket, ready: Promise<void>)
   });
   on("team:read", TeamSocketRead, "team", async (p, { actor }) => await markTeamRead(ctx, actor!, p.channel_id, p.message_id));
   on("team:reaction", TeamSocketReaction, "team", async (p, { actor }) => await toggleReaction(ctx, actor!, p.message_id, p.emoji));
+
+  /* ---- calls: signalling only. The service owns the call row and decides who may do what; offers and candidates go to the other side's socket and nobody else ---- */
+  on("call:invite", CallInviteBody, "team", async (p, { actor }) => await inviteCall(ctx, actor!, socket.id, p));
+  on("call:request", CallRequestBody, "visitor", async (p, { session }) => await requestCall(ctx, session!, p.room_id, p.kind));
+  on("call:accept", CallIdBody, "visitor", async (p, { session }) => await acceptCall(ctx, session!, socket.id, p.call_id));
+  on("call:decline", CallIdBody, "visitor", async (p, { session }) => ({ call: callPublic(await declineCall(ctx, session!, p.call_id)) }));
+  on("call:end", CallIdBody, undefined, async (p, who) => ({ call: callPublic(await endCall(ctx, who, p.call_id)) }));
+  on("call:connected", CallIdBody, undefined, async (p, who) => ({ call: callPublic(await reportConnected(ctx, who, p.call_id)) }));
+  on("call:failed", CallFailedBody, undefined, async (p, who) => ({ call: callPublic(await reportFailed(ctx, who, p.call_id, p.reason)) }));
+  on("call:resume", CallIdBody, undefined, async (p, who) => await resumeCall(ctx, who, socket.id, p.call_id));
+  on("call:offer", CallSignalBody, undefined, async (p, who) => (await relaySignal(ctx, who, socket.id, "offer", p), {}));
+  on("call:answer", CallSignalBody, undefined, async (p, who) => (await relaySignal(ctx, who, socket.id, "answer", p), {}));
+  on("call:ice", CallSignalBody, undefined, async (p, who) => (await relaySignal(ctx, who, socket.id, "ice", p), {}));
+  socket.on("disconnect", () => void socketGone(ctx, ws, socket.id).catch(() => {}));
 
   on("otp:verify", OtpVerify, "visitor", (p, { session }) => verifyOtp(ctx, session!, p.code));
 

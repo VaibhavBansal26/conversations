@@ -859,7 +859,7 @@ describe("SQLite: visitor details migration on a populated database of the relea
       await old.close();
       const db = await openDb(path);
       const applied = await migrate(db);
-      expect(applied).toEqual(["033_department_visitor_info.sql"]);
+      expect(applied[0]).toBe("033_department_visitor_info.sql");
       expect(await db.all("PRAGMA foreign_key_check")).toEqual([]);
       await expectVisitorInfoMigration(db, before, tables);
       expect(await migrate(db)).toEqual([]);
@@ -916,9 +916,120 @@ describe.skipIf(!postgres)("PostgreSQL: visitor details migration on a populated
       const tables = await userTables(b.db);
       const before = await counts(b.db, tables);
       const applied = await migrate(b.db, undefined, { hashPartitions: 2 });
-      expect(applied).toEqual(["033_department_visitor_info.sql"]);
+      expect(applied[0]).toBe("033_department_visitor_info.sql");
       expect(await schemaOf(b.db)).toEqual(await schemaOf(a.db));
       await expectVisitorInfoMigration(b.db, before, tables);
+      expect(await migrate(b.db, undefined, { hashPartitions: 2 })).toEqual([]);
+    } finally {
+      rmSync(prev, { recursive: true, force: true });
+      await a.drop();
+      await b.drop();
+    }
+  });
+});
+
+// ---- calls (migrations 034 and 035): the release before them is 033 ------------------------------------------------------------------------
+
+const PRE_CALLS = 33;
+
+async function expectCallsMigration(db: Db, before: Record<string, number>, tables: string[]) {
+  expect(await counts(db, tables)).toEqual(before);
+  expect(await db.all("SELECT 1 FROM calls")).toEqual([]);
+  const ins = (id: string, state: string) => db.run("INSERT INTO calls(id, workspace_id, room_id, contact_id, kind, state, initiated_by, created_at, updated_at) VALUES (?, 'w1', 'r1', 'c1', 'voice', ?, 'm1', ?, ?)", id, state, T(60), T(60));
+  await ins("cl1", "ringing");
+  // one live call per conversation, any number of finished ones
+  await expect(ins("cl2", "active")).rejects.toThrow(/unique|UNIQUE/i);
+  await db.run("UPDATE calls SET state = 'ended' WHERE id = 'cl1'");
+  await ins("cl3", "active");
+  await expect(ins("cl4", "paused")).rejects.toThrow(/CHECK|check constraint/i);
+  await expect(db.run("UPDATE calls SET kind = 'hologram' WHERE id = 'cl3'")).rejects.toThrow(/CHECK|check constraint/i);
+  // calls go with their conversation
+  await db.run("DELETE FROM rooms WHERE id = 'r1'");
+  expect(await db.all("SELECT 1 FROM calls")).toEqual([]);
+  // roles: calls:make for owner, manager and agent; calls:settings for owner and manager
+  for (const r of SYSTEM_ROLES) expect((await roleList(db, r.id)).sort(), r.id).toEqual([...r.permissions].sort());
+  expect(await roleList(db, "role_agent")).toContain("calls:make");
+  expect(await roleList(db, "role_agent")).not.toContain("calls:settings");
+  expect(await roleList(db, "role_viewer")).not.toContain("calls:make");
+  expect(await roleList(db, "role_manager")).toEqual(expect.arrayContaining(["calls:make", "calls:settings"]));
+  await expect(db.run("UPDATE roles SET name = 'hacked' WHERE id = 'role_owner'")).rejects.toThrow(/immutable/);
+}
+
+describe("SQLite: calls migrations on a populated database of the release before them", () => {
+  it("adds calls without touching a row", async () => {
+    const { dir, path } = await openSqliteFile();
+    const prev = releaseDir(PRE_CALLS);
+    try {
+      const old = await openDb(path);
+      await migrate(old, prev);
+      await seedPreviousRelease(old);
+      await seedTickets(old);
+      await seedKb(old);
+      const tables = await userTables(old);
+      const before = await counts(old, tables);
+      await old.close();
+      const db = await openDb(path);
+      const applied = await migrate(db);
+      expect(applied.slice(0, 2)).toEqual(["034_calls.sql", "035_roles_calls.sqlite.sql"]);
+      expect(await db.all("PRAGMA foreign_key_check")).toEqual([]);
+      await expectCallsMigration(db, before, tables);
+      expect(await migrate(db)).toEqual([]);
+      await db.close();
+    } finally {
+      rmSync(prev, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("schema drift guard: a database upgraded from 033 equals a fresh one", async () => {
+    const fresh = await openDb(":memory:");
+    await migrate(fresh);
+    const { dir, path } = await openSqliteFile();
+    const prev = releaseDir(PRE_CALLS);
+    try {
+      const old = await openDb(path);
+      await migrate(old, prev);
+      await seedPreviousRelease(old);
+      await old.close();
+      const upgraded = await openDb(path);
+      await migrate(upgraded);
+      expect(await schemaOf(upgraded)).toEqual(await schemaOf(fresh));
+      await upgraded.close();
+    } finally {
+      await fresh.close();
+      rmSync(prev, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe.skipIf(!postgres)("PostgreSQL: calls migrations on a populated database of the release before them", () => {
+  it("adds calls without touching a row and matches a fresh schema", async () => {
+    const mk = async () => {
+      const schema = `u_${Math.random().toString(16).slice(2, 10)}`;
+      const admin = new pg.Client({ connectionString: process.env.TEST_DATABASE_URL });
+      await admin.connect();
+      await admin.query(`CREATE SCHEMA ${schema}`);
+      const u = new URL(process.env.TEST_DATABASE_URL!);
+      u.searchParams.set("options", `-c search_path=${schema}`);
+      const db = await openDb({ url: u.toString(), poolMax: 4 });
+      return { db, drop: async () => (await db.close(), await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`), await admin.end()) };
+    };
+    const a = await mk();
+    const b = await mk();
+    const prev = releaseDir(PRE_CALLS);
+    try {
+      await migrate(a.db, undefined, { hashPartitions: 2 });
+      await migrate(b.db, prev, { hashPartitions: 2 });
+      await seedPreviousRelease(b.db);
+      await seedTickets(b.db);
+      await seedKb(b.db);
+      const tables = await userTables(b.db);
+      const before = await counts(b.db, tables);
+      const applied = await migrate(b.db, undefined, { hashPartitions: 2 });
+      expect(applied.slice(0, 2)).toEqual(["034_calls.sql", "035_roles_calls.pg.sql"]);
+      expect(await schemaOf(b.db)).toEqual(await schemaOf(a.db));
+      await expectCallsMigration(b.db, before, tables);
       expect(await migrate(b.db, undefined, { hashPartitions: 2 })).toEqual([]);
     } finally {
       rmSync(prev, { recursive: true, force: true });

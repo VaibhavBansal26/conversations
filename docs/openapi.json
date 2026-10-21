@@ -1119,6 +1119,41 @@
                           }
                         }
                       },
+                      "calls": {
+                        "type": "object",
+                        "properties": {
+                          "browser": {
+                            "type": "object",
+                            "properties": {
+                              "enabled": {
+                                "type": "boolean"
+                              },
+                              "voice": {
+                                "type": "boolean"
+                              },
+                              "video": {
+                                "type": "boolean"
+                              },
+                              "screen_share": {
+                                "type": "boolean"
+                              }
+                            }
+                          },
+                          "ring_seconds": {
+                            "type": "integer",
+                            "minimum": 15,
+                            "maximum": 120
+                          },
+                          "turn_provider": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "static",
+                              "twilio"
+                            ]
+                          }
+                        }
+                      },
                       "widget": {
                         "type": "object",
                         "properties": {
@@ -5662,6 +5697,193 @@
           },
           "400": {
             "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/calls/config": {
+      "get": {
+        "tags": [
+          "Calls"
+        ],
+        "summary": "Whether browser calls are on and which kinds, the ring time, the TURN provider and the one warning worth showing before the first call (`calls:make`). Calls themselves are placed and answered over the socket (`call:invite`, `call:accept`, ..., see REALTIME.md)",
+        "operationId": "get_api_calls_config",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "calls:make",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.read",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "`{browser: {enabled, voice, video, screen_share}, ring_seconds, turn_provider, warning}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/calls/settings": {
+      "patch": {
+        "tags": [
+          "Calls"
+        ],
+        "summary": "Change the call settings: browser calls on or off, voice, video, screen sharing, ring time (15 to 120 s) and the TURN provider (`calls:settings`). Send only what changes",
+        "operationId": "patch_api_calls_settings",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "calls:settings",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "browser": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean"
+                      },
+                      "voice": {
+                        "type": "boolean"
+                      },
+                      "video": {
+                        "type": "boolean"
+                      },
+                      "screen_share": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  "ring_seconds": {
+                    "type": "integer",
+                    "minimum": 15,
+                    "maximum": 120
+                  },
+                  "turn_provider": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "static",
+                      "twilio"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rooms/{id}/calls": {
+      "get": {
+        "tags": [
+          "Calls"
+        ],
+        "summary": "The calls of a conversation, newest first (state, kind, duration, who ended it)",
+        "operationId": "get_api_rooms_id_calls",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "conversations:read",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.read",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`{data: Call[]}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error"

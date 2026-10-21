@@ -1,5 +1,6 @@
 import type { ZodType } from "zod";
 import * as S from "../schemas.js";
+import * as calls from "../domain/settings.js";
 import * as formR from "../services/visitorInfo.js";
 import * as authR from "../routes/auth.js";
 import * as billingR from "../routes/billing.js";
@@ -119,6 +120,9 @@ const rows: [string, string, string, Opt?][] = [
 
   // ---- tickets
   ["GET /api/tickets", "Tickets", "List tickets in your scope (a ticket follows the visibility of its conversation): filter by `status` (`live`, `all` or a comma list), `handler` (`bot`, `human`, `unassigned`, `me`, `bot:<id>`, `human:<id>`), `department_id`, `priority_min`, `contact_id`, `room_id`, `q` (number or subject); keyset paged", { query: S.TicketQuery }],
+  ["GET /api/calls/config", "Calls", "Whether browser calls are on and which kinds, the ring time, the TURN provider and the one warning worth showing before the first call (`calls:make`). Calls themselves are placed and answered over the socket (`call:invite`, `call:accept`, ..., see REALTIME.md)", { returns: "`{browser: {enabled, voice, video, screen_share}, ring_seconds, turn_provider, warning}`" }],
+  ["PATCH /api/calls/settings", "Calls", "Change the call settings: browser calls on or off, voice, video, screen sharing, ring time (15 to 120 s) and the TURN provider (`calls:settings`). Send only what changes", { body: calls.CallsPatchSchema }],
+  ["GET /api/rooms/:id/calls", "Calls", "The calls of a conversation, newest first (state, kind, duration, who ended it)", { returns: "`{data: Call[]}`" }],
   ["GET /api/tickets/counts", "Tickets", "Live tickets per status in your scope", { returns: "`{new, bot_handling, waiting_for_human, open, pending_customer, resolved, closed, total_live}`" }],
   ["POST /api/tickets/bulk", "Tickets", "Resolve or close up to 100 tickets; each result is reported on its own", { body: S.TicketBulk }],
   ["GET /api/tickets/:id", "Tickets", "One ticket with its event timeline (opened, handed off, taken over, resolved, rated, merged)"],

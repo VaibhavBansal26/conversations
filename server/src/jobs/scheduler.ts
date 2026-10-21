@@ -13,6 +13,7 @@ import { ensureMessagePartitions } from "../db/partitions.js";
 import { retentionSweep } from "../services/archive.js";
 import { ticketSweep } from "../services/tickets.js";
 import { drainQueue, slaSweep } from "../services/routing.js";
+import { sweepCalls } from "../calls/service.js";
 import { teamRetentionSweep } from "../services/teamChat.js";
 import { runAutoRecharge } from "../billing/credits.js";
 import { enqueueJob, runDueJobs, type JobHandler } from "./queue.js";
@@ -71,12 +72,13 @@ export async function reconcileDeliveries(ctx: AppContext, opts: { minAgeMinutes
 }
 
 /** One scheduler pass; exposed so tests (and a manual `kick`) can drive time explicitly. */
-export async function tick(ctx: AppContext, parts: { snooze?: boolean; jobs?: boolean; digest?: boolean; reconcile?: boolean; tickets?: boolean } = { snooze: true, jobs: true }) {
+export async function tick(ctx: AppContext, parts: { snooze?: boolean; jobs?: boolean; digest?: boolean; reconcile?: boolean; tickets?: boolean; calls?: boolean } = { snooze: true, jobs: true }) {
   const out = { woken: 0, jobs: 0, digests: 0, reconciled: 0, tickets: { resolved: 0, closed: 0, escalated: 0, resolution_breaches: 0, assigned: 0 } };
   if (parts.snooze) out.woken = await wakeDueRooms(ctx, notifySnoozeEnded.bind(null, ctx));
   if (parts.digest) out.digests = (await collectDigests(ctx)).queued;
   if (parts.jobs) out.jobs = (await runDueJobs(ctx, jobHandlers)).ran;
   if (parts.reconcile) out.reconciled = await reconcileDeliveries(ctx);
+  if (parts.calls) await sweepCalls(ctx);
   if (parts.tickets) {
     const idle = await ticketSweep(ctx);
     const sla = await slaSweep(ctx);
@@ -108,6 +110,8 @@ export async function startScheduler(ctx: AppContext): Promise<() => void> {
       busy = false;
     }
   };
+  // calls ring for tens of seconds: their timeouts are checked every few seconds (a compare-and-set per call, safe on every node)
+  const callTimer = setInterval(guard(async () => void (await sweepCalls(ctx))), 5_000);
   const pull = setInterval(guard(async () => (ctx.queue.kind === "db" ? await runDueJobs(ctx, jobHandlers) : undefined)), 5_000);
   const sweep = setInterval(
     guard(async () => {
@@ -126,10 +130,12 @@ export async function startScheduler(ctx: AppContext): Promise<() => void> {
     }),
     6 * 3600_000,
   );
+  callTimer.unref();
   pull.unref();
   sweep.unref();
   daily.unref();
   return () => {
+    clearInterval(callTimer);
     clearInterval(pull);
     clearInterval(sweep);
     clearInterval(daily);

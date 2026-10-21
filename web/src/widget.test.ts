@@ -459,8 +459,8 @@ describe("form card in the widget", () => {
     const form = shadow().querySelector(".cform")!;
     expect(form.getAttribute("aria-label")).toBe("Your details");
     const labels = [...form.querySelectorAll("label")].map((l) => l.textContent!);
-    expect(labels[0]).toBe("Email (optional)");
-    expect(labels[1]!.startsWith("Phone number (optional)")).toBe(true);
+    expect(labels).toEqual(["Email (optional)", "Phone number (optional)"]);
+    expect(form.querySelector('label[for="' + (form.querySelector('[name="phone"]') as HTMLInputElement).id + '"]')!.textContent).toBe("Phone number (optional)");
     expect(form.querySelector('select[name="country"]')).not.toBeNull();
     expect(form.querySelector(".hp")!.getAttribute("aria-hidden")).toBe("true");
     expect(form.querySelector("[data-skip]")).not.toBeNull();

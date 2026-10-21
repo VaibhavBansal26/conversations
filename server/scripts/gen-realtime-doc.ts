@@ -16,12 +16,23 @@ export const PAYLOADS: Record<string, z.ZodType | null> = {
   typing: S.TypingBody,
   "otp:verify": S.OtpVerify,
   "presence:list": null,
+  "call:invite": S.CallInviteBody,
+  "call:request": S.CallRequestBody,
+  "call:accept": S.CallIdBody,
+  "call:decline": S.CallIdBody,
+  "call:end": S.CallIdBody,
+  "call:connected": S.CallIdBody,
+  "call:failed": S.CallFailedBody,
+  "call:resume": S.CallIdBody,
+  "call:offer": S.CallSignalBody,
+  "call:answer": S.CallSignalBody,
+  "call:ice": S.CallSignalBody,
   "team:message:send": S.TeamSocketSend,
   "team:typing": S.TeamSocketTyping,
   "team:read": S.TeamSocketRead,
   "team:reaction": S.TeamSocketReaction,
 };
-const WHO: Record<string, string> = { "message:send": "team, visitor", "message:read": "team, visitor", "room:create": "team, visitor", "room:update": "team", "room:assign": "team", typing: "team, visitor", "otp:verify": "visitor", "presence:list": "team", "team:message:send": "team", "team:typing": "team", "team:read": "team", "team:reaction": "team" };
+const WHO: Record<string, string> = { "message:send": "team, visitor", "message:read": "team, visitor", "room:create": "team, visitor", "room:update": "team", "room:assign": "team", typing: "team, visitor", "otp:verify": "visitor", "presence:list": "team", "call:invite": "team", "call:request": "visitor", "call:accept": "visitor", "call:decline": "visitor", "call:end": "team, visitor", "call:connected": "team, visitor", "call:failed": "team, visitor", "call:resume": "team, visitor", "call:offer": "team, visitor", "call:answer": "team, visitor", "call:ice": "team, visitor", "team:message:send": "team", "team:typing": "team", "team:read": "team", "team:reaction": "team" };
 
 const fields = (s: z.ZodType | null) => {
   if (!s) return "none";

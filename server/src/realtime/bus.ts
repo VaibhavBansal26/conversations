@@ -9,6 +9,8 @@ export interface RealtimeBus {
    */
   toRoom(workspaceId: string, roomId: string, event: string, payload: unknown, opts?: { visitor?: unknown }): void;
   toMember(workspaceId: string, memberId: string, event: string, payload: unknown): void;
+  /** One socket only (call signalling: offers and ICE candidates must reach the other party and nobody else). */
+  toSocket(workspaceId: string, socketId: string, event: string, payload: unknown): void;
   toInbox(workspaceId: string, inboxId: string, event: string, payload: unknown): void;
   toManagers(workspaceId: string, event: string, payload: unknown): void;
   toWorkspace(workspaceId: string, event: string, payload: unknown): void;
@@ -23,7 +25,7 @@ export interface RealtimeBus {
 
 export interface RecordedEvent {
   workspaceId: string;
-  target: "room" | "member" | "inbox" | "managers" | "workspace";
+  target: "room" | "member" | "socket" | "inbox" | "managers" | "workspace";
   targetId?: string;
   event: string;
   payload: any;
@@ -41,6 +43,9 @@ export class RecordingBus implements RealtimeBus {
   }
   toMember(workspaceId: string, memberId: string, event: string, payload: unknown) {
     this.events.push({ workspaceId, target: "member", targetId: memberId, event, payload });
+  }
+  toSocket(workspaceId: string, socketId: string, event: string, payload: unknown) {
+    this.events.push({ workspaceId, target: "socket", targetId: socketId, event, payload });
   }
   toInbox(workspaceId: string, inboxId: string, event: string, payload: unknown) {
     this.events.push({ workspaceId, target: "inbox", targetId: inboxId, event, payload });

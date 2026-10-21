@@ -282,3 +282,12 @@ export const PublicRoomBody = z
 export const TicketTransfer = z.object({ department_id: id, note: z.string().trim().max(500).optional() });
 export const QuickReplyBody = z.object({ message_id: id, option_id: z.string().min(1).max(80) });
 export const VisitorFeedback = z.object({ rating: z.union([z.literal(1), z.literal(-1)]), comment: z.string().trim().max(500).optional() });
+
+/* ---- calls (socket events; docs/CALLS.md) ---- */
+export const CallKind = z.enum(["voice", "video"]);
+export const CallInviteBody = z.object({ room_id: id, kind: CallKind });
+export const CallRequestBody = z.object({ room_id: id, kind: CallKind });
+export const CallIdBody = z.object({ call_id: id });
+export const CallFailedBody = z.object({ call_id: id, reason: z.string().max(40).default("failed") });
+/** an SDP or an ICE candidate; the service checks sizes and the shape per kind */
+export const CallSignalBody = z.object({ call_id: id, data: z.record(z.string(), z.unknown()) });

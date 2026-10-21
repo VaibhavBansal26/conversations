@@ -1,11 +1,12 @@
 // Adapted from the legacy UI (see docs/PROVENANCE.md): assignee, status, priority and snooze controls in the conversation header.
-import { ArrowLeft, Check, CircleDollarSign, Flag, Inbox as InboxIcon, MoreHorizontal, PanelRight, RotateCcw, Search, Share2, Sparkles, Star, UserRound } from "lucide-react";
+import { ArrowLeft, Check, Phone, CircleDollarSign, Flag, Inbox as InboxIcon, MoreHorizontal, PanelRight, RotateCcw, Search, Share2, Sparkles, Star, UserRound, Video } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
 import { useInboxes, useMembers, useRoomActions } from "../../api/hooks";
 import type { Room } from "../../api/types";
 import { useCan, useSession } from "../../auth/AuthContext";
 import { snoozePresets, toApiTimestamp } from "../../lib/snooze";
+import { useCalls } from "../../calls/CallProvider";
 import { useSocket } from "../../realtime/SocketProvider";
 import { isSnoozed } from "../../state/roomCache";
 import {
@@ -51,11 +52,17 @@ export function RoomHeader({ room, backTo, assignOpen, onAssignOpen, snoozeOpen,
   const actions = useRoomActions(room.id);
   const canRequestPayment = useCan("payments:request");
   const canTeamChat = useCan("team_chat:use");
+  const calls = useCalls();
   const [sharing, setSharing] = useState(false);
   const [paying, setPaying] = useState(false);
   const [summary, setSummary] = useState(false);
   const name = room.contact?.name || room.contact?.email || room.contact?.phone || "Unknown contact";
   const closed = room.status === "closed";
+  // the server says no (VISITOR_OFFLINE) when nobody is in the chat; the button only gives up early when the socket reported the visitor leaving
+  const online = visitorOnline[room.id] !== false;
+  const canCall = !!calls?.available && !closed && !!room.ticket && room.ticket.status !== "resolved" && room.ticket.status !== "closed";
+  const inCall = !!calls && calls.view.phase !== "idle" && calls.view.phase !== "ended";
+  const callTitle = (kind: "voice" | "video") => (inCall ? "You are already in a call" : !online ? "The visitor is not in the chat right now" : kind === "voice" ? "Voice call" : "Video call");
   const snoozed = isSnoozed(room, new Date());
   const assigned = members.filter((m) => room.assignee_ids.includes(m.id));
   const details = [room.contact?.email, room.contact?.phone].filter(Boolean).join(" · ") || room.subject || "No contact details";
@@ -133,6 +140,16 @@ export function RoomHeader({ room, backTo, assignOpen, onAssignOpen, snoozeOpen,
           <IconToggle label="Search in this conversation" pressed={searchOpen} onClick={onToggleSearch}>
             <Search className="size-[18px]" aria-hidden="true" />
           </IconToggle>
+          {canCall && calls!.config?.browser.voice && (
+            <IconToggle label={callTitle("voice")} onClick={() => !inCall && online && void calls!.start(room.id, "voice")} className={cn((inCall || !online) && "opacity-45")}>
+              <Phone className="size-[18px]" aria-hidden="true" />
+            </IconToggle>
+          )}
+          {canCall && calls!.config?.browser.video && (
+            <IconToggle label={callTitle("video")} onClick={() => !inCall && online && void calls!.start(room.id, "video")} className={cn((inCall || !online) && "opacity-45")}>
+              <Video className="size-[18px]" aria-hidden="true" />
+            </IconToggle>
+          )}
           {canRequestPayment && (
             <IconToggle label="Request payment" onClick={() => setPaying(true)}>
               <CircleDollarSign className="size-[18px]" aria-hidden="true" />

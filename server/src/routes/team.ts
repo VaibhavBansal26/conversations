@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { RateLimitedError, overloaded } from "../ratelimit/http.js";
 import type { AppContext } from "../context.js";
+import { can } from "../authz/permissions.js";
 import { forbidden } from "../errors.js";
 import { parseBody, parseQuery, requireLiveSeat, requireManager, type Env } from "../http.js";
 import { CreditGrant, ContactBody, ContactPatch, InboxBody, InboxPatch, MemberCreate, MemberPatch, WorkspacePatch } from "../schemas.js";
@@ -27,7 +28,12 @@ export function teamRoutes(ctx: AppContext) {
 
   /* workspace */
   r.get("/workspace", async (c) => c.json(await workspaceDto(ctx, c.get("actor").workspaceId)));
-  r.patch("/workspace", requireManager, async (c) => c.json(await updateWorkspace(ctx, c.get("actor").workspaceId, await parseBody(c, WorkspacePatch))));
+  r.patch("/workspace", requireManager, async (c) => {
+    const body = await parseBody(c, WorkspacePatch);
+    // call settings (switching calls on, the TURN provider, the phone limits) need their own permission
+    if (body.settings?.calls && !can(c.get("actor"), "calls:settings")) throw forbidden("You need the call settings permission", "PERMISSION_DENIED");
+    return c.json(await updateWorkspace(ctx, c.get("actor").workspaceId, body));
+  });
   r.get("/credits", async (c) => {
     const a = c.get("actor");
     return c.json({ balance: (await workspaceDto(ctx, a.workspaceId)).credit_balance, ledger: await listLedger(ctx, a.workspaceId) });

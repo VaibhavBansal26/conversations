@@ -29,6 +29,7 @@ import { teamChatRoutes } from "./routes/teamChat.js";
 import { roleRoutes } from "./routes/roles.js";
 import { invitationRoutes } from "./routes/invitations.js";
 import { roomRoutes } from "./routes/rooms.js";
+import { callRoutes } from "./routes/calls.js";
 import { ticketRoutes } from "./routes/tickets.js";
 import { departmentRoutes } from "./routes/departments.js";
 import { agentRoutes } from "./routes/agents.js";
@@ -125,6 +126,7 @@ export function createApp(ctx: AppContext): Hono {
   api.route("/", teamRoutes(ctx));
   api.route("/", roomRoutes(ctx));
   api.route("/", ticketRoutes(ctx));
+  api.route("/", callRoutes(ctx));
   api.route("/", departmentRoutes(ctx));
   api.route("/", agentRoutes(ctx));
   api.route("/", settingsRoutes(ctx));

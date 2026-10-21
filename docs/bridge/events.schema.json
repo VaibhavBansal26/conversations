@@ -14,6 +14,8 @@
     { "properties": { "type": { "const": "contact_info_submitted" }, "payload": { "$ref": "#/$defs/contact_info_submitted" } } },
     { "properties": { "type": { "const": "handoff_started" }, "payload": { "$ref": "#/$defs/handoff_started" } } },
     { "properties": { "type": { "const": "agent_joined" }, "payload": { "$ref": "#/$defs/room" } } },
+    { "properties": { "type": { "const": "call_requested" }, "payload": { "$ref": "#/$defs/call_requested" } } },
+    { "properties": { "type": { "const": "call_state" }, "payload": { "$ref": "#/$defs/call_state" } } },
     { "properties": { "type": { "const": "link_clicked" }, "payload": { "$ref": "#/$defs/link_clicked" } } },
     { "properties": { "type": { "const": "attachment_requested" }, "payload": { "$ref": "#/$defs/attachment_requested" } } },
     { "properties": { "type": { "const": "auth_required" }, "payload": { "$ref": "#/$defs/auth_required" } } },
@@ -68,6 +70,22 @@
       "type": "object",
       "required": ["room_id", "status"],
       "properties": { "room_id": { "type": "string", "minLength": 1, "maxLength": 64 }, "status": { "enum": ["waiting_for_human", "open"] } }
+    },
+    "call_requested": {
+      "type": "object",
+      "required": ["room_id", "kind"],
+      "properties": { "room_id": { "type": "string", "minLength": 1, "maxLength": 64 }, "kind": { "enum": ["voice", "video"] } }
+    },
+    "call_state": {
+      "type": "object",
+      "required": ["room_id", "call_id", "state", "kind"],
+      "description": "Informational: a call in this conversation changed state. The page shows the incoming-call screen and the in-call controls itself; use this to keep the host's audio session or a call-in-progress indicator in step.",
+      "properties": {
+        "room_id": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "call_id": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "state": { "enum": ["ringing", "connecting", "active", "declined", "missed", "ended", "failed"] },
+        "kind": { "enum": ["voice", "video"] }
+      }
     },
     "link_clicked": {
       "type": "object",

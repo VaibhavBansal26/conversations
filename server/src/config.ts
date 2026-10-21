@@ -123,6 +123,11 @@ export const configSchema = z.object({
   WEBHOOK_SHARED_SECRET: z.string().optional(),
   /** time budget of every call to Twilio or SendGrid (sends, credential checks, number and sender imports) */
   PROVIDER_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(15000),
+  /** calls (docs/CALLS.md): STUN servers every call may use, and the optional shared TURN relay with coturn-style time-limited credentials */
+  STUN_URLS: z.string().default("stun:stun.l.google.com:19302"),
+  TURN_URLS: z.string().optional(),
+  TURN_SECRET: z.string().min(16).optional(),
+  TURN_TTL_SECONDS: z.coerce.number().int().min(60).max(86400).default(3600),
   WEBHOOK_TOLERANCE_SECONDS: z.coerce.number().int().positive().default(300),
   SYSTEM_EMAIL_FROM: z.string().default("notifications@conversations.local"),
   CREDIT_COST_SMS: z.coerce.number().int().min(0).default(1),

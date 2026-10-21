@@ -2,6 +2,7 @@
 import { Copy, Lock, Pencil, RefreshCw, Reply, ThumbsDown, ThumbsUp, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { api } from "../../api/client";
+import { useCalls } from "../../calls/CallProvider";
 import type { Message } from "../../api/types";
 import { formatClock } from "../../lib/time";
 import { Avatar, Button, cn, Textarea, Tooltip, toast } from "../../ui";
@@ -66,12 +67,19 @@ export function MessageBubble({ message: m, selfMemberId, contactName, contactSe
   const [draft, setDraft] = useState("");
   // touch screens have no hover: tapping a message reveals its actions instead
   const [tapped, setTapped] = useState(false);
+  const calls = useCalls();
 
   if (m.kind === "system") {
+    const callKind = m.meta.sub_type === "call_request" ? (m.meta.kind === "video" ? "video" : "voice") : null;
     return (
       <div className="my-2 flex justify-center" role="note" data-subtype={String(m.meta.sub_type ?? "")} data-message-id={m.id}>
         <span className="flex max-w-[90%] items-center gap-2 rounded-full bg-surface-2 px-3 py-1 text-xs text-muted-foreground">
           <span>{m.content_text || m.content}</span>
+          {callKind && calls?.available && calls.view.phase === "idle" && (
+            <button type="button" className="rounded-full bg-primary px-2 py-0.5 font-medium text-primary-foreground hover:brightness-110" onClick={() => void calls.start(m.room_id, callKind)}>
+              Call now
+            </button>
+          )}
           <time dateTime={m.created_at} className="text-subtle">
             {formatClock(m.created_at)}
           </time>

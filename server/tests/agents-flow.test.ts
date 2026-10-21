@@ -220,3 +220,25 @@ describe("knowledge base collections and links", () => {
     expect(all.body.data.map((e: { collection: string }) => e.collection).sort()).toEqual(["account", "billing", "company", "general"]);
   });
 });
+
+describe("the AI agent offers a call", () => {
+  it("offers a call only when calls are on; the visitor's yes becomes a call request that goes to a person", async () => {
+    const off = await agentWorld();
+    off.ctx.ai = new ScriptedProvider(answerWith({ actions: [{ tool: "offer_call", kind: "voice" }] }));
+    const vOff = await off.visitor();
+    await say(off, vOff, "How do I reset my password?");
+    expect(JSON.parse((await off.ctx.db.get<{ actions: string }>("SELECT actions FROM ai_turns WHERE room_id = ?", vOff.roomId))!.actions)).toEqual([expect.objectContaining({ tool: "offer_call", ok: false })]);
+
+    const w = await agentWorld();
+    await w.http.patch("/api/workspace", { settings: { calls: { browser: { enabled: true } } } }, w.token);
+    w.ctx.ai = new ScriptedProvider(answerWith({ actions: [{ tool: "offer_call", kind: "video" }] }));
+    const v = await w.visitor();
+    await say(w, v, "How do I reset my password?");
+    const offer = (await w.ctx.db.all<{ id: string; meta: string }>("SELECT id, meta FROM messages WHERE room_id = ? AND sender_type = 'bot' ORDER BY seq DESC", v.roomId)).find((m) => JSON.parse(m.meta).card?.purpose === "call")!;
+    expect(JSON.parse(offer.meta).card).toMatchObject({ kind: "video", options: [{ id: "yes" }, { id: "no" }] });
+    expect((await tap(w, v, offer.id, "yes")).status).toBe(200);
+    const req = await w.ctx.db.get<{ content_text: string }>("SELECT content_text FROM messages WHERE room_id = ? AND meta LIKE '%call_request%'", v.roomId);
+    expect(req!.content_text).toBe("Video call requested");
+    expect((await ticketOf(w, v.roomId)).handler?.startsWith("human:") || (await ticketOf(w, v.roomId)).status === "waiting_for_human").toBe(true);
+  });
+});
