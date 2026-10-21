@@ -45,5 +45,7 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     css: false,
+    // form tests type character by character; under a loaded machine 5 s is not enough
+    testTimeout: 20_000,
   },
 });
