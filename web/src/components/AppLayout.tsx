@@ -6,6 +6,7 @@ import { useAuth, useSession } from "../auth/AuthContext";
 import { documentTitle } from "../lib/unread";
 import { useShortcuts } from "../lib/useShortcuts";
 import { CallProvider } from "../calls/CallProvider";
+import { TeamCallProvider } from "../calls/TeamCallProvider";
 import { SocketProvider } from "../realtime/SocketProvider";
 import { BottomNav, NavRail } from "./layout/AppNav";
 import { ReconnectBanner } from "./layout/ReconnectBanner";
@@ -90,9 +91,11 @@ export function AppLayout() {
   return (
     <SocketProvider>
       <CallProvider>
-        <CommandPaletteProvider>
-          <Shell />
-        </CommandPaletteProvider>
+        <TeamCallProvider>
+          <CommandPaletteProvider>
+            <Shell />
+          </CommandPaletteProvider>
+        </TeamCallProvider>
       </CallProvider>
     </SocketProvider>
   );

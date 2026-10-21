@@ -1,9 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { BellOff, LogOut, Pin, X } from "lucide-react";
+import { BellOff, LogOut, Phone, Pin, Video, X } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { api } from "../api/client";
 import { useCan, useSession } from "../auth/AuthContext";
+import { useTeamCalls } from "../calls/TeamCallProvider";
 import { useSocket } from "../realtime/SocketProvider";
 import { Avatar, Button, ConfirmDialog, ErrorNotice, Field, Input, Skeleton, Switch, toast } from "../ui";
 import { RichText } from "../components/chat/RichText";
@@ -62,6 +63,7 @@ export function DetailsPanel({ channel, onClose }: { channel: TeamChannel; onClo
   const detail = useTeamChannel(channel.id);
   const manage = useCan("team_chat:manage_channels");
   const { onlineMembers } = useSocket();
+  const teamCalls = useTeamCalls();
   const qc = useQueryClient();
   const nav = useNavigate();
   const [topic, setTopic] = useState<string | null>(null);
@@ -121,6 +123,20 @@ export function DetailsPanel({ channel, onClose }: { channel: TeamChannel; onClo
                   {m.name}
                   {m.id === member.id && <span className="text-subtle"> (you)</span>}
                 </span>
+                {teamCalls?.available && teamCalls.config && m.id !== member.id && (
+                  <>
+                    {teamCalls.config.voice && (
+                      <Button variant="ghost" size="icon-sm" aria-label={`Voice call with ${m.name}`} disabled={!onlineMembers.has(m.id)} title={onlineMembers.has(m.id) ? undefined : `${m.name} is offline`} onClick={() => void teamCalls.callMember(m.id, m.name, "voice")}>
+                        <Phone />
+                      </Button>
+                    )}
+                    {teamCalls.config.video && (
+                      <Button variant="ghost" size="icon-sm" aria-label={`Video call with ${m.name}`} disabled={!onlineMembers.has(m.id)} title={onlineMembers.has(m.id) ? undefined : `${m.name} is offline`} onClick={() => void teamCalls.callMember(m.id, m.name, "video")}>
+                        <Video />
+                      </Button>
+                    )}
+                  </>
+                )}
                 {m.role === "owner" && <span className="rounded bg-surface-3 px-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Owner</span>}
                 {isChannel && (manage || owner) && m.id !== member.id && !channel.is_general && (
                   <Button variant="ghost" size="icon-sm" aria-label={`Remove ${m.name}`} onClick={() => removeMember.mutate(m.id)}>

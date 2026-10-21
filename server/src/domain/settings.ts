@@ -125,6 +125,16 @@ export const CallSettingsSchema = z.object({
     .default(() => ({ enabled: false, voice: true, video: true, max_duration_s: 600, idle_timeout_s: 120, max_concurrent: 3, daily_limit: 100, realtime_minutes_daily: 30, realtime_max_concurrent: 2 })),
   /** who does the speech in AI calls: the visitor's browser (free, the default) or the optional realtime engine (OpenAI, needs OPENAI_API_KEY and a model on the server; falls back to the browser when unavailable) */
   ai_engine: z.enum(["browser", "realtime"]).default("browser"),
+  /** calls between two teammates from team chat (ADR 0036): off until a manager switches them on */
+  internal: z
+    .object({
+      enabled: z.boolean().default(false),
+      voice: z.boolean().default(true),
+      video: z.boolean().default(true),
+      screen_share: z.boolean().default(true),
+      ring_seconds: z.number().int().min(10).max(90).default(30),
+    })
+    .default(() => ({ enabled: false, voice: true, video: true, screen_share: true, ring_seconds: 30 })),
   /** how long a call rings before it counts as missed */
   ring_seconds: z.number().int().min(15).max(120).default(45),
   /** where relay (TURN) credentials come from: none = STUN only (calls fail behind strict NATs), static = the server's TURN_URLS and TURN_SECRET, twilio = the workspace's own Twilio account */
@@ -136,6 +146,7 @@ export const CallsPatchSchema = z.object({
   browser: z.object({ enabled: z.boolean(), voice: z.boolean(), video: z.boolean(), screen_share: z.boolean() }).partial().optional(),
   ring_seconds: z.number().int().min(15).max(120).optional(),
   turn_provider: z.enum(["none", "static", "twilio"]).optional(),
+  internal: z.object({ enabled: z.boolean(), voice: z.boolean(), video: z.boolean(), screen_share: z.boolean(), ring_seconds: z.number().int().min(10).max(90) }).partial().optional(),
   ai: z
     .object({
       enabled: z.boolean(),
@@ -264,7 +275,7 @@ export function mergeSettings(cur: WorkspaceSettings, patch: z.infer<typeof Work
     ...rest,
     tickets: { ...cur.tickets, ...(tickets ?? {}) },
     routing: { ...cur.routing, ...(routing ?? {}) },
-    calls: { ...cur.calls, ...(calls ?? {}), browser: { ...cur.calls.browser, ...(calls?.browser ?? {}) }, ai: { ...cur.calls.ai, ...(calls?.ai ?? {}) }, phone: { ...cur.calls.phone, ...(calls?.phone ?? {}), quiet_hours: { ...cur.calls.phone.quiet_hours, ...(calls?.phone?.quiet_hours ?? {}) } } },
+    calls: { ...cur.calls, ...(calls ?? {}), browser: { ...cur.calls.browser, ...(calls?.browser ?? {}) }, ai: { ...cur.calls.ai, ...(calls?.ai ?? {}) }, internal: { ...cur.calls.internal, ...(calls?.internal ?? {}) }, phone: { ...cur.calls.phone, ...(calls?.phone ?? {}), quiet_hours: { ...cur.calls.phone.quiet_hours, ...(calls?.phone?.quiet_hours ?? {}) } } },
     widget: { ...cur.widget, ...(widget ?? {}) },
   });
 }

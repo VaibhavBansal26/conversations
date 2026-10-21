@@ -6,9 +6,10 @@ import type { AppContext } from "../context.js";
 import { seesAll, type Actor } from "../domain/types.js";
 import { AppError, unauthorized } from "../errors.js";
 import { fallbackToBrowser, recordRealtimeTranscript, runRealtimeTool } from "../calls/realtimeCall.js";
+import { acceptTeamCall, declineTeamCall, endTeamCall, inviteTeamCall, relayTeamSignal, reportTeamConnected, reportTeamFailed, resumeTeamCall, teamCallDto, teamSocketGone } from "../calls/teamCall.js";
 import { aiSay, endAiCall, handoffAiCall, startAiCall } from "../calls/aiCall.js";
 import { acceptCall, declineCall, endCall, inviteCall, relaySignal, reportConnected, reportFailed, requestCall, resumeCall, socketGone } from "../calls/service.js";
-import { AiCallFallbackBody, AiCallToolBody, AiCallTranscriptBody, AiCallEndBody, AiCallSayBody, AiCallStartBody, CallFailedBody, CallIdBody, CallInviteBody, CallRequestBody, CallSignalBody, AssignBody, OtpVerify, ReadBody, RoomCreate, RoomPatch, SendMessageBody, TeamSocketReaction, TeamSocketRead, TeamSocketSend, TeamSocketTyping, TypingBody, id } from "../schemas.js";
+import { TeamCallInviteBody, AiCallFallbackBody, AiCallToolBody, AiCallTranscriptBody, AiCallEndBody, AiCallSayBody, AiCallStartBody, CallFailedBody, CallIdBody, CallInviteBody, CallRequestBody, CallSignalBody, AssignBody, OtpVerify, ReadBody, RoomCreate, RoomPatch, SendMessageBody, TeamSocketReaction, TeamSocketRead, TeamSocketSend, TeamSocketTyping, TypingBody, id } from "../schemas.js";
 import { accessChannel, markTeamRead, sendTeamMessage, toggleReaction } from "../services/teamChat.js";
 import { actorFromToken } from "../services/auth.js";
 import { audienceChannels } from "../services/audience.js";
@@ -781,7 +782,21 @@ function registerHandlers(ctx: AppContext, socket: Socket, ready: Promise<void>)
   on("call:offer", CallSignalBody, undefined, async (p, who) => (await relaySignal(ctx, who, socket.id, "offer", p), {}));
   on("call:answer", CallSignalBody, undefined, async (p, who) => (await relaySignal(ctx, who, socket.id, "answer", p), {}));
   on("call:ice", CallSignalBody, undefined, async (p, who) => (await relaySignal(ctx, who, socket.id, "ice", p), {}));
+  /* ---- calls between teammates: the same rules, between the two members of a direct message ---- */
+  const tpub = (c: { id: string; state: string; kind: string }) => ({ id: c.id, state: c.state, kind: c.kind });
+  on("tcall:invite", TeamCallInviteBody, "team", async (p, { actor }) => await inviteTeamCall(ctx, actor!, socket.id, p));
+  on("tcall:accept", CallIdBody, "team", async (p, { actor }) => await acceptTeamCall(ctx, actor!, socket.id, p.call_id));
+  on("tcall:decline", CallIdBody, "team", async (p, { actor }) => ({ call: tpub(await declineTeamCall(ctx, actor!, p.call_id)) }));
+  on("tcall:end", CallIdBody, "team", async (p, { actor }) => ({ call: tpub(await endTeamCall(ctx, actor!, p.call_id)) }));
+  on("tcall:connected", CallIdBody, "team", async (p, { actor }) => ({ call: tpub(await reportTeamConnected(ctx, actor!, p.call_id)) }));
+  on("tcall:failed", CallFailedBody, "team", async (p, { actor }) => ({ call: tpub(await reportTeamFailed(ctx, actor!, p.call_id, p.reason)) }));
+  on("tcall:resume", CallIdBody, "team", async (p, { actor }) => await resumeTeamCall(ctx, actor!, socket.id, p.call_id));
+  on("tcall:offer", CallSignalBody, "team", async (p, { actor }) => (await relayTeamSignal(ctx, actor!, socket.id, "offer", p), {}));
+  on("tcall:answer", CallSignalBody, "team", async (p, { actor }) => (await relayTeamSignal(ctx, actor!, socket.id, "answer", p), {}));
+  on("tcall:ice", CallSignalBody, "team", async (p, { actor }) => (await relayTeamSignal(ctx, actor!, socket.id, "ice", p), {}));
+  void teamCallDto;
   socket.on("disconnect", () => void socketGone(ctx, ws, socket.id).catch(() => {}));
+  socket.on("disconnect", () => void teamSocketGone(ctx, ws, socket.id).catch(() => {}));
 
   on("otp:verify", OtpVerify, "visitor", (p, { session }) => verifyOtp(ctx, session!, p.code));
 

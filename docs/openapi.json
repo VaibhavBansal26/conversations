@@ -1145,6 +1145,28 @@
                               "twilio"
                             ]
                           },
+                          "internal": {
+                            "type": "object",
+                            "properties": {
+                              "enabled": {
+                                "type": "boolean"
+                              },
+                              "voice": {
+                                "type": "boolean"
+                              },
+                              "video": {
+                                "type": "boolean"
+                              },
+                              "screen_share": {
+                                "type": "boolean"
+                              },
+                              "ring_seconds": {
+                                "type": "integer",
+                                "minimum": 10,
+                                "maximum": 90
+                              }
+                            }
+                          },
                           "ai": {
                             "type": "object",
                             "properties": {
@@ -5867,6 +5889,28 @@
                       "twilio"
                     ]
                   },
+                  "internal": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean"
+                      },
+                      "voice": {
+                        "type": "boolean"
+                      },
+                      "video": {
+                        "type": "boolean"
+                      },
+                      "screen_share": {
+                        "type": "boolean"
+                      },
+                      "ring_seconds": {
+                        "type": "integer",
+                        "minimum": 10,
+                        "maximum": 90
+                      }
+                    }
+                  },
                   "ai": {
                     "type": "object",
                     "properties": {
@@ -6143,6 +6187,50 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/team-calls/config": {
+      "get": {
+        "tags": [
+          "Calls"
+        ],
+        "summary": "Whether calls between teammates are on (voice, video, screen share, ring time), a TURN warning, and the call this member is already in (`live_call`)",
+        "operationId": "get_api_team_calls_config",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "calls:internal",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.read",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
         "responses": {
           "200": {
             "description": "Success",

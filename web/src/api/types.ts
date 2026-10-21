@@ -107,6 +107,7 @@ export interface AiCallSettings {
 }
 export interface CallSettings {
   browser: { enabled: boolean; voice: boolean; video: boolean; screen_share: boolean };
+  internal?: { enabled: boolean; voice: boolean; video: boolean; screen_share: boolean; ring_seconds: number };
   ai?: AiCallSettings;
   ai_engine?: "browser" | "realtime";
   phone?: PhoneCallSettings;

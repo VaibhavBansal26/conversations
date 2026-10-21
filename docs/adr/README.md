@@ -37,3 +37,4 @@ Short records of decisions that shaped the system. Add one when you make a decis
 * [0033](./0033-ai-calls-browser-speech.md) Calls with the AI agent: the visitor's browser does the speech, the server only sees text
 * [0034](./0034-agent-portraits-and-the-talking-face.md) Agent portraits, bundled presets and a face that does not pretend
 * [0035](./0035-optional-realtime-voice-engine.md) An optional realtime voice engine behind the same call, with a monitor instead of a guard
+* [0036](./0036-teammate-calls.md) Calls between teammates: the direct message is the permission, one call each

@@ -15,7 +15,8 @@ import { ErrorNotice, Field, Input, Select, Switch } from "../../ui";
 
 const PHONE: PhoneCallSettings = { enabled: false, caller_id: null, daily_limit: 50, allowed_countries: [], max_duration_s: 1800, quiet_hours: { enabled: true, start: "21:00", end: "08:00" } };
 const AI: AiCallSettings = { enabled: false, voice: true, video: true, max_duration_s: 600, idle_timeout_s: 120, max_concurrent: 3, daily_limit: 100, realtime_minutes_daily: 30, realtime_max_concurrent: 2 };
-const DEFAULTS: Settings = { browser: { enabled: false, voice: true, video: true, screen_share: true }, ai: AI, ai_engine: "browser", ring_seconds: 45, turn_provider: "none", phone: PHONE };
+const INTERNAL = { enabled: false, voice: true, video: true, screen_share: true, ring_seconds: 30 };
+const DEFAULTS: Settings = { internal: INTERNAL, browser: { enabled: false, voice: true, video: true, screen_share: true }, ai: AI, ai_engine: "browser", ring_seconds: 45, turn_provider: "none", phone: PHONE };
 const TURN = {
   none: { label: "None (STUN only)", help: "Peers connect directly when their networks allow it. Calls fail for visitors behind strict firewalls, symmetric NATs and many mobile networks." },
   static: { label: "Your own TURN server", help: "The server's TURN_URLS and TURN_SECRET (for example coturn): the app hands out credentials that expire after the call. The shared secret never reaches a browser." },
@@ -26,7 +27,7 @@ const TURN = {
 export function CallSettings() {
   const { workspace } = useSession();
   const canEdit = useCan("calls:settings");
-  const cur: Settings = { ...DEFAULTS, ...(workspace.settings.calls ?? {}), browser: { ...DEFAULTS.browser, ...(workspace.settings.calls?.browser ?? {}) }, ai: { ...AI, ...(workspace.settings.calls?.ai ?? {}) }, phone: { ...PHONE, ...(workspace.settings.calls?.phone ?? {}), quiet_hours: { ...PHONE.quiet_hours, ...(workspace.settings.calls?.phone?.quiet_hours ?? {}) } } };
+  const cur: Settings = { ...DEFAULTS, ...(workspace.settings.calls ?? {}), browser: { ...DEFAULTS.browser, ...(workspace.settings.calls?.browser ?? {}) }, ai: { ...AI, ...(workspace.settings.calls?.ai ?? {}) }, internal: { ...INTERNAL, ...(workspace.settings.calls?.internal ?? {}) }, phone: { ...PHONE, ...(workspace.settings.calls?.phone ?? {}), quiet_hours: { ...PHONE.quiet_hours, ...(workspace.settings.calls?.phone?.quiet_hours ?? {}) } } };
   const qc = useQueryClient();
   const save = useMutation({
     mutationFn: (body: Settings) => api.patch<Workspace>("/calls/settings", body),
@@ -35,7 +36,7 @@ export function CallSettings() {
   const [v, setV] = useState<Settings>(cur);
   const errors = fieldErrors(save.error);
   const dirty = JSON.stringify(v) !== JSON.stringify(cur);
-  const config = useQuery({ queryKey: ["calls", "config", cur.turn_provider, cur.browser.enabled, cur.ai?.enabled, cur.ai_engine, cur.phone?.enabled, cur.phone?.caller_id, cur.phone?.allowed_countries.join()], enabled: cur.browser.enabled || !!cur.phone?.enabled || !!cur.ai?.enabled, queryFn: () => api.get<CallsConfig>("/calls/config") });
+  const config = useQuery({ queryKey: ["calls", "config", cur.turn_provider, cur.browser.enabled, cur.ai?.enabled, cur.ai_engine, cur.phone?.enabled, cur.phone?.caller_id, cur.phone?.allowed_countries.join()], enabled: cur.browser.enabled || !!cur.phone?.enabled || !!cur.ai?.enabled || !!cur.internal?.enabled, queryFn: () => api.get<CallsConfig>("/calls/config") });
   const submit = (e: FormEvent) => {
     e.preventDefault();
     save.mutate(v);
@@ -44,6 +45,8 @@ export function CallSettings() {
   const numbers = useSmsNumbers().data ?? [];
   const phone = v.phone ?? PHONE;
   const setPhone = (patch: Partial<PhoneCallSettings>) => setV({ ...v, phone: { ...phone, ...patch } });
+  const internal = v.internal ?? INTERNAL;
+  const setInternal = (patch: Partial<typeof INTERNAL>) => setV({ ...v, internal: { ...internal, ...patch } });
   const ai = v.ai ?? AI;
   const setAi = (patch: Partial<AiCallSettings>) => setV({ ...v, ai: { ...ai, ...patch } });
   const set = (patch: Partial<Settings["browser"]>) => setV({ ...v, browser: { ...v.browser, ...patch } });
@@ -67,6 +70,21 @@ export function CallSettings() {
         <Field label="Relay (TURN) for hard networks" hint={TURN[v.turn_provider].help}>
           <Select value={v.turn_provider} disabled={!canEdit} onValueChange={(p) => setV({ ...v, turn_provider: p as Settings["turn_provider"] })} options={(Object.keys(TURN) as (keyof typeof TURN)[]).map((k) => ({ value: k, label: TURN[k].label }))} />
         </Field>
+        <fieldset className="flex flex-col gap-3 rounded-lg border border-border p-4" disabled={!canEdit}>
+          <legend className="px-1 text-[13px] font-semibold">Calls between teammates</legend>
+          <Switch label="Let teammates call each other" hint="A voice or video call between the two people of a direct message in team chat, from the conversation or the member list. The other person's screen rings wherever they are in the app; people who are offline, on do-not-disturb or in another call are not rung. Not recorded. Group calls are not available." checked={internal.enabled} onChange={(enabled) => setInternal({ enabled })} />
+          {internal.enabled && (
+            <>
+              <Switch label="Voice" checked={internal.voice} onChange={(voice) => setInternal({ voice })} />
+              <Switch label="Video" checked={internal.video} onChange={(video) => setInternal({ video })} />
+              <Switch label="Screen sharing" checked={internal.screen_share} onChange={(screen_share) => setInternal({ screen_share })} />
+              <Field label="Ring time (seconds)" hint="Then the call counts as missed and leaves a card in the conversation." error={errors["settings.calls.internal.ring_seconds"]}>
+                <Input type="number" min={10} max={90} value={internal.ring_seconds} onChange={(e) => setInternal({ ring_seconds: Number(e.target.value) })} />
+              </Field>
+              <p className="text-xs text-subtle">Needs the "calls with teammates" permission, which the Owner, Manager and Agent roles have. Custom roles must be given it under Roles.</p>
+            </>
+          )}
+        </fieldset>
         <fieldset className="flex flex-col gap-3 rounded-lg border border-border p-4" disabled={!canEdit}>
           <legend className="px-1 text-[13px] font-semibold">Calls with the AI assistant</legend>
           <Switch label="Let visitors talk to the AI assistant" hint="A visitor can speak with the AI agent that answers their chat. The visitor's browser recognises the speech and speaks the answers (needs Chrome, Edge or Safari; Firefox gets the text chat). Nothing is recorded, and the AI is announced at the start. An AI agent must also be allowed the 'talk with visitors by voice or video' action under AI agents." checked={ai.enabled} onChange={(enabled) => setAi({ enabled })} />

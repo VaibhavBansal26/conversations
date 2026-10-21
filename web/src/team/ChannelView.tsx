@@ -1,9 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, BellOff, Hash, Info, Lock, Pin, Search, Users } from "lucide-react";
+import { ArrowLeft, BellOff, Hash, Info, Lock, Phone, Pin, Search, Users, Video } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { api } from "../api/client";
 import { useCan, useSession } from "../auth/AuthContext";
+import { useTeamCalls } from "../calls/TeamCallProvider";
 import { useMediaQuery } from "../lib/useMediaQuery";
 import { useSocket } from "../realtime/SocketProvider";
 import { Avatar, Button, ErrorNotice, Sheet, Skeleton, Tooltip } from "../ui";
@@ -110,6 +111,7 @@ export function ChannelView({ channel }: { channel: TeamChannel }) {
             </h1>
             {channel.topic && <p className="truncate text-xs text-muted-foreground">{channel.topic}</p>}
           </div>
+          {dmOther && channel.kind === "dm" && dmOther !== member.id && <DmCallButtons peerId={dmOther} peerName={channel.title} channelId={channel.id} online={socket.onlineMembers.has(dmOther)} />}
           <Tooltip content="Search this conversation">
             <Button variant="ghost" size="icon-sm" aria-label="Search this conversation" onClick={() => setSearch(true)}>
               <Search />
@@ -199,5 +201,32 @@ function JoinBar({ channel }: { channel: TeamChannel }) {
         Join channel
       </Button>
     </div>
+  );
+}
+
+/** Voice and video buttons of a direct message: shown when calls between teammates are on and this member may place them. */
+export function DmCallButtons({ peerId, peerName, channelId, online }: { peerId: string; peerName: string; channelId: string; online: boolean }) {
+  const calls = useTeamCalls();
+  if (!calls?.available || !calls.config) return null;
+  const busy = calls.view.phase !== "idle" && calls.view.phase !== "ended";
+  const why = busy ? "You are in a call" : !online ? `${peerName} is offline` : null;
+  void peerId;
+  return (
+    <>
+      {calls.config.voice && (
+        <Tooltip content={why ?? `Voice call with ${peerName}`}>
+          <Button variant="ghost" size="icon-sm" aria-label={`Voice call with ${peerName}`} disabled={!!why} onClick={() => void calls.call(channelId, "voice", peerName)}>
+            <Phone />
+          </Button>
+        </Tooltip>
+      )}
+      {calls.config.video && (
+        <Tooltip content={why ?? `Video call with ${peerName}`}>
+          <Button variant="ghost" size="icon-sm" aria-label={`Video call with ${peerName}`} disabled={!!why} onClick={() => void calls.call(channelId, "video", peerName)}>
+            <Video />
+          </Button>
+        </Tooltip>
+      )}
+    </>
   );
 }

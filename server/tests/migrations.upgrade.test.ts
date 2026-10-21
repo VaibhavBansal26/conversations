@@ -1192,7 +1192,7 @@ describe("SQLite: agent portrait migration on a populated database of the releas
       const before = await counts(old, tables);
       await old.close();
       const db = await openDb(path);
-      expect(await migrate(db)).toEqual(["037_agent_avatar.sql"]);
+      expect((await migrate(db))[0]).toBe("037_agent_avatar.sql");
       expect(await schemaOf(db)).toEqual(await schemaOf(fresh));
       await expectAvatarMigration(db, before, tables);
       await db.close();
@@ -1228,9 +1228,125 @@ describe.skipIf(!postgres)("PostgreSQL: agent portrait migration on a populated 
       await seedAgentAt036(b.db);
       const tables = await userTables(b.db);
       const before = await counts(b.db, tables);
-      expect(await migrate(b.db, undefined, { hashPartitions: 2 })).toEqual(["037_agent_avatar.sql"]);
+      expect((await migrate(b.db, undefined, { hashPartitions: 2 }))[0]).toBe("037_agent_avatar.sql");
       expect(await schemaOf(b.db)).toEqual(await schemaOf(a.db));
       await expectAvatarMigration(b.db, before, tables);
+    } finally {
+      rmSync(prev, { recursive: true, force: true });
+      await a.drop();
+      await b.drop();
+    }
+  });
+});
+
+// ---- calls between teammates (migrations 038 and 039): the release before them is 037 --------------------------------------------------------
+
+const PRE_TEAM_CALLS = 37;
+const seedTeamChat = async (db: Db) => {
+  await db.run("INSERT INTO team_channels(id, workspace_id, kind, visibility, dm_key, created_at) VALUES ('tch1', 'w1', 'dm', 'private', 'm1,m2', ?)", T(50));
+  await db.run("INSERT INTO team_channels(id, workspace_id, kind, visibility, dm_key, created_at) VALUES ('tch2', 'w1', 'dm', 'private', 'm1,m3', ?)", T(50));
+};
+
+async function expectTeamCallsMigration(db: Db, before: Record<string, number>, tables: string[]) {
+  expect(await counts(db, tables)).toEqual(before);
+  const ins = (id: string, ch: string, caller: string, callee: string, state: string, kind = "voice") =>
+    db.run("INSERT INTO team_calls(id, workspace_id, channel_id, kind, state, caller_id, callee_id, created_at, updated_at) VALUES (?, 'w1', ?, ?, ?, ?, ?, ?, ?)", id, ch, kind, state, caller, callee, T(60), T(60));
+  await ins("tc1", "tch1", "m1", "m2", "ringing");
+  // one live call per conversation, per caller and per callee; any number of finished ones
+  await expect(ins("tc2", "tch1", "m2", "m1", "active")).rejects.toThrow(/unique|UNIQUE/i);
+  await expect(ins("tc3", "tch2", "m1", "m3", "active")).rejects.toThrow(/unique|UNIQUE/i); // m1 already calls
+  await expect(ins("tc4", "tch2", "m3", "m2", "active")).rejects.toThrow(/unique|UNIQUE/i); // m2 is already rung
+  await db.run("UPDATE team_calls SET state = 'ended' WHERE id = 'tc1'");
+  await ins("tc5", "tch2", "m1", "m3", "active");
+  await expect(ins("tc6", "tch2", "m1", "m3", "paused")).rejects.toThrow(/CHECK|check constraint/i);
+  await expect(ins("tc7", "tch2", "m1", "m3", "ended", "hologram")).rejects.toThrow(/CHECK|check constraint/i);
+  // calls go with their conversation
+  await db.run("DELETE FROM team_channels WHERE id = 'tch2'");
+  expect((await db.all<{ id: string }>("SELECT id FROM team_calls")).map((r) => r.id)).toEqual(["tc1"]);
+  // roles: calls:internal for owner, manager and agent (not the viewer); custom roles keep exactly what they had
+  for (const r of SYSTEM_ROLES) expect((await roleList(db, r.id)).sort(), r.id).toEqual([...r.permissions].sort());
+  for (const id of ["role_owner", "role_manager", "role_agent"]) expect(await roleList(db, id)).toContain("calls:internal");
+  expect(await roleList(db, "role_viewer")).not.toContain("calls:internal");
+  expect(await roleList(db, "role_custom_reader")).toEqual(["conversations:read", "contacts:read"]);
+  await expect(db.run("UPDATE roles SET name = 'hacked' WHERE id = 'role_owner'")).rejects.toThrow(/immutable/);
+}
+
+describe("SQLite: teammate calls migrations on a populated database of the release before them", () => {
+  it("adds team_calls and the permission without touching a row", async () => {
+    const { dir, path } = await openSqliteFile();
+    const prev = releaseDir(PRE_TEAM_CALLS);
+    try {
+      const old = await openDb(path);
+      await migrate(old, prev);
+      await seedPreviousRelease(old);
+      await seedTickets(old);
+      await seedKb(old);
+      await seedTeamChat(old);
+      const tables = await userTables(old);
+      const before = await counts(old, tables);
+      await old.close();
+      const db = await openDb(path);
+      const applied = await migrate(db);
+      expect(applied).toEqual(["038_team_calls.sql", "039_roles_calls_internal.sqlite.sql"]);
+      expect(await db.all("PRAGMA foreign_key_check")).toEqual([]);
+      await expectTeamCallsMigration(db, before, tables.filter((t) => t !== "team_calls"));
+      expect(await migrate(db)).toEqual([]);
+      await db.close();
+    } finally {
+      rmSync(prev, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("schema drift guard: a database upgraded from 037 equals a fresh one", async () => {
+    const fresh = await openDb(":memory:");
+    await migrate(fresh);
+    const { dir, path } = await openSqliteFile();
+    const prev = releaseDir(PRE_TEAM_CALLS);
+    try {
+      const old = await openDb(path);
+      await migrate(old, prev);
+      await seedPreviousRelease(old);
+      await old.close();
+      const upgraded = await openDb(path);
+      await migrate(upgraded);
+      expect(await schemaOf(upgraded)).toEqual(await schemaOf(fresh));
+      await upgraded.close();
+    } finally {
+      await fresh.close();
+      rmSync(prev, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe.skipIf(!postgres)("PostgreSQL: teammate calls migrations on a populated database of the release before them", () => {
+  it("adds team_calls and the permission without touching a row and matches a fresh schema", async () => {
+    const mk = async () => {
+      const schema = `u_${Math.random().toString(16).slice(2, 10)}`;
+      const admin = new pg.Client({ connectionString: process.env.TEST_DATABASE_URL });
+      await admin.connect();
+      await admin.query(`CREATE SCHEMA ${schema}`);
+      const u = new URL(process.env.TEST_DATABASE_URL!);
+      u.searchParams.set("options", `-c search_path=${schema}`);
+      const db = await openDb({ url: u.toString(), poolMax: 4 });
+      return { db, drop: async () => (await db.close(), await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`), await admin.end()) };
+    };
+    const a = await mk();
+    const b = await mk();
+    const prev = releaseDir(PRE_TEAM_CALLS);
+    try {
+      await migrate(a.db, undefined, { hashPartitions: 2 });
+      await migrate(b.db, prev, { hashPartitions: 2 });
+      await seedPreviousRelease(b.db);
+      await seedTickets(b.db);
+      await seedKb(b.db);
+      await seedTeamChat(b.db);
+      const tables = await userTables(b.db);
+      const before = await counts(b.db, tables);
+      expect(await migrate(b.db, undefined, { hashPartitions: 2 })).toEqual(["038_team_calls.sql", "039_roles_calls_internal.pg.sql"]);
+      expect(await schemaOf(b.db)).toEqual(await schemaOf(a.db));
+      await expectTeamCallsMigration(b.db, before, tables.filter((t) => t !== "team_calls"));
     } finally {
       rmSync(prev, { recursive: true, force: true });
       await a.drop();

@@ -633,6 +633,35 @@ export async function sendTeamMessage(ctx: AppContext, actor: Actor, channelId: 
 }
 type TeamChannelFresh = ChannelRow;
 
+/**
+ * A line the system writes in a team conversation (a call card). It takes a sequence number like any message but is not counted as unread and does not
+ * notify anyone: the call's own events do that.
+ */
+export async function postTeamSystemMessage(ctx: AppContext, channelId: string, ws: string, o: { senderId: string; senderName: string; text: string; meta: Record<string, unknown> }): Promise<TeamMessageRow> {
+  const id = newId("tmsg");
+  const row = await ctx.db.tx(async () => {
+    const bump = await ctx.db.get<{ next_seq: number }>("UPDATE team_channels SET next_seq = next_seq + 1 WHERE id = ? AND workspace_id = ? RETURNING next_seq", channelId, ws);
+    if (!bump) throw notFound("Channel");
+    const now = nowIso(ctx);
+    await ctx.db.run(
+      `INSERT INTO team_messages(id, workspace_id, channel_id, seq, sender_id, sender_name, kind, content, content_text, attachments, meta, created_at) VALUES (?,?,?,?,?,?,'system',?,?, '[]', ?, ?)`,
+      id, ws, channelId, bump.next_seq, o.senderId, o.senderName, o.text, o.text, JSON.stringify(o.meta), now,
+    );
+    await ctx.db.run("UPDATE team_channels SET last_message_at = ?, last_message_seq = ? WHERE id = ?", now, bump.next_seq, channelId);
+    return (await ctx.db.get<TeamMessageRow>("SELECT * FROM team_messages WHERE id = ?", id))!;
+  });
+  const ch = (await ctx.db.get<ChannelRow>("SELECT * FROM team_channels WHERE id = ?", channelId))!;
+  await emitMessage(ctx, ch, row, "team:message:new");
+  return row;
+}
+export async function updateTeamSystemMessage(ctx: AppContext, messageId: string, ws: string, text: string, meta: Record<string, unknown>): Promise<void> {
+  await ctx.db.run("UPDATE team_messages SET content = ?, content_text = ?, meta = ? WHERE id = ? AND workspace_id = ? AND kind = 'system'", text, text, JSON.stringify(meta), messageId, ws);
+  const row = await ctx.db.get<TeamMessageRow>("SELECT * FROM team_messages WHERE id = ? AND workspace_id = ?", messageId, ws);
+  if (!row) return;
+  const ch = await ctx.db.get<ChannelRow>("SELECT * FROM team_channels WHERE id = ?", row.channel_id);
+  if (ch) await emitMessage(ctx, ch, row, "team:message:updated");
+}
+
 /** Each member gets their own copy (a shared conversation card depends on who looks at it). */
 async function emitMessage(ctx: AppContext, c: ChannelRow, row: TeamMessageRow, event: "team:message:new" | "team:message:updated") {
   const members = await listMemberRows(ctx, c.workspace_id);

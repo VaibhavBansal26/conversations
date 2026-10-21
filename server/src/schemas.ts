@@ -302,4 +302,5 @@ export const AiCallToolBody = z.object({ call_id: id, name: z.string().min(1).ma
 export const AiCallTranscriptBody = z.object({ call_id: id, role: z.enum(["user", "assistant"]), text: z.string().max(4000), item_id: z.string().min(1).max(80), greeting: z.boolean().optional(), via: z.enum(["voice", "typed"]).default("voice") });
 export const AiCallFallbackBody = z.object({ call_id: id, reason: z.string().max(40).default("client_failed") });
 export const AiCallEndBody = z.object({ call_id: id, reason: z.enum(["completed", "silence", "unsupported", "error"]).default("completed") });
+export const TeamCallInviteBody = z.object({ channel_id: id, kind: CallKind });
 export const CallSignalBody = z.object({ call_id: id, data: z.record(z.string(), z.unknown()) });

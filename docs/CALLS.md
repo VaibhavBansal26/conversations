@@ -192,3 +192,23 @@ Also: 6 call starts per visitor per hour (`calls.ai.visitor`), 20 utterances per
 ### What is verified
 
 Server (SQLite and PostgreSQL): `ai-calls.test.ts` (start and its refusals, the loop, idempotent retries, hand-over by request, by trigger and by button, a person taking over, resolution, redaction, the budget fallback, time limits and sweeps, resume, daily, concurrency and rate limits, isolation) and migration 036 upgrade tests. **Not verified**: speech quality, recognizer accuracy and latency in any real browser, Safari and Firefox behaviour, real devices and real microphones, and any real language model (the tests use the offline rules agent and scripted models).
+
+## Calls between teammates
+
+A team member can call another from the app: voice or video, between the two members of a direct message. Decision record: [ADR 0036](adr/0036-teammate-calls.md). It reuses the call state machine, the TURN credentials and the signalling rules of calls with visitors, with these differences:
+
+- **Who may call**: a member with `calls:internal` (owner, manager and agent by default; custom roles do not get it by themselves; viewers do not have it), and only into a direct message they belong to. The permission is needed on both ends: a teammate without it cannot be rung (`CALLEE_CANNOT_RECEIVE`). Someone who cannot see the conversation, or belongs to another workspace, gets `404` (so ids reveal nothing); a public channel the member has not joined gives `NOT_A_MEMBER`. **Group calls are not built**: a group message, a channel and #general answer `GROUP_CALLS_NOT_AVAILABLE`.
+- **Presence and do-not-disturb**: a teammate who is offline (`CALLEE_OFFLINE`), has do-not-disturb on or set their status to inactive (`CALLEE_UNAVAILABLE`), or is already in a call (`CALLEE_BUSY`: another teammate call, or a call with a visitor as the agent) is not rung. "Away" counts as idle, not unavailable. A member can be in one call at a time (`CALL_IN_PROGRESS`), also under two callers at once: the database allows one live call per conversation, per caller and per callee.
+- **Ringing**: the callee's every tab gets `tcall:state` and shows the incoming-call screen anywhere in the app (Accept, Decline, a ring tone where the browser allows it); the first tab to accept binds the call, the others stop ringing. Unanswered calls are missed after the ring time (`calls.internal.ring_seconds`, default 30 s, 10 to 90); the card in the direct message follows the call ("Voice call: ringing", "Missed voice call", "Video call, 4 min").
+- **During the call**: mute, camera, screen sharing (video, when `calls.internal.screen_share` is on), a connection-quality dot, ICE restart and a socket reconnect (`tcall:resume`) with the same 15 s and 20 s limits as visitor calls. Media goes between the two browsers (or a TURN relay); nothing is recorded or stored.
+- **Limits**: 20 calls an hour per member and 5 in 5 minutes to the same person (`RATE_LIMITED`), against ring spam.
+- **Settings**: Settings > Calls > calls between teammates (`calls.internal`: on or off, voice, video, screen sharing, ring time), off by default; `GET /api/team-calls/config` tells the app what is on and a call this member is already in.
+
+| Event | Who | Effect |
+| --- | --- | --- |
+| `tcall:invite` `{channel_id, kind}` | team, `calls:internal` | rings the other member of the direct message; answers `{call, ice}` |
+| `tcall:accept` / `tcall:decline` `{call_id}` | the callee | answer (returns `{call, ice}`) or refuse |
+| `tcall:offer`, `tcall:answer`, `tcall:ice` `{call_id, data}` | both | relayed to the other side's bound socket only |
+| `tcall:connected`, `tcall:failed`, `tcall:end`, `tcall:resume` | both | as for calls with visitors |
+
+Verified: `team-calls.test.ts` (SQLite and PostgreSQL: the flow, signalling isolation, refusals, presence and DND, busy, races, rate limits, tenant isolation, timeouts and resume, a randomized state-machine test), migrations 038 and 039 upgrade tests, jsdom tests of the team engine and screens, and two Chrome contexts in `e2e/tests/13-team-calls.spec.ts` with the synthetic media. Not verified: real networks and TURN, other browsers, real devices.

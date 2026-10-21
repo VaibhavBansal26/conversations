@@ -112,4 +112,17 @@ describe("CallSettings", () => {
     expect(await screen.findByText(/switched off for this whole installation/)).toBeInTheDocument();
     aiConfig = { engine: "browser", realtime_available: false, realtime_switched_off: false };
   });
+
+  it("calls between teammates: off by default, then voice, video, screen sharing and ring time, saved in one patch", async () => {
+    mount();
+    expect(screen.getByRole("switch", { name: /Let teammates call each other/ })).not.toBeChecked();
+    expect(screen.getByText(/Group calls are not available/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("switch", { name: /Let teammates call each other/ }));
+    await userEvent.click(screen.getAllByRole("switch", { name: "Video" })[0]!);
+    await userEvent.clear(screen.getByLabelText("Ring time (seconds)", { selector: "input[min='10']" }));
+    await userEvent.type(screen.getByLabelText("Ring time (seconds)", { selector: "input[min='10']" }), "20");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(calls.some((c) => c.method === "PATCH")).toBe(true));
+    expect(JSON.parse(calls.find((c) => c.method === "PATCH")!.body!).internal).toEqual({ enabled: true, voice: true, video: false, screen_share: true, ring_seconds: 20 });
+  });
 });

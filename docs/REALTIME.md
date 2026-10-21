@@ -54,6 +54,16 @@ Every event is acknowledged: `{ok: true, ...}` or `{ok: false, error: {code, mes
 | `call:offer` | team, visitor | `calls:make` | 2 | `call_id*`, `data*` |
 | `call:answer` | team, visitor | `calls:make` | 2 | `call_id*`, `data*` |
 | `call:ice` | team, visitor | `calls:make` | 0.25 | `call_id*`, `data*` |
+| `tcall:invite` | team | `calls:internal` | 5 | `channel_id*`, `kind*` |
+| `tcall:accept` | team | `calls:internal` | 2 | `call_id*` |
+| `tcall:decline` | team | `calls:internal` | 2 | `call_id*` |
+| `tcall:end` | team | `calls:internal` | 2 | `call_id*` |
+| `tcall:connected` | team | `calls:internal` | 1 | `call_id*` |
+| `tcall:failed` | team | `calls:internal` | 1 | `call_id*`, `reason` |
+| `tcall:resume` | team | `calls:internal` | 2 | `call_id*` |
+| `tcall:offer` | team | `calls:internal` | 2 | `call_id*`, `data*` |
+| `tcall:answer` | team | `calls:internal` | 2 | `call_id*`, `data*` |
+| `tcall:ice` | team | `calls:internal` | 0.25 | `call_id*`, `data*` |
 | `team:message:send` | team | `team_chat:use` | 2 | `content`, `thread_root_id`, `attachment_ids`, `client_msg_id`, `share_room_id`, `channel_id*` |
 | `team:typing` | team | `team_chat:use` | 0.25 | `channel_id*`, `typing*`, `thread_root_id` |
 | `team:read` | team | `team_chat:use` | 1 | `message_id`, `channel_id*` |
@@ -81,6 +91,9 @@ Internal chat between workspace members uses the same namespace and the same aut
 | `call:state` | room audience (the visitor gets `{call: {id, room_id, kind, state, duration_s, ended_by, end_reason, agent_name}}`) | `{call}` | a call rang, connected, ended, was missed, declined or failed ([CALLS.md](CALLS.md)); never carries signalling |
 | `call:state` (AI call) | as above | `{call}` with `transport: "ai"`, `kind: ai_voice\|ai_video`, `ai_agent_id`, `handoff_reason` for the team; the visitor copy has `agent_name` (the AI agent's name) and `handoff_reason` | a call with the AI assistant started, ended, was handed to a person or timed out ([CALLS.md](CALLS.md#calls-with-the-ai-assistant)) |
 | `call:offer`, `call:answer`, `call:ice` | one socket: the other party of the call | `{call_id, data}` | WebRTC signalling relayed to the other side's bound socket and to nobody else |
+| `tcall:state` | the two members of a call between teammates (every tab of each) | `{call: {id, channel_id, kind, state, caller: {id, name}, callee: {id, name}, duration_s, ended_by, end_reason}}` | a call between teammates rang, was answered, ended, was missed, declined or failed ([CALLS.md](CALLS.md#calls-between-teammates)); nobody else in the workspace receives it |
+| `tcall:offer`, `tcall:answer`, `tcall:ice` | one socket: the other party of the call | `{call_id, data}` | WebRTC signalling of a call between teammates, relayed to the other side's bound socket only |
+| `tcall:peer` | one socket: the other party | `{call_id, event: lost\|resumed}` | the other side's connection dropped or came back (restart ICE on `resumed`) |
 | `call:peer` | one socket: the other party | `{call_id, event: lost\|resumed}` | the other side's connection dropped or came back (restart ICE on `resumed`) |
 | `room:unread` | the member | `{room_id, unread_count}` | unread count changed |
 | `typing` | room audience | `{room_id, typing, who}` | typing indicator (coalesced) |

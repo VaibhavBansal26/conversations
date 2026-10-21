@@ -72,6 +72,8 @@ export const POLICIES: Policy[] = [
   // ---- phone calls (click-to-call costs money: every limit fails closed) ----
   P({ id: "calls.ai.visitor", description: "Calls with the AI assistant a visitor may start per hour (spend guard; the workspace's daily limit is a setting)", keyBy: "composite", algo: "window", limit: 6, windowSec: 3600, onFail: "closed" }),
   P({ id: "calls.ai.say", description: "Things a visitor says to the AI assistant in a call, per visitor (20 a minute, bursts of 8): each one is a model turn", keyBy: "composite", algo: "gcra", limit: 20, windowSec: 60, burst: 8, onFail: "open" }),
+  P({ id: "calls.internal.member", description: "Calls a team member may place to teammates per hour (stops ring spam)", keyBy: "composite", algo: "window", limit: 20, windowSec: 3600, onFail: "open" }),
+  P({ id: "calls.internal.pair", description: "Calls from one member to the same teammate: 5 per 5 minutes", keyBy: "composite", algo: "window", limit: 5, windowSec: 300, onFail: "open" }),
   P({ id: "calls.phone.agent", description: "Phone calls a team member may place per hour (spend guard; the workspace's daily limit is a setting)", keyBy: "composite", algo: "window", limit: 10, windowSec: 3600, onFail: "closed" }),
 
   // ---- analytics API (API keys) ----

@@ -19,6 +19,7 @@ import { canDo, isLive, next, IllegalTransition, type CallEvent, type CallState 
 import { iceConfig, type IceConfig } from "./turn.js";
 import { sweepPhone } from "./phone.js";
 import { sweepAi } from "./aiCall.js";
+import { sweepTeamCalls } from "./teamCall.js";
 
 /**
  * Calls between a team member and a visitor (docs/CALLS.md). This service owns the database row and the thread card; the sockets carry the
@@ -472,6 +473,10 @@ export async function sweepCalls(ctx: AppContext): Promise<{ missed: number; fai
       if (!(e instanceof AppError && (e.code === "CALL_STATE_CHANGED" || e.code === "CALL_STATE")) && !(e instanceof IllegalTransition)) throw e;
     }
   }
+  const t = await sweepTeamCalls(ctx);
+  out.missed += t.missed;
+  out.failed += t.failed;
+  out.ended += t.ended;
   return out;
 }
 

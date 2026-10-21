@@ -34,12 +34,22 @@ export const PAYLOADS: Record<string, z.ZodType | null> = {
   "call:offer": S.CallSignalBody,
   "call:answer": S.CallSignalBody,
   "call:ice": S.CallSignalBody,
+  "tcall:invite": S.TeamCallInviteBody,
+  "tcall:accept": S.CallIdBody,
+  "tcall:decline": S.CallIdBody,
+  "tcall:end": S.CallIdBody,
+  "tcall:connected": S.CallIdBody,
+  "tcall:failed": S.CallFailedBody,
+  "tcall:resume": S.CallIdBody,
+  "tcall:offer": S.CallSignalBody,
+  "tcall:answer": S.CallSignalBody,
+  "tcall:ice": S.CallSignalBody,
   "team:message:send": S.TeamSocketSend,
   "team:typing": S.TeamSocketTyping,
   "team:read": S.TeamSocketRead,
   "team:reaction": S.TeamSocketReaction,
 };
-const WHO: Record<string, string> = { "message:send": "team, visitor", "message:read": "team, visitor", "room:create": "team, visitor", "room:update": "team", "room:assign": "team", typing: "team, visitor", "otp:verify": "visitor", "presence:list": "team", "call:invite": "team", "call:request": "visitor", "aicall:start": "visitor", "aicall:say": "visitor", "aicall:end": "visitor", "aicall:handoff": "visitor", "aicall:tool": "visitor", "aicall:transcript": "visitor", "aicall:fallback": "visitor", "call:accept": "visitor", "call:decline": "visitor", "call:end": "team, visitor", "call:connected": "team, visitor", "call:failed": "team, visitor", "call:resume": "team, visitor", "call:offer": "team, visitor", "call:answer": "team, visitor", "call:ice": "team, visitor", "team:message:send": "team", "team:typing": "team", "team:read": "team", "team:reaction": "team" };
+const WHO: Record<string, string> = { "message:send": "team, visitor", "message:read": "team, visitor", "room:create": "team, visitor", "room:update": "team", "room:assign": "team", typing: "team, visitor", "otp:verify": "visitor", "presence:list": "team", "call:invite": "team", "call:request": "visitor", "aicall:start": "visitor", "aicall:say": "visitor", "aicall:end": "visitor", "aicall:handoff": "visitor", "aicall:tool": "visitor", "aicall:transcript": "visitor", "aicall:fallback": "visitor", "call:accept": "visitor", "call:decline": "visitor", "call:end": "team, visitor", "call:connected": "team, visitor", "call:failed": "team, visitor", "call:resume": "team, visitor", "call:offer": "team, visitor", "call:answer": "team, visitor", "call:ice": "team, visitor", "tcall:invite": "team", "tcall:accept": "team", "tcall:decline": "team", "tcall:end": "team", "tcall:connected": "team", "tcall:failed": "team", "tcall:resume": "team", "tcall:offer": "team", "tcall:answer": "team", "tcall:ice": "team", "team:message:send": "team", "team:typing": "team", "team:read": "team", "team:reaction": "team" };
 
 const fields = (s: z.ZodType | null) => {
   if (!s) return "none";
