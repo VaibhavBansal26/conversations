@@ -160,6 +160,8 @@ export const configSchema = z.object({
   OPENAI_REALTIME_TRANSCRIBE_MODEL: z.string().optional(),
   OPENAI_CLIENT_SECRET_TTL_SECONDS: z.coerce.number().int().min(10).max(7200).default(60),
   AI_REALTIME_ENABLED: bool.default(true),
+  /** a new workspace starts with the two preset AI agents, Aria and vb, switched on (docs/AI-AGENTS.md); tests and the demo seed turn it off */
+  DEFAULT_AI_AGENTS: bool.default(true),
   /** photoreal avatar of AI video calls (ADR 0039): the instance fallback key for D-ID (workspaces connect their own in Settings > Calls), the kill switch and a price for the analytics estimate */
   DID_API_KEY: z.string().optional(),
   DID_API_BASE: z.string().url().default("https://api.d-id.com"),

@@ -158,6 +158,7 @@ export const CONFIG_META: Record<string, VarMeta> = {
   OPENAI_REALTIME_VOICE: { group: G.ai, desc: "Voice id for the realtime engine. Unset: the provider's default voice." },
   OPENAI_REALTIME_TRANSCRIBE_MODEL: { group: G.ai, desc: "Model used to transcribe the visitor's speech in a realtime call (the transcript is what is stored in the thread and what the safety monitor reads). Unset: the provider's default." },
   OPENAI_CLIENT_SECRET_TTL_SECONDS: { group: G.ai, desc: "How long the secret handed to the visitor's browser can open the realtime connection (it only has to last until the connection is made).", example: "60" },
+  DEFAULT_AI_AGENTS: { group: G.ai, desc: "A workspace created by registering starts with the two preset AI agents, Aria and vb, switched on, so visitors get an answer from the first message. false: new workspaces start with none." },
   AI_REALTIME_ENABLED: { group: G.ai, desc: "Instance-wide kill switch of the realtime engine: false makes every workspace use the browser engine and ends running realtime calls." },
   AI_REALTIME_COST_PER_MINUTE_USD: { group: G.ai, desc: "Your own estimate of what one minute of a realtime call costs, used only to show an estimated cost in analytics. Unset: analytics shows minutes and no cost." },
   STORAGE_DRIVER: { group: G.storage, desc: "Attachment storage driver (only `local` is implemented; the interface allows object storage)." },

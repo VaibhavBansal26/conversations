@@ -42,7 +42,7 @@ async function seedWorkspace(ctx: Awaited<ReturnType<typeof createContext>>, wit
   ctx.clock = () => new Date(t);
   const tick = (minutes: number) => void (t += minutes * 60_000);
 
-  const reg = await register(ctx, { email: DEMO_EMAIL, password: DEMO_PASSWORD, name: "Demo Owner", workspace_name: "Demo Co" });
+  const reg = await register(ctx, { email: DEMO_EMAIL, password: DEMO_PASSWORD, name: "Demo Owner", workspace_name: "Demo Co" }, {}, { defaultAgents: false });
   const ws = reg.workspace.id;
   const owner: Actor = actorFromRow(await getMember(ctx, ws, reg.member.id));
   const person = async (name: string, email: string, role: "manager" | "agent") =>

@@ -283,6 +283,7 @@ export const PublicRoomBody = z
     locale: z.string().max(20).optional(),
   })
   .default({});
+export const TicketAssignAgent = z.object({ agent_id: id });
 export const TicketTransfer = z.object({ department_id: id, note: z.string().trim().max(500).optional() });
 export const QuickReplyBody = z.object({ message_id: id, option_id: z.string().min(1).max(80) });
 export const VisitorFeedback = z.object({ rating: z.union([z.literal(1), z.literal(-1)]), comment: z.string().trim().max(500).optional() });

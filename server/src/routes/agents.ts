@@ -14,6 +14,10 @@ import { removeAgentAvatar, setAgentAvatar } from "../agents/avatar.js";
 export function agentRoutes(ctx: AppContext) {
   const r = new Hono<Env>();
 
+  // what the inbox's assign menu needs: the agents that are switched on, for anyone who may change a ticket (tickets:write), without their settings
+  r.get("/ai-agents/available", async (c) =>
+    c.json({ data: (await listAgentRows(ctx, c.get("actor").workspaceId)).filter((a) => a.enabled).map((a) => { const d = agentDto(a); return { id: d.id, name: d.name, avatar_url: d.avatar_url, disclosure_label: d.disclosure_label, department_ids: d.department_ids }; }) }),
+  );
   r.get("/agents", async (c) => c.json({ data: (await listAgentRows(ctx, c.get("actor").workspaceId)).map(agentDto) }));
   r.post("/agents", async (c) => c.json(agentDto(await createAgent(ctx, c.get("actor"), await parseBody(c, AgentBodySchema))), 201));
   r.get("/agents/presets", async (c) => c.json({ data: AGENT_PRESETS }));

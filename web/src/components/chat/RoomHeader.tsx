@@ -1,5 +1,5 @@
 // Adapted from the legacy UI (see docs/PROVENANCE.md): assignee, status, priority and snooze controls in the conversation header.
-import { ArrowLeft, Check, Link2, MailCheck, Phone, PhoneOutgoing, CircleDollarSign, Flag, Inbox as InboxIcon, MoreHorizontal, PanelRight, RotateCcw, Search, Share2, Sparkles, Star, UserRound, Video } from "lucide-react";
+import { ArrowLeft, Bot, Check, Link2, MailCheck, Phone, PhoneOutgoing, CircleDollarSign, Flag, Inbox as InboxIcon, MoreHorizontal, PanelRight, RotateCcw, Search, Share2, Sparkles, Star, UserRound, Video } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
 import { api } from "../../api/client";
@@ -19,6 +19,8 @@ import { RequestPaymentDialog } from "./RequestPaymentDialog";
 import { SnoozeMenu } from "./SnoozeMenu";
 import { SummaryPopover } from "./SummaryPopover";
 import { TicketMenu } from "../tickets/TicketMenu";
+import { useAvailableAgents } from "../../api/agentHooks";
+import { useTicketActions } from "../../api/ticketHooks";
 
 interface Props {
   room: Room;
@@ -84,6 +86,14 @@ export function RoomHeader({ room, backTo, assignOpen, onAssignOpen, snoozeOpen,
   };
   const snoozed = isSnoozed(room, new Date());
   const assigned = members.filter((m) => room.assignee_ids.includes(m.id));
+  // AI agents in the same menu: giving the live ticket to one (docs/AI-AGENTS.md, "Assign to an AI agent")
+  const canAssignAi = useCan("tickets:write");
+  const aiAgents = useAvailableAgents(canAssignAi).data ?? [];
+  const ticketActions = useTicketActions();
+  const ticket = room.ticket ?? null;
+  const ticketLive = !!ticket && ticket.status !== "resolved" && ticket.status !== "closed";
+  const botId = ticket?.handler?.startsWith("bot:") ? ticket.handler.slice(4) : null;
+  const botAgent = botId ? aiAgents.find((a) => a.id === botId) : undefined;
   const canReply = useCan("conversations:reply");
   /** a copy of the conversation to the contact's own address on file (docs/TRANSCRIPTS.md) */
   const emailCopy = async () => {
@@ -125,7 +135,9 @@ export function RoomHeader({ room, backTo, assignOpen, onAssignOpen, snoozeOpen,
             aria-label="Assign conversation"
             className="flex h-9 items-center gap-2 rounded-md border border-border-strong bg-surface px-2.5 text-[13px] font-medium shadow-xs hover:bg-surface-2"
           >
-            {assigned.length ? (
+            {!assigned.length && botAgent ? (
+              <Bot className="size-4 text-primary-text" aria-hidden="true" />
+            ) : assigned.length ? (
               <span className="flex -space-x-1.5">
                 {assigned.slice(0, 2).map((a) => (
                   <Avatar key={a.id} name={a.name} size="xs" className="rounded-full ring-2 ring-surface" />
@@ -134,7 +146,7 @@ export function RoomHeader({ room, backTo, assignOpen, onAssignOpen, snoozeOpen,
             ) : (
               <UserRound className="size-4 text-subtle" aria-hidden="true" />
             )}
-            <span className="max-w-28 truncate @max-lg:hidden">{assigned.length ? assigned.map((m) => m.name.split(" ")[0]).join(", ") : "Unassigned"}</span>
+            <span className="max-w-28 truncate @max-lg:hidden">{assigned.length ? assigned.map((m) => m.name.split(" ")[0]).join(", ") : botAgent ? `${botAgent.name} (AI)` : "Unassigned"}</span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-60">
             <DropdownMenuLabel>Assign to</DropdownMenuLabel>
@@ -150,6 +162,23 @@ export function RoomHeader({ room, backTo, assignOpen, onAssignOpen, snoozeOpen,
                   {m.name}
                 </DropdownMenuCheckItem>
               ))}
+            {canAssignAi && aiAgents.length > 0 && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>AI agents</DropdownMenuLabel>
+                {aiAgents.map((a) => (
+                  <DropdownMenuCheckItem
+                    key={a.id}
+                    checked={botId === a.id}
+                    disabled={!ticketLive}
+                    onSelect={() => ticket && ticketActions.assignAgent.mutate({ id: ticket.id, agent_id: a.id })}
+                  >
+                    {a.name} <span className="text-subtle">({a.disclosure_label})</span>
+                  </DropdownMenuCheckItem>
+                ))}
+                {!ticketLive && <p className="px-2 pb-1 text-xs text-subtle">An AI agent can take a conversation once the visitor writes.</p>}
+              </>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem danger disabled={!room.assignee_ids.length} onSelect={() => actions.assign.mutate({ member_ids: [] })}>
               Unassign

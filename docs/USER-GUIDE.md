@@ -170,7 +170,7 @@ Shows the contact (avatar with online dot, name, email · phone, or the subject)
 
 ![Ticket menu](design/ticket-menu-1440x900-light.jpg)
 
-**Assign** ("Assign conversation", a): "Assign to me", "Auto-assign (round robin)", one item per teammate with a live seat, and "Unassign". The route needs `conversations:reply`; the catalogue also defines `conversations:assign` for assigning to others.
+**Assign** ("Assign conversation", a): "Assign to me", "Auto-assign (round robin)", one item per teammate with a live seat, the AI agents that are switched on (under "AI agents", with `tickets:write`: the agent takes the live ticket, people are unassigned, and a waiting visitor message is answered at once; the button then shows the agent's name with "(AI)"), and "Unassign". The route needs `conversations:reply`; the catalogue also defines `conversations:assign` for assigning to others.
 
 **Icon buttons** (inline on wide headers, otherwise under "More actions"):
 
@@ -595,7 +595,7 @@ Saves need `settings:write`. Shows the provider, or "(offline heuristics, no API
 
 Needs `agents:manage` (Owner, Manager). The "SMS and email answers" form uses the workspace settings (`settings:write`). Tabs "Agents" (default), "Review", "Unanswered". Concepts: [AI-AGENTS.md](AI-AGENTS.md).
 
-**Agents.** Up to 5 agents. On the first visit with none, the app creates "Aria" and "vb", switches both on, and says so. Aria answers first; give each a department so they share conversations. Presets: "Aria" (warm and patient), "vb" (direct and efficient), "Blank". Each row has an on/off switch, "Edit" and "Delete".
+**Agents.** Up to 5 agents. A new workspace starts with "Aria" and "vb", both switched on; with no agents at all, the empty state offers "Add Aria and vb". Aria answers first; give each a department so they share conversations. Aria answers first; give each a department so they share conversations. Presets: "Aria" (warm and patient), "vb" (direct and efficient), "Blank". Each row has an on/off switch, "Edit" and "Delete".
 
 Editor (defaults for a blank agent):
 

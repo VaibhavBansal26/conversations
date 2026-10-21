@@ -38,6 +38,8 @@ export async function startStack({ port } = {}) {
   const env = {
     ...process.env,
     NODE_ENV: "development",
+    // registered test workspaces start without AI agents, so browser tests only get answers they set up
+    DEFAULT_AI_AGENTS: "false",
     PORT: String(port),
     HOST: "127.0.0.1",
     JWT_SECRET: "e2e-ui-secret-e2e-ui-secret-e2e-ui-1234",

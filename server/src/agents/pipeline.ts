@@ -18,7 +18,7 @@ import { handoffTicket } from "../services/routing.js";
 import { announceResolved, liveTicketOf, publishTickets, recordTicketEvent, resolveTicketRow, type TicketRow } from "../services/tickets.js";
 import { getSettings } from "../services/workspaces.js";
 import { publishRoomUpdated } from "../services/rooms.js";
-import { agentDto, selectAgent, type AgentDto, type AgentRow } from "./config.js";
+import { agentDto, assignedAgent, selectAgent, type AgentDto, type AgentRow } from "./config.js";
 import { classifyText, isConfirmation, type Classification, type DepartmentChoice } from "./classify.js";
 import { isSensitiveTopic } from "./humanRequest.js";
 import { bannedClaims, looksLikeInjection, rephraseStreak, stripUnsourcedLinks } from "./safety.js";
@@ -698,7 +698,9 @@ export async function handleCustomerMessage(ctx: AppContext, room: RoomRow, mess
 export async function handleAgentTurn(ctx: AppContext, room: RoomRow, message: MessageRow, opts: { provider?: AiProvider; dissatisfied?: boolean; capture?: TurnCapture; channel?: "widget" | "sms" | "email"; text?: string } = {}): Promise<"handled" | "none"> {
   const ticket = await liveTicketOf(ctx, room.id);
   if (!ticket || ticket.status === "resolved") return "none";
-  const sel = await selectAgent(ctx, room.workspace_id, { channel: opts.channel ?? "widget", departmentId: ticket.department_id ?? room.inbox_id });
+  const channel = opts.channel ?? "widget";
+  // the agent a person gave the ticket to keeps it; otherwise the first one on for the department
+  const sel = (await assignedAgent(ctx, room.workspace_id, ticket.handler, { channel })) ?? (await selectAgent(ctx, room.workspace_id, { channel, departmentId: ticket.department_id ?? room.inbox_id }));
   if (!sel) return "none";
   // a person has it, or it is waiting for one: the team is told about the message the usual way
   if (ticket.handler?.startsWith("human:") || ticket.status === "waiting_for_human") return "none";

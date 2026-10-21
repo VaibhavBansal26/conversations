@@ -1,9 +1,11 @@
 import { Hono } from "hono";
 import type { AppContext } from "../context.js";
 import { parseBody, parseQuery, requireLiveSeat, type Env } from "../http.js";
-import { TicketBulk, TicketMerge, TicketPatch, TicketQuery, TicketTransfer } from "../schemas.js";
+import { TicketAssignAgent, TicketBulk, TicketMerge, TicketPatch, TicketQuery, TicketTransfer } from "../schemas.js";
 import { claimTicket, transferTicket } from "../services/routing.js";
-import { handBackTicket } from "../agents/handover.js";
+import { assignTicketToAgent, handBackTicket } from "../agents/handover.js";
+import { handleAgentTurn } from "../agents/pipeline.js";
+import type { MessageRow } from "../services/messageStore.js";
 import { getRoomRow, getVisibleRoom } from "../services/roomStore.js";
 import {
   bulkTickets,
@@ -37,6 +39,15 @@ export function ticketRoutes(ctx: AppContext) {
   r.post("/tickets/:id/merge", async (c) => c.json(ticketDto(await mergeTickets(ctx, c.get("actor"), c.req.param("id"), (await parseBody(c, TicketMerge)).into_id))));
 
   r.post("/tickets/:id/claim", async (c) => c.json(ticketDto(await claimTicket(ctx, c.get("actor"), c.req.param("id")))));
+  r.post("/tickets/:id/assign-agent", async (c) => {
+    const row = await assignTicketToAgent(ctx, c.get("actor"), c.req.param("id"), (await parseBody(c, TicketAssignAgent)).agent_id);
+    // the visitor wrote last and nobody answered: the agent answers that message now instead of waiting for the next one
+    await ctx.background.run(async () => {
+      const last = await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE room_id = ? AND deleted_at IS NULL AND kind NOT IN ('note','system') ORDER BY seq DESC LIMIT 1", row.room_id);
+      if (last && last.sender_type === "contact" && last.source === "dm") await handleAgentTurn(ctx, await getRoomRow(ctx, row.workspace_id, row.room_id), last);
+    });
+    return c.json(ticketDto(row));
+  });
   r.post("/tickets/:id/hand-back", async (c) => c.json(ticketDto(await handBackTicket(ctx, c.get("actor"), c.req.param("id")))));
   r.post("/tickets/:id/transfer", async (c) => {
     const a = c.get("actor");

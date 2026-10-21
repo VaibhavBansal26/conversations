@@ -39,7 +39,7 @@ const GROUPS: [RouteAccess, string[]][] = [
   ]],
   ["conversations:delete", ["DELETE /api/rooms/:id"]],
   ["tickets:read", ["GET /api/tickets", "GET /api/tickets/counts", "GET /api/tickets/:id", "GET /api/rooms/:id/tickets", "GET /api/contacts/:id/tickets", "GET /api/department-status"]],
-  ["tickets:write", ["PATCH /api/tickets/:id", "POST /api/tickets/:id/reopen", "POST /api/tickets/:id/claim", "POST /api/tickets/:id/hand-back", "POST /api/tickets/:id/transfer"]],
+  ["tickets:write", ["PATCH /api/tickets/:id", "POST /api/tickets/:id/reopen", "POST /api/tickets/:id/claim", "POST /api/tickets/:id/hand-back", "POST /api/tickets/:id/assign-agent", "GET /api/ai-agents/available", "POST /api/tickets/:id/transfer"]],
   ["calls:make", ["POST /api/rooms/:id/call-links", "GET /api/rooms/:id/call-links", "DELETE /api/rooms/:id/call-links/:linkId", "GET /api/calls/config", "POST /api/rooms/:id/phone-call", "POST /api/rooms/:id/phone-call/consent", "POST /api/calls/:id/hangup"]],
   ["calls:settings", ["PATCH /api/calls/settings", "GET /api/calls/avatar", "PUT /api/calls/avatar/connection", "POST /api/calls/avatar/connection/test", "DELETE /api/calls/avatar/connection", "POST /api/calls/avatar/avatars", "DELETE /api/calls/avatar/avatars/:id", "PUT /api/agents/:id/photoreal-avatar"]],
   ["calls:internal", ["GET /api/team-calls/config", "GET /api/team-calls/channels/:id/group-call"]],

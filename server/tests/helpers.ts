@@ -91,6 +91,8 @@ export function testConfig(env: Record<string, string> = {}): Config {
       DATA_DIR: dir,
       WEB_DIST: join(dir, "no-web-build"),
       LOG_LEVEL: "silent",
+      // a registered workspace starts without AI agents in tests, so no test gets answers it did not ask for (agents-default.test.ts turns it on)
+      DEFAULT_AI_AGENTS: "false",
       CACHE_TTL_MS: "0",
       // with TEST_REDIS the whole suite also runs on the Redis paths (limiter, presence, locks, cache invalidation); each context gets its own key prefix
       ...(process.env.TEST_REDIS_URL ? { REDIS_URL: process.env.TEST_REDIS_URL, REDIS_PREFIX: `t${randomBytes(4).toString("hex")}`, JOB_QUEUE: "db" } : {}),

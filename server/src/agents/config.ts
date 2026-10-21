@@ -9,6 +9,7 @@ import { newId } from "../util/ids.js";
 import { parseJson } from "../util/json.js";
 import { recordAudit } from "../services/audit.js";
 import { isOpen } from "../services/office.js";
+import { AGENT_PRESETS } from "./presets.js";
 import { DEFAULT_SENSITIVE_TOPICS } from "./humanRequest.js";
 import { BUNDLED_AVATAR_PATH } from "./presets.js";
 
@@ -224,6 +225,39 @@ export async function selectAgent(ctx: AppContext, ws: string, o: { channel: Age
     return { agent: a, inHours: isOpen(OfficeHoursSchema.parse(parseJson<unknown>(a.hours, {})), o.at ?? ctx.clock()) };
   }
   return null;
+}
+
+/**
+ * The agent a ticket is already with (`handler = bot:<id>`), when it is still switched on for the channel: a person may have chosen it for a ticket
+ * outside its departments, and it keeps the ticket until someone changes that. Null otherwise, and the caller falls back to `selectAgent`.
+ */
+export async function assignedAgent(ctx: AppContext, ws: string, handler: string | null, o: { channel: AgentChannel; at?: Date }): Promise<{ agent: AgentRow; inHours: boolean } | null> {
+  if (!handler?.startsWith("bot:")) return null;
+  const a = (await ctx.cache.wrap(`agents:${ws}`, () => listAgentRows(ctx, ws))).find((x) => x.id === handler.slice(4));
+  if (!a || !a.enabled || !parseJson<string[]>(a.channels, ["widget"]).includes(o.channel)) return null;
+  return { agent: a, inHours: isOpen(OfficeHoursSchema.parse(parseJson<unknown>(a.hours, {})), o.at ?? ctx.clock()) };
+}
+
+/**
+ * The agents a new workspace starts with (`DEFAULT_AI_AGENTS`): the presets Aria then vb, switched on, answering from the knowledge base and handing
+ * over when they cannot. Aria is created first, so she takes conversations until each has a department. Written at registration, before anyone can
+ * sign in, so it needs no permission check; audited as the owner.
+ */
+export async function createDefaultAgents(ctx: AppContext, ws: string, ownerMemberId: string): Promise<void> {
+  const now = nowIso(ctx);
+  for (const [n, p] of AGENT_PRESETS.entries()) {
+    const body = AgentBodySchema.parse({
+      name: p.name, tone: p.tone, greeting: p.greeting, avatar_url: p.avatar_url, avatar_alt: p.avatar_alt, disclosure_label: p.disclosure_label,
+      persona: `${p.persona} Answer only from the knowledge base. If you do not know, say so and offer a person.`,
+      autonomy: "auto_answer", enabled: true,
+    });
+    const id = newId("agt");
+    // one millisecond apart so "first created" (who answers when no department is set) is Aria on every database
+    const at = new Date(Date.parse(now) + n).toISOString();
+    await ctx.db.run(`INSERT INTO ai_agents(id, workspace_id, ${COLS}, created_at, updated_at) VALUES (?,?,${COLS.split(", ").map(() => "?").join(",")},?,?)`, id, ws, ...toColumns(body), at, at);
+    await recordAudit(ctx, { workspaceId: ws, actor: { type: "member", id: ownerMemberId }, action: "ai_agent.created", target: id, detail: { name: body.name, enabled: true, default: true } });
+  }
+  await invalidateAgents(ctx, ws);
 }
 
 export const invalidateAgents = (ctx: AppContext, ws: string) => ctx.cache.invalidate(`agents:${ws}`);

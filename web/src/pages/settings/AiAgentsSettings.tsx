@@ -1,6 +1,6 @@
 import { Bot, FlaskConical, MessageSquareWarning, Pencil, Plus, ThumbsDown, ThumbsUp, Trash2 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { api } from "../../api/client";
 import type { Session, Workspace } from "../../api/types";
 import { keys } from "../../state/keys";
@@ -71,24 +71,6 @@ export const DEFAULT_AGENTS = AGENT_PRESETS.map(asDefault);
 function fromPreset(p: AgentPreset): Partial<AgentDraft> & { name: string } {
   return { name: p.name, tone: p.tone, persona: p.persona, greeting: p.greeting, avatar_url: p.avatar_url, avatar_alt: p.avatar_alt, disclosure_label: p.disclosure_label };
 }
-// Remembered per workspace: a new workspace (or one whose data was reset) gets its default agent even in a browser that created one before.
-const offeredKey = (ws: string) => `conversations.default-agent-offered.${ws}`;
-const offered = (ws: string) => {
-  try {
-    return localStorage.getItem(offeredKey(ws)) === "1";
-  } catch {
-    return false;
-  }
-};
-const markOffered = (ws: string, on = true) => {
-  try {
-    if (on) localStorage.setItem(offeredKey(ws), "1");
-    else localStorage.removeItem(offeredKey(ws));
-  } catch {
-    /* private mode: the agent list itself still prevents a second one */
-  }
-};
-
 function Sandbox({ agent }: { agent: AiAgent }) {
   const sandbox = useSandbox(agent.id);
   const [message, setMessage] = useState("");
@@ -335,23 +317,17 @@ function Agents() {
   const agents = useAgents();
   const { create, update, remove } = useAgentMutations();
   const depts = useDepartments();
-  const [createdDefault, setCreatedDefault] = useState(false);
-  const tried = useRef(false);
-  const ws = useQueryClient().getQueryData<Session>(keys.me)?.workspace?.id ?? "unknown";
-  // First visit with no agent at all: create the default one once per workspace (the browser remembers, so deleting it is final).
-  useEffect(() => {
-    if (!agents.data || agents.data.length > 0 || tried.current || offered(ws)) return;
-    tried.current = true;
-    markOffered(ws);
-    void (async () => {
-      try {
-        for (const d of DEFAULT_AGENTS) await create.mutateAsync(d);
-        setCreatedDefault(true);
-      } catch {
-        markOffered(ws, false);
-      }
-    })();
-  }, [agents.data, create, ws]);
+  const [addingDefaults, setAddingDefaults] = useState(false);
+  // a new workspace already has Aria and vb (created at registration); this puts them back after someone deleted every agent
+  const addDefaults = async () => {
+    setAddingDefaults(true);
+    try {
+      for (const d of DEFAULT_AGENTS) await create.mutateAsync(d);
+      toast({ title: "Aria and vb added", description: "Both are on. Aria answers first; give each a department to share conversations.", tone: "success" });
+    } finally {
+      setAddingDefaults(false);
+    }
+  };
   const [editing, setEditing] = useState<string | "new" | null>(null);
   const [preset, setPreset] = useState<AgentPreset | null>(null);
   const startNew = (p: AgentPreset | null) => (setPreset(p), setEditing("new"));
@@ -375,13 +351,18 @@ function Agents() {
         </div>
       )}
       {agents.isError && <ErrorNotice error={agents.error} onRetry={() => void agents.refetch()} />}
-      {createdDefault && (
-        <p role="status" className="rounded-md bg-primary-soft px-3 py-2 text-sm text-primary-text">
-          We created two AI agents, Aria and vb, and switched them on. They answer from your Knowledge base and hand over to your team when they cannot. Aria answers first; give each a department to share conversations between them. Add a few knowledge-base entries, then try them below.
-        </p>
-      )}
-      {agents.data && data.length === 0 && editing === null && !create.isPending && (
-        <EmptyState icon={Bot} title="No AI agents yet" hint="Add your help-centre answers under Knowledge base first, then create an agent and try it before switching it on." action={<Button onClick={() => startNew(null)}>New agent</Button>} />
+      {agents.data && data.length === 0 && editing === null && (
+        <EmptyState
+          icon={Bot}
+          title="No AI agents yet"
+          hint="Visitors wait for a person until an agent is on. Add the default agents, or create your own and try it before switching it on."
+          action={
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button loading={addingDefaults} onClick={() => void addDefaults()}>Add Aria and vb</Button>
+              <Button variant="outline" onClick={() => startNew(null)}>New agent</Button>
+            </div>
+          }
+        />
       )}
       {data.length > 0 && (
         <RowList>

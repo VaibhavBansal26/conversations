@@ -5,6 +5,17 @@ import { keys } from "../state/keys";
 
 export type AgentDraft = Omit<AiAgent, "id" | "created_at" | "updated_at" | "avatar_uploaded">;
 
+/** The agents that are on, for the inbox's assign menu (anyone who may change tickets can read this; it carries no settings). */
+export interface AvailableAgent {
+  id: string;
+  name: string;
+  avatar_url: string | null;
+  disclosure_label: string;
+  department_ids: string[];
+}
+export const useAvailableAgents = (enabled = true) =>
+  useQuery({ queryKey: [...keys.agents, "available"], enabled, staleTime: 30_000, queryFn: async () => (await api.get<{ data: AvailableAgent[] }>("/ai-agents/available")).data });
+
 export const useAgents = (enabled = true) => useQuery({ queryKey: keys.agents, enabled, queryFn: async () => (await api.get<{ data: AiAgent[] }>("/agents")).data });
 
 export function useAgentMutations() {

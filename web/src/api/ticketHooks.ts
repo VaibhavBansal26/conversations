@@ -40,6 +40,11 @@ export function useTicketActions() {
       onSuccess: refresh,
     }),
     claim: useMutation({ mutationFn: (id: string) => api.post<Ticket>(`/tickets/${id}/claim`), onSuccess: refresh }),
+    assignAgent: useMutation({
+      mutationFn: (v: { id: string; agent_id: string }) => api.post<Ticket>(`/tickets/${v.id}/assign-agent`, { agent_id: v.agent_id }),
+      onSuccess: refresh,
+      onError: (e: Error) => toast({ title: "Could not give it to the AI agent", description: e.message, tone: "error" }),
+    }),
     handBack: useMutation({ mutationFn: (id: string) => api.post<Ticket>(`/tickets/${id}/hand-back`), onSuccess: refresh, onError: (e: Error) => toast({ title: "Could not hand back", description: e.message, tone: "error" }) }),
     transfer: useMutation({ mutationFn: (v: { id: string; department_id: string; note?: string }) => api.post<{ outcome: string }>(`/tickets/${v.id}/transfer`, { department_id: v.department_id, note: v.note }), onSuccess: refresh }),
     bulk: useMutation({ mutationFn: (v: { ticket_ids: string[]; action: "resolve" | "close" }) => api.post<{ succeeded: number; failed: number }>("/tickets/bulk", v), onSuccess: refresh }),

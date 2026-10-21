@@ -6,7 +6,8 @@ All notable user-visible changes. Format: [Keep a Changelog](https://keepachange
 
 ### Changed
 
-- Settings > AI agents creates two default agents, Aria and vb, the first time it opens in a workspace with none; the browser remembers this per workspace, so a reset workspace gets them again.
+- A workspace created by registering starts with two AI agents, Aria and vb, switched on (`DEFAULT_AI_AGENTS`, default true), so the first visitor message is answered. Settings > AI agents no longer creates agents when opened; with none, it offers "Add Aria and vb".
+- The conversation's assign menu lists the AI agents that are on: choosing one gives the live ticket to that agent, unassigns people and answers a waiting visitor message (`POST /api/tickets/:id/assign-agent`, `GET /api/ai-agents/available`).
 
 ### Changed
 

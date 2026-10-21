@@ -161,9 +161,11 @@ const rows: [string, string, string, Opt?][] = [
   ["POST /api/tickets/:id/claim", "Tickets", "Take a ticket that is waiting (in the queue, or assigned to nobody); the first claim wins (`409 TICKET_TAKEN`)"],
   ["POST /api/tickets/:id/transfer", "Tickets", "Move a ticket to another department: it is routed there by that department's mode, the room follows, and the team gets an internal note (the visitor is told too)", { body: S.TicketTransfer }],
 
+  ["POST /api/tickets/:id/assign-agent", "Tickets", "Give a ticket to a chosen AI agent that is switched on (`409 AGENT_OFF` otherwise), from unassigned, the queue, a person or another agent; people assigned to the conversation are removed, the visitor sees that the agent is helping, and an unanswered visitor message is answered at once. An agent (the role) may only give away a ticket that is theirs or nobody's. Audited", { body: S.TicketAssignAgent }],
   ["POST /api/tickets/:id/hand-back", "Tickets", "Give a ticket you have back to the AI agent that serves its department (`409 NO_AGENT` when none is on). Taking over is `POST /api/tickets/:id/claim`, which stops the agent at once"],
 
   // ---- AI agents
+  ["GET /api/ai-agents/available", "AI agents", "The AI agents that are switched on, with name, picture, label and departments only: what the inbox needs to give a ticket to one (`tickets:write`)"],
   ["GET /api/agents", "AI agents", "The workspace's AI support agents with their persona, scope, autonomy, thresholds, allowed actions and hand-off triggers"],
   ["POST /api/agents", "AI agents", "Create an AI agent (at most 5 per workspace; off until `enabled`). Audited", { body: agentsR.AgentBodySchema, status: 201 }],
   ["GET /api/agents/presets", "AI agents", "The built-in presets (Aria, vb) the editor offers as a starting point: persona, greeting, tone, portrait (a bundled picture served from this app) and the AI disclosure label"],

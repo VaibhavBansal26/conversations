@@ -58,34 +58,23 @@ describe("AiAgentsSettings", () => {
     localStorage.clear();
   });
 
-  it("creates the default agents Aria then vb, switched on, the first time the screen opens with none, and only once", async () => {
+  it("opening the screen creates nothing (new workspaces get Aria and vb at registration); with none, 'Add Aria and vb' adds both, on", async () => {
     agents = [];
-    const first = mount();
-    await waitFor(() => expect(calls.filter((c) => c.method === "POST" && c.path === "/api/agents")).toHaveLength(2));
-    const posted = calls.filter((c) => c.method === "POST").map((c) => JSON.parse(c.body!));
-    expect(posted[0]).toMatchObject({ name: "Aria", enabled: true, autonomy: "auto_answer", avatar_url: "/avatars/aria.webp" });
-    expect(posted[1]).toMatchObject({ name: "vb", enabled: true, autonomy: "auto_answer", avatar_url: "/avatars/vb.webp" });
-    expect(await screen.findByText(/We created two AI agents, Aria and vb/)).toBeInTheDocument();
-    first.unmount();
-    calls.length = 0;
     mount();
     await screen.findByText("No AI agents yet");
     expect(calls.some((c) => c.method === "POST")).toBe(false);
-  });
-
-  it("creates the default agent again for a different workspace in the same browser (for example after a data reset)", async () => {
-    agents = [];
-    const first = mount("ws_old");
-    await waitFor(() => expect(calls.filter((c) => c.method === "POST")).toHaveLength(2));
-    first.unmount();
-    calls.length = 0;
-    mount("ws_new");
+    await userEvent.click(screen.getByRole("button", { name: "Add Aria and vb" }));
     await waitFor(() => expect(calls.filter((c) => c.method === "POST" && c.path === "/api/agents")).toHaveLength(2));
+    const [aria, vb] = calls.filter((c) => c.method === "POST").map((c) => JSON.parse(c.body!));
+    expect(aria).toMatchObject({ name: "Aria", enabled: true, autonomy: "auto_answer", avatar_url: "/avatars/aria.webp", disclosure_label: "AI assistant", tone: "friendly" });
+    expect(aria.avatar_alt).toMatch(/Portrait of Aria/);
+    expect(vb).toMatchObject({ name: "vb", enabled: true, autonomy: "auto_answer", avatar_url: "/avatars/vb.webp", disclosure_label: "AI assistant", tone: "concise" });
   });
 
-  it("does not create a default agent when one exists", async () => {
+  it("does not offer the default agents when one exists", async () => {
     mount();
     await screen.findByText("Aria");
+    expect(screen.queryByRole("button", { name: "Add Aria and vb" })).toBeNull();
     expect(calls.some((c) => c.method === "POST")).toBe(false);
   });
 
@@ -135,17 +124,6 @@ describe("AiAgentsSettings", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Unanswered" }));
     expect(await screen.findByText(/Asked 3 times/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Write an entry for how do I change my invoice email/ })).toBeInTheDocument();
-  });
-
-  it("creates the default agents from the Aria and vb presets: photo, description, label and persona", async () => {
-    agents = [];
-    mount();
-    await waitFor(() => expect(calls.filter((c) => c.method === "POST" && c.path === "/api/agents")).toHaveLength(2));
-    const [aria, vb] = calls.filter((c) => c.method === "POST").map((c) => JSON.parse(c.body!));
-    expect(aria).toMatchObject({ name: "Aria", avatar_url: "/avatars/aria.webp", disclosure_label: "AI assistant", tone: "friendly", enabled: true });
-    expect(aria.avatar_alt).toMatch(/Portrait of Aria/);
-    expect(vb).toMatchObject({ name: "vb", avatar_url: "/avatars/vb.webp", disclosure_label: "AI assistant", tone: "concise", enabled: true });
-    expect(vb.avatar_alt).toMatch(/Portrait of vb/);
   });
 
   it("New agent offers presets (Aria, vb) and a blank start; a preset fills the form and keeps the AI label", async () => {

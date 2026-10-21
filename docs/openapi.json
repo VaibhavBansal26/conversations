@@ -8246,6 +8246,83 @@
         }
       }
     },
+    "/api/tickets/{id}/assign-agent": {
+      "post": {
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "Give a ticket to a chosen AI agent that is switched on (`409 AGENT_OFF` otherwise), from unassigned, the queue, a person or another agent; people assigned to the conversation are removed, the visitor sees that the agent is helping, and an unanswered visitor message is answered at once. An agent (the role) may only give away a ticket that is theirs or nobody's. Audited",
+        "operationId": "post_api_tickets_id_assign_agent",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "tickets:write",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "agent_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "agent_id"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tickets/{id}/hand-back": {
       "post": {
         "tags": [
@@ -8277,6 +8354,50 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/ai-agents/available": {
+      "get": {
+        "tags": [
+          "AI agents"
+        ],
+        "summary": "The AI agents that are switched on, with name, picture, label and departments only: what the inbox needs to give a ticket to one (`tickets:write`)",
+        "operationId": "get_api_ai_agents_available",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "tickets:write",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.read",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
         "responses": {
           "200": {
             "description": "Success",

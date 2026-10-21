@@ -1,3 +1,4 @@
+import { createDefaultAgents } from "../agents/config.js";
 import { ensureGeneral } from "./teamChat.js";
 import { SignJWT, jwtVerify } from "jose";
 import type { AppContext } from "../context.js";
@@ -72,7 +73,7 @@ export async function actorFromToken(ctx: AppContext, token: string, expectedWor
   return { ...actor, impersonatedBy: c.imp, permissions: new Set(SUPPORT_VIEW.filter((p) => actor.permissions.has(p))) };
 }
 
-export async function register(ctx: AppContext, input: { email: string; password: string; name: string; workspace_name: string }, meta: SessionMeta = {}) {
+export async function register(ctx: AppContext, input: { email: string; password: string; name: string; workspace_name: string }, meta: SessionMeta = {}, o: { defaultAgents?: boolean } = {}) {
   const email = input.email.trim().toLowerCase();
   if (await ctx.db.get("SELECT 1 FROM users WHERE email = ?", email)) throw conflict("EMAIL_TAKEN", "An account with this email already exists");
   const hash = await hashPassword(input.password);
@@ -85,6 +86,8 @@ export async function register(ctx: AppContext, input: { email: string; password
   });
   await recordAudit(ctx, { workspaceId: ids.ws, actor: { type: "member", id: ids.member }, action: "workspace.create", target: ids.ws });
   await ensureGeneral(ctx, ids.ws, ids.member); // every workspace starts with #general
+  // and with Aria and vb on, so a visitor gets an answer from the first message (docs/AI-AGENTS.md)
+  if (ctx.config.DEFAULT_AI_AGENTS && o.defaultAgents !== false) await createDefaultAgents(ctx, ids.ws, ids.member);
   return await startSession(ctx, (await findMember(ctx, ids.ws, ids.member))!, meta);
 }
 
