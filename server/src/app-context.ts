@@ -19,6 +19,7 @@ import { MemoryPresenceService, RedisPresenceService, type PresenceService } fro
 import { RedisHub } from "./infra/redis.js";
 import { BullJobQueue, DbJobQueue } from "./jobs/queue.js";
 import { Metrics } from "./metrics.js";
+import { createMonitor, type Monitor } from "./monitoring/sentry.js";
 import { WorkerPool } from "./workers/pool.js";
 import { createLogger, type Logger } from "./logger.js";
 import { ConsoleEmailProvider, ConsoleSmsProvider } from "./providers/fake.js";
@@ -39,6 +40,7 @@ export interface ContextOverrides {
   storage?: Storage;
   ai?: AiProvider;
   billing?: BillingProvider;
+  monitor?: Monitor;
   clock?: () => Date;
   presence?: PresenceService;
   /** inject a rate-limit store (tests); defaults to Redis when REDIS_URL is set, memory otherwise */
@@ -84,6 +86,7 @@ export async function createContext(config: Config, o: ContextOverrides = {}): P
     locks: hub ? new RedisLocks(hub) : new MemoryLocks(),
     queue: undefined as never,
     metrics: new Metrics(config.NODE_ENV !== "test"),
+    monitor: o.monitor ?? createMonitor(config, log),
     workers: config.WORKER_POOL_SIZE > 0 && config.NODE_ENV !== "test" ? new WorkerPool(config.WORKER_POOL_SIZE) : null,
     redis: hub,
     nodeId,
@@ -168,6 +171,7 @@ export async function closeContext(ctx: AppContext): Promise<void> {
   await ctx.queue.close();
   ctx.ratelimit.stop();
   await ctx.ratelimit.shared.close();
+  await ctx.monitor.flush(2000).catch(() => false);
   ctx.metrics.close();
   await ctx.workers?.close();
   await ctx.presence.close();

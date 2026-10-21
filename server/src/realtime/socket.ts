@@ -667,7 +667,10 @@ function registerHandlers(ctx: AppContext, socket: Socket, ready: Promise<void>)
       } catch (e) {
         result = e instanceof AppError ? (e.code === "RATE_LIMITED" ? "rate_limited" : "rejected") : "error";
         if (result === "rate_limited") ctx.metrics.rateLimited.inc({ scope: "socket" });
-        if (!(e instanceof AppError)) ctx.log.error("socket handler error", { event, socket: socket.id, node: ctx.nodeId, error: e instanceof Error ? e.message : String(e) });
+        if (!(e instanceof AppError)) {
+          ctx.log.error("socket handler error", { event, socket: socket.id, node: ctx.nodeId, error: e instanceof Error ? e.message : String(e) });
+          ctx.monitor.capture(e, { area: "socket", event, socket_id: socket.id, workspace_id: (socket.data as TeamData | VisitorData).workspaceId });
+        }
         reply(errorAck(e));
       } finally {
         end();

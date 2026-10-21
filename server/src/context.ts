@@ -10,6 +10,7 @@ import type { Locks } from "./infra/locks.js";
 import type { RedisHub } from "./infra/redis.js";
 import type { JobQueue } from "./jobs/queue.js";
 import type { Metrics } from "./metrics.js";
+import type { Monitor } from "./monitoring/sentry.js";
 import type { WorkerPool } from "./workers/pool.js";
 import type { EmailProvider, SmsProvider, Storage } from "./providers/types.js";
 import type { ProviderRegistry } from "./providers/registry.js";
@@ -41,6 +42,8 @@ export interface AppContext {
   locks: Locks;
   queue: JobQueue;
   metrics: Metrics;
+  /** optional error monitoring; the no-op unless SENTRY_DSN is set */
+  monitor: Monitor;
   /** CPU-heavy tasks (large HTML bodies) run here instead of blocking the event loop; null = inline */
   workers: WorkerPool | null;
   /** present only when REDIS_URL is configured */

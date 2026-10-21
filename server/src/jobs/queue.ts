@@ -116,6 +116,7 @@ export async function runDueJobs(ctx: AppContext, handlers: Record<string, JobHa
       if (attempts >= job.max_attempts) {
         await ctx.db.run("UPDATE jobs SET status = 'failed', attempts = ?, last_error = ?, updated_at = ? WHERE id = ?", attempts, msg, nowIso(ctx), job.id);
         ctx.log.error("job failed permanently", { job: job.id, type: job.type, error: msg });
+        ctx.monitor.capture(e, { area: "job", job_type: job.type });
       } else {
         const delay = Math.min(900, 2 ** attempts);
         await ctx.db.run(
@@ -172,7 +173,10 @@ export class BullJobQueue implements JobQueue {
       { connection: this.hub.duplicate(), prefix: this.hub.k("bull"), concurrency: this.concurrency },
     );
     this.worker.on("failed", (job, err) => {
-      if (job && job.attemptsMade >= (job.opts.attempts ?? 1)) this.ctx.log.error("job failed permanently", { job: job.id, type: job.name, error: err.message });
+      if (job && job.attemptsMade >= (job.opts.attempts ?? 1)) {
+        this.ctx.log.error("job failed permanently", { job: job.id, type: job.name, error: err.message });
+        this.ctx.monitor.capture(err, { area: "job", job_type: job.name });
+      }
     });
     this.worker.on("error", (e) => this.ctx.log.warn("job worker error", { error: e.message }));
   }

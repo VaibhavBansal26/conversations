@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { timeout } from "hono/timeout";
 import { bodyLimit } from "hono/body-limit";
@@ -11,6 +11,7 @@ import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import { ZodError } from "zod";
 import type { AppContext } from "./context.js";
+import { resolveRelease, validDsn, type CaptureTags } from "./monitoring/sentry.js";
 import { AppError } from "./errors.js";
 import { RateLimitedError, rateLimitBody, rateLimitHeaders, rateLimitMiddleware } from "./ratelimit/http.js";
 import { LocalDiskStorage } from "./providers/storage.js";
@@ -41,6 +42,12 @@ const INLINE_TYPES = /^(image\/(png|jpeg|gif|webp)|application\/pdf|audio\/)/;
 
 export function createApp(ctx: AppContext): Hono {
   const app = new Hono();
+  /** monitoring tags for a request: the matched route PATTERN (never the raw URL), the request id, and the hashed workspace and plan when authenticated */
+  const requestTags = (c: Context, status: number): CaptureTags => {
+    const actor = (c as { get(k: string): unknown }).get("actor") as { workspaceId?: string } | undefined;
+    const route = c.req.routePath && c.req.routePath !== "/*" ? c.req.routePath : "unmatched";
+    return { area: "http", route, method: c.req.method, status, request_id: c.res.headers.get("x-request-id") ?? undefined, workspace_id: actor?.workspaceId };
+  };
 
   // request id (client-supplied ids are accepted when sane so traces join up across a proxy), access log and latency histogram
   app.use("*", async (c, next) => {
@@ -48,7 +55,9 @@ export function createApp(ctx: AppContext): Hono {
     const rid = supplied && /^[\w.-]{8,64}$/.test(supplied) ? supplied : randomUUID();
     c.header("x-request-id", rid);
     const started = process.hrtime.bigint();
+    const trace = ctx.monitor.beginRequest(c.req.method);
     await next();
+    trace.finish(c.req.routePath === "/*" ? "unmatched" : c.req.routePath, c.res.status);
     const sec = Number(process.hrtime.bigint() - started) / 1e9;
     const path = new URL(c.req.url).pathname;
     if (path !== "/metrics" && path !== "/healthz") {
@@ -156,6 +165,12 @@ export function createApp(ctx: AppContext): Hono {
   // the old demo needed an embed token typed by hand and could not load from its own origin; it now points at the in-app preview
   app.get("/widget-demo.html", (c) => c.html(demoRedirectPage()));
   // "Try it now": the real widget on the app's own origin, bound to one token by a short-lived signed flag (services/widgetPreview.ts)
+  // runtime settings for the web app, so one build/image works in every environment (no build-time DSN)
+  app.get("/runtime-config.json", (c) => {
+    const dsn = ctx.config.SENTRY_WEB_DSN || ctx.config.SENTRY_DSN;
+    const sentry = dsn && validDsn(dsn) ? { dsn, environment: ctx.config.SENTRY_ENVIRONMENT || ctx.config.NODE_ENV, release: resolveRelease(ctx.config) ?? null, tracesSampleRate: ctx.config.SENTRY_TRACES_SAMPLE_RATE } : null;
+    return c.json({ sentry }, 200, { "cache-control": "no-store" });
+  });
   app.get("/widget-preview", (c) => {
     const flag = c.req.query("p") ?? "";
     try {
@@ -183,10 +198,12 @@ export function createApp(ctx: AppContext): Hono {
       return c.json(rateLimitBody(err.decision), err.status as never, rateLimitHeaders(err.decision));
     }
     if (err instanceof AppError) {
+      if (err.status >= 500) ctx.monitor.capture(err, requestTags(c, err.status));
       return c.json({ error: { code: err.code, message: err.message, ...(err.details !== undefined ? { details: err.details } : {}) } }, err.status as never);
     }
     if (err instanceof ZodError) return c.json({ error: { code: "VALIDATION_ERROR", message: err.issues.map((i) => i.message).join("; ") } }, 400);
     ctx.log.error("unhandled error", { error: err.message, stack: err.stack });
+    ctx.monitor.capture(err, requestTags(c, 500));
     return c.json({ error: { code: "INTERNAL", message: "Something went wrong" } }, 500);
   });
   return app;

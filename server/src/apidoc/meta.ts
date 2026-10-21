@@ -246,6 +246,7 @@ const rows: [string, string, string, Opt?][] = [
   ["GET /files/*", "Files", "Signed attachment download (`exp` and `sig` query parameters)", { media: "application/octet-stream" }],
   ["GET /widget.js", "Files", "The embeddable widget script", { media: "application/javascript" }],
   ["GET /widget-demo.html", "Files", "Pointer to the in-app widget preview (the old token-by-hand demo was replaced)", { media: "text/html" }],
+  ["GET /runtime-config.json", "Files", "Public runtime settings for the web app (currently the browser Sentry DSN, or `sentry: null`). Served uncached so one build works in every environment", { media: "application/json" }],
   ["GET /widget-preview", "Files", "The in-app \"Try it now\" page: the real widget on the app's own origin, bound to one token by the signed `p` flag (10 minutes); 403 when the flag is invalid or expired", { media: "text/html" }],
 
   // ---- platform admin
@@ -266,6 +267,7 @@ const rows: [string, string, string, Opt?][] = [
   ["POST /admin/api/workspaces/:id/credits", "Platform admin", "Add or remove credits (reason required; `Idempotency-Key` supported)", { body: adminR.Credits, status: 201 }],
   ["PUT /admin/api/workspaces/:id/tier", "Platform admin", "Override the rate-limit tier or clear it", { body: adminR.Tier, status: 204 }],
   ["PUT /admin/api/workspaces/:id/region", "Platform admin", "Set or clear the workspace's home region (multi-region routing key)", { body: adminR.Region, status: 204 }],
+  ["POST /admin/api/monitoring/test", "Platform admin", "Send one synthetic error to the configured Sentry project and wait for delivery; `{enabled:false}` when SENTRY_DSN is unset"],
   ["POST /admin/api/ratelimit/:kind", "Platform admin", "Add an expiring `allow` or `deny` entry", { body: adminR.ListEntry, status: 204 }],
   ["DELETE /admin/api/ratelimit/:kind/:entity", "Platform admin", "Remove an entry"],
   ["POST /admin/api/admins/:id/disable", "Platform admin", "Disable an operator", { status: 204 }],

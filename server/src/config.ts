@@ -98,6 +98,12 @@ export const configSchema = z.object({
   REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
   /** Bearer token required for /metrics (unset = open, intended for a private network only) */
   METRICS_TOKEN: z.string().optional(),
+  /** error monitoring (Sentry); everything stays off, with no SDK loaded and no network, until a DSN is set */
+  SENTRY_DSN: z.string().optional(),
+  SENTRY_WEB_DSN: z.string().optional(),
+  SENTRY_ENVIRONMENT: z.string().optional(),
+  SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.05),
+  SENTRY_RELEASE: z.string().optional(),
   WORKER_POOL_SIZE: z.coerce.number().int().min(0).default(2),
   WORKER_THRESHOLD_BYTES: z.coerce
     .number()

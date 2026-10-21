@@ -99,7 +99,7 @@ const GROUPS: { spec: RouteSpec; routes: string[] }[] = [
     routes: [
       "GET /admin/api/me", "GET /admin/api/stats", "GET /admin/api/workspaces", "GET /admin/api/workspaces/:id", "GET /admin/api/audit", "GET /admin/api/ratelimit", "GET /admin/api/admins",
       "POST /admin/api/workspaces/:id/impersonate", "POST /admin/api/workspaces/:id/suspend", "POST /admin/api/workspaces/:id/unsuspend", "POST /admin/api/workspaces/:id/credits",
-      "PUT /admin/api/workspaces/:id/tier", "PUT /admin/api/workspaces/:id/region", "POST /admin/api/ratelimit/:kind", "DELETE /admin/api/ratelimit/:kind/:entity", "POST /admin/api/admins/:id/disable", "POST /admin/api/admins/:id/enable",
+      "PUT /admin/api/workspaces/:id/tier", "PUT /admin/api/workspaces/:id/region", "POST /admin/api/monitoring/test", "POST /admin/api/ratelimit/:kind", "DELETE /admin/api/ratelimit/:kind/:entity", "POST /admin/api/admins/:id/disable", "POST /admin/api/admins/:id/enable",
     ],
   },
   { spec: { pre: ["public.config"] }, routes: ["GET /public/widget/config"] },
@@ -112,7 +112,7 @@ const GROUPS: { spec: RouteSpec; routes: string[] }[] = [
   { spec: { post: ["public.otp.verify"] }, routes: ["POST /public/otp/verify"] },
 
   { spec: { pre: ["webhook.provider"], inHandler: ["webhook.badsig"] }, routes: ["POST /webhooks/twilio/sms", "POST /webhooks/twilio/status", "POST /webhooks/sendgrid/inbound", "POST /webhooks/sendgrid/events"] },
-  { spec: {}, routes: ["GET /files/*", "GET /widget.js", "GET /widget-demo.html", "GET /widget-preview"] },
+  { spec: {}, routes: ["GET /files/*", "GET /widget.js", "GET /widget-demo.html", "GET /widget-preview", "GET /runtime-config.json"] },
 ];
 
 export const ROUTE_LIMITS: ReadonlyMap<string, RouteSpec> = (() => {

@@ -5,14 +5,17 @@ import { loadConfig } from "./config.js";
 import { startOutbox } from "./events/outbox.js";
 import { startScheduler } from "./jobs/scheduler.js";
 import { createLogger } from "./logger.js";
+import { createMonitor } from "./monitoring/sentry.js";
 import { startTelemetry } from "./telemetry.js";
 import { SocketBus, attachSocketServer } from "./realtime/socket.js";
 
 const config = loadConfig();
 const log = createLogger(config.LOG_LEVEL);
+// error monitoring is initialised before anything else so start-up failures are reported too (a no-op without SENTRY_DSN)
+const monitor = createMonitor(config, log);
 const stopTelemetry = await startTelemetry(log);
 const bus = new SocketBus();
-const ctx = await createContext(config, { log, bus });
+const ctx = await createContext(config, { log, bus, monitor });
 const app = createApp(ctx);
 if (config.RATE_LIMIT_SCALE !== 1) log.warn("RATE_LIMIT_SCALE is not 1: every rate limit is multiplied. Load testing only.", { scale: config.RATE_LIMIT_SCALE });
 
@@ -56,6 +59,16 @@ async function shutdown(signal: string) {
   log.info("shutdown complete", { node: ctx.nodeId });
   process.exit(0);
 }
+// last-resort reporting, then the default behaviour (log + exit) still applies through the logger
+process.on("unhandledRejection", (e) => {
+  log.error("unhandled rejection", { error: e instanceof Error ? e.message : String(e) });
+  monitor.capture(e, { area: "process" });
+});
+process.on("uncaughtException", (e) => {
+  log.error("uncaught exception", { error: e.message, stack: e.stack });
+  monitor.capture(e, { area: "process" });
+  void monitor.flush(2000).finally(() => process.exit(1));
+});
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
 process.on("SIGINT", () => void shutdown("SIGINT"));
 // force-exit if something hangs, so orchestrators never wait for the kill timeout

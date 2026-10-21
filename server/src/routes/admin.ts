@@ -126,6 +126,12 @@ export function adminRoutes(ctx: AppContext) {
     return c.body(null, 204);
   });
   r.delete("/ratelimit/:kind/:entity", async (c) => c.json({ removed: await rateLimitRemove(ctx, c.get("admin"), kindOf(c), decodeURIComponent(c.req.param("entity"))) }));
+  // sends one synthetic error through the real capture path so an operator can see it arrive in Sentry (docs/MONITORING.md)
+  r.post("/monitoring/test", async (c) => {
+    if (!ctx.monitor.enabled) return c.json({ enabled: false, delivered: false });
+    ctx.monitor.capture(new Error("Test error from the platform console (safe to ignore)"), { area: "test", route: "/admin/api/monitoring/test", method: "POST" });
+    return c.json({ enabled: true, delivered: await ctx.monitor.flush(3000) });
+  });
   r.post("/admins/:id/disable", async (c) => (await setAdminDisabled(ctx, c.get("admin"), c.req.param("id"), true), c.body(null, 204)));
   r.post("/admins/:id/enable", async (c) => (await setAdminDisabled(ctx, c.get("admin"), c.req.param("id"), false), c.body(null, 204)));
   return r;

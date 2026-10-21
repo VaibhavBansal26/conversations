@@ -45,6 +45,11 @@ export const CONFIG_META: Record<string, VarMeta> = {
   REGION: { group: G.core, desc: "Region this installation serves (for example `eu-west`). A workspace whose home region (set by an operator) differs is refused with `421 WRONG_REGION` and the right region in `details.region`, so a global edge or load balancer can route it home. Unset = single region, no check.", example: "eu-west" },
   NODE_ID: { group: G.ops, desc: "Identifier of this process in logs, metrics and Redis keys. Default: hostname plus random suffix." },
   LOG_LEVEL: { group: G.ops, desc: "Minimum log level. Logs are JSON lines; message content and secrets are never logged." },
+  SENTRY_DSN: { group: G.ops, secret: true, desc: "Sentry DSN for server error monitoring. Unset = monitoring is off: the SDK is not loaded and nothing is sent. See docs/MONITORING.md for what is and is not sent.", note: "A DSN only allows sending events, but treat it as configuration, not as public text." },
+  SENTRY_WEB_DSN: { group: G.ops, desc: "DSN handed to the web app at runtime (`/runtime-config.json`) for browser error monitoring. Defaults to SENTRY_DSN; set a separate Sentry project here to keep browser noise apart. A browser DSN is visible to every visitor of the app by design." },
+  SENTRY_ENVIRONMENT: { group: G.ops, desc: "Environment tag on Sentry events (`production`, `staging`). Defaults to NODE_ENV." },
+  SENTRY_TRACES_SAMPLE_RATE: { group: G.ops, desc: "Fraction (0 to 1) of requests sampled for Sentry performance traces. Errors are always captured; set 0 to disable tracing." },
+  SENTRY_RELEASE: { group: G.ops, desc: "Release name on Sentry events. Defaults to RENDER_GIT_COMMIT (set by Render), then GIT_SHA." },
   METRICS_TOKEN: { group: G.ops, secret: true, desc: "Bearer token required for `GET /metrics`. Unset = open (private network only)." },
 
   DATABASE_PATH: { group: G.db, desc: "SQLite file used when `DATABASE_URL` is unset (`:memory:` for tests).", example: "./data/conversations.db" },

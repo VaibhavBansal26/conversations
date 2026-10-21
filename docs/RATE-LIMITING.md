@@ -96,7 +96,7 @@ Generated from `policies.ts` and `routePolicies.ts` (`npm run docs:ratelimit`; `
 | `admin.fail.account` | composite | strike | 5 failures / 15 min | - | fail-closed | Failed platform admin logins per account: 5 in 15 min lock it, escalating (4 entry points) |
 | `admin.fail.ip` | ip | strike | 10 failures / 15 min | - | fail-closed | Failed platform admin logins per IP: 10 in 15 min block the IP, escalating (4 entry points) |
 | `admin.fail.mfa` | composite | strike | 5 failures / 15 min | - | fail-closed | Wrong platform admin second-factor codes per admin: 5 in 15 min lock the second step, escalating (4 entry points) |
-| `admin.api` | user | gcra | 10 per 1 s, burst 40 | - | fail-closed | Platform admin API calls, per admin (17 entry points) |
+| `admin.api` | user | gcra | 10 per 1 s, burst 40 | - | fail-closed | Platform admin API calls, per admin (18 entry points) |
 | `public.config` | ip | gcra | 60 per 1 min, burst 60 | - | fail-open | Widget config fetch, per IP (GET /public/widget/config) |
 | `public.session` | composite | gcra | 20 per 1 min, burst 20 | - | fail-closed + penalty box | Visitor session creation, per IP + Origin + embed token (POST /public/sessions) |
 | `public.room` | visitor | gcra | 10 per 50 s, burst 10 | - | fail-open | Visitor starts a conversation (POST /public/rooms) |

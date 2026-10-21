@@ -12349,6 +12349,37 @@
         }
       }
     },
+    "/runtime-config.json": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Public runtime settings for the web app (currently the browser Sentry DSN, or `sentry: null`). Served uncached so one build works in every environment",
+        "operationId": "get_runtime_config_json",
+        "security": [],
+        "x-access": "public",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
     "/widget-preview": {
       "get": {
         "tags": [
@@ -13538,6 +13569,49 @@
                 ]
               }
             }
+          }
+        }
+      }
+    },
+    "/admin/api/monitoring/test": {
+      "post": {
+        "tags": [
+          "Platform admin"
+        ],
+        "summary": "Send one synthetic error to the configured Sentry project and wait for delivery; `{enabled:false}` when SENTRY_DSN is unset",
+        "operationId": "post_admin_api_monitoring_test",
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "x-access": "platform",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "admin.api"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           }
         }
       }
