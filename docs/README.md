@@ -14,6 +14,10 @@ Every document under `docs/` is listed here (a check fails otherwise). Generated
 | connect Twilio and SendGrid, read the SMS/email setup guide | [CHANNELS.md](CHANNELS.md) |
 | deploy it for free (Render, GitHub-connected) | [DEPLOY.md](DEPLOY.md) |
 | run it and see it work | [../README.md](../README.md) (quick start), [TESTING.md](TESTING.md) |
+| learn every screen and control of the app, with defaults and permissions | [USER-GUIDE.md](USER-GUIDE.md) |
+| see every feature end to end, and its status (built, test-only, not built) | [FEATURES.md](FEATURES.md) |
+| know what was checked against real services and what was not | [VERIFICATION.md](VERIFICATION.md) |
+| find a server module, job, socket event or table (with an ER diagram) | [FUNCTIONS.md](FUNCTIONS.md) |
 | understand how it is built | [ARCHITECTURE.md](ARCHITECTURE.md), [APPROACH.md](APPROACH.md), [adr/README.md](adr/README.md) |
 | configure it (every environment variable) | [CONFIGURATION.md](CONFIGURATION.md) |
 | call the API, or see the exact request and response fields | [API.md](API.md), [openapi.json](openapi.json) |
@@ -31,11 +35,11 @@ Every document under `docs/` is listed here (a check fails otherwise). Generated
 | review security, report a vulnerability | [SECURITY.md](SECURITY.md) |
 | learn the vocabulary (and the legacy names) | [GLOSSARY.md](GLOSSARY.md), [MIGRATION-NOTES.md](MIGRATION-NOTES.md) |
 | understand the AI features | [AI.md](AI.md) |
-| understand tickets, AI support agents, departments, visitor details and calls | [AI-AGENTS.md](AI-AGENTS.md), [DEPARTMENTS.md](DEPARTMENTS.md) |
-| place voice and video calls (also group calls), set up TURN, understand call states and limits | [CALLS.md](CALLS.md) |
+| understand tickets, AI support agents (chat, SMS and email), departments, visitor details and pre-chat fields | [AI-AGENTS.md](AI-AGENTS.md), [DEPARTMENTS.md](DEPARTMENTS.md) |
+| place voice and video calls (visitor, phone, AI, teammate and group calls, call links, the photoreal avatar), set up TURN, understand call states and limits | [CALLS.md](CALLS.md) |
 | send visitors a copy of their conversation by email (who may receive it, what it contains) | [TRANSCRIPTS.md](TRANSCRIPTS.md) |
-| get push notifications on your devices, set up VAPID keys, understand what a notification may contain | [TRANSCRIPTS.md](TRANSCRIPTS.md) | copies of a conversation by email: recipients and confirmation, contents, limits, the automatic copy, unsubscribe, routes, what is verified |
-| [NOTIFICATIONS.md](NOTIFICATIONS.md) |
+| get push notifications on your devices, set up VAPID keys, understand what a notification may contain | [NOTIFICATIONS.md](NOTIFICATIONS.md) |
+| show the AI assistant as a photoreal avatar (optional, D-ID) | [CALLS.md](CALLS.md#photoreal-avatar), [adr/0039-optional-photoreal-avatar.md](adr/0039-optional-photoreal-avatar.md) |
 | set up departments, opening hours, routing modes, capacity, service levels and routing rules | [DEPARTMENTS.md](DEPARTMENTS.md) |
 | see what changed | [../CHANGELOG.md](../CHANGELOG.md) |
 
@@ -43,11 +47,17 @@ Every document under `docs/` is listed here (a check fails otherwise). Generated
 
 | Document | What it is |
 | --- | --- |
+| [USER-GUIDE.md](USER-GUIDE.md) | the app page by page: inbox, tickets, team chat, analytics and every settings section, with controls, defaults, permissions and screenshots |
+| [FEATURES.md](FEATURES.md) | one entry per feature, end to end: flow, configuration, permission, docs, tests, what is not verified; the not-built list |
+| [FUNCTIONS.md](FUNCTIONS.md) | server modules, request path, background jobs and timers, socket event families, data model with an ER diagram, migrations |
+| [VERIFICATION.md](VERIFICATION.md) | what has been verified against real services and what has not, including what was confirmed and assumed about D-ID |
+| [TRANSCRIPTS.md](TRANSCRIPTS.md) | copies of a conversation by email: recipients and confirmation, contents, limits, the automatic copy, unsubscribe, routes, what is verified |
+| [DEPLOY.md](DEPLOY.md) | deploying for free on Render from GitHub, step by step |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | system context, containers, code layout, data model, key flows, background work, limits |
 | [APPROACH.md](APPROACH.md) | stack choices, design principles, judgement calls, known limitations |
 | [AI.md](AI.md) | AI features, providers, prompt safety, offline heuristics |
-| [AI-AGENTS.md](AI-AGENTS.md) | tickets and their lifecycle, AI support agents, departments and routing, visitor details in the widget, voice and video calls: what is built, tested and unverified |
-| [CALLS.md](CALLS.md) | voice and video calls: browser calls (signalling, states, TURN and STUN with coturn samples, permissions, privacy, what is verified) and phone calls |
+| [AI-AGENTS.md](AI-AGENTS.md) | tickets and their lifecycle, AI support agents in the chat and on SMS and email, departments and routing, visitor details and pre-chat custom fields: what is built, tested and unverified |
+| [CALLS.md](CALLS.md) | voice and video calls: browser calls (signalling, states, TURN and STUN with coturn samples, permissions, privacy, what is verified), phone calls, calls with the AI assistant, teammate and group calls, call links, the optional photoreal avatar |
 | [NOTIFICATIONS.md](NOTIFICATIONS.md) | in-app, email and Web Push notifications for team members (events, privacy, VAPID setup, what is and is not verified), the visitor side, and the mobile push (APNs/FCM) design that is not built |
 | [DEPARTMENTS.md](DEPARTMENTS.md) | departments (inboxes with routing configuration): hours and holidays, who is available, routing modes, capacity, the queue, service levels, transfer, routing rules, race safety |
 | [TESTING.md](TESTING.md) | test strategy, how to run, test catalogue, edge-case map, test counts |
