@@ -197,7 +197,7 @@ const rows: [string, string, string, Opt?][] = [
   ["GET /public/session", "Widget (public)", "The current visitor session"],
   ["GET /public/rooms", "Widget (public)", "The visitor's conversations"],
   ["POST /public/rooms", "Widget (public)", "Start a conversation", { status: 201 }],
-  ["GET /public/rooms/:id/messages", "Widget (public)", "Messages of the visitor's conversation", { query: S.MessageListQuery }],
+  ["GET /public/rooms/:id/messages", "Widget (public)", "Messages of the visitor's conversation: no notes and only customer-facing system lines (conversation started, payments); `room` states the status and the close marker the rating prompt needs", { query: S.MessageListQuery }],
   ["POST /public/rooms/:id/messages", "Widget (public)", "Visitor sends a message", { body: S.VisitorSend, status: 201 }],
   ["POST /public/rooms/:id/read", "Widget (public)", "Visitor read receipt", { body: S.ReadBody }],
   ["POST /public/rooms/:id/csat", "Widget (public)", "Satisfaction score after the conversation is closed", { body: pubR.Csat }],

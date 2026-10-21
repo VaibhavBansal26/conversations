@@ -285,15 +285,24 @@
     }
 
     /* ---------- satisfaction rating: offered once after the team closes the conversation ---------- */
+    // The server states when the team closed the conversation (`room.closed_marker = {id, seq}`); the close line itself is internal and never sent.
+    // A real message with a higher seq, or one still unconfirmed, means the conversation is live again.
     function closedMarker() {
+      var cm = state.room && state.room.closed_marker;
+      if (!cm || state.room.status === "open") return null;
       var list = sorted();
       for (var i = list.length - 1; i >= 0; i--) {
         var m = list[i];
-        if (m.deleted) continue;
-        if (m.sender && m.sender.type === "system") { if (m.meta && m.meta.sub_type === "status") return m.meta.status === "closed" ? m.id || "closed" : null; continue; }
-        return null; // a real message after the close: the conversation is live again
+        if (m.deleted || (m.sender && m.sender.type === "system")) continue;
+        if (m.local || m.seq == null || m.seq > cm.seq) return null;
+        break;
       }
-      return null;
+      return cm.id;
+    }
+    function applyRoomState(room) {
+      if (!room || !state.room || room.id !== state.room.id) return;
+      state.room.status = room.status;
+      state.room.closed_marker = room.closed_marker || null;
     }
     function renderRating() {
       var marker = state.room && closedMarker();
@@ -439,6 +448,7 @@
 
     function loadMessages() {
       return api("/public/rooms/" + state.room.id + "/messages?limit=50").then(function (r) {
+        applyRoomState(r.room);
         var local = state.messages.filter(function (m) { return m.local; });
         state.messages = r.data.concat(local.filter(function (m) { return findIndexIn(r.data, m) < 0; }));
         scheduleRead();
@@ -476,6 +486,7 @@
       socket.on("server:draining", function (p) { state.drainWait = Math.max(500, (p && p.reconnect_in_ms) || 0) + Math.random() * 1000; });
       socket.on("connect_error", function () { state.connected = false; if (els.banner) els.banner.hidden = false; startPolling(); });
       socket.on("message:new", function (p) { onIncoming(p.message); });
+      socket.on("room:updated", function (p) { applyRoomState(p && p.room); renderMessages(); });
       socket.on("message:updated", function (p) { upsert(p.message); renderMessages(); });
       socket.on("message:deleted", function (p) {
         state.messages = state.messages.filter(function (m) { return m.id !== p.message_id; });

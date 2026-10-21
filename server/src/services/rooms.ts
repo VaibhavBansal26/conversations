@@ -12,7 +12,7 @@ import { parseJson } from "../util/json.js";
 import { addFollower, contactBrief, findContact, getContact, normalizeTags, type ContactInput, type ContactRow, findOrCreateContact } from "./contacts.js";
 import { findInbox, nextRoundRobinAssignee } from "./inboxes.js";
 import { findMember } from "./members.js";
-import { emitMessage, lastBriefOf, lastMessageBrief, postSystemMessage, type MessageRow } from "./messageStore.js";
+import { closedMarker, emitMessage, lastBriefOf, lastMessageBrief, postSystemMessage, type MessageRow } from "./messageStore.js";
 import { assigneeIds, canSeeRoom, getRoomRow, getVisibleRoom, roomVisibility, type RoomRow } from "./roomStore.js";
 
 export type RoomSort = "newest" | "oldest" | "waiting_longest" | "priority_first";
@@ -227,7 +227,7 @@ export async function publishRoomUpdated(ctx: AppContext, room: RoomRow, opts: {
   if (opts.created) {
     ctx.bus.toRoom(fresh.workspace_id, fresh.id, "room:new", { room: dto });
   } else {
-    ctx.bus.toRoom(fresh.workspace_id, fresh.id, "room:updated", { room: dto }, { visitor: { room: { id: fresh.id, status: fresh.status } } });
+    ctx.bus.toRoom(fresh.workspace_id, fresh.id, "room:updated", { room: dto }, { visitor: { room: { id: fresh.id, status: fresh.status, closed_marker: await closedMarker(ctx, fresh) } } });
   }
 }
 

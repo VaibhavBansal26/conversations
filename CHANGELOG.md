@@ -4,6 +4,9 @@ All notable user-visible changes. Format: [Keep a Changelog](https://keepachange
 
 ## [Unreleased]
 
+### Fixed (widget)
+- **The widget no longer shows the team's internal system lines** ("Olivia assigned this conversation to Sam", closed/reopened, snoozed, SMS consent, unknown kinds). Visitors get only an allow-list of system lines (`create`, `payment`) over REST and sockets; notes were already excluded. The satisfaction prompt is driven by `room.closed_marker` from the server instead of the close line.
+
 ### Added (per-workspace channel connections)
 - **Settings > Channels: Connect Twilio and Connect SendGrid.** A workspace admin pastes their own credentials (encrypted at rest with `DATA_ENCRYPTION_KEY`, masked to the last four characters, never logged), verifies them with a read-only provider call, imports numbers from Twilio or verified senders from SendGrid, sends a test text or email, and copies the exact webhook URLs for Twilio (SMS webhook, status callback) and SendGrid (Inbound Parse, Event Webhook). "Check webhook" shows the latest inbound events and their outcome. Provider errors are mapped to fix-it messages (bad credentials, unverified sender, trial restriction, insufficient funds, rate limit, timeout). See [docs/CHANNELS.md](docs/CHANNELS.md) and [ADR 0019](docs/adr/0019-per-workspace-channel-connections.md).
 - Per-workspace inbound endpoints `POST /webhooks/c/:id/twilio/{sms,status}` and `/sendgrid/{inbound,events}`, each verified with that workspace's own credentials (Twilio Auth Token, SendGrid verification key or URL secret); the platform-wide endpoints remain for the environment default.

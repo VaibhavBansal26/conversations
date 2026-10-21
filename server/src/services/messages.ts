@@ -19,6 +19,7 @@ import {
   messageDto,
   messageDtos,
   loadRefs,
+  VISITOR_VISIBLE_SQL,
   refreshLastMessage, lastMessageBrief,
   type InsertResult,
   type MessageRow,
@@ -234,11 +235,11 @@ export interface MessagePage {
  * Cursor pagination by per-room `seq` (monotonic, so equal timestamps never reorder or skip).
  * No cursor = newest page. `before` pages toward older, `after` toward newer. Pages are returned oldest-first.
  */
-export async function pageMessages(ctx: AppContext, roomId: string, opts: ListOptions & { hideNotes?: boolean }): Promise<MessagePage> {
+export async function pageMessages(ctx: AppContext, roomId: string, opts: ListOptions & { hideNotes?: boolean; /** what the widget may see: no notes, only customer-facing system lines */ visitorView?: boolean }): Promise<MessagePage> {
   if (opts.before && opts.after) throw unprocessable("INVALID_CURSOR", "Use either before or after, not both");
   const limit = Math.min(Math.max(opts.limit, 1), 50);
   const rdb = ctx.db.read(); // history reads may be served by a replica (never inside a write transaction)
-  const base = `room_id = ? AND deleted_at IS NULL ${opts.hideNotes ? "AND kind != 'note'" : ""}`;
+  const base = `room_id = ? AND deleted_at IS NULL ${opts.visitorView ? `AND ${VISITOR_VISIBLE_SQL}` : opts.hideNotes ? "AND kind != 'note'" : ""}`;
   const seqOf = async (id: string) => {
     const r = await rdb.get<{ seq: number }>("SELECT seq FROM messages WHERE id = ? AND room_id = ?", id, roomId);
     if (!r) throw unprocessable("INVALID_CURSOR", "Cursor message not found in this conversation");

@@ -19,7 +19,7 @@ const v = io("https://HOST/ws/ws_xxxxxxxxxxxxxxxxxxxxxxxx", { auth: { session: S
 
 ## Who receives what (computed audiences)
 
-Sockets do **not** join one channel per room. The server computes the audience of each event from visibility rules and publishes to a small fixed set of channels per workspace (`managers`, `inbox:<id>`, `member:<id>`, plus the visitor of the room), so an agent with thousands of conversations holds a handful of subscriptions, not thousands ([ADR 0005](adr/0005-computed-room-audiences.md)). Notes never reach visitors. Per room, events are emitted in order.
+Sockets do **not** join one channel per room. The server computes the audience of each event from visibility rules and publishes to a small fixed set of channels per workspace (`managers`, `inbox:<id>`, `member:<id>`, plus the visitor of the room), so an agent with thousands of conversations holds a handful of subscriptions, not thousands ([ADR 0005](adr/0005-computed-room-audiences.md)). Notes never reach visitors, and neither do internal system lines: a visitor socket (and `GET /public/rooms/:id/messages`) only gets the system lines on an allow-list by `meta.sub_type` (`create` "Conversation started" and `payment`); assignment, status (close/reopen), snooze, SMS consent and any new kind of system line stay in the team views. The closed state the widget needs for its satisfaction rating is stated instead: the visitor copy of `room:updated` carries `room.closed_marker` (`{id, seq}` or `null`), as do `GET /public/rooms` and the `room` field of the visitor message page. Per room, events are emitted in order.
 
 ## Client to server
 

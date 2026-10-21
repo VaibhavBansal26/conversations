@@ -9846,7 +9846,7 @@
         "tags": [
           "Widget (public)"
         ],
-        "summary": "Messages of the visitor's conversation",
+        "summary": "Messages of the visitor's conversation: no notes and only customer-facing system lines (conversation started, payments); `room` states the status and the close marker the rating prompt needs",
         "operationId": "get_public_rooms_id_messages",
         "security": [],
         "x-access": "public",

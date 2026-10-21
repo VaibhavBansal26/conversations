@@ -295,10 +295,11 @@ describe("widget bootstrap", () => {
 });
 
 describe("satisfaction rating", () => {
-  const closed = mkMsg({ id: "msg_closed", seq: 3, sender: { type: "system" }, content_text: "Olivia closed the conversation", meta: { sub_type: "status", status: "closed" } });
+  // the close line itself is internal and never sent to the visitor: the server states the closed state and where it happened
+  const closedRoom = { id: "room_1", status: "closed", closed_marker: { id: "msg_closed", seq: 3 } };
 
   it("offers 1-5 once after the team closes the conversation, posts the score, and then thanks the visitor", async () => {
-    replies["GET /public/rooms/room_1/messages"] = () => ({ json: { data: [mkMsg({ id: "msg_a", seq: 1, content_text: "Anything else?" }), closed] } });
+    replies["GET /public/rooms/room_1/messages"] = () => ({ json: { data: [mkMsg({ id: "msg_a", seq: 1, content_text: "Anything else?" })], room: closedRoom } });
     widget = await boot();
     widget.open();
     await flush(); await flush(); await flush();
@@ -314,7 +315,7 @@ describe("satisfaction rating", () => {
   });
 
   it("is not offered while the conversation is live, or after the visitor writes again", async () => {
-    replies["GET /public/rooms/room_1/messages"] = () => ({ json: { data: [closed, mkMsg({ id: "msg_b", seq: 4, sender: { type: "contact" }, content_text: "one more thing" })] } });
+    replies["GET /public/rooms/room_1/messages"] = () => ({ json: { data: [mkMsg({ id: "msg_b", seq: 4, sender: { type: "contact" }, content_text: "one more thing" })], room: closedRoom } });
     widget = await boot();
     widget.open();
     await flush(); await flush(); await flush();

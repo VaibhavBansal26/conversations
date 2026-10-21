@@ -5,7 +5,7 @@ import { AppError, notFound, unprocessable } from "../errors.js";
 import { getSettings } from "./workspaces.js";
 import { findInbox } from "./inboxes.js";
 import { getContact } from "./contacts.js";
-import { emitInserted, insertMessage, visitorMessageDtos, type MessageRow } from "./messageStore.js";
+import { closedMarker, emitInserted, insertMessage, visitorMessageDtos, type MessageRow } from "./messageStore.js";
 import { pageMessages, processContent } from "./messages.js";
 import { onContactMessage, postBotMessage } from "./postProcess.js";
 import { findOrCreateRoom, markVisitorRead } from "./rooms.js";
@@ -46,10 +46,11 @@ export async function visitorRoomDto(ctx: AppContext, room: RoomRow) {
     room.id,
     room.visitor_read_seq,
   ))!.n;
-  const last = await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE room_id = ? AND kind != 'note' AND deleted_at IS NULL ORDER BY seq DESC LIMIT 1", room.id);
+  const last = await ctx.db.get<MessageRow>("SELECT * FROM messages WHERE room_id = ? AND kind != 'system' AND kind != 'note' AND deleted_at IS NULL ORDER BY seq DESC LIMIT 1", room.id);
   return {
     id: room.id,
     status: room.status,
+    closed_marker: await closedMarker(ctx, room),
     created_at: room.created_at,
     unread_count: unread,
     last_message: last ? { snippet: last.content_text.slice(0, 120), created_at: last.created_at, sender_type: last.sender_type } : null,
@@ -81,8 +82,8 @@ export async function visitorStartRoom(ctx: AppContext, session: SessionRow, inp
 
 export async function visitorListMessages(ctx: AppContext, session: SessionRow, roomId: string, opts: { before?: string; after?: string; limit: number }) {
   const room = await getVisitorRoom(ctx, session, roomId);
-  const page = await pageMessages(ctx, roomId, { ...opts, hideNotes: true });
-  return { data: await visitorMessageDtos(ctx, page.data, room.visitor_read_seq), pagination: page.pagination };
+  const page = await pageMessages(ctx, roomId, { ...opts, hideNotes: true, visitorView: true });
+  return { data: await visitorMessageDtos(ctx, page.data, room.visitor_read_seq), pagination: page.pagination, room: { id: room.id, status: room.status, closed_marker: await closedMarker(ctx, room) } };
 }
 
 export async function visitorSend(

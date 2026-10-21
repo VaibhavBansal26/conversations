@@ -284,6 +284,42 @@ function publicMeta(m: MessageRow) {
   return meta;
 }
 
+/**
+ * System lines a visitor may see, by `meta.sub_type` (an allow-list: a new kind of system line is internal until it is added here).
+ * "Conversation started" and payment confirmations are about the customer; assignment, status, priority, snooze, SMS consent and
+ * reopen/close markers describe the team's work and name agents, so they stay in the team views.
+ */
+export const VISITOR_SYSTEM_SUBTYPES = ["create", "payment"] as const;
+/** SQL predicate over `messages` columns for what a visitor may be shown (notes and internal system lines excluded). meta is compact JSON written by this server. */
+export const VISITOR_VISIBLE_SQL = `kind != 'note' AND (kind != 'system' OR ${VISITOR_SYSTEM_SUBTYPES.map((s) => `meta LIKE '%"sub_type":"${s}"%'`).join(" OR ")})`;
+export function visibleToVisitor(m: Pick<MessageRow, "kind" | "meta">): boolean {
+  if (m.kind === "note") return false;
+  if (m.kind !== "system") return true;
+  const sub = parseJson<{ sub_type?: string }>(m.meta, {}).sub_type;
+  return !!sub && (VISITOR_SYSTEM_SUBTYPES as readonly string[]).includes(sub);
+}
+
+/**
+ * The widget offers a satisfaction rating once the team closed the conversation and nothing real was said after. That used to be read
+ * from the close marker line in the message list; the line is internal now, so the server states it: the marker's id and seq, or null.
+ */
+export async function closedMarker(ctx: AppContext, room: { id: string; status: string }): Promise<{ id: string; seq: number } | null> {
+  if (room.status !== "closed") return null;
+  const rows = await ctx.db.all<{ id: string; seq: number; kind: string; sender_type: string; meta: string }>(
+    "SELECT id, seq, kind, sender_type, meta FROM messages WHERE room_id = ? AND deleted_at IS NULL AND kind != 'note' ORDER BY seq DESC LIMIT 30",
+    room.id,
+  );
+  for (const m of rows) {
+    if (m.sender_type === "system") {
+      const meta = parseJson<{ sub_type?: string; status?: string }>(m.meta, {});
+      if (meta.sub_type === "status") return meta.status === "closed" ? { id: m.id, seq: m.seq } : null;
+      continue;
+    }
+    return null;
+  }
+  return null;
+}
+
 /** Fields the visitor widget may see: notes never reach it, internal meta (triage) is stripped. */
 export function visitorMessageDto(ctx: AppContext, m: MessageRow, visitorReadSeq: number, refs?: RefMap) {
   const dto = messageDto(ctx, m, { visitorReadSeq, refs });
@@ -332,12 +368,12 @@ export const lastMessageBrief = (m: MessageRow) => ({
   created_at: m.created_at,
 });
 
-/** Broadcast a stored message: notes stay on the team channel; system/bot/contact/agent also reach the visitor. */
+/** Broadcast a stored message: notes and internal system lines stay on the team channel; customer-facing messages also reach the visitor. */
 export async function emitMessage(ctx: AppContext, room: RoomRow, m: MessageRow, event: "message:new" | "message:updated" = "message:new"): Promise<void> {
   await ctx.cache.invalidate(`counts:${room.workspace_id}:*`);
   const refs = await loadRefs(ctx, [m]);
   const payload = { message: messageDto(ctx, m, { visitorReadSeq: room.visitor_read_seq, refs }), room: await roomPatch(ctx, room) };
-  const visitor = m.kind === "note" ? undefined : { message: visitorMessageDto(ctx, m, room.visitor_read_seq, refs), room: { id: room.id, status: room.status } };
+  const visitor = !visibleToVisitor(m) ? undefined : { message: visitorMessageDto(ctx, m, room.visitor_read_seq, refs), room: { id: room.id, status: room.status } };
   ctx.bus.toRoom(room.workspace_id, room.id, event, payload, visitor === undefined ? undefined : { visitor });
 }
 

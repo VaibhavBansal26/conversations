@@ -336,7 +336,7 @@ The team API is unversioned and changes additively; the analytics API is `v1` (f
 | `GET /public/session` | The current visitor session | public |  | `public.query` |
 | `GET /public/rooms` | The visitor's conversations | public |  | `public.query` |
 | `POST /public/rooms` | Start a conversation | public |  | `public.room` |
-| `GET /public/rooms/:id/messages` | Messages of the visitor's conversation | public | query: `before`, `after`, `limit` (integer) | `public.query` |
+| `GET /public/rooms/:id/messages` | Messages of the visitor's conversation: no notes and only customer-facing system lines (conversation started, payments); `room` states the status and the close marker the rating prompt needs | public | query: `before`, `after`, `limit` (integer) | `public.query` |
 | `POST /public/rooms/:id/messages` | Visitor sends a message | public | body: `content*`, `client_msg_id` | `public.send` `msg.room` `msg.workspace` |
 | `POST /public/rooms/:id/read` | Visitor read receipt | public | body: `message_id*` | `public.read` |
 | `POST /public/rooms/:id/csat` | Satisfaction score after the conversation is closed | public | body: `score*` (integer), `comment` | `public.read` |
