@@ -11,6 +11,9 @@ Domain terms as used in this repository, and how they map to the legacy ("Suppor
 | **Contact** | the person on the other side of a conversation (name, email, phone, tags, notes) | `crm.contacts`, `SupportConversation` |
 | **Visitor** | an anonymous or identified person using the chat widget; has a *visitor session* | support user |
 | **Room (conversation)** | one thread between the team and one contact across chat, SMS and email; has status `open` or `closed`, priority, assignees, snooze. The code says *room*, the UI says *conversation* | `SupportRoom` |
+| **Team chat** | internal chat between workspace members: channels, direct and group messages, threads, reactions ([TEAM-CHAT.md](TEAM-CHAT.md)); not customer conversations | legacy generation B "conversations rooms" |
+| **Team channel** | a public (anyone in the workspace can join) or private (invite-only) chat space; `#general` exists in every workspace; not to be confused with the SMS/email *channels* | |
+| **Shared conversation card** | a team chat message that links to a customer conversation; its details are shown only to members who may open that conversation | |
 | **Channel connection** | a workspace's own Twilio (SMS) or SendGrid (email) credentials, stored encrypted, with its own webhook URLs ([CHANNELS.md](CHANNELS.md)) | env-wide `TWILIO_*` / `SENDGRID_*` |
 | **Test mode** | a channel with no real provider: messages are stored with delivery `not_sent_test_mode` and never shown as sent | the console provider |
 | **Message** | one entry in a room: `kind` (text, image, voice, gif, attachment, ref, note, system), `source` (`dm` chat, `sms`, `email`), delivery state | `SupportMessage` |

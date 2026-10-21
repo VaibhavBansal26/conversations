@@ -66,7 +66,7 @@ Services are plain functions taking an explicit `AppContext` (db, clock, bus, pr
 | Digest unread rule | digest recipients must have unread messages by the cursor rule, which excludes rooms assigned to someone else; so team members are digested for *unassigned* rooms (and managers always for unassigned), not for rooms a colleague owns |
 | AI | on-demand features (suggestions, summary, rephrase) are always available; triage and the widget auto-responder are workspace opt-in and default off. See `AI.md` |
 | Web push | out of scope (brief); in-app + email only |
-| Reactions, team chat, prospect channels | out of scope |
+| Reactions, prospect channels | out of scope. Team chat was rebuilt later: see [TEAM-CHAT.md](TEAM-CHAT.md) |
 
 ## 5. What changed versus the legacy product, and why
 

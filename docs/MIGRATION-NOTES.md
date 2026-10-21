@@ -2,7 +2,7 @@
 
 Scope: only **generation A** (the "Support" inbox: live chat, SMS, email) was rebuilt. Out of scope, deliberately not ported:
 
-- **Generation B** (internal team chat: `conversations.rooms/messages`, direct/channel rooms, reactions, reminders, favorites on messages). Backend-only in the legacy app and hidden in its UI.
+- **Generation B** (internal team chat: `conversations.rooms/messages`, direct/channel rooms, reactions, reminders, favorites on messages). Backend-only in the legacy app and hidden in its UI. **Rebuilt cleanly since** as [team chat](TEAM-CHAT.md) (section 8 below lists what differs); nothing of the legacy collections was reused.
 - **Generation C** (legacy channels/prospect/groups collections, the Socket.IO integration in the general socket). No frontend consumer; its collection names even collided with generation B.
 - Platform couplings that do not belong in a standalone product: the multi-account agency/white-label hierarchy, CASL front-end rules, push (FCM/Expo), the OneBalance wallet, Reputation/Instasite/Instareport/payment-request cards, GIF-provider calls from the browser, Teamwork-chat abuse webhooks, the build-time copying of `shared/` into the socket service.
 
@@ -115,7 +115,7 @@ Legacy namespace `/<accountId>` with `auth.session` -> `/ws/<workspaceId>` with 
 
 ## 5. Not carried over (product decisions)
 
-Team chat, channels/prospect, reactions, message forwarding (legacy stub), help-center page, review-request/instasite/instareport cards (payment-request cards **are** now built, see section 7), GIF picker integration (a `gif` message can still carry an https URL), web/mobile push, contact-facing "unread reply" digest email, the legacy widget bot persona "Annie" (replaced by a neutral `Chatbot` and an explicit `AI Assistant`).
+Channels/prospect, message forwarding (legacy stub), help-center page, review-request/instasite/instareport cards (payment-request cards **are** now built, see section 7), GIF picker integration (a `gif` message can still carry an https URL), web/mobile push, contact-facing "unread reply" digest email, the legacy widget bot persona "Annie" (replaced by a neutral `Chatbot` and an explicit `AI Assistant`).
 
 ## 6a. Added after the first rebuild (phases 2 and 3)
 
@@ -132,3 +132,20 @@ Team chat, channels/prospect, reactions, message forwarding (legacy stub), help-
 ## 6. Secrets hygiene
 
 The legacy repository ships a `.env.sample` for the conversation socket service that contains a **committed MongoDB connection string with credentials**. It was not read into, copied into or referenced by this repository. **Treat that credential as exposed and rotate it**, then purge it from the legacy history. Conversations has no hard-coded credentials; `.env.example` contains only empty placeholders.
+
+## 8. Team chat (legacy generation B) rebuilt: what differs
+
+The legacy generation B shared the customer-conversation collections (`rooms` and `messages` with direct/channel room types) and had no frontend. The rebuild is a separate set of tables and a Team section in the app.
+
+| Legacy generation B | Now |
+| --- | --- |
+| internal rooms and customer rooms in the same collections, told apart by a room type | separate tables (`team_channels`, `team_messages`, ...): customer conversations can never leak into team chat or the other way round, and the customer-room rules (one room per contact, scope by assignment) do not apply |
+| membership by a `members` array on the room, checked in the client | `team_channel_members` rows, enforced by the server on every read, send, search and socket event; a private channel or a DM does not exist (404) for non-members |
+| unread as stored counters | computed from each member's read cursor (`last_read_seq`), the same approach as customer threads |
+| no idempotency | `client_msg_id` unique per channel |
+| reactions as an array on the message | one row per (message, member, emoji); toggles are idempotent and capped at 20 kinds per message |
+| reminders and favorites on messages | not rebuilt; pinned messages and per-channel mute instead |
+| no permissions beyond "signed in" | `team_chat:use`, `team_chat:manage_channels`, `team_chat:moderate`; every REST route and socket event is declared, rate limited and tested |
+| no #general, no threads, no search, no attachments | #general per workspace, one-level threads, search, attachments through the same upload pipeline and limits, shared customer-conversation cards that only people who may open the conversation can read |
+| deletes removed the document | soft delete, purged after 30 days; per-workspace `team_retention_days` |
+

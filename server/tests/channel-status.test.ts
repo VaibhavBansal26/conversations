@@ -153,3 +153,34 @@ describe("migration 020 on an existing SQLite database", () => {
     void createContext;
   });
 });
+
+describe("GET /api/getting-started", () => {
+  it("derives every item from real state: nothing is stored, so undoing a step unticks it", async () => {
+    const f = await fullApp();
+    const done = async () => Object.fromEntries((await f.http.get("/api/getting-started", f.token)).body.items.map((i: { id: string; done: boolean }) => [i.id, i.done]));
+    expect(await done()).toEqual({ invite_teammates: false, connect_sms: true, connect_email: true, install_widget: false, create_template: false }); // fakes count as connected providers
+    f.ctx.sms = new ConsoleSmsProvider(silentLogger);
+    f.ctx.email = new ConsoleEmailProvider(silentLogger);
+    expect(await done()).toMatchObject({ connect_sms: false, connect_email: false });
+    await addMemberRaw(f.ctx, f.wsId, { name: "Mate", role: "agent" });
+    expect((await done()).invite_teammates).toBe(true);
+    await f.http.post("/api/templates", { name: "Hello", body: "Hi {{contact.first_name}}" }, f.token);
+    expect((await done()).create_template).toBe(true);
+    const tok = (await f.http.post("/api/tokens", { domain: "shop.example.com" }, f.token)).body;
+    expect((await done()).install_widget).toBe(false);
+    await f.http.get("/public/widget/config", undefined, { "x-api-key": tok.token, origin: "https://shop.example.com" });
+    expect((await done()).install_widget).toBe(true);
+    await f.http.del(`/api/tokens/${tok.id}`, f.token);
+    expect((await done()).install_widget).toBe(false);
+    const r = (await f.http.get("/api/getting-started", f.token)).body;
+    expect(r).toMatchObject({ done: 2, total: 5 });
+    expect(r.items.find((i: { id: string }) => i.id === "install_widget").href).toBe("/settings/widget?tab=install");
+  });
+  it("counts a pending invitation as inviting a teammate, and is tenant scoped", async () => {
+    const f = await fullApp();
+    await f.http.post("/api/invitations", { email: "new@acme.test", role_id: "role_agent" }, f.token);
+    expect((await f.http.get("/api/getting-started", f.token)).body.items[0].done).toBe(true);
+    const other = await seedWorkspace(f.ctx, "Other");
+    expect((await f.http.get("/api/getting-started", await tokenFor(f.ctx, other.owner))).body.items[0].done).toBe(false);
+  });
+});

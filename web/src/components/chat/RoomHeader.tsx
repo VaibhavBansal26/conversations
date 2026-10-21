@@ -1,5 +1,5 @@
 // Adapted from the legacy UI (see docs/PROVENANCE.md): assignee, status, priority and snooze controls in the conversation header.
-import { ArrowLeft, Check, CircleDollarSign, Flag, Inbox as InboxIcon, MoreHorizontal, PanelRight, RotateCcw, Search, Sparkles, Star, UserRound } from "lucide-react";
+import { ArrowLeft, Check, CircleDollarSign, Flag, Inbox as InboxIcon, MoreHorizontal, PanelRight, RotateCcw, Search, Share2, Sparkles, Star, UserRound } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
 import { useInboxes, useMembers, useRoomActions } from "../../api/hooks";
@@ -11,6 +11,7 @@ import { isSnoozed } from "../../state/roomCache";
 import {
   Avatar, Button, cn, DropdownMenuCheckItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRoot, DropdownMenuSeparator, DropdownMenuTrigger, Tooltip,
 } from "../../ui";
+import { ShareToTeamDialog } from "../../team/Dialogs";
 import { RequestPaymentDialog } from "./RequestPaymentDialog";
 import { SnoozeMenu } from "./SnoozeMenu";
 import { SummaryPopover } from "./SummaryPopover";
@@ -48,6 +49,8 @@ export function RoomHeader({ room, backTo, assignOpen, onAssignOpen, snoozeOpen,
   const { visitorOnline } = useSocket();
   const actions = useRoomActions(room.id);
   const canRequestPayment = useCan("payments:request");
+  const canTeamChat = useCan("team_chat:use");
+  const [sharing, setSharing] = useState(false);
   const [paying, setPaying] = useState(false);
   const [summary, setSummary] = useState(false);
   const name = room.contact?.name || room.contact?.email || room.contact?.phone || "Unknown contact";
@@ -172,6 +175,14 @@ export function RoomHeader({ room, backTo, assignOpen, onAssignOpen, snoozeOpen,
               )}
               <DropdownMenuSeparator />
             </div>
+            {canTeamChat && (
+              <>
+                <DropdownMenuItem onSelect={() => setSharing(true)}>
+                  <Share2 className="size-4 text-subtle" aria-hidden="true" /> Share with the team
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
             <DropdownMenuLabel>Move to inbox</DropdownMenuLabel>
             <DropdownMenuCheckItem checked={!room.inbox_id} onSelect={() => actions.assign.mutate({ inbox_id: null })}>
               <InboxIcon className="size-4 text-subtle" aria-hidden="true" /> No inbox
@@ -189,6 +200,7 @@ export function RoomHeader({ room, backTo, assignOpen, onAssignOpen, snoozeOpen,
         </IconToggle>
       </div>
       {paying && <RequestPaymentDialog roomId={room.id} currency={workspace.currency} onClose={() => setPaying(false)} />}
+      {sharing && <ShareToTeamDialog roomId={room.id} onClose={() => setSharing(false)} />}
       <div className="@2xl:hidden">
         <SummaryPopover roomId={room.id} sheet open={summary} onOpenChange={setSummary} />
       </div>

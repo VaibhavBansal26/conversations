@@ -7,6 +7,8 @@ Standalone and self-contained: Node + SQLite, no external services required to r
 ## What is in it
 
 - **Inbox**: live chat widget, SMS (Twilio) and email (SendGrid) in one place; inboxes with round-robin routing, notes and @mentions, snooze, templates, notifications, CSAT, optional AI assistance.
+- **Team chat**: channels (public or private), direct and group messages, threads, reactions, pins, search, shared customer-conversation cards ([docs/TEAM-CHAT.md](docs/TEAM-CHAT.md)).
+- **Channels you connect yourself**: each workspace pastes its own Twilio and SendGrid credentials and is told plainly when a channel is in test mode ([docs/CHANNELS.md](docs/CHANNELS.md)); the chat widget has a guided install and an in-app preview ([docs/WIDGET.md](docs/WIDGET.md)).
 - **Access**: 29 permissions, four built-in roles plus custom roles, two-factor, invitations, audit log ([docs/RBAC.md](docs/RBAC.md)).
 - **Money**: plans, prepaid credits with auto-recharge, and payment requests customers pay into the workspace's own Stripe account ([docs/STRIPE.md](docs/STRIPE.md); off unless `STRIPE_SECRET_KEY` is set).
 - **Analytics**: dashboard and a versioned API with pseudonymous exports ([docs/ANALYTICS.md](docs/ANALYTICS.md)).

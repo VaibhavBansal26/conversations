@@ -99,6 +99,7 @@ Development runs the same thing with `npm run dev` (API on :3000, Vite on :5173 
 | `channels/rules.ts` | SMS/email rules: keyword classification, number choice and locking, subject derivation, threading |
 | `providers/` | `SmsProvider`/`EmailProvider`/`Storage` interfaces, Fake/Console providers (`simulated` = test mode), Twilio/SendGrid `fetch` adapters with timeouts and normalised errors, `ProviderRegistry` (per-workspace credentials, else the platform default; [CHANNELS.md](CHANNELS.md)), `LocalDiskStorage` |
 | `realtime/` | `RealtimeBus` interface, `SocketBus` (Socket.IO: admission control, limits, backpressure, drain, event coalescing) |
+| `services/teamChat.ts`, `routes/teamChat.ts` | internal team chat: channels, direct and group messages, threads, reactions, pins, search, read cursors, notifications ([TEAM-CHAT.md](TEAM-CHAT.md), [ADR 0021](adr/0021-team-chat.md)); web: `web/src/team/`, `pages/TeamPage.tsx` |
 | `webhooks/signatures.ts` | Twilio HMAC-SHA1, SendGrid ECDSA / shared secret, replay + idempotency table; per-workspace endpoints `/webhooks/c/:id/...` verify with the connection's own credentials |
 | `jobs/` | `JobQueue` (`DbJobQueue` / `BullJobQueue`) with backoff, scheduler passes |
 | `ai/` | `AiProvider`, Anthropic + heuristic providers, BM25 retrieval, prompt safety, features |
@@ -165,6 +166,13 @@ erDiagram
   workspaces ||--o{ kb_entries : has
   workspaces ||--o{ usage_ledger : meters
   workspaces ||--o{ attachments : stores
+  workspaces ||--o{ team_channels : "team chat"
+  team_channels ||--o{ team_channel_members : "membership + read cursor"
+  members ||--o{ team_channel_members : ""
+  team_channels ||--o{ team_messages : contains
+  team_messages ||--o{ team_reactions : ""
+  team_messages ||--o{ team_mentions : ""
+  workspaces ||--o{ channel_connections : "own Twilio / SendGrid"
 
   rooms {
     text id PK
@@ -343,6 +351,25 @@ flowchart LR
   tiers --> feed["in-app notification + notification:new"]
   tiers --> mailjob["assignee offline, no DND?<br/>enqueue notify_email (re-checked at send time)"]
   contactmsg --> digest["digest pass (every 60s):<br/>unanswered 2..60 min, advance rooms.digest_seq,<br/>one digest_email job per seat"]
+```
+
+### 5.6 Team chat message
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant A as Member A (browser)
+  participant S as Socket.IO /ws/<ws> or REST
+  participant T as sendTeamMessage
+  participant DB as Database
+  participant B as Other channel members
+  A->>S: team:message:send {channel_id, content, client_msg_id}
+  S->>T: same service as REST (permission team_chat:use, rate limits)
+  T->>T: accessChannel: member of this channel? (404 otherwise)
+  T->>DB: tx: seq++ , INSERT team_message (unique channel+client_msg_id), mentions, last_read_seq of sender
+  T-->>A: ack {ok, message, created}
+  T->>B: team:message:new to member:<id> of every member (per-viewer copy)
+  T->>DB: notifications for mentions / DMs (mute, preferences), offline email job
 ```
 
 ## 6. Realtime protocol (Socket.IO 4)

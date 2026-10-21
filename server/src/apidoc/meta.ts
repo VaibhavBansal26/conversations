@@ -52,6 +52,7 @@ const rows: [string, string, string, Opt?][] = [
   // ---- workspace, team
   ["GET /api/workspace", "Workspace", "The workspace: settings, credit balance, plan, `billing_access`, currency, `public_url` (what snippets and webhook URLs must contain)"],
   ["PATCH /api/workspace", "Workspace", "Change the name and settings (widget, office hours, retention, AI flags, credits)", { body: S.WorkspacePatch }],
+  ["GET /api/getting-started", "Workspace", "The new-workspace checklist (invite teammates, connect SMS, connect email, install the widget, create a template), each derived from real state on every call", { returns: "`{items: [{id, done, href}], done, total}`" }],
   ["GET /api/credits", "Workspace", "Credit balance and recent ledger"],
   ["POST /api/credits/grant", "Workspace", "Add credits by hand (owners; refused with `CREDIT_GRANT_DISABLED` when Stripe is configured)", { body: S.CreditGrant, status: 201 }],
   ["GET /api/dashboard/counts", "Workspace", "Open/unread/assigned counts for the inbox sidebar"],

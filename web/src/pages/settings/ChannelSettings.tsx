@@ -210,7 +210,7 @@ export function ChannelSettings() {
   return (
     <>
       {status.data && (
-        <div className="flex flex-col gap-2">
+        <div className="mb-6 flex flex-col gap-2">
           <ChannelBanner status={status.data.sms} />
           <ChannelBanner status={status.data.email} />
         </div>

@@ -19,7 +19,7 @@ export const SETTINGS_PAGES: readonly SettingsPageDef[] = [
   { path: "general", label: "General", managerOnly: true, group: "General", icon: Settings2 },
   { path: "notifications", label: "Notifications & availability", managerOnly: false, group: "General", icon: Bell },
   { path: "inboxes", label: "Inboxes", managerOnly: true, group: "Channels & inboxes", icon: Inbox },
-  { path: "channels", label: "Numbers & senders", managerOnly: true, group: "Channels & inboxes", icon: Phone },
+  { path: "channels", label: "SMS & email", managerOnly: true, group: "Channels & inboxes", icon: Phone },
   { path: "widget", label: "Chat widget", managerOnly: true, group: "Channels & inboxes", icon: MessageSquareText, wide: true },
   { path: "tokens", label: "Embed tokens", managerOnly: true, group: "Channels & inboxes", icon: KeyRound },
   { path: "members", label: "Members & seats", managerOnly: true, group: "Team", icon: Users },

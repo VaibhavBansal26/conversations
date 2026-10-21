@@ -57,7 +57,7 @@ const GROUPS: [RouteAccess, string[]][] = [
   ["api_keys:manage", ["GET /api/v1/api-keys", "POST /api/v1/api-keys", "DELETE /api/v1/api-keys/:id"]],
   ["analytics:read", ["GET /api/analytics/overview", "GET /api/analytics/timeseries"]],
   ["analytics_identity:manage", ["GET /api/analytics/identity-pepper", "PUT /api/analytics/identity-pepper", "POST /api/analytics/identity-pepper/rotate"]],
-  ["settings:read", ["GET /api/workspace", "GET /api/credits", "GET /api/sms-numbers", "GET /api/email-senders", "GET /api/inbound-addresses"]],
+  ["settings:read", ["GET /api/getting-started", "GET /api/workspace", "GET /api/credits", "GET /api/sms-numbers", "GET /api/email-senders", "GET /api/inbound-addresses"]],
   ["settings:write", ["PATCH /api/workspace"]],
   ["billing:manage", [
     "POST /api/credits/grant", "GET /api/billing", "POST /api/billing/checkout/subscription", "POST /api/billing/checkout/topup", "POST /api/billing/portal", "PATCH /api/billing/automation",

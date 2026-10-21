@@ -27,7 +27,8 @@ export function NotificationsMenu({ className, side = "right" }: { className?: s
   const open = (n: NotificationItem, close: () => void) => {
     if (!n.read_at) markRead.mutate(n.id);
     close();
-    if (n.room_id) navigate(`/inbox/${n.room_id}`);
+    if (n.channel_id) navigate(`/team/${n.channel_id}`);
+    else if (n.room_id) navigate(`/inbox/${n.room_id}`);
   };
 
   return (

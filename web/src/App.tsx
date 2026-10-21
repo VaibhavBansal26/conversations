@@ -26,6 +26,7 @@ const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage").then((m) => ({ 
 const SecuritySettings = lazy(() => import("./pages/settings/SecuritySettings").then((m) => ({ default: m.SecuritySettings })));
 const BillingSettings = lazy(() => import("./pages/settings/BillingSettings").then((m) => ({ default: m.BillingSettings })));
 const RoleSettings = lazy(() => import("./pages/settings/RoleSettings").then((m) => ({ default: m.RoleSettings })));
+const TeamPage = lazy(() => import("./pages/TeamPage").then((m) => ({ default: m.TeamPage })));
 const WidgetSettings = lazy(() => import("./pages/settings/WidgetSettings").then((m) => ({ default: m.WidgetSettings })));
 
 function PageFallback() {
@@ -48,6 +49,8 @@ export function App() {
         <Route element={<Suspense fallback={<PageFallback />}><AppLayout /></Suspense>}>
           <Route path="/inbox" element={<Suspense fallback={<PageFallback />}><InboxPage /></Suspense>} />
           <Route path="/inbox/:roomId" element={<Suspense fallback={<PageFallback />}><InboxPage /></Suspense>} />
+          <Route path="/team" element={<Suspense fallback={<PageFallback />}><TeamPage /></Suspense>} />
+          <Route path="/team/:channelId" element={<Suspense fallback={<PageFallback />}><TeamPage /></Suspense>} />
           <Route path="/analytics" element={<Suspense fallback={null}><AnalyticsPage /></Suspense>} />
           <Route path="/settings" element={<Suspense fallback={<PageFallback />}><SettingsLayout /></Suspense>}>
             <Route path="general" element={<GeneralSettings />} />

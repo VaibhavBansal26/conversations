@@ -329,6 +329,8 @@ export interface NotificationItem {
   type: string;
   room_id: string | null;
   message_id: string | null;
+  /** team chat notifications open a channel instead of a conversation */
+  channel_id?: string | null;
   title: string;
   body: string;
   created_at: string;

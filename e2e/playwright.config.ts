@@ -27,7 +27,7 @@ export default defineConfig({
     timezoneId: "UTC",
   },
   projects: [
-    { name: "app", testIgnore: /shots\.spec\.ts/ },
-    { name: "shots", testMatch: /shots\.spec\.ts/ },
+    { name: "app", testIgnore: /shots.*\.spec\.ts/ },
+    { name: "shots", testMatch: /shots.*\.spec\.ts/ },
   ],
 });

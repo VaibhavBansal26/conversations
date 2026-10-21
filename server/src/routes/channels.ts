@@ -4,6 +4,7 @@ import { notFound } from "../errors.js";
 import { parseBody, type Env } from "../http.js";
 import { EmailSettingsBody, ImportNumbersBody, SendGridConnectBody, TestSendBody, TwilioConnectBody } from "../schemas.js";
 import { channelStatuses } from "../services/channels.js";
+import { gettingStarted } from "../services/gettingStarted.js";
 import {
   connectSendGrid,
   connectTwilio,
@@ -32,6 +33,7 @@ const channelOf = (v: string): ChannelKind => {
 export function channelRoutes(ctx: AppContext) {
   const r = new Hono<Env>();
   r.get("/channels/status", async (c) => c.json(await channelStatuses(ctx, c.get("actor").workspaceId)));
+  r.get("/getting-started", async (c) => c.json(await gettingStarted(ctx, c.get("actor").workspaceId)));
   r.get("/channels/connections", async (c) => c.json(await getConnections(ctx, c.get("actor"))));
   r.put("/channels/sms/connection", async (c) => c.json(await connectTwilio(ctx, c.get("actor"), await parseBody(c, TwilioConnectBody)), 200));
   r.put("/channels/email/connection", async (c) => c.json(await connectSendGrid(ctx, c.get("actor"), await parseBody(c, SendGridConnectBody)), 200));

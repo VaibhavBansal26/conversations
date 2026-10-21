@@ -13,6 +13,7 @@ import { roomSig } from "../../workers/logic/diff";
 import { ArrowUpDown, Inbox, MenuIcon, MessageSquarePlus, Search, SearchX, X } from "lucide-react";
 import { useSocket } from "../../realtime/SocketProvider";
 import { Button, EmptyState, ErrorNotice, Menu, buttonVariants, SegmentedList, SegmentedTrigger, Skeleton, Tabs, Tooltip } from "../../ui";
+import { GettingStartedCard } from "./GettingStartedCard";
 import { RoomListItem } from "./RoomListItem";
 
 interface Props {
@@ -173,6 +174,7 @@ export function RoomListPane({ filters, query, counts, members, selectedId, titl
           )}
         </div>
       </div>
+      <GettingStartedCard />
       <Tabs value={filters.status} onValueChange={(v) => go({ status: v as RoomStatusTab })} className="px-3 pb-2 md:px-4">
         <SegmentedList aria-label="Conversation status" className="flex w-full">
           {TABS.map((t) => (

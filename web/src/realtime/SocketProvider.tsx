@@ -10,6 +10,8 @@ import {
   type BridgeContext,
 } from "../state/events";
 import { keys } from "../state/keys";
+import { onTeamChannel, onTeamMessageDeleted, onTeamMessageNew, onTeamMessageUpdated, onTeamRead, onTeamReaction, type TeamBridgeContext } from "../team/events";
+import type { TeamChannel, TeamMessage, TeamReaction } from "../team/types";
 
 export type ConnectionStatus = "connecting" | "connected" | "disconnected";
 export type Ack<T> = ({ ok: true } & T) | { ok: false; error: { code: string; message: string } };
@@ -22,6 +24,8 @@ interface SocketValue {
   typing: Record<string, TypingEvent["who"]>;
   onlineMembers: ReadonlySet<string>;
   visitorOnline: Record<string, boolean>;
+  /** team chat: channel id -> who is typing there right now (other members) */
+  teamTyping: Record<string, { member_id: string; name: string; thread_root_id: string | null }[]>;
 }
 
 const SocketContext = createContext<SocketValue | null>(null);
@@ -36,6 +40,9 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   const roomMatch = useMatch("/inbox/:roomId");
   const activeRoom = useRef<string | null>(null);
   activeRoom.current = roomMatch?.params.roomId ?? null;
+  const teamMatch = useMatch("/team/:channelId/*");
+  const activeChannel = useRef<string | null>(null);
+  activeChannel.current = teamMatch?.params.channelId ?? null;
 
   // the socket is created once per sign-in; a refreshed access token reaches it through the auth callback, not by recreating it
   const signedIn = !!token;
@@ -44,6 +51,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   const [typing, setTyping] = useState<Record<string, TypingEvent["who"]>>({});
   const [online, setOnline] = useState<ReadonlySet<string>>(new Set());
   const [visitorOnline, setVisitorOnline] = useState<Record<string, boolean>>({});
+  const [teamTyping, setTeamTyping] = useState<SocketValue["teamTyping"]>({});
 
   useEffect(() => {
     if (!signedIn || !workspaceId) return;
@@ -63,6 +71,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       selfMemberId: memberId,
       activeRoomId: () => (document.visibilityState === "visible" ? activeRoom.current : null),
     };
+    const teamCtx: TeamBridgeContext = { selfMemberId: memberId, activeChannelId: () => (document.visibilityState === "visible" ? activeChannel.current : null) };
     const timers = new Map<string, ReturnType<typeof setTimeout>>();
     let hasConnected = false;
 
@@ -74,6 +83,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         void qc.invalidateQueries({ queryKey: keys.rooms });
         void qc.invalidateQueries({ queryKey: keys.counts });
         void qc.invalidateQueries({ queryKey: ["thread"] });
+        void qc.invalidateQueries({ queryKey: ["team"] });
       }
       hasConnected = true;
     });
@@ -91,6 +101,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       void qc.invalidateQueries({ queryKey: keys.rooms });
       void qc.invalidateQueries({ queryKey: keys.counts });
       void qc.invalidateQueries({ queryKey: ["thread"] });
+      void qc.invalidateQueries({ queryKey: ["team"] });
     });
     // the access token this socket authenticated with ran out: renew it and reconnect (log out only when renewal is impossible)
     socket.on("auth:expired", () => {
@@ -131,6 +142,27 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         return next;
       }),
     );
+    // ---- team chat
+    socket.on("team:message:new", (p: { channel_id: string; message: TeamMessage }) => onTeamMessageNew(qc, p, teamCtx));
+    socket.on("team:message:updated", (p: { channel_id: string; message: TeamMessage }) => onTeamMessageUpdated(qc, p));
+    socket.on("team:message:deleted", (p: { channel_id: string; message_id: string }) => onTeamMessageDeleted(qc, p));
+    socket.on("team:reaction", (p: { channel_id: string; message_id: string; reactions: TeamReaction[] }) => onTeamReaction(qc, p));
+    for (const ev of ["created", "updated", "removed", "members"] as const) socket.on(`team:channel:${ev}`, (p: { channel?: TeamChannel; channel_id?: string; muted?: boolean }) => onTeamChannel(qc, ev, p));
+    socket.on("team:read", (p: { channel_id: string; member_id: string; seq: number }) => onTeamRead(qc, p, memberId));
+    socket.on("team:typing", (p: { channel_id: string; member_id: string; name: string; typing: boolean; thread_root_id: string | null }) => {
+      const key = `team:${p.channel_id}:${p.member_id}`;
+      clearTimeout(timers.get(key));
+      const clear = () =>
+        setTeamTyping((cur) => {
+          const rest = (cur[p.channel_id] ?? []).filter((x) => x.member_id !== p.member_id);
+          const { [p.channel_id]: _drop, ...others } = cur;
+          void _drop;
+          return rest.length ? { ...others, [p.channel_id]: rest } : others;
+        });
+      if (!p.typing) return clear();
+      setTeamTyping((cur) => ({ ...cur, [p.channel_id]: [...(cur[p.channel_id] ?? []).filter((x) => x.member_id !== p.member_id), { member_id: p.member_id, name: p.name, thread_root_id: p.thread_root_id }] }));
+      timers.set(key, setTimeout(clear, TYPING_TTL_MS));
+    });
     socket.on("visitor:presence", (p: { room_id: string; online: boolean }) => setVisitorOnline((cur) => ({ ...cur, [p.room_id]: p.online })));
     socket.on("typing", (p: TypingEvent) => {
       if (p.who.type === "agent" && p.who.id === memberId) return;
@@ -158,8 +190,8 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<SocketValue>(
-    () => ({ status, connected: status === "connected", emit, typing, onlineMembers: online, visitorOnline }),
-    [status, emit, typing, online, visitorOnline],
+    () => ({ status, connected: status === "connected", emit, typing, onlineMembers: online, visitorOnline, teamTyping }),
+    [status, emit, typing, online, visitorOnline, teamTyping],
   );
   return <SocketContext.Provider value={value}>{children}</SocketContext.Provider>;
 }

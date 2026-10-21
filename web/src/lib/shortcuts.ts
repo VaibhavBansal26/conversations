@@ -81,6 +81,15 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     ],
   },
   {
+    title: "Team chat",
+    items: [
+      { keys: ["Alt", "↑", "↓"], label: "Previous / next channel or message" },
+      { keys: ["Alt", "Shift", "↑", "↓"], label: "Next channel with unread messages" },
+      { keys: ["↑"], label: "In an empty message box: edit your last message" },
+      { keys: ["Esc"], label: "Close the thread or panel" },
+    ],
+  },
+  {
     title: "Composer",
     items: [
       { keys: ["Enter"], label: "Send (Shift + Enter for a new line)" },

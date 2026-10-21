@@ -6,7 +6,9 @@ Every document under `docs/` is listed here (a check fails otherwise). Generated
 
 | If you want to... | Read |
 | --- | --- |
-| install the chat widget, understand domain rules, fix a widget that does not show | [WIDGET.md](WIDGET.md) |
+| install the chat widget, understand domain rules, fix a widget that does not show | [TEAM-CHAT.md](TEAM-CHAT.md) | internal team chat: channels, direct and group messages, threads, privacy rules, notifications, retention, limits |
+| [WIDGET.md](WIDGET.md) |
+| use or understand team chat (channels, DMs, threads) | [TEAM-CHAT.md](TEAM-CHAT.md) |
 | connect Twilio and SendGrid, read the SMS/email setup guide | [WIDGET.md](WIDGET.md) | install guide (HTML, WordPress, Shopify, GTM, React), the in-app preview, domain rules, CSP needs, troubleshooting table, office hours, OTP |
 | [CHANNELS.md](CHANNELS.md) |
 | deploy it for free (Render, GitHub-connected) | [DEPLOY.md](DEPLOY.md) |

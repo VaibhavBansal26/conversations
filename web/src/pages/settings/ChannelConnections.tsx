@@ -241,7 +241,7 @@ function TwilioConnect({ conn, status }: { conn: ChannelConnection | null; statu
             </Field>
           </div>
           <div>
-            <Button variant="link" onClick={() => setAdvanced((a) => !a)} aria-expanded={advanced}>
+            <Button variant="link" className="whitespace-normal text-left" onClick={() => setAdvanced((a) => !a)} aria-expanded={advanced}>
               <KeyRound className="size-3.5" aria-hidden="true" /> {advanced ? "Hide API key" : "Send with an API key instead (optional)"}
             </Button>
             {advanced && (

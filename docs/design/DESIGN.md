@@ -94,7 +94,16 @@ Taken by `npm run shots` (Playwright, the built app, seeded demo data) at 1440x9
 | The embedded widget on a host page | `widget-1024x768-*`, `widget-390x844-*` |
 | Analytics | `analytics-*` |
 | Operator console | `admin-login-*`, `admin-*`, `admin-workspace-*` |
+| Team chat: conversation list, a channel, a thread | `team-list-*`, `team-channel-*`, `team-thread-*` |
+| Settings > SMS & email (test mode banners, Connect Twilio / SendGrid) | `settings-channels-*` |
+| Settings > Chat widget > Install | `widget-install-*` |
+| Inbox with the Getting started card | `inbox-getting-started-*` |
+| A message stored in test mode, with the composer banner | `conversation-test-mode-*` |
 
 ### What the screenshot review changed (2026-10-20)
 
 Reviewing the first set at all three sizes in both schemes led to these fixes: touch screens showed every message's hover toolbar at once and covered the thread (now a tap reveals it); the contact drawer drew two close buttons; analytics axis text grew with the card width (charts now draw at 1 SVG unit per CSS pixel); the widget customiser was squeezed into a 175 px form column at 1024 px (the layout now follows the width of the content area, not of the window); the members table was clipped at 1024 px; the palette's `esc` key cap wrapped onto two lines; the email From field was cut off. Axe also found a dangling `aria-controls` on every tab switcher, name-versus-visible-text mismatches on the navigation badge and the account button, and one 4.41:1 label in the widget preview; all fixed (see `e2e/tests/06-a11y.spec.ts`).
+
+### What the second review changed (2026-10-21)
+
+The team chat, channel connection, widget install and getting started screens were reviewed at 1440, 1024 and 390 px in both schemes (`e2e/tests/shots-team.spec.ts`). Fixes: on a phone the action bar of every team message was visible at once and the bars overlapped (now a tap reveals it, as in the customer thread); at 1024 px the thread panel left the conversation about 320 px wide, so the composer hint wrapped and the header was cramped (the panel now sits beside the conversation from 1280 px and opens as a drawer below that, and the composer hint hides when its own container is narrow); the two "not connected" banners touched the first settings card; the "Send with an API key instead" link ran past the edge of the card on a phone; the embed snippet scrolled sideways instead of wrapping; the Install page content was centred while its tabs were left-aligned; search results for a direct message read "Demo Owner in Demo Owner"; the settings entry for numbers and senders now says "SMS & email". A real bug showed up in the browser run, not in unit tests: the bottom navigation evaluated its second route match only when the first did not match, which changed the hook count and blanked the page when opening a conversation (React error 300); it is covered by `AppNav.test.tsx` and the team end-to-end spec.

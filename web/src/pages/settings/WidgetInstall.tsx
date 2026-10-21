@@ -209,7 +209,7 @@ export function WidgetInstall() {
   const list = tokens.data ?? [];
   const selected = list.find((t) => t.id === (picked ?? list[0]?.id)) ?? null;
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-7">
+    <div className="flex max-w-3xl flex-col gap-7">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">Install the chat widget</h2>
         <p className="mt-1 text-[13px] text-muted-foreground">Three steps: choose your website, add one line of code, and see it come alive.</p>
@@ -248,7 +248,7 @@ export function WidgetInstall() {
                             <span className="text-xs font-medium text-muted-foreground">{p.codeLabel}</span>
                             <CopyButton text={code} label="Copy code" />
                           </div>
-                          <pre className="overflow-x-auto bg-surface p-3 font-mono text-[12px] leading-relaxed" tabIndex={0} aria-label={`${p.label} code`}>
+                          <pre className="overflow-x-auto whitespace-pre-wrap break-all bg-surface p-3 font-mono text-[12px] leading-relaxed" tabIndex={0} aria-label={`${p.label} code`}>
                             <code data-testid="snippet">{code}</code>
                           </pre>
                         </div>

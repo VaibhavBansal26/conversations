@@ -1283,6 +1283,50 @@
         }
       }
     },
+    "/api/getting-started": {
+      "get": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "The new-workspace checklist (invite teammates, connect SMS, connect email, install the widget, create a template), each derived from real state on every call",
+        "operationId": "get_api_getting_started",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "settings:read",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.read",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "`{items: [{id, done, href}], done, total}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
     "/api/credits": {
       "get": {
         "tags": [
