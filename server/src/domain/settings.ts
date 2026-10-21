@@ -234,6 +234,33 @@ const WidgetShape = z.object({
 
 export const WidgetSettingsSchema = WidgetShape;
 
+const HHMM = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+/** AI agents answering SMS and email (docs/AI-AGENTS.md): each channel is off until a manager switches it on (and each agent must have the channel too) */
+export const AiChannelSettingsSchema = z.object({
+  sms: z
+    .object({
+      enabled: z.boolean().default(false),
+      /** AI replies per conversation per 24 hours; then a person takes over (loop protection) */
+      max_replies_per_day: z.number().int().min(1).max(50).default(5),
+      /** an AI SMS is at most this many segments (153 GSM characters or 67 others each) */
+      max_segments: z.number().int().min(1).max(10).default(3),
+      /** no AI texts at night in the contact's time zone (else the office-hours zone): the team gets the message instead */
+      quiet_hours: z.object({ enabled: z.boolean().default(true), start: HHMM.default("21:00"), end: HHMM.default("08:00") }).default(() => ({ enabled: true, start: "21:00", end: "08:00" })),
+    })
+    .default(() => ({ enabled: false, max_replies_per_day: 5, max_segments: 3, quiet_hours: { enabled: true, start: "21:00", end: "08:00" } })),
+  email: z
+    .object({
+      enabled: z.boolean().default(false),
+      max_replies_per_day: z.number().int().min(1).max(50).default(5),
+      /** characters of the answer (the disclosure and signature are added on top) */
+      max_chars: z.number().int().min(200).max(10000).default(2000),
+      /** an extra line under the AI's sign-off */
+      signature: z.string().trim().max(300).default(""),
+    })
+    .default(() => ({ enabled: false, max_replies_per_day: 5, max_chars: 2000, signature: "" })),
+});
+export type AiChannelSettings = z.infer<typeof AiChannelSettingsSchema>;
+
 export const WorkspaceSettingsSchema = z.object({
   default_region: z.string().length(2).toUpperCase().default("US"),
   edit_window_seconds: z.number().int().min(0).max(86400).default(900),
@@ -248,6 +275,7 @@ export const WorkspaceSettingsSchema = z.object({
   ai_tone: z.enum(["friendly", "professional", "concise", "empathetic"]).default("friendly"),
   /** push notifications to team members' devices may include the first words of a customer message (off: they say only that there is one) */
   push_message_previews: z.boolean().default(false),
+  ai_channels: AiChannelSettingsSchema.default(() => AiChannelSettingsSchema.parse({})),
   tickets: TicketSettingsSchema.default(() => TicketSettingsSchema.parse({})),
   routing: RoutingSettingsSchema.default(() => RoutingSettingsSchema.parse({})),
   calls: CallSettingsSchema.default(() => CallSettingsSchema.parse({})),
@@ -279,6 +307,13 @@ export const WorkspaceSettingsPatchSchema = z.object({
   ai_redact_pii: z.boolean().optional(),
   ai_tone: WorkspaceSettingsSchema.shape.ai_tone.optional(),
   push_message_previews: z.boolean().optional(),
+  ai_channels: z
+    .object({
+      sms: z.object({ enabled: z.boolean(), max_replies_per_day: z.number().int().min(1).max(50), max_segments: z.number().int().min(1).max(10), quiet_hours: z.object({ enabled: z.boolean(), start: HHMM, end: HHMM }).partial() }).partial(),
+      email: z.object({ enabled: z.boolean(), max_replies_per_day: z.number().int().min(1).max(50), max_chars: z.number().int().min(200).max(10000), signature: z.string().trim().max(300) }).partial(),
+    })
+    .partial()
+    .optional(),
   tickets: patchOf(TicketSettingsSchema).optional(),
   routing: patchOf(RoutingSettingsSchema).optional(),
   calls: CallsPatchSchema.optional(),
@@ -297,11 +332,15 @@ export function parseSettings(raw: string | null | undefined): WorkspaceSettings
 }
 
 export function mergeSettings(cur: WorkspaceSettings, patch: z.infer<typeof WorkspaceSettingsPatchSchema>): WorkspaceSettings {
-  const { widget, tickets, routing, calls, ...rest } = patch;
+  const { widget, tickets, routing, calls, ai_channels, ...rest } = patch;
   return WorkspaceSettingsSchema.parse({
     ...cur,
     ...rest,
     tickets: { ...cur.tickets, ...(tickets ?? {}) },
+    ai_channels: {
+      sms: { ...cur.ai_channels.sms, ...(ai_channels?.sms ?? {}), quiet_hours: { ...cur.ai_channels.sms.quiet_hours, ...(ai_channels?.sms?.quiet_hours ?? {}) } },
+      email: { ...cur.ai_channels.email, ...(ai_channels?.email ?? {}) },
+    },
     routing: { ...cur.routing, ...(routing ?? {}) },
     calls: { ...cur.calls, ...(calls ?? {}), browser: { ...cur.calls.browser, ...(calls?.browser ?? {}) }, ai: { ...cur.calls.ai, ...(calls?.ai ?? {}) }, internal: { ...cur.calls.internal, ...(calls?.internal ?? {}) }, links: { ...cur.calls.links, ...(calls?.links ?? {}) }, avatar: { ...cur.calls.avatar, ...(calls?.avatar ?? {}) }, phone: { ...cur.calls.phone, ...(calls?.phone ?? {}), quiet_hours: { ...cur.calls.phone.quiet_hours, ...(calls?.phone?.quiet_hours ?? {}) } } },
     widget: { ...cur.widget, ...(widget ?? {}) },

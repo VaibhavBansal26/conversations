@@ -521,7 +521,7 @@ export interface AiAgent {
   handoff_triggers: HandoffTriggers;
   waiting_behavior: "silent" | "gather_info";
   disclosure_label: string;
-  channels: "widget"[];
+  channels: ("widget" | "sms" | "email")[];
   enabled: boolean;
   created_at: string;
   updated_at: string;

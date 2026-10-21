@@ -27,9 +27,9 @@ describe("configuring agents", () => {
     expect(audit).toEqual(["ai_agent.created", "ai_agent.created", "ai_agent.updated", "ai_agent.deleted"]);
   });
 
-  it("refuses bad values, unknown departments, SMS and email channels (not built), a sixth agent, and strangers", async () => {
+  it("refuses bad values, unknown departments, unknown channels, a sixth agent, and strangers", async () => {
     const w = await agentWorld();
-    for (const bad of [{ name: "" }, { name: "x", tone: "rude" }, { name: "x", confidence_threshold: 1.5 }, { name: "x", max_turns: 0 }, { name: "x", channels: ["sms"] }, { name: "x", languages: ["not a code"] }, { name: "x", avatar_url: "javascript:alert(1)" }, { name: "x", allowed_actions: ["format_disk"] }]) {
+    for (const bad of [{ name: "" }, { name: "x", tone: "rude" }, { name: "x", confidence_threshold: 1.5 }, { name: "x", max_turns: 0 }, { name: "x", channels: ["fax"] }, { name: "x", languages: ["not a code"] }, { name: "x", avatar_url: "javascript:alert(1)" }, { name: "x", allowed_actions: ["format_disk"] }]) {
       expect((await w.http.post("/api/agents", bad, w.token)).status, JSON.stringify(bad)).toBe(400);
     }
     expect((await w.http.post("/api/agents", { name: "x", department_ids: ["inb_missing"] }, w.token)).body.error.code).toBe("UNKNOWN_DEPARTMENT");

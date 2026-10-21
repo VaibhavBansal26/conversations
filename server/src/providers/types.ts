@@ -34,6 +34,8 @@ export interface EmailSendInput {
   references?: string[];
   replyTo?: string;
   attachments?: { filename: string; contentType: string; content: Buffer }[];
+  /** extra headers, from an allow-list (Auto-Submitted, X-Auto-Response-Suppress, X-Conversations-Bot) */
+  extraHeaders?: Record<string, string>;
 }
 export interface EmailSendResult {
   providerMessageId: string;

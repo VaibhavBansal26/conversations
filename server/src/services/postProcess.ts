@@ -2,6 +2,7 @@ import type { AppContext } from "../context.js";
 import { nowIso } from "../context.js";
 import type { Actor } from "../domain/types.js";
 import { handleCustomerMessage } from "../agents/pipeline.js";
+import { handleChannelMessage } from "../agents/channelReply.js";
 import { maybeAutoRespond, triageMessage } from "../ai/service.js";
 import { textToHtml } from "../util/html.js";
 import { addSeconds } from "../util/time.js";
@@ -55,6 +56,8 @@ export async function onContactMessage(ctx: AppContext, room: RoomRow, message: 
   await ctx.background.run(async () => {
     // an AI support agent that works this conversation answers (or hands over) first; the team is told through the routing, not once per visitor message
     if ((await handleCustomerMessage(ctx, room, message)) === "handled") return;
+    // SMS and email: an agent that has the channel, in a workspace that switched it on, may answer by text or email
+    if ((message.source === "sms" || message.source === "email") && (await handleChannelMessage(ctx, room, message)) === "handled") return;
     await notifyContactMessage(ctx, await getRoomRow(ctx, room.workspace_id, room.id), message);
     await triageMessage(ctx, room, message);
     const bot = await maybeAutoRespond(ctx, room, message);

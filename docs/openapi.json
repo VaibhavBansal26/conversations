@@ -1067,6 +1067,67 @@
                       "push_message_previews": {
                         "type": "boolean"
                       },
+                      "ai_channels": {
+                        "type": "object",
+                        "properties": {
+                          "sms": {
+                            "type": "object",
+                            "properties": {
+                              "enabled": {
+                                "type": "boolean"
+                              },
+                              "max_replies_per_day": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 50
+                              },
+                              "max_segments": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 10
+                              },
+                              "quiet_hours": {
+                                "type": "object",
+                                "properties": {
+                                  "enabled": {
+                                    "type": "boolean"
+                                  },
+                                  "start": {
+                                    "type": "string",
+                                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                                  },
+                                  "end": {
+                                    "type": "string",
+                                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "email": {
+                            "type": "object",
+                            "properties": {
+                              "enabled": {
+                                "type": "boolean"
+                              },
+                              "max_replies_per_day": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 50
+                              },
+                              "max_chars": {
+                                "type": "integer",
+                                "minimum": 200,
+                                "maximum": 10000
+                              },
+                              "signature": {
+                                "type": "string",
+                                "maxLength": 300
+                              }
+                            }
+                          }
+                        }
+                      },
                       "tickets": {
                         "type": "object",
                         "properties": {
@@ -8617,12 +8678,14 @@
                       "widget"
                     ],
                     "minItems": 1,
-                    "maxItems": 1,
+                    "maxItems": 3,
                     "type": "array",
                     "items": {
                       "type": "string",
                       "enum": [
-                        "widget"
+                        "widget",
+                        "sms",
+                        "email"
                       ]
                     }
                   },
@@ -9377,12 +9440,14 @@
                   },
                   "channels": {
                     "minItems": 1,
-                    "maxItems": 1,
+                    "maxItems": 3,
                     "type": "array",
                     "items": {
                       "type": "string",
                       "enum": [
-                        "widget"
+                        "widget",
+                        "sms",
+                        "email"
                       ]
                     }
                   },

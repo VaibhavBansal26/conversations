@@ -123,6 +123,8 @@ export async function deliverMessage(ctx: AppContext, messageId: string, opts: {
         references: refs.length ? refs : undefined,
         replyTo: inbound?.address,
         attachments: await attachmentBuffers(ctx, parseJson<Attachment[]>(msg.attachments, [])),
+        // an AI agent's email says it is automatic (RFC 3834), so other auto-responders do not answer it: no mail loops
+        ...(msg.sender_type === "bot" ? { extraHeaders: { "Auto-Submitted": "auto-replied", "X-Auto-Response-Suppress": "All", "X-Conversations-Bot": "1" } } : {}),
       });
       if (simulated) await mark(ctx, msg, "not_sent_test_mode", { reason: TEST_MODE_REASON.email });
       else await mark(ctx, msg, "sent", { providerId: r.providerMessageId });

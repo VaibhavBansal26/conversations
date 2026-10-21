@@ -1,4 +1,5 @@
 import { getByRef } from "./messageRefs.js";
+import { autoEmailReason, autoSmsReason } from "../agents/channelText.js";
 import type { AppContext } from "../context.js";
 import { nowIso } from "../context.js";
 
@@ -67,6 +68,8 @@ export async function handleInboundSms(ctx: AppContext, p: InboundSms, scope?: I
   }
   if (!body) return { status: "ignored", room_id: room.id };
 
+  // an automatic text (a short code, a notice) is kept for the team, but an AI agent never answers it
+  const autoSms = keyword ? null : autoSmsReason(p.From, body);
   const r = await insertMessage(ctx, {
     workspaceId: ws,
     roomId: room.id,
@@ -80,7 +83,7 @@ export async function handleInboundSms(ctx: AppContext, p: InboundSms, scope?: I
     providerMessageId: p.MessageSid,
     fromAddr: from,
     toAddr: p.To,
-    meta: keyword ? { keyword } : {},
+    meta: keyword ? { keyword } : autoSms ? { auto: autoSms } : {},
   });
   await emitInserted(ctx, r);
   if (keyword) {
@@ -221,6 +224,11 @@ export async function handleInboundEmail(ctx: AppContext, p: InboundEmail, scope
     referencesHdr: refs.join(" ") || null,
     fromAddr: sender.address,
     toAddr: p.to,
+    // out-of-office, bounces, mailing lists, no-reply senders and other bots: kept for the team, never answered by an AI agent (loop protection)
+    meta: (() => {
+      const auto = autoEmailReason(headers, sender.address, p.subject);
+      return auto ? { auto } : {};
+    })(),
   });
   await emitInserted(ctx, r);
   await onContactMessage(ctx, r.room, r.message);

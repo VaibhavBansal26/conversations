@@ -37,6 +37,7 @@ export class SendGridEmailProvider implements EmailProvider {
     const headers: Record<string, string> = { "Message-ID": input.messageId };
     if (input.inReplyTo) headers["In-Reply-To"] = input.inReplyTo;
     if (input.references?.length) headers["References"] = input.references.join(" ");
+    for (const [k, v] of Object.entries(input.extraHeaders ?? {})) if (/^(Auto-Submitted|X-Auto-Response-Suppress|X-Conversations-Bot)$/.test(k)) headers[k] = String(v).slice(0, 200);
     const payload = {
       personalizations: [{ to: [{ email: input.to }] }],
       from: { email: input.from.address, ...(input.from.name ? { name: input.from.name } : {}) },

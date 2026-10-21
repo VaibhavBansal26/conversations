@@ -16,7 +16,7 @@ import { BUNDLED_AVATAR_PATH } from "./presets.js";
 export const AGENT_ACTIONS = ["collect_info", "route", "resolve", "quick_replies", "request_human", "schedule_callback", "offer_call", "ai_call", "share_call_link"] as const;
 export type AgentAction = (typeof AGENT_ACTIONS)[number];
 /** Chat (the widget and the hosted page). SMS and email replies would go through the delivery pipeline and its credits: not built in v1. */
-export const AGENT_CHANNELS = ["widget"] as const;
+export const AGENT_CHANNELS = ["widget", "sms", "email"] as const;
 export type AgentChannel = (typeof AGENT_CHANNELS)[number];
 export const AUTONOMY = ["suggest_only", "auto_answer", "auto_resolve"] as const;
 
@@ -57,7 +57,7 @@ export const AgentBodySchema = z.object({
   handoff_triggers: HandoffTriggersSchema.default(() => HandoffTriggersSchema.parse({})),
   waiting_behavior: z.enum(["silent", "gather_info"]).default("gather_info"),
   disclosure_label: z.string().trim().min(2).max(40).default("AI assistant"),
-  channels: z.array(z.enum(AGENT_CHANNELS)).min(1).max(1).default(["widget"]),
+  channels: z.array(z.enum(AGENT_CHANNELS)).min(1).max(3).default(["widget"]),
   enabled: z.boolean().default(false),
 });
 /** A patch names only what changes: `.partial()` of the body would fill every field it leaves out with its default (and reset persona, hours, picture...). */

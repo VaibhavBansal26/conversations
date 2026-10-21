@@ -1,5 +1,9 @@
 import { Bot, FlaskConical, MessageSquareWarning, Pencil, Plus, ThumbsDown, ThumbsUp, Trash2 } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { api } from "../../api/client";
+import type { Session, Workspace } from "../../api/types";
+import { keys } from "../../state/keys";
 import { Link } from "react-router";
 import { useAgentMutations, useAgents, useAgentTurns, useSandbox, useUnanswered, type AgentDraft, type TurnFilters } from "../../api/agentHooks";
 import { useDepartments } from "../../api/departmentHooks";
@@ -255,6 +259,20 @@ function AgentEditor({ agent, preset, onClose }: { agent: AiAgent | null; preset
 
         <fieldset className="flex flex-col gap-2 rounded-lg border border-border p-4">
           <legend className="px-1 text-[13px] font-semibold">Where it works</legend>
+          <div className="flex flex-col" role="group" aria-label="Channels">
+            {([["widget", "Chat (widget, hosted chat, apps)"], ["sms", "SMS"], ["email", "Email"]] as const).map(([id, label]) => (
+              <Switch
+                key={id}
+                label={label}
+                hint={id === "widget" ? undefined : `Answers ${id === "sms" ? "texts" : "emails"} in plain text through your own provider, only when SMS and email answers are switched on for the workspace (below the agent list).`}
+                checked={d.channels.includes(id)}
+                onChange={(on) => {
+                  const next = toggle(d.channels, id, on);
+                  if (next.length) set("channels", next);
+                }}
+              />
+            ))}
+          </div>
           <p className="text-xs text-subtle">The agent answers conversations in these departments. None selected means all of them.</p>
           {(depts.data ?? []).map((x) => (
             <Switch key={x.id} label={x.name} checked={d.department_ids.includes(x.id)} onChange={(on) => set("department_ids", toggle(d.department_ids, x.id, on))} />
@@ -419,6 +437,101 @@ function Agents() {
   );
 }
 
+interface AiChannels {
+  sms: { enabled: boolean; max_replies_per_day: number; max_segments: number; quiet_hours: { enabled: boolean; start: string; end: string } };
+  email: { enabled: boolean; max_replies_per_day: number; max_chars: number; signature: string };
+}
+const AI_CHANNELS: AiChannels = { sms: { enabled: false, max_replies_per_day: 5, max_segments: 3, quiet_hours: { enabled: true, start: "21:00", end: "08:00" } }, email: { enabled: false, max_replies_per_day: 5, max_chars: 2000, signature: "" } };
+
+/** The workspace's switches for AI answers by SMS and email (each agent must also have the channel). */
+export function AiChannelSettings() {
+  const ws = useQuery({ queryKey: ["workspace", "ai-channels"], queryFn: () => api.get<Workspace>("/workspace") });
+  if (!ws.data) return ws.isError ? null : <Skeleton className="h-24" />;
+  return <AiChannelForm workspace={ws.data} />;
+}
+function AiChannelForm({ workspace }: { workspace: Workspace }) {
+  const qc = useQueryClient();
+  const saved = (workspace.settings as { ai_channels?: Partial<AiChannels> } | undefined)?.ai_channels;
+  const cur: AiChannels = { sms: { ...AI_CHANNELS.sms, ...(saved?.sms ?? {}), quiet_hours: { ...AI_CHANNELS.sms.quiet_hours, ...(saved?.sms?.quiet_hours ?? {}) } }, email: { ...AI_CHANNELS.email, ...(saved?.email ?? {}) } };
+  const [v, setV] = useState<AiChannels>(cur);
+  const save = useMutation({
+    mutationFn: (ai_channels: AiChannels) => api.patch<Workspace>("/workspace", { settings: { ai_channels } }),
+    onSuccess: (w) => {
+      qc.setQueryData<Session>(keys.me, (s) => (s ? { ...s, workspace: w } : s));
+      qc.setQueryData(["workspace", "ai-channels"], w);
+      toast({ title: "Saved", tone: "success" });
+    },
+  });
+  const dirty = JSON.stringify(v) !== JSON.stringify(cur);
+  const sms = (p: Partial<AiChannels["sms"]>) => setV({ ...v, sms: { ...v.sms, ...p } });
+  const email = (p: Partial<AiChannels["email"]>) => setV({ ...v, email: { ...v.email, ...p } });
+  return (
+    <SettingsSection title="SMS and email answers" description="AI agents can answer texts and emails too: the same knowledge base, safety rules, hand-over and budget as the chat, in plain text through your own Twilio and SendGrid. Off until you switch a channel on here AND give an agent that channel.">
+      <form
+        className="flex max-w-xl flex-col gap-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          save.mutate(v);
+        }}
+      >
+        <fieldset className="flex flex-col gap-3 rounded-lg border border-border p-4">
+          <legend className="px-1 text-[13px] font-semibold">SMS</legend>
+          <Switch label="AI agents answer texts" hint="The first reply starts with the agent's name and the AI label and says to reply HUMAN for a person. Buttons become 'Reply 1 for ...'. Never sent to contacts who texted STOP, to short codes or automated texts." checked={v.sms.enabled} onChange={(enabled) => sms({ enabled })} />
+          {v.sms.enabled && (
+            <>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="AI replies per conversation per day" hint="Then a person takes over: no endless loops with an automated sender.">
+                  <Input type="number" min={1} max={50} value={v.sms.max_replies_per_day} onChange={(e) => sms({ max_replies_per_day: Number(e.target.value) })} />
+                </Field>
+                <Field label="Longest text (segments)" hint="One segment is 160 plain characters (70 with emoji or accents outside the SMS alphabet); each costs a credit at most providers.">
+                  <Input type="number" min={1} max={10} value={v.sms.max_segments} onChange={(e) => sms({ max_segments: Number(e.target.value) })} />
+                </Field>
+              </div>
+              <Switch label="No AI texts at night" hint="In the contact's time zone, else your office-hours zone. The message goes to your team instead." checked={v.sms.quiet_hours.enabled} onChange={(enabled) => sms({ quiet_hours: { ...v.sms.quiet_hours, enabled } })} />
+              {v.sms.quiet_hours.enabled && (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Night starts">
+                    <Input type="time" value={v.sms.quiet_hours.start} onChange={(e) => sms({ quiet_hours: { ...v.sms.quiet_hours, start: e.target.value } })} />
+                  </Field>
+                  <Field label="Night ends">
+                    <Input type="time" value={v.sms.quiet_hours.end} onChange={(e) => sms({ quiet_hours: { ...v.sms.quiet_hours, end: e.target.value } })} />
+                  </Field>
+                </div>
+              )}
+            </>
+          )}
+        </fieldset>
+        <fieldset className="flex flex-col gap-3 rounded-lg border border-border p-4">
+          <legend className="px-1 text-[13px] font-semibold">Email</legend>
+          <Switch label="AI agents answer emails" hint="Replies stay in the customer's thread. The first says it is from an AI; every reply ends with the agent's sign-off. Never sent to out-of-office replies, bounces, mailing lists, no-reply senders or other bots, or to contacts who unsubscribed." checked={v.email.enabled} onChange={(enabled) => email({ enabled })} />
+          {v.email.enabled && (
+            <>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="AI replies per conversation per day">
+                  <Input type="number" min={1} max={50} value={v.email.max_replies_per_day} onChange={(e) => email({ max_replies_per_day: Number(e.target.value) })} />
+                </Field>
+                <Field label="Longest answer (characters)">
+                  <Input type="number" min={200} max={10000} value={v.email.max_chars} onChange={(e) => email({ max_chars: Number(e.target.value) })} />
+                </Field>
+              </div>
+              <Field label="Extra signature line" hint="Added under the AI's sign-off, for example your opening hours.">
+                <Input value={v.email.signature} maxLength={300} onChange={(e) => email({ signature: e.target.value })} />
+              </Field>
+            </>
+          )}
+        </fieldset>
+        <p className="text-xs text-subtle">Replies go through your connected providers and cost credits like any other message. Without a connected provider (test mode) they are stored as "not sent".</p>
+        {save.isError && <ErrorNotice error={save.error} />}
+        <div className="flex gap-2">
+          <Button type="submit" disabled={!dirty} loading={save.isPending}>
+            Save
+          </Button>
+        </div>
+      </form>
+    </SettingsSection>
+  );
+}
+
 function Turn({ t }: { t: AgentTurn }) {
   return (
     <li className="flex flex-col gap-1.5 py-3 first:pt-0 last:pb-0">
@@ -538,7 +651,12 @@ export function AiAgentsSettings() {
           <TabsTrigger value="unanswered">Unanswered</TabsTrigger>
         </TabsList>
       </Tabs>
-      {tab === "agents" && <Agents />}
+      {tab === "agents" && (
+        <>
+          <Agents />
+          <AiChannelSettings />
+        </>
+      )}
       {tab === "review" && <Review />}
       {tab === "unanswered" && <Unanswered />}
     </>

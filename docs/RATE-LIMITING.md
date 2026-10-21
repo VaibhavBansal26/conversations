@@ -127,6 +127,7 @@ Generated from `policies.ts` and `routePolicies.ts` (`npm run docs:ratelimit`; `
 | `ai.concurrency` | workspace | concurrency | 4 concurrent | - | fail-open | Concurrent AI calls per workspace (5 entry points) |
 | `calls.ai.visitor` | composite | window | 6 per 1 h | - | fail-closed | Calls with the AI assistant a visitor may start per hour (spend guard; the workspace's daily limit is a setting) (socket aicall:start) |
 | `calls.ai.say` | composite | gcra | 20 per 1 min, burst 8 | - | fail-open | Things a visitor says to the AI assistant in a call, per visitor (20 a minute, bursts of 8): each one is a model turn (socket aicall:say, socket aicall:tool) |
+| `ai.channel.contact` | composite | window | 6 per 10 min | - | fail-closed | AI agent replies by SMS or email per contact and channel (6 in 10 minutes): a contact who floods does not get a flood back (socket server / delivery) |
 | `avatar.test` | workspace | window | 5 per 1 min | - | fail-closed | Photoreal avatar connection tests per workspace (5 a minute): each is a call to the provider (POST /api/calls/avatar/connection/test) |
 | `push.member` | composite | window | 30 per 10 min | - | fail-open | Push notifications per team member (30 in 10 minutes): a burst of messages does not become a burst of notifications (socket server / delivery) |
 | `push.test` | composite | window | 5 per 10 min | - | fail-closed | Test notifications a member may send to their own devices (5 in 10 minutes) (POST /api/push/subscriptions/:id/test) |

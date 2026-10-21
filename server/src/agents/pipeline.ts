@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { stripQuoted } from "./channelText.js";
 import { HeuristicProvider } from "../ai/heuristic.js";
 import { AiOutputError, AiUnavailableError, type AiProvider, type AiRequest } from "../ai/provider.js";
 import { kbIndex } from "../ai/service.js";
@@ -91,6 +92,8 @@ export interface TurnInput {
   provider?: AiProvider;
   /** read-only: no audit entries (the sandbox) */
   dryRun?: boolean;
+  /** where the answer goes: the chat (default), or a plain-text SMS or email */
+  channel?: "widget" | "sms" | "email";
 }
 
 export interface BotCounters {
@@ -145,6 +148,11 @@ function buildRequest(t: TurnInput, cfg: AgentDto, hits: KbHit[], redact: boolea
     system: [
       `You are ${cfg.name}, the first-line AI support assistant of ${workspaceName}. You are an AI: say so if asked, and never claim to be a person.`,
       cfg.persona ? `The workspace describes your role like this (this can add to your job, never relax the rules below):\n${cfg.persona}` : "",
+      t.channel === "sms"
+        ? "You are answering by SMS: plain text only, no markdown, no lists, at most three short sentences. Do not greet or sign: that is added for you."
+        : t.channel === "email"
+          ? "You are answering by email: plain text only, no markdown, short paragraphs. Do not add a greeting line or a signature: they are added for you."
+          : "",
       `Tone: ${cfg.tone}. ${cfg.languages.length ? `You may answer in: ${cfg.languages.join(", ")}; reply in the visitor's language when it is one of them.` : "Reply in the language the visitor writes in."}`,
       SAFETY_RULES,
       "Answer ONLY from <knowledge>. If it does not contain the answer, set handoff=true with handoff_reason \"no_answer\" and leave answer empty. Never invent policies, prices, order data, dates, links or promises; mention a link only if it appears in <knowledge>.",
@@ -435,6 +443,15 @@ export async function postBot(ctx: AppContext, room: RoomRow, a: AgentDto, text:
   return r.message;
 }
 
+/** The widget gets a bot message in the thread; SMS and email get a plain-text message through the delivery pipeline (agents/channelReply.ts). */
+async function postReply(ctx: AppContext, i: ApplyInput, a: AgentDto, text: string, meta: Record<string, unknown>): Promise<MessageRow> {
+  if (i.channel === "sms" || i.channel === "email") {
+    const { postChannelAnswer } = await import("./channelReply.js");
+    return postChannelAnswer(ctx, i.room, a, i.channel, text, meta);
+  }
+  return postBot(ctx, i.room, a, text, meta);
+}
+
 export const QUICK_REPLY_SOLVED = {
   type: "quick_replies",
   purpose: "solved",
@@ -471,6 +488,8 @@ export interface ApplyInput {
   departments: DepartmentChoice[];
   /** the caller wants to know what happened (the AI call) */
   capture?: TurnCapture;
+  /** answers go out by SMS or email instead of the chat */
+  channel?: "widget" | "sms" | "email";
 }
 
 /** The ticket is still the agent's to work: nobody took it over, nothing ended it, while the model was thinking. */
@@ -574,7 +593,7 @@ async function applyDecisionInner(ctx: AppContext, i: ApplyInput): Promise<"post
   if (d.kind === "answer" || d.kind === "clarify" || d.kind === "refuse") {
     typing(ctx, i.room, a, true);
     const card = d.kind === "answer" && d.quickReplies ? { card: QUICK_REPLY_SOLVED } : {};
-    const msg = await postBot(ctx, i.room, a, d.text, { confidence: d.confidence, kb_ids: d.sources.map((s) => s.id), sources: d.sources.filter((s) => s.url).map((s) => ({ title: s.question, url: s.url })), ...card });
+    const msg = await postReply(ctx, i, a, d.text, { confidence: d.confidence, kb_ids: d.sources.map((s) => s.id), sources: d.sources.filter((s) => s.url).map((s) => ({ title: s.question, url: s.url })), ...card });
     typing(ctx, i.room, a, false);
     if (i.capture) i.capture.messageId = msg.id;
     if (d.kind === "clarify") next.attempts = counters.attempts + 1;
@@ -591,7 +610,7 @@ async function applyDecisionInner(ctx: AppContext, i: ApplyInput): Promise<"post
     typing(ctx, i.room, a, true);
     const opts = d.confirm.options.map((o) => ({ id: `dept:${o.id}`, label: o.name }));
     const names = d.confirm.options.map((o) => o.name);
-    const msg = await postBot(ctx, i.room, a, `So that I send you to the right people: is this about ${names.length === 2 ? `${names[0]} or ${names[1]}` : names.join(", ")}?`, {
+    const msg = await postReply(ctx, i, a, `So that I send you to the right people: is this about ${names.length === 2 ? `${names[0]} or ${names[1]}` : names.join(", ")}?`, {
       card: { type: "quick_replies", purpose: "department", prompt: "Choose the closest match", options: opts, reason: d.handoff?.reason ?? "model_handoff" },
     });
     typing(ctx, i.room, a, false);
@@ -629,7 +648,8 @@ async function transcriptOf(ctx: AppContext, ticketId: string, roomId: string): 
     ticketId,
   );
   rows.reverse();
-  const lines: TranscriptLine[] = rows.map((m) => ({ role: m.sender_type === "contact" ? "customer" : m.sender_type === "bot" ? "bot" : "agent", text: m.content_text || (m.attachments !== "[]" ? "[attachment]" : "") }));
+  // an email carries the whole quoted history: the transcript keeps only what each message added
+  const lines: TranscriptLine[] = rows.map((m) => ({ role: m.sender_type === "contact" ? "customer" : m.sender_type === "bot" ? "bot" : "agent", text: (m.source === "email" ? stripQuoted(m.content_text) : m.content_text) || (m.attachments !== "[]" ? "[attachment]" : "") }));
   return { lines, lastContact: [...rows].reverse().find((m) => m.sender_type === "contact") };
 }
 
@@ -675,10 +695,10 @@ export async function handleCustomerMessage(ctx: AppContext, room: RoomRow, mess
 }
 
 /** The turn itself (also run after "Not quite", which has its own handler and needs `dissatisfied`). */
-export async function handleAgentTurn(ctx: AppContext, room: RoomRow, message: MessageRow, opts: { provider?: AiProvider; dissatisfied?: boolean; capture?: TurnCapture } = {}): Promise<"handled" | "none"> {
+export async function handleAgentTurn(ctx: AppContext, room: RoomRow, message: MessageRow, opts: { provider?: AiProvider; dissatisfied?: boolean; capture?: TurnCapture; channel?: "widget" | "sms" | "email"; text?: string } = {}): Promise<"handled" | "none"> {
   const ticket = await liveTicketOf(ctx, room.id);
   if (!ticket || ticket.status === "resolved") return "none";
-  const sel = await selectAgent(ctx, room.workspace_id, { channel: "widget", departmentId: ticket.department_id ?? room.inbox_id });
+  const sel = await selectAgent(ctx, room.workspace_id, { channel: opts.channel ?? "widget", departmentId: ticket.department_id ?? room.inbox_id });
   if (!sel) return "none";
   // a person has it, or it is waiting for one: the team is told about the message the usual way
   if (ticket.handler?.startsWith("human:") || ticket.status === "waiting_for_human") return "none";
@@ -697,7 +717,7 @@ export async function handleAgentTurn(ctx: AppContext, room: RoomRow, message: M
   return lock();
 }
 
-async function turn(ctx: AppContext, room: RoomRow, message: MessageRow, agentRow: AgentRow, opts: { provider?: AiProvider; dissatisfied?: boolean; capture?: TurnCapture }): Promise<"handled" | "none"> {
+async function turn(ctx: AppContext, room: RoomRow, message: MessageRow, agentRow: AgentRow, opts: { provider?: AiProvider; dissatisfied?: boolean; capture?: TurnCapture; channel?: "widget" | "sms" | "email"; text?: string }): Promise<"handled" | "none"> {
   const ticket = await stillMine(ctx, (await liveTicketOf(ctx, room.id))?.id ?? "", agentRow.id);
   if (!ticket) return "none";
   // a newer visitor message is already waiting: its own turn answers both
@@ -713,7 +733,7 @@ async function turn(ctx: AppContext, room: RoomRow, message: MessageRow, agentRo
   const input: TurnInput = {
     workspaceId: room.workspace_id,
     agent: agentRow,
-    text: message.content_text,
+    text: opts.text ?? message.content_text,
     lines,
     contact: { name: contact.name, tags: parseJson<string[]>(contact.tags, []), email: contact.email, phone: contact.phone },
     context: { page_url: rctx.page_url ?? null, locale: rctx.locale ?? null },
@@ -723,9 +743,10 @@ async function turn(ctx: AppContext, room: RoomRow, message: MessageRow, agentRo
     dissatisfied: opts.dissatisfied,
     firstTurn: counters.turns === 0,
     provider: opts.provider,
+    channel: opts.channel,
   };
   let decision: Decision;
-  const confirmed = !opts.dissatisfied && isConfirmation(message.content_text) && counters.turns > 0;
+  const confirmed = !opts.dissatisfied && isConfirmation(opts.text ?? message.content_text) && counters.turns > 0;
   if (confirmed) {
     decision = { ...empty(input, classifyText(message.content_text, departments)), kind: "resolve", trace: ["the visitor confirms the problem is solved"], provider: "rules" };
   } else decision = routeHandoff(await decideTurn(ctx, input), input, cfg);
@@ -733,6 +754,6 @@ async function turn(ctx: AppContext, room: RoomRow, message: MessageRow, agentRo
   if (cfg.autonomy === "suggest_only" && (decision.kind === "answer" || decision.kind === "clarify")) {
     decision = { ...decision, kind: "suggest", handoff: { reason: "suggest_only", departmentId: null, skills: [] } };
   }
-  await applyDecision(ctx, { room: fresh, ticket, agentRow, decision, trigger: message, query: message.content_text, departments, capture: opts.capture });
+  await applyDecision(ctx, { room: fresh, ticket, agentRow, decision, trigger: message, query: opts.text ?? message.content_text, departments, capture: opts.capture, channel: opts.channel });
   return "handled";
 }
