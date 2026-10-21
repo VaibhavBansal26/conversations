@@ -67,18 +67,19 @@ export const DEFAULT_AGENT: Partial<AgentDraft> & { name: string } = {
 function fromPreset(p: AgentPreset): Partial<AgentDraft> & { name: string } {
   return { name: p.name, tone: p.tone, persona: p.persona, greeting: p.greeting, avatar_url: p.avatar_url, avatar_alt: p.avatar_alt, disclosure_label: p.disclosure_label };
 }
-const OFFERED_KEY = "conversations.default-agent-offered";
-const offered = () => {
+// Remembered per workspace: a new workspace (or one whose data was reset) gets its default agent even in a browser that created one before.
+const offeredKey = (ws: string) => `conversations.default-agent-offered.${ws}`;
+const offered = (ws: string) => {
   try {
-    return localStorage.getItem(OFFERED_KEY) === "1";
+    return localStorage.getItem(offeredKey(ws)) === "1";
   } catch {
     return false;
   }
 };
-const markOffered = (on = true) => {
+const markOffered = (ws: string, on = true) => {
   try {
-    if (on) localStorage.setItem(OFFERED_KEY, "1");
-    else localStorage.removeItem(OFFERED_KEY);
+    if (on) localStorage.setItem(offeredKey(ws), "1");
+    else localStorage.removeItem(offeredKey(ws));
   } catch {
     /* private mode: the agent list itself still prevents a second one */
   }
@@ -332,13 +333,14 @@ function Agents() {
   const depts = useDepartments();
   const [createdDefault, setCreatedDefault] = useState(false);
   const tried = useRef(false);
-  // First visit with no agent at all: create the default one once (the browser remembers, so deleting it is final).
+  const ws = useQueryClient().getQueryData<Session>(keys.me)?.workspace?.id ?? "unknown";
+  // First visit with no agent at all: create the default one once per workspace (the browser remembers, so deleting it is final).
   useEffect(() => {
-    if (!agents.data || agents.data.length > 0 || tried.current || offered()) return;
+    if (!agents.data || agents.data.length > 0 || tried.current || offered(ws)) return;
     tried.current = true;
-    markOffered();
-    create.mutate(DEFAULT_AGENT, { onSuccess: () => setCreatedDefault(true), onError: () => markOffered(false) });
-  }, [agents.data, create]);
+    markOffered(ws);
+    create.mutate(DEFAULT_AGENT, { onSuccess: () => setCreatedDefault(true), onError: () => markOffered(ws, false) });
+  }, [agents.data, create, ws]);
   const [editing, setEditing] = useState<string | "new" | null>(null);
   const [preset, setPreset] = useState<AgentPreset | null>(null);
   const startNew = (p: AgentPreset | null) => (setPreset(p), setEditing("new"));

@@ -18,7 +18,13 @@ let agents: AiAgent[];
 const calls: { path: string; method: string; body?: string }[] = [];
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { "content-type": "application/json" } });
 
-function mount() {
+function withSession(workspaceId: string) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  qc.setQueryData(["me"], { user: { id: "u_1", name: "Owner", email: "o@example.test" }, member: {}, workspace: { id: workspaceId } });
+  return qc;
+}
+
+function mount(workspaceId = "ws_1") {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
@@ -37,7 +43,7 @@ function mount() {
     }),
   );
   return render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <QueryClientProvider client={withSession(workspaceId)}>
       <MemoryRouter>
         <AiAgentsSettings />
       </MemoryRouter>
@@ -63,6 +69,16 @@ describe("AiAgentsSettings", () => {
     mount();
     await screen.findByText("No AI agents yet");
     expect(calls.some((c) => c.method === "POST")).toBe(false);
+  });
+
+  it("creates the default agent again for a different workspace in the same browser (for example after a data reset)", async () => {
+    agents = [];
+    const first = mount("ws_old");
+    await waitFor(() => expect(calls.filter((c) => c.method === "POST")).toHaveLength(1));
+    first.unmount();
+    calls.length = 0;
+    mount("ws_new");
+    await waitFor(() => expect(calls.filter((c) => c.method === "POST" && c.path === "/api/agents")).toHaveLength(1));
   });
 
   it("does not create a default agent when one exists", async () => {
