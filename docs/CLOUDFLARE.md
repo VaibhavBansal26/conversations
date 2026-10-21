@@ -50,6 +50,7 @@ replace network-level protection.
 | `/widget.js` | Yes | Origin sends `Cache-Control: public, max-age=300, stale-while-revalidate=86400`, an `ETag`, `Vary: Accept-Encoding` and pre-compressed br/gzip bodies. Cloudflare honours these; a deploy is live everywhere within 5 minutes. |
 | `/assets/*` (web app) | Yes | Content-hashed filenames, `immutable`, one-year max-age. |
 | `/public/widget/config` | Edge only, 30 s | Origin sends `s-maxage=30` and `Vary: Origin, X-API-Key`. **Cloudflare ignores `Vary` for most headers on non-Enterprise plans**, so do not rely on a plain Cache Rule for this path: it could serve one customer's config to another origin. Use the Worker in `edge/`, which puts API key and Origin into the cache key. |
+| `/chat`, `/chat/bridge-test`, `/chat/assets/*` (hosted chat for mobile) | Assets only | The pages answer `Cache-Control: no-store` and their `Content-Security-Policy` differs per token, so never cache them or add a Cloudflare header-modifying rule that sets `X-Frame-Options` or a CSP. `/chat/assets/*` carry `max-age=300` like `widget.js` and can be cached. See [MOBILE-BRIDGE.md](MOBILE-BRIDGE.md). |
 | `/api/*`, `/public/*` (everything else), `/socket.io/*` | **No** | Per-user, per-session or realtime. A Cache Rule with "Bypass cache" for `/api/*`, `/public/*` and `/socket.io/*` makes this explicit. |
 | `/files/*` | No (or by signed URL only) | URLs are signed and expire; caching would outlive the signature. |
 
