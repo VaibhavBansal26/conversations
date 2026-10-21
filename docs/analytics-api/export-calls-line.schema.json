@@ -14,6 +14,8 @@
     "duration_s",
     "ended_by",
     "end_reason",
+    "engine",
+    "handoff_reason",
     "agent_key"
   ],
   "properties": {
@@ -36,13 +38,16 @@
     "transport": {
       "enum": [
         "webrtc",
-        "phone"
+        "phone",
+        "ai"
       ]
     },
     "kind": {
       "enum": [
         "voice",
-        "video"
+        "video",
+        "ai_voice",
+        "ai_video"
       ]
     },
     "state": {
@@ -69,6 +74,18 @@
       ]
     },
     "end_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "engine": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "handoff_reason": {
       "type": [
         "string",
         "null"

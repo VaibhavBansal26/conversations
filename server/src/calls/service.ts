@@ -91,7 +91,7 @@ export async function callSettings(ctx: AppContext, ws: string) {
 /* ---------- the card in the thread ---------- */
 
 const KIND_LABEL = { voice: "Voice call", video: "Video call", ai_voice: "AI voice call", ai_video: "AI video call (avatar)" } as const;
-const AI_END: Record<string, string> = { handoff: "handed to a person", taken_over: "a person took over", idle: "ended after silence", max_duration: "reached the time limit", resolved: "resolved", silence: "ended after silence", unsupported: "ended: speech is not available in this browser", error: "ended after an error" };
+const AI_END: Record<string, string> = { handoff: "handed to a person", taken_over: "a person took over", idle: "ended after silence", max_duration: "reached the time limit", resolved: "resolved", silence: "ended after silence", unsupported: "ended: speech is not available in this browser", error: "ended after an error", monitor: "ended by the safety monitor, handed to a person", kill_switch: "ended: realtime voice was switched off", budget: "ended: the realtime minutes for today are used up" };
 export function cardText(c: Pick<CallRow, "kind" | "state" | "duration_s" | "ended_by" | "end_reason"> & { transport?: "webrtc" | "phone" | "ai" }): string {
   const k = c.transport === "phone" ? "Phone call" : KIND_LABEL[c.kind];
   if (c.transport === "ai" && c.state !== "active") {

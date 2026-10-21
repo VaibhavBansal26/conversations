@@ -16,7 +16,15 @@ export function callRoutes(ctx: AppContext) {
     const ws = c.get("actor").workspaceId;
     const s = await callSettings(ctx, ws);
     const ice = s.browser.enabled ? await iceConfig(ctx, ws, s.turn_provider, "probe") : null;
-    return c.json({ browser: s.browser, ring_seconds: s.ring_seconds, turn_provider: s.turn_provider, warning: ice?.warning ?? null, phone: await phoneReadiness(ctx, ws) });
+    return c.json({
+      browser: s.browser,
+      ring_seconds: s.ring_seconds,
+      turn_provider: s.turn_provider,
+      warning: ice?.warning ?? null,
+      phone: await phoneReadiness(ctx, ws),
+      // what this installation can do for AI calls: the realtime engine needs a key and a model on the server and its instance switch on (the key itself is never reported)
+      ai: { engine: s.ai_engine, realtime_available: !!ctx.realtime && !!ctx.config.OPENAI_REALTIME_MODEL && ctx.config.AI_REALTIME_ENABLED, realtime_switched_off: !ctx.config.AI_REALTIME_ENABLED },
+    });
   });
   // the call settings have their own permission (a manager who is not allowed to touch them can still edit the rest of the workspace)
   r.patch("/calls/settings", async (c) => {

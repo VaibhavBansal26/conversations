@@ -149,3 +149,62 @@ describe("support analytics", () => {
     expect(Object.keys((await w.http.get("/api/v1/analytics/schema", undefined, w.auth)).body.schemas)).toEqual(expect.arrayContaining(["support", "export-tickets-line", "export-calls-line"]));
   });
 });
+
+describe("support analytics: calls with the AI assistant", () => {
+  async function withAiCalls() {
+    const w = await seeded();
+    const room = w.rooms.b.roomId;
+    const t = await ticketOf(w, room);
+    const now = w.ctx.clock().toISOString();
+    const ins = (o: { state: string; kind: string; engine: string; dur: number | null; reason: string | null; handoff?: string | null }) =>
+      w.ctx.db.run(
+        "INSERT INTO calls(id, workspace_id, room_id, ticket_id, contact_id, transport, kind, state, initiated_by, created_at, answered_at, ended_at, duration_s, end_reason, updated_at, ai_agent_id, engine, handoff_reason) VALUES (?,?,?,?,?,'ai',?,?,?,?,NULL,NULL,?,?,?,?,?,?)",
+        newId("call"), w.wsId, room, t.id, t.contact_id, o.kind, o.state, t.contact_id, now, o.dur, o.reason, now, "agt_demo", o.engine, o.handoff ?? null,
+      );
+    await ins({ state: "ended", kind: "ai_voice", engine: "browser", dur: 100, reason: "completed" });
+    await ins({ state: "ended", kind: "ai_voice", engine: "browser", dur: 80, reason: "handoff", handoff: "customer_requested_human" });
+    await ins({ state: "ended", kind: "ai_video", engine: "realtime", dur: 120, reason: "monitor", handoff: "unsafe_answer" });
+    await ins({ state: "ended", kind: "ai_voice", engine: "realtime", dur: 60, reason: "idle" });
+    return w;
+  }
+
+  it("the overview counts them (also in the calls totals), with hand-overs, reasons, engines, realtime minutes and an estimate only when a price is configured", async () => {
+    const w = await withAiCalls();
+    const r = await w.http.get(`/api/v1/analytics/support?${q}`, undefined, w.auth);
+    validate("support", r.body);
+    expect(r.body.calls).toMatchObject({ total: 7, by_transport: { webrtc: 2, phone: 1, ai: 4 }, by_kind: { voice: 2, video: 1, ai_voice: 3, ai_video: 1 } });
+    expect(r.body.ai_calls).toMatchObject({
+      total: 4, total_duration_s: 360, avg_duration_s: 90, handed_to_person: 2, handoff_rate: 0.5, by_engine: { browser: 2, realtime: 2 },
+      by_end_reason: { completed: 1, handoff: 1, monitor: 1, idle: 1 },
+      by_handoff_reason: [{ reason: "customer_requested_human", count: 1 }, { reason: "unsafe_answer", count: 1 }],
+      realtime: { calls: 2, minutes: 3, estimated_cost_usd: null },
+    });
+    (w.ctx.config as { AI_REALTIME_COST_PER_MINUTE_USD?: number }).AI_REALTIME_COST_PER_MINUTE_USD = 0.4;
+    const priced = await w.http.get(`/api/v1/analytics/support?${q}`, undefined, w.auth);
+    validate("support", priced.body);
+    expect(priced.body.ai_calls.realtime).toEqual({ calls: 2, minutes: 3, estimated_cost_usd: 1.2 });
+  });
+
+  it("an empty period has zeros and no estimate", async () => {
+    const w = await seeded();
+    const r = await w.http.get(`/api/v1/analytics/support?from=2020-01-01&to=2020-01-02`, undefined, w.auth);
+    validate("support", r.body);
+    expect(r.body.ai_calls).toMatchObject({ total: 0, avg_duration_s: null, handoff_rate: null, handed_to_person: 0, by_handoff_reason: [], realtime: { calls: 0, minutes: 0, estimated_cost_usd: null } });
+  });
+
+  it("the calls export carries the engine and the hand-over reason, keys the AI agent (not the visitor) and stays valid", async () => {
+    const w = await withAiCalls();
+    const r = await w.app.request(`/api/v1/analytics/export/calls?${q}`, { headers: w.auth });
+    const lines = nd(await r.text());
+    expect(lines).toHaveLength(7);
+    for (const l of lines) validate("export-calls-line", l);
+    const ai = lines.filter((l) => l.transport === "ai");
+    expect(ai.map((l) => l.kind).sort()).toEqual(["ai_video", "ai_voice", "ai_voice", "ai_voice"]);
+    expect(ai.map((l) => l.engine).sort()).toEqual(["browser", "browser", "realtime", "realtime"]);
+    expect(ai.find((l) => l.end_reason === "monitor")).toMatchObject({ handoff_reason: "unsafe_answer", engine: "realtime" });
+    expect(new Set(ai.map((l) => l.agent_key)).size).toBe(1); // one AI agent
+    expect(ai[0]!.agent_key).not.toBe(lines.find((l) => l.transport === "webrtc")!.agent_key);
+    expect(lines.filter((l) => l.transport !== "ai").every((l) => l.engine === null && l.handoff_reason === null)).toBe(true);
+    expect(JSON.stringify(lines)).not.toMatch(/agt_demo|cnt_/);
+  });
+});

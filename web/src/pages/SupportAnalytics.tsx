@@ -19,13 +19,14 @@ export interface SupportOverview {
   };
   by_department: { department_id: string | null; tickets: number; handoffs: number; resolved: number; csat_avg: number | null; sla_breaches: number }[];
   ai_agents: { agent_key: string; turns: number; answered: number; handoffs: number; resolved: number; refused: number; helpful: number; not_helpful: number }[];
-  calls: { total: number; answered: number; missed: number; declined: number; failed: number; total_duration_s: number; avg_duration_s: number | null; by_transport: { webrtc: number; phone: number }; by_kind: { voice: number; video: number } };
+  calls: { total: number; answered: number; missed: number; declined: number; failed: number; total_duration_s: number; avg_duration_s: number | null; by_transport: { webrtc: number; phone: number; ai: number }; by_kind: { voice: number; video: number; ai_voice: number; ai_video: number } };
+  ai_calls: { total: number; total_duration_s: number; avg_duration_s: number | null; handed_to_person: number; handoff_rate: number | null; by_engine: { browser: number; realtime: number }; by_end_reason: Record<string, number>; by_handoff_reason: { reason: string; count: number }[]; realtime: { calls: number; minutes: number; estimated_cost_usd: number | null } };
 }
 
 const REASON: Record<string, string> = {
   customer_requested_human: "Asked for a person", low_confidence: "AI not confident", no_answer: "No answer found", repeated_rephrase: "Rephrased repeatedly", negative_sentiment: "Upset customer", high_urgency: "Urgent",
   sensitive_topic: "Sensitive topic", vip_contact: "VIP contact", max_turns: "Turn limit", outside_hours: "AI outside hours", suspicious_input: "Suspicious input", unsafe_answer: "Answer blocked", suggest_only: "Suggest-only mode",
-  tool_failure: "Action failed", call_requested: "Asked for a call", transfer: "Transferred", sla_escalation: "Service level", agent_unavailable: "Person unavailable", unknown: "Not recorded",
+  tool_failure: "Action failed", taken_over: "A person took over", call_requested: "Asked for a call", transfer: "Transferred", sla_escalation: "Service level", agent_unavailable: "Person unavailable", unknown: "Not recorded",
 };
 const pct = (v: number | null) => (v === null ? "n/a" : `${Math.round(v * 100)}%`);
 const dur = (s: number | null) => (s === null ? "n/a" : s < 90 ? `${Math.round(s)} s` : s < 5400 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1)} h`);
@@ -47,7 +48,7 @@ export function SupportAnalytics({ range, days }: { range: () => { from: string;
   const name = (id: string | null) => (id === null ? "No department" : inboxes.find((i) => i.id === id)?.name ?? "A deleted department");
   if (q.isError) return <ErrorNotice error={q.error} onRetry={() => void q.refetch()} />;
   if (q.isPending) return <Skeleton className="h-40 rounded-lg" />;
-  const { tickets: t, calls: c } = q.data;
+  const { tickets: t, calls: c, ai_calls: ai } = q.data;
   const maxReason = Math.max(1, ...t.handoff_reasons.map((r) => r.count));
   return (
     <section aria-label="Support" className="flex flex-col gap-4">
@@ -145,11 +146,26 @@ export function SupportAnalytics({ range, days }: { range: () => { from: string;
       )}
 
       <div className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 lg:grid-cols-4">
-        <Tile label="Calls" value={String(c.total)} sub={`${c.by_transport.webrtc} in the browser, ${c.by_transport.phone} by phone`} />
+        <Tile label="Calls" value={String(c.total)} sub={`${c.by_transport.webrtc} in the browser, ${c.by_transport.phone} by phone${c.by_transport.ai ? `, ${c.by_transport.ai} with the AI` : ""}`} />
         <Tile label="Answered" value={String(c.answered)} sub={`${c.declined} declined, ${c.failed} failed`} />
         <Tile label="Missed" value={String(c.missed)} sub="nobody picked up" />
         <Tile label="Call length" value={dur(c.avg_duration_s)} sub={`${dur(c.total_duration_s)} in total`} />
       </div>
+
+      {ai.total > 0 && (
+        <div className="flex flex-col gap-3" role="group" aria-label="Calls with the AI assistant">
+          <h3 className="text-[13px] font-semibold">Calls with the AI assistant</h3>
+          <div className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 lg:grid-cols-4">
+            <Tile label="AI calls" value={String(ai.total)} sub={`${ai.by_engine.browser} with browser voice, ${ai.by_engine.realtime} with live voice`} />
+            <Tile label="AI call length" value={dur(ai.avg_duration_s)} sub={`${dur(ai.total_duration_s)} in total`} />
+            <Tile label="Handed to a person" value={pct(ai.handoff_rate)} sub={`${ai.handed_to_person} of ${ai.total} calls`} />
+            {ai.realtime.calls > 0 && <Tile label="Live voice minutes" value={String(ai.realtime.minutes)} sub={ai.realtime.estimated_cost_usd === null ? "no price set, so no estimate" : `about $${ai.realtime.estimated_cost_usd} (your estimate, not billing data)`} />}
+          </div>
+          {ai.by_handoff_reason.length > 0 && (
+            <p className="text-[13px] text-muted-foreground">Why AI calls went to a person: {ai.by_handoff_reason.map((r) => `${REASON[r.reason] ?? r.reason} (${r.count})`).join(", ")}</p>
+          )}
+        </div>
+      )}
     </section>
   );
 }

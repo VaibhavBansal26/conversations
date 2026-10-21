@@ -61,6 +61,9 @@
     aicall_video_note: "Video call with an AI avatar. The assistant cannot see you, and your camera is not sent anywhere.",
     aicall_avatar: "{name}, animated AI avatar",
     aicall_close: "Close",
+    aicall_realtime_note: "Live voice: the assistant's voice and your speech go to a voice service over an encrypted connection (not recorded by us).",
+    aicall_switched: "The live voice connection failed, so I switched to your browser's voice.",
+    aicall_monitor: "I'm connecting you with a person.",
   };
 
   /** CSS for the overlay (the widget injects it into its shadow root; the hosted chat links chat.css and adds this). Dark like the call screen. */
@@ -340,6 +343,8 @@
     var emit = o.emit || function () {};
     var engine = o.engine || browserEngine(win);
     var media = o.mediaDevices || (win && win.navigator && win.navigator.mediaDevices);
+    var rtcCtor = o.RTCPeerConnection || (win && win.RTCPeerConnection);
+    var fetchFn = o.fetch || (win && win.fetch && win.fetch.bind(win));
     var cfg = (o.config && o.config.ai) || { enabled: false };
     var timing = { promptMs: 20000, endMs: 45000, mergeMs: 700 };
     if (o.timing) for (var tk in o.timing) timing[tk] = o.timing[tk];
@@ -352,7 +357,7 @@
 
     var S = fresh();
     function fresh() {
-      return { call: null, ai: null, kind: "voice", lang: "en", phase: "idle", muted: false, ptt: false, held: false, seq: 0, inflight: false, buf: "", mergeTimer: null, promptTimer: null, endTimer: null, prompted: false, since: 0, clock: null, mic: null, meter: null, audioCtx: null, selfStream: null, pending: "", ended: null, speakingTimer: null, typedOnly: false, el: null };
+      return { call: null, ai: null, kind: "voice", lang: "en", phase: "idle", muted: false, ptt: false, held: false, seq: 0, inflight: false, buf: "", mergeTimer: null, promptTimer: null, endTimer: null, prompted: false, since: 0, clock: null, mic: null, meter: null, audioCtx: null, selfStream: null, pending: "", ended: null, speakingTimer: null, typedOnly: false, engineName: "browser", el: null };
     }
     var elRef = null;
 
@@ -415,10 +420,14 @@
     }
     function caption(who, text, interim) {
       var u = build();
-      if (interim) {
+      if (interim && who === "ai") {
+        if (!u.aiInterim) { u.aiInterim = h("p", { class: "cap interim ai" }, [h("b", { text: S.ai ? S.ai.agent.name : "" }), h("span")]); u.caps.appendChild(u.aiInterim); }
+        u.aiInterim.lastChild.textContent = text;
+      } else if (interim) {
         if (!u.interim) { u.interim = h("p", { class: "cap interim you" }, [h("b", { text: t("aicall_you") }), h("span")]); u.caps.appendChild(u.interim); }
         u.interim.lastChild.textContent = text;
       } else {
+        if (u.aiInterim && who === "ai") { u.aiInterim.parentNode && u.aiInterim.parentNode.removeChild(u.aiInterim); u.aiInterim = null; }
         if (u.interim && who === "you") { u.interim.parentNode && u.interim.parentNode.removeChild(u.interim); u.interim = null; }
         u.caps.appendChild(h("p", { class: "cap " + (who === "ai" ? "ai" : "you"), "data-who": who }, [h("b", { text: who === "ai" ? (S.ai ? S.ai.agent.name : "") : t("aicall_you") }), h("span", { text: text })]));
         if (u.interim) u.caps.appendChild(u.interim);
@@ -538,6 +547,7 @@
         S.prompted = true;
         var text = t("aicall_still_there");
         caption("ai", text);
+        if (S.engineName === "realtime") dcSend({ type: "response.create", response: { instructions: "Briefly ask the visitor whether they are still there." } });
         sayAloud(text, function () { state("listening"); });
       }, timing.promptMs);
       S.endTimer = setTimeout(function () {
@@ -552,6 +562,7 @@
     function heard() { S.prompted = false; armSilence(); }
 
     function startListening() {
+      if (S.engineName === "realtime") return;
       if (S.typedOnly || S.muted || S.phase === "ended" || S.phase === "waiting") return;
       if (S.ptt && !S.held) return;
       engine.listen(S.lang, {
@@ -582,7 +593,7 @@
       });
       if (S.phase === "starting" || S.phase === "idle") state("listening");
     }
-    function stopListening() { clearTimeout(S.mergeTimer); engine.stop(); }
+    function stopListening() { clearTimeout(S.mergeTimer); if (S.engineName !== "realtime") engine.stop(); }
     function flushBuffer() {
       clearTimeout(S.mergeTimer);
       var text = S.buf.trim();
@@ -597,6 +608,7 @@
       clearInterim();
       caption("you", text);
       heard();
+      if (S.engineName === "realtime") return rtTyped(text);
       // one request at a time: what is said meanwhile is merged and sent after the answer
       if (S.inflight) { S.pending = (S.pending ? S.pending + " " : "") + text; return; }
       S.inflight = true;
@@ -608,7 +620,7 @@
     }
     function line(kind, serverText) {
       // fixed lines the server sends are spoken in the visitor's language when this page knows it
-      var map = { resolved: "aicall_resolved", max_duration: "aicall_time_limit", idle: "aicall_silence_end", taken_over: "aicall_taken_over" };
+      var map = { resolved: "aicall_resolved", max_duration: "aicall_time_limit", budget: "aicall_time_limit", idle: "aicall_silence_end", taken_over: "aicall_taken_over", kill_switch: "aicall_ended" };
       return map[kind] ? t(map[kind]) : serverText;
     }
     function onAnswer(ack, body) {
@@ -639,6 +651,7 @@
       if (S.pending) { var p = S.pending; S.pending = ""; submitText(p, "voice"); }
     }
     function sayAloud(text, done) {
+      if (S.engineName === "realtime") { done(); return; }
       var sup = engine.supported();
       if (!text || !sup.tts || S.phase === "ended") { done(); return; }
       state("speaking");
@@ -652,7 +665,7 @@
       // a barge-in cancelled the voice: the phase moved on, nothing more to do
     }
     function finishFromServer(ended, text) {
-      if (ended.reason === "handoff") return waitForPerson(text, !!ended.human_call);
+      if (ended.reason === "handoff" || ended.reason === "monitor") return waitForPerson(text, !!ended.human_call);
       showEnded(text || t("aicall_ended"), ended.reason);
     }
 
@@ -676,6 +689,7 @@
     function waitForPerson(text, humanCall) {
       clearTimeout(S.promptTimer); clearTimeout(S.endTimer); clearInterval(S.clock);
       stopListening();
+      closeRt();
       state("waiting", humanCall ? "human_call" : "chat");
       var u = build();
       u.typeForm.hidden = true; u.level.hidden = true;
@@ -696,6 +710,7 @@
       var u = build();
       clearTimeout(S.promptTimer); clearTimeout(S.endTimer); clearTimeout(S.mergeTimer); clearInterval(S.clock); clearInterval(S.speakingTimer);
       stopListening(); engine.cancel();
+      closeRt();
       closeMic();
       state("ended", reason);
       u.typeForm.hidden = true; u.level.hidden = true;
@@ -706,6 +721,7 @@
     function teardown() {
       clearTimeout(S.promptTimer); clearTimeout(S.endTimer); clearTimeout(S.mergeTimer); clearTimeout(S.waitClose); clearInterval(S.clock); clearInterval(S.speakingTimer);
       try { engine.abort(); engine.cancel(); } catch (e) { /* ignore */ }
+      closeRt();
       closeMic();
       var el = elRef;
       S = fresh();
@@ -715,7 +731,7 @@
     /* ---------- controls ---------- */
     function toggleMute() {
       S.muted = !S.muted;
-      if (S.mic) S.mic.getAudioTracks().forEach(function (tr) { tr.enabled = !S.muted; });
+      if (S.mic) S.mic.getAudioTracks().forEach(function (tr) { tr.enabled = !S.muted && !(S.ptt && !S.held); });
       if (S.muted) stopListening(); else startListening();
       faceState(S.phase);
       renderStatus(); renderBar();
@@ -724,11 +740,13 @@
       S.ptt = !S.ptt;
       S.held = false;
       if (S.ptt) stopListening(); else startListening();
+      if (S.engineName === "realtime") rtMic(!S.ptt && !S.muted);
       renderStatus(); renderBar();
     }
     function pttDown() {
       if (!S.ptt || S.held || S.muted) return;
       S.held = true;
+      if (S.engineName === "realtime") rtMic(true);
       engine.cancel(); mouth(false);
       if (S.phase === "speaking") state("listening");
       startListening();
@@ -740,7 +758,160 @@
       S.held = false;
       renderStatus();
       // let the recognizer deliver its last words, then send what was said
-      setTimeout(function () { stopListening(); flushBuffer(); renderBar(); }, 450);
+      setTimeout(function () { stopListening(); flushBuffer(); if (S.engineName === "realtime" && S.ptt && !S.held) rtMic(false); renderBar(); }, 450);
+    }
+
+    /* ---------- the realtime engine: this browser talks to the voice service over WebRTC with a secret the server minted for this one call ---------- */
+    var RT = null;
+    function dcSend(obj) { if (RT && RT.dc && RT.dc.readyState === "open") { try { RT.dc.send(JSON.stringify(obj)); return true; } catch (e) { return false; } } return false; }
+    function rtMic(on) { if (S.mic) S.mic.getAudioTracks().forEach(function (tr) { tr.enabled = on; }); }
+    function closeRt() {
+      var rt = RT;
+      RT = null;
+      if (!rt) return;
+      rt.closing = true;
+      clearTimeout(rt.connectTimer); clearTimeout(rt.endTimer); clearTimeout(rt.dropTimer);
+      try { rt.dc && rt.dc.close(); } catch (e) { /* closed */ }
+      try { rt.pc && rt.pc.close(); } catch (e) { /* closed */ }
+      if (rt.audio) { try { rt.audio.srcObject = null; } catch (e) { /* ignore */ } if (rt.audio.parentNode) rt.audio.parentNode.removeChild(rt.audio); }
+      if (rt.ctx && rt.ctx.close) { try { rt.ctx.close(); } catch (e) { /* ignore */ } }
+    }
+    function rtFailed(reason) {
+      var rt = RT;
+      if (!rt || rt.closing || !S.call) return;
+      closeRt();
+      // the voice service could not be reached: carry on with this browser's own speech, the visitor does not start over
+      send("aicall:fallback", { call_id: S.call.id, reason: reason }).then(function (ack) {
+        if (!S.call || S.phase === "ended") return;
+        if (!ack || !ack.ok) return showEnded(t("aicall_error"), "error");
+        S.engineName = "browser";
+        S.ai.engine = "browser";
+        caption("ai", t("aicall_switched"));
+        if (engine.supported().stt && !S.typedOnly && !S.muted) startListening(); else S.typedOnly = true;
+        state("listening");
+        renderBar();
+        armSilence();
+      });
+    }
+    function startRealtime(info) {
+      if (!rtcCtor || !fetchFn) return rtFailed("no_webrtc");
+      var rt = RT = { pc: null, dc: null, audio: null, ctx: null, open: false, closing: false, firstAssistant: true, pendingEnd: null, ai: "", connectTimer: null, endTimer: null, dropTimer: null, tools: 0 };
+      S.engineName = "realtime";
+      var pc = new rtcCtor({});
+      rt.pc = pc;
+      rt.audio = doc.createElement("audio");
+      rt.audio.autoplay = true;
+      rt.audio.setAttribute("playsinline", "");
+      rt.audio.hidden = true;
+      elRef.root.appendChild(rt.audio);
+      pc.ontrack = function (e) {
+        var stream = (e.streams && e.streams[0]) || null;
+        if (!stream) return;
+        rt.audio.srcObject = stream;
+        var p = rt.audio.play && rt.audio.play();
+        if (p && p.catch) p.catch(function () { /* the visitor's tap on the call screen starts sound where the browser needs one */ });
+        // the face moves with the real level of the assistant's voice
+        try {
+          var Ctx = win.AudioContext || win.webkitAudioContext;
+          if (Ctx && face) {
+            rt.ctx = new Ctx();
+            var an = rt.ctx.createAnalyser();
+            an.fftSize = 256;
+            rt.ctx.createMediaStreamSource(stream).connect(an);
+            face.attachAnalyser(an);
+          }
+        } catch (err) { /* the voice is audible without a level meter */ }
+      };
+      if (S.mic && S.mic.getAudioTracks().length) S.mic.getAudioTracks().forEach(function (tr) { pc.addTrack(tr, S.mic); });
+      else if (pc.addTransceiver) pc.addTransceiver("audio", { direction: "recvonly" });
+      var dc = pc.createDataChannel("oai-events");
+      rt.dc = dc;
+      dc.onopen = function () { rt.open = true; clearTimeout(rt.connectTimer); state("thinking"); dcSend({ type: "response.create" }); armSilence(); };
+      dc.onmessage = function (m) { var ev; try { ev = JSON.parse(m.data); } catch (e) { return; } onRtEvent(ev); };
+      pc.onconnectionstatechange = function () {
+        var st = pc.connectionState;
+        if (st === "failed") rtFailed("ice_failed");
+        else if (st === "disconnected") { clearTimeout(rt.dropTimer); rt.dropTimer = setTimeout(function () { if (RT === rt && pc.connectionState !== "connected") rtFailed("disconnected"); }, 10000); }
+        else if (st === "connected") clearTimeout(rt.dropTimer);
+      };
+      rt.connectTimer = setTimeout(function () { if (!rt.open) rtFailed("connect_timeout"); }, 12000);
+      Promise.resolve(pc.createOffer())
+        .then(function (offer) { return Promise.resolve(pc.setLocalDescription(offer)).then(function () { return offer; }); })
+        .then(function (offer) { return fetchFn(info.url, { method: "POST", headers: { Authorization: "Bearer " + info.client_secret, "Content-Type": "application/sdp" }, body: offer.sdp }); })
+        .then(function (res) { if (!res.ok) throw new Error("provider " + res.status); return res.text(); })
+        .then(function (sdp) { return pc.setRemoteDescription({ type: "answer", sdp: sdp }); })
+        .catch(function () { rtFailed("connect_failed"); });
+    }
+    function rtServer(event, payload) { return send(event, payload, 15000); }
+    function rtEnded(ended, immediate) {
+      var rt = RT;
+      if (!S.call || S.phase === "ended") return;
+      if (immediate || !rt) { closeRt(); S.ended = ended; return finishFromServer(ended, ended.reason === "monitor" || ended.reason === "handoff" ? (ended.human_call ? t("aicall_waiting_person") : t("aicall_waiting_chat")) : line(ended.reason, t("aicall_ended"))); }
+      // the model may say goodbye first (a hand-over, a resolution); a short fuse makes sure the call still closes
+      rt.pendingEnd = ended;
+      rt.endTimer = setTimeout(function () { if (RT === rt && rt.pendingEnd) rtEnded(ended, true); }, 8000);
+    }
+    function rtTranscript(role, text, itemId, extra) {
+      if (!S.call || !text) return;
+      rtServer("aicall:transcript", Object.assign({ call_id: S.call.id, role: role, text: text.slice(0, 4000), item_id: String(itemId || ("t" + Date.now())) }, extra || {})).then(function (ack) {
+        if (ack && ack.ok && ack.ended) rtEnded(ack.ended, ack.ended.reason === "monitor" || ack.ended.reason === "kill_switch" || ack.ended.reason === "taken_over");
+        else if (ack && !ack.ok && ack.error && ack.error.code === "CALL_STATE") { if (S.phase !== "ended" && S.phase !== "waiting") { closeRt(); showEnded(t("aicall_ended"), "ended"); } }
+      });
+    }
+    function rtTyped(text) {
+      caption("you", text);
+      heard();
+      state("thinking");
+      dcSend({ type: "conversation.item.create", item: { type: "message", role: "user", content: [{ type: "input_text", text: text }] } });
+      dcSend({ type: "response.create" });
+      rtTranscript("user", text, "typed-" + (++S.seq), { via: "typed" });
+    }
+    function rtTools(items) {
+      var rt = RT;
+      if (!rt) return;
+      var left = items.length;
+      var done = function () { if (--left > 0) return; if (RT === rt) dcSend({ type: "response.create" }); };
+      items.forEach(function (it) {
+        rtServer("aicall:tool", { call_id: S.call.id, name: String(it.name || "").slice(0, 40), arguments: String(it.arguments || "{}").slice(0, 4000) }).then(function (ack) {
+          var out = ack && ack.ok ? ack.output || "{}" : JSON.stringify({ error: (ack && ack.error && ack.error.message) || "The action failed" });
+          if (ack && ack.ok && ack.ended && (ack.ended.reason === "monitor" || ack.ended.reason === "kill_switch" || ack.ended.reason === "taken_over")) return rtEnded(ack.ended, true);
+          dcSend({ type: "conversation.item.create", item: { type: "function_call_output", call_id: it.call_id, output: out } });
+          if (ack && ack.ok && ack.ended) rtEnded(ack.ended, false);
+          done();
+        });
+      });
+    }
+    function onRtEvent(ev) {
+      var rt = RT;
+      if (!rt || !S.call || S.phase === "ended" || S.phase === "waiting") return;
+      switch (ev.type) {
+        case "input_audio_buffer.speech_started": state("listening"); heard(); break;
+        case "input_audio_buffer.speech_stopped": state("thinking"); break;
+        case "response.created": if (S.phase !== "speaking") state("thinking"); break;
+        case "output_audio_buffer.started": state("speaking"); break;
+        case "response.output_audio_transcript.delta": state("speaking"); rt.ai += ev.delta || ""; caption("ai", rt.ai, true); break;
+        case "response.output_audio_transcript.done": {
+          var text = (ev.transcript || rt.ai || "").trim();
+          rt.ai = "";
+          if (text) { caption("ai", text); rtTranscript("assistant", text, ev.item_id, rt.firstAssistant ? { greeting: true } : {}); }
+          rt.firstAssistant = false;
+          break;
+        }
+        case "conversation.item.input_audio_transcription.completed": {
+          var said = (ev.transcript || "").trim();
+          if (said) { caption("you", said); heard(); rtTranscript("user", said, ev.item_id); }
+          break;
+        }
+        case "response.done": {
+          var calls = ((ev.response && ev.response.output) || []).filter(function (x) { return x && x.type === "function_call"; });
+          if (calls.length) { rtTools(calls); break; }
+          if (rt.pendingEnd) { var pe = rt.pendingEnd; rt.pendingEnd = null; return rtEnded(pe, true); }
+          state("listening");
+          armSilence();
+          break;
+        }
+        default: break;
+      }
     }
 
     /* ---------- starting ---------- */
@@ -748,7 +919,8 @@
       kind = kind === "video" ? "video" : "voice";
       if (S.call) return Promise.resolve({ ok: false, error: { code: "CALL_IN_PROGRESS" } });
       var sup = engine.supported();
-      if (!sup.stt) {
+      var canRealtime = !!(cfg.realtime && rtcCtor && fetchFn && media && media.getUserMedia);
+      if (!sup.stt && !canRealtime) {
         emit("ai_call_unsupported", { room_id: o.getRoomId && o.getRoomId(), reason: "no_speech_recognition" });
         if (o.onFallback) o.onFallback("unsupported");
         return Promise.resolve({ ok: false, error: { code: "UNSUPPORTED" } });
@@ -763,7 +935,7 @@
       u.root.setAttribute("data-phase", "starting");
       var locale = (win && win.navigator && (win.navigator.language || (win.navigator.languages || [])[0])) || "en";
       return openMic().then(function (mic) {
-        return send("aicall:start", { room_id: o.getRoomId(), kind: kind, locale: locale, speech: { stt: sup.stt, tts: sup.tts } }, 20000).then(function (ack) {
+        return send("aicall:start", { room_id: o.getRoomId(), kind: kind, locale: locale, speech: { stt: sup.stt, tts: sup.tts, webrtc: !!(rtcCtor && fetchFn) } }, 20000).then(function (ack) {
           if (!ack.ok) {
             var code = ack.error && ack.error.code;
             closeMic();
@@ -780,6 +952,22 @@
           if (mic === "denied") caption("ai", t("aicall_mic_blocked"));
           if (kind === "video") { var nt = h("div", { class: "ai-note", text: t("aicall_video_note") }); u.root.insertBefore(nt, u.status); S.videoNote = nt; }
           caption("ai", ack.ai.greeting);
+          S.engineName = ack.ai.engine === "realtime" && ack.ai.realtime ? "realtime" : "browser";
+          if (S.engineName === "realtime") {
+            var rn = h("div", { class: "ai-note", text: t("aicall_realtime_note") });
+            u.root.insertBefore(rn, u.status);
+            state("thinking");
+            startRealtime(ack.ai.realtime);
+            return ack;
+          }
+          // a browser without speech recognition cannot use the browser engine: the text chat is the way to talk to the assistant
+          if (!sup.stt) {
+            send("aicall:end", { call_id: S.call.id, reason: "unsupported" });
+            teardown();
+            emit("ai_call_unsupported", { room_id: o.getRoomId && o.getRoomId(), reason: "no_speech_recognition" });
+            if (o.onFallback) o.onFallback("unsupported");
+            return ack;
+          }
           state("listening");
           // the greeting is spoken; listening starts at once so the visitor can interrupt it
           sayAloud(ack.ai.greeting, function () { state("listening"); armSilence(); });
@@ -808,8 +996,9 @@
       S.call = Object.assign({}, S.call, call);
       if (call.state === "ended" && S.phase !== "ended" && S.phase !== "waiting") {
         var why = call.end_reason;
-        if (why === "handoff") return waitForPerson(t("aicall_waiting_chat"), false);
-        showEnded(why === "max_duration" ? t("aicall_time_limit") : why === "idle" ? t("aicall_silence_end") : why === "taken_over" ? t("aicall_taken_over") : t("aicall_ended"), why);
+        if (why === "handoff" || why === "monitor") { closeRt(); return waitForPerson(t("aicall_waiting_chat"), false); }
+        closeRt();
+        showEnded(why === "max_duration" || why === "budget" ? t("aicall_time_limit") : why === "idle" ? t("aicall_silence_end") : why === "taken_over" ? t("aicall_taken_over") : t("aicall_ended"), why);
       } else if (call.state === "failed" && S.phase !== "ended") showEnded(t("aicall_error"), "error");
     }
     function onSocketConnected() {

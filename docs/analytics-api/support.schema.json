@@ -9,7 +9,8 @@
     "tickets",
     "by_department",
     "ai_agents",
-    "calls"
+    "calls",
+    "ai_calls"
   ],
   "properties": {
     "from": {
@@ -287,13 +288,17 @@
           "type": "object",
           "required": [
             "webrtc",
-            "phone"
+            "phone",
+            "ai"
           ],
           "properties": {
             "webrtc": {
               "type": "integer"
             },
             "phone": {
+              "type": "integer"
+            },
+            "ai": {
               "type": "integer"
             }
           }
@@ -302,7 +307,9 @@
           "type": "object",
           "required": [
             "voice",
-            "video"
+            "video",
+            "ai_voice",
+            "ai_video"
           ],
           "properties": {
             "voice": {
@@ -310,6 +317,111 @@
             },
             "video": {
               "type": "integer"
+            },
+            "ai_voice": {
+              "type": "integer"
+            },
+            "ai_video": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    },
+    "ai_calls": {
+      "type": "object",
+      "description": "Calls with the AI assistant (they are also counted in `calls`). `realtime.estimated_cost_usd` is minutes times the operator's own AI_REALTIME_COST_PER_MINUTE_USD, null when that is not set: it is an estimate, not billing data.",
+      "required": [
+        "total",
+        "total_duration_s",
+        "avg_duration_s",
+        "handed_to_person",
+        "handoff_rate",
+        "by_engine",
+        "by_end_reason",
+        "by_handoff_reason",
+        "realtime"
+      ],
+      "properties": {
+        "total": {
+          "type": "integer"
+        },
+        "total_duration_s": {
+          "type": "integer"
+        },
+        "avg_duration_s": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "handed_to_person": {
+          "type": "integer"
+        },
+        "handoff_rate": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "by_engine": {
+          "type": "object",
+          "required": [
+            "browser",
+            "realtime"
+          ],
+          "properties": {
+            "browser": {
+              "type": "integer"
+            },
+            "realtime": {
+              "type": "integer"
+            }
+          }
+        },
+        "by_end_reason": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "by_handoff_reason": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "reason",
+              "count"
+            ],
+            "properties": {
+              "reason": {
+                "type": "string"
+              },
+              "count": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "realtime": {
+          "type": "object",
+          "required": [
+            "calls",
+            "minutes",
+            "estimated_cost_usd"
+          ],
+          "properties": {
+            "calls": {
+              "type": "integer"
+            },
+            "minutes": {
+              "type": "number"
+            },
+            "estimated_cost_usd": {
+              "type": [
+                "number",
+                "null"
+              ]
             }
           }
         }

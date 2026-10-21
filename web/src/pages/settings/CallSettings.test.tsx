@@ -8,6 +8,7 @@ let allowed = new Set(["calls:settings"]);
 let settings: unknown = undefined;
 vi.mock("../../auth/AuthContext", () => ({ useCan: (p: string) => allowed.has(p), useSession: () => ({ workspace: { settings: { calls: settings } } }) }));
 const calls: { method: string; path: string; body?: string }[] = [];
+let aiConfig: unknown = { engine: "browser", realtime_available: false, realtime_switched_off: false };
 
 function mount(warning: string | null = null) {
   vi.stubGlobal(
@@ -15,7 +16,7 @@ function mount(warning: string | null = null) {
     vi.fn(async (url: string, init?: RequestInit) => {
       const path = new URL(url, "http://x").pathname;
       calls.push({ method: init?.method ?? "GET", path, body: init?.body as string | undefined });
-      const body = path === "/api/calls/config" ? { browser: { enabled: true, voice: true, video: true, screen_share: true }, ring_seconds: 45, turn_provider: "none", warning } : {};
+      const body = path === "/api/calls/config" ? { browser: { enabled: true, voice: true, video: true, screen_share: true }, ring_seconds: 45, turn_provider: "none", warning, ai: aiConfig } : {};
       return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
     }),
   );
@@ -70,5 +71,45 @@ describe("CallSettings", () => {
     expect(screen.getByText(/needs the call settings permission/)).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Browser calls" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull();
+  });
+
+  it("calls with the AI: off by default, the browser's voice is the default engine, and one patch saves the limits", async () => {
+    mount();
+    expect(screen.getByRole("switch", { name: /Let visitors talk to the AI assistant/ })).not.toBeChecked();
+    expect(screen.queryByLabelText("Calls at the same time")).toBeNull();
+    await userEvent.click(screen.getByRole("switch", { name: /Let visitors talk to the AI assistant/ }));
+    expect(screen.getByText(/The visitor's browser does the speech: free/)).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Video call with an AI avatar" })).toBeChecked();
+    expect(screen.getByText(/cannot see the visitor/)).toBeInTheDocument();
+    await userEvent.clear(screen.getByLabelText("Calls at the same time"));
+    await userEvent.type(screen.getByLabelText("Calls at the same time"), "2");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(calls.some((c) => c.method === "PATCH")).toBe(true));
+    const body = JSON.parse(calls.find((c) => c.method === "PATCH")!.body!);
+    expect(body.ai).toMatchObject({ enabled: true, voice: true, video: true, max_duration_s: 600, idle_timeout_s: 120, max_concurrent: 2, daily_limit: 100 });
+    expect(body.ai_engine).toBe("browser");
+  });
+
+  it("live voice: choosing it shows its honest description and budgets, and warns when this installation cannot do it", async () => {
+    settings = { ai: { enabled: true }, ai_engine: "realtime" };
+    mount();
+    expect(await screen.findByText(/model speaks before our checks can read what it said/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Live voice minutes per day")).toBeInTheDocument();
+    expect(screen.getByLabelText("Live voice calls at the same time")).toBeInTheDocument();
+    expect(await screen.findByText(/no OpenAI key or realtime model configured/)).toBeInTheDocument();
+  });
+
+  it("no warning when live voice is available, and a different one when the instance switch is off", async () => {
+    settings = { ai: { enabled: true }, ai_engine: "realtime" };
+    aiConfig = { engine: "realtime", realtime_available: true, realtime_switched_off: false };
+    const first = mount();
+    await screen.findByLabelText("Live voice minutes per day");
+    await waitFor(() => expect(calls.some((c) => c.path === "/api/calls/config")).toBe(true));
+    expect(screen.queryByText(/no OpenAI key/)).toBeNull();
+    first.unmount();
+    aiConfig = { engine: "realtime", realtime_available: false, realtime_switched_off: true };
+    mount();
+    expect(await screen.findByText(/switched off for this whole installation/)).toBeInTheDocument();
+    aiConfig = { engine: "browser", realtime_available: false, realtime_switched_off: false };
   });
 });

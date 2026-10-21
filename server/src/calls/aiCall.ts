@@ -15,6 +15,7 @@ import { liveTicketOf, recordTicketEvent, type TicketRow } from "../services/tic
 import { getVisitorRoom, visitorSend } from "../services/visitorChat.js";
 import type { SessionRow } from "../services/visitors.js";
 import { IllegalTransition } from "./machine.js";
+import { negotiateRealtime, sweepRealtime, type FallbackReason, type RealtimeAck } from "./realtimeCall.js";
 import { browserSpeech, speakable, speechLanguage } from "./speech.js";
 import { callDto, callSettings, postCardFor, publish, requestCall, stepCall, visitorCallDto, RECONNECT_GRACE_S, type CallRow } from "./service.js";
 import { getSettings } from "../services/workspaces.js";
@@ -31,7 +32,7 @@ import { getSettings } from "../services/workspaces.js";
 
 export type AiKind = "voice" | "video";
 const kindOf = (k: AiKind) => (k === "video" ? "ai_video" : "ai_voice");
-export type AiEndReason = "completed" | "silence" | "unsupported" | "error" | "handoff" | "taken_over" | "idle" | "max_duration" | "resolved" | "disconnected";
+export type AiEndReason = "completed" | "silence" | "unsupported" | "error" | "handoff" | "taken_over" | "idle" | "max_duration" | "resolved" | "disconnected" | "monitor" | "kill_switch" | "budget";
 
 /** Fixed lines the visitor's browser says when the server ends or moves the call: plain text here, translated by the page where it can. */
 export const AI_LINES = {
@@ -51,6 +52,8 @@ export interface AiCallAvailability {
   enabled: boolean;
   voice: boolean;
   video: boolean;
+  /** the realtime engine is chosen for this workspace and set up on this installation (a call can still fall back to the browser engine) */
+  realtime: boolean;
   engine: "browser";
   agent: { name: string; label: string; avatar_url: string | null; languages: string[] } | null;
   max_duration_s: number;
@@ -73,6 +76,7 @@ export async function aiCallAvailability(ctx: AppContext, ws: string, department
     enabled: s.enabled && !!agent,
     voice: s.enabled && s.voice && !!agent,
     video: s.enabled && s.video && !!agent,
+    realtime: s.enabled && !!agent && (await callSettings(ctx, ws)).ai_engine === "realtime" && !!ctx.realtime && !!ctx.config.OPENAI_REALTIME_MODEL && ctx.config.AI_REALTIME_ENABLED,
     engine: "browser",
     agent: cfg ? { name: cfg.name, label: cfg.disclosure_label, avatar_url: cfg.avatar_url, languages: cfg.languages } : null,
     max_duration_s: s.max_duration_s,
@@ -82,7 +86,7 @@ export async function aiCallAvailability(ctx: AppContext, ws: string, department
 
 /* ---------- helpers ---------- */
 
-async function getAiCall(ctx: AppContext, session: SessionRow, callId: string): Promise<CallRow> {
+export async function visitorOwnedAiCall(ctx: AppContext, session: SessionRow, callId: string): Promise<CallRow> {
   const c = await ctx.db.get<CallRow>("SELECT * FROM calls WHERE id = ?", callId);
   // 404 for another visitor's call and for a call that is not an AI call: nothing is revealed
   if (!c || c.workspace_id !== session.workspace_id || c.contact_id !== session.contact_id || c.transport !== "ai") throw notFound("Call");
@@ -92,7 +96,7 @@ async function getAiCall(ctx: AppContext, session: SessionRow, callId: string): 
 const isStateConflict = (e: unknown) => e instanceof IllegalTransition || (e instanceof AppError && (e.code === "CALL_STATE_CHANGED" || e.code === "CALL_STATE"));
 
 /** End a live AI call; a call somebody else already ended is not an error (the visitor tapping end while the sweep ends it). */
-async function finish(ctx: AppContext, c: CallRow, o: { by: "visitor" | "system"; reason: AiEndReason; handoff?: string }): Promise<CallRow> {
+export async function finishAi(ctx: AppContext, c: CallRow, o: { by: "visitor" | "system"; reason: AiEndReason; handoff?: string }): Promise<CallRow> {
   const fresh = (await ctx.db.get<CallRow>("SELECT * FROM calls WHERE id = ?", c.id)) ?? c;
   try {
     return await stepCall(ctx, fresh, "end", { ended_by: o.by, end_reason: o.reason, handoff_reason: o.handoff });
@@ -113,7 +117,7 @@ export interface AiStartInput {
   room_id: string;
   kind: AiKind;
   locale?: string;
-  speech?: { stt: boolean; tts: boolean };
+  speech?: { stt: boolean; tts: boolean; webrtc?: boolean };
 }
 
 export async function startAiCall(ctx: AppContext, session: SessionRow, socketId: string, input: AiStartInput) {
@@ -185,14 +189,21 @@ export async function startAiCall(ctx: AppContext, session: SessionRow, socketId
   const disclosure = `Hi, I'm ${agent.name} (${agent.disclosure_label}), not a person. This call is not recorded.`;
   const greeting = `${disclosure} ${agent.greeting || "How can I help you today?"}`;
   await postBot(ctx, roomRow, agent, greeting, { call_id: callId, via: "voice", kind: "greeting" });
+  // the realtime engine, when the workspace chose it and it can be used right now; otherwise (and whenever anything about it fails) the browser engine
+  const neg = await negotiateRealtime(ctx, { call: row, agent, session, webrtc: !!input.speech?.webrtc, opening: greeting });
+  row = (await ctx.db.get<CallRow>("SELECT * FROM calls WHERE id = ?", callId))!;
   await publish(ctx, row);
+  const realtime: RealtimeAck | null = neg.engine === "realtime" ? neg.realtime : null;
+  const fallback: FallbackReason | null = neg.engine === "browser" ? neg.fallback : null;
   return {
     call: visitorCallDto(row, agent.name),
     ai: {
-      agent: { name: agent.name, label: agent.disclosure_label, avatar_url: agent.avatar_url },
+      agent: { name: agent.name, label: agent.disclosure_label, avatar_url: agent.avatar_url, avatar_alt: agent.avatar_alt },
       greeting,
       disclosure,
-      engine: browserSpeech.name,
+      engine: neg.engine,
+      fallback_reason: fallback,
+      realtime,
       speech_lang: lang,
       max_duration_s: s.max_duration_s,
       idle_timeout_s: s.idle_timeout_s,
@@ -221,14 +232,16 @@ export interface AiReply {
 
 /** What the visitor said, answered by the same pipeline as a typed message. Idempotent per `seq` (a retry after a lost ack returns the first answer). */
 export async function aiSay(ctx: AppContext, session: SessionRow, input: AiSayInput, opts: { provider?: AiProvider } = {}): Promise<{ reply: AiReply; call: ReturnType<typeof visitorCallDto> }> {
-  let c = await getAiCall(ctx, session, input.call_id);
+  let c = await visitorOwnedAiCall(ctx, session, input.call_id);
   const agentName = parseJson<{ agent_name?: string }>(c.meta, {}).agent_name ?? "AI assistant";
   const out = (reply: AiReply, row: CallRow = c) => ({ reply, call: visitorCallDto(row, agentName) });
   if (c.state !== "active") throw new AppError(409, "CALL_STATE", `The call is ${c.state}`, { state: c.state });
+  // with the realtime engine the words go over the provider connection; the browser forwards transcripts and tool calls instead
+  if (c.engine === "realtime") throw new AppError(409, "WRONG_ENGINE", "This call uses the realtime engine");
   const s = (await callSettings(ctx, c.workspace_id)).ai;
   const nowMs = ctx.clock().getTime();
   if (c.answered_at && nowMs - Date.parse(c.answered_at) >= s.max_duration_s * 1000) {
-    c = await finish(ctx, c, { by: "system", reason: "max_duration" });
+    c = await finishAi(ctx, c, { by: "system", reason: "max_duration" });
     return out({ kind: "max_duration", text: AI_LINES.max_duration, speech: AI_LINES.max_duration, message_id: null, ended: { reason: "max_duration" } }, c);
   }
   const text = input.text.replace(/\s+/g, " ").trim();
@@ -240,7 +253,7 @@ export async function aiSay(ctx: AppContext, session: SessionRow, input: AiSayIn
   const room = await getVisitorRoom(ctx, session, c.room_id);
   const ticket = await liveTicketOf(ctx, room.id);
   if (!ticket || ticket.handler?.startsWith("human:") || ticket.status === "waiting_for_human") {
-    c = await finish(ctx, c, { by: "system", reason: "taken_over", handoff: "taken_over" });
+    c = await finishAi(ctx, c, { by: "system", reason: "taken_over", handoff: "taken_over" });
     return out({ kind: "taken_over", text: AI_LINES.taken_over, speech: AI_LINES.taken_over, message_id: null, ended: { reason: "taken_over", handoff_reason: "taken_over" } }, c);
   }
 
@@ -262,7 +275,7 @@ export async function aiSay(ctx: AppContext, session: SessionRow, input: AiSayIn
   const res = await handleAgentTurn(ctx, fresh, sent.message, { provider: opts.provider, capture });
   const outcome = capture.outcome;
   if (res === "none" || !outcome || outcome === "aborted") {
-    c = await finish(ctx, c, { by: "system", reason: "taken_over", handoff: "taken_over" });
+    c = await finishAi(ctx, c, { by: "system", reason: "taken_over", handoff: "taken_over" });
     return out({ kind: "taken_over", text: AI_LINES.taken_over, speech: AI_LINES.taken_over, message_id: null, ended: { reason: "taken_over", handoff_reason: "taken_over" } }, c);
   }
   if (outcome === "posted") {
@@ -273,12 +286,12 @@ export async function aiSay(ctx: AppContext, session: SessionRow, input: AiSayIn
     return out({ kind: capture.decision?.kind ?? "answer", text: t, speech: speakable(t), message_id: capture.messageId ?? null, ended: null });
   }
   if (outcome === "resolved") {
-    c = await finish(ctx, c, { by: "system", reason: "resolved" });
+    c = await finishAi(ctx, c, { by: "system", reason: "resolved" });
     return out({ kind: "resolved", text: AI_LINES.resolved, speech: AI_LINES.resolved, message_id: null, ended: { reason: "resolved" } }, c);
   }
   // handoff
   const reason = capture.decision?.handoff?.reason ?? "model_handoff";
-  c = await finish(ctx, c, { by: "system", reason: "handoff", handoff: reason });
+  c = await finishAi(ctx, c, { by: "system", reason: "handoff", handoff: reason });
   const humanCall = await offerHumanCall(ctx, session, room.id, c);
   const line = humanCall ? AI_LINES.handoff_call : AI_LINES.handoff;
   return out({ kind: "handoff", text: line, speech: line, message_id: null, ended: { reason: "handoff", handoff_reason: reason, human_call: humanCall } }, c);
@@ -291,7 +304,7 @@ async function tagMessage(ctx: AppContext, roomId: string, messageId: string, ca
 }
 
 /** After a hand-over, a person may ring the visitor in the same window: leave the usual call request for the team when browser calls are on. */
-async function offerHumanCall(ctx: AppContext, session: SessionRow, roomId: string, c: CallRow): Promise<boolean> {
+export async function offerHumanCall(ctx: AppContext, session: SessionRow, roomId: string, c: CallRow): Promise<boolean> {
   const s = await callSettings(ctx, c.workspace_id);
   const kind = c.kind === "ai_video" ? "video" : "voice";
   if (!s.browser.enabled || !s.browser[kind]) return false;
@@ -307,17 +320,17 @@ async function offerHumanCall(ctx: AppContext, session: SessionRow, roomId: stri
 /* ---------- end, hand-over ---------- */
 
 export async function endAiCall(ctx: AppContext, session: SessionRow, callId: string, reason: "completed" | "silence" | "unsupported" | "error" = "completed") {
-  const c = await getAiCall(ctx, session, callId);
+  const c = await visitorOwnedAiCall(ctx, session, callId);
   if (c.state !== "active") throw new AppError(409, "CALL_STATE", `The call is ${c.state}`, { state: c.state });
-  const row = await finish(ctx, c, { by: "visitor", reason });
+  const row = await finishAi(ctx, c, { by: "visitor", reason });
   return { call: visitorCallDto(row, parseJson<{ agent_name?: string }>(row.meta, {}).agent_name ?? "AI assistant") };
 }
 
 /** "Talk to a person" during the call: the call ends, the ticket goes through the usual hand-off, and the visitor stays on the line for a person to ring. */
 export async function handoffAiCall(ctx: AppContext, session: SessionRow, callId: string) {
-  const c = await getAiCall(ctx, session, callId);
+  const c = await visitorOwnedAiCall(ctx, session, callId);
   if (c.state !== "active") throw new AppError(409, "CALL_STATE", `The call is ${c.state}`, { state: c.state });
-  const row = await finish(ctx, c, { by: "visitor", reason: "handoff", handoff: "customer_requested_human" });
+  const row = await finishAi(ctx, c, { by: "visitor", reason: "handoff", handoff: "customer_requested_human" });
   const r = await visitorRequestHuman(ctx, session, c.room_id);
   const humanCall = await offerHumanCall(ctx, session, c.room_id, row);
   return { call: visitorCallDto(row, parseJson<{ agent_name?: string }>(row.meta, {}).agent_name ?? "AI assistant"), ticket: r.ticket, human_call: humanCall, text: humanCall ? AI_LINES.handoff_call : AI_LINES.handoff };
@@ -332,7 +345,9 @@ export async function sweepAi(ctx: AppContext, c: CallRow): Promise<boolean> {
   const now = ctx.clock().getTime();
   let reason: AiEndReason | null = null;
   if (c.answered_at && now - Date.parse(c.answered_at) >= s.max_duration_s * 1000) reason = "max_duration";
-  else if (now - Date.parse(c.updated_at) >= s.idle_timeout_s * 1000) reason = "idle";
+  else if ((reason = await sweepRealtime(ctx, c))) {
+    /* the kill switch or the day's realtime minutes */
+  } else if (now - Date.parse(c.updated_at) >= s.idle_timeout_s * 1000) reason = "idle";
   else {
     const gone = parseJson<{ gone?: Record<string, string> }>(c.meta, {}).gone ?? {};
     const since = Object.values(gone).map((t) => Date.parse(t)).sort((a, b) => a - b)[0];
@@ -342,7 +357,7 @@ export async function sweepAi(ctx: AppContext, c: CallRow): Promise<boolean> {
     await ctx.ratelimit.renew("ai.concurrency", c.workspace_id, [c.id]);
     return false;
   }
-  await finish(ctx, c, { by: "system", reason });
+  await finishAi(ctx, c, { by: "system", reason });
   return true;
 }
 

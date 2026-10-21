@@ -1,3 +1,4 @@
+import { createRealtimeProvider, type RealtimeProvider } from "./calls/realtime.js";
 import { hostname } from "node:os";
 import { randomBytes } from "node:crypto";
 import { resolve } from "node:path";
@@ -39,6 +40,8 @@ export interface ContextOverrides {
   email?: EmailProvider;
   storage?: Storage;
   ai?: AiProvider;
+  /** the realtime speech engine (tests inject a fake; `null` forces it off); defaults to OpenAI when OPENAI_API_KEY and OPENAI_REALTIME_MODEL are set */
+  realtime?: RealtimeProvider | null;
   billing?: BillingProvider;
   monitor?: Monitor;
   clock?: () => Date;
@@ -79,6 +82,7 @@ export async function createContext(config: Config, o: ContextOverrides = {}): P
     providers: new ProviderRegistry(() => ctxRef),
     storage: o.storage ?? new LocalDiskStorage(resolve(config.DATA_DIR, "uploads"), config.PUBLIC_URL, config.JWT_SECRET, () => ctxRef.clock().getTime()),
     ai: o.ai ?? createAiProvider(config),
+    realtime: o.realtime === undefined ? createRealtimeProvider(config) : o.realtime,
     billing: o.billing ?? createBilling(config),
     ratelimit: undefined as never,
     eventBus: hub ? new RedisStreamsBus(hub) : new MemoryBus(),

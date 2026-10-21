@@ -295,8 +295,11 @@ export const AiCallStartBody = z.object({
   room_id: id,
   kind: CallKind,
   locale: z.string().trim().max(20).optional(),
-  speech: z.object({ stt: z.boolean(), tts: z.boolean() }).optional(),
+  speech: z.object({ stt: z.boolean(), tts: z.boolean(), webrtc: z.boolean().optional() }).optional(),
 });
 export const AiCallSayBody = z.object({ call_id: id, text: z.string().max(2000), seq: z.number().int().min(0).max(100000), via: z.enum(["voice", "typed"]).default("voice") });
+export const AiCallToolBody = z.object({ call_id: id, name: z.string().min(1).max(40), arguments: z.string().max(4000).default("{}") });
+export const AiCallTranscriptBody = z.object({ call_id: id, role: z.enum(["user", "assistant"]), text: z.string().max(4000), item_id: z.string().min(1).max(80), greeting: z.boolean().optional(), via: z.enum(["voice", "typed"]).default("voice") });
+export const AiCallFallbackBody = z.object({ call_id: id, reason: z.string().max(40).default("client_failed") });
 export const AiCallEndBody = z.object({ call_id: id, reason: z.enum(["completed", "silence", "unsupported", "error"]).default("completed") });
 export const CallSignalBody = z.object({ call_id: id, data: z.record(z.string(), z.unknown()) });

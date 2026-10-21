@@ -46,8 +46,21 @@ export interface SupportOverview {
     failed: number;
     total_duration_s: number;
     avg_duration_s: number | null;
-    by_transport: Record<"webrtc" | "phone", number>;
-    by_kind: Record<"voice" | "video", number>;
+    by_transport: Record<"webrtc" | "phone" | "ai", number>;
+    by_kind: Record<"voice" | "video" | "ai_voice" | "ai_video", number>;
+  };
+  /** calls with the AI assistant (also counted in `calls`) */
+  ai_calls: {
+    total: number;
+    total_duration_s: number;
+    avg_duration_s: number | null;
+    handed_to_person: number;
+    handoff_rate: number | null;
+    by_engine: { browser: number; realtime: number };
+    by_end_reason: Record<string, number>;
+    by_handoff_reason: { reason: string; count: number }[];
+    /** the realtime engine only: minutes used, and an estimate from AI_REALTIME_COST_PER_MINUTE_USD (null when that is not set: no price is assumed) */
+    realtime: { calls: number; minutes: number; estimated_cost_usd: number | null };
   };
 }
 
@@ -97,13 +110,13 @@ export async function supportOverview(ctx: AppContext, ws: string, r: RangeQuery
   }
   for (const v of votes) agent(v.agent_id)[v.rating === 1 ? "helpful" : "not_helpful"] += num(v.n);
   const calls = await db.all<{ state: string; transport: string; kind: string; n: number; dur: number | null }>("SELECT state, transport, kind, COUNT(*) AS n, SUM(duration_s) AS dur FROM calls WHERE workspace_id = ? AND created_at >= ? AND created_at < ? GROUP BY state, transport, kind", ...op);
-  const c = { total: 0, answered: 0, missed: 0, declined: 0, failed: 0, total_duration_s: 0, avg_duration_s: null as number | null, by_transport: { webrtc: 0, phone: 0 }, by_kind: { voice: 0, video: 0 } };
+  const c = { total: 0, answered: 0, missed: 0, declined: 0, failed: 0, total_duration_s: 0, avg_duration_s: null as number | null, by_transport: { webrtc: 0, phone: 0, ai: 0 }, by_kind: { voice: 0, video: 0, ai_voice: 0, ai_video: 0 } };
   let answeredWithDuration = 0;
   for (const x of calls) {
     const n = num(x.n);
     c.total += n;
-    c.by_transport[x.transport as "webrtc" | "phone"] += n;
-    c.by_kind[x.kind as "voice" | "video"] += n;
+    c.by_transport[x.transport as "webrtc" | "phone" | "ai"] += n;
+    c.by_kind[x.kind as "voice" | "video" | "ai_voice" | "ai_video"] += n;
     if (x.state === "missed") c.missed += n;
     else if (x.state === "declined") c.declined += n;
     else if (x.state === "failed") c.failed += n;
@@ -114,6 +127,23 @@ export async function supportOverview(ctx: AppContext, ws: string, r: RangeQuery
     }
   }
   c.avg_duration_s = answeredWithDuration ? Math.round(c.total_duration_s / answeredWithDuration) : null;
+  const aiRows = await db.all<{ engine: string | null; state: string; end_reason: string | null; handoff_reason: string | null; duration_s: number | null }>("SELECT engine, state, end_reason, handoff_reason, duration_s FROM calls WHERE workspace_id = ? AND transport = 'ai' AND created_at >= ? AND created_at < ?", ...op);
+  const ai: SupportOverview["ai_calls"] = { total: aiRows.length, total_duration_s: 0, avg_duration_s: null, handed_to_person: 0, handoff_rate: null, by_engine: { browser: 0, realtime: 0 }, by_end_reason: {}, by_handoff_reason: [], realtime: { calls: 0, minutes: 0, estimated_cost_usd: null } };
+  const handoffReasons = new Map<string, number>();
+  let realtimeSeconds = 0;
+  for (const x of aiRows) {
+    ai.total_duration_s += num(x.duration_s);
+    ai.by_engine[x.engine === "realtime" ? "realtime" : "browser"]++;
+    if (x.end_reason) ai.by_end_reason[x.end_reason] = (ai.by_end_reason[x.end_reason] ?? 0) + 1;
+    if (x.handoff_reason) (ai.handed_to_person++, handoffReasons.set(x.handoff_reason, (handoffReasons.get(x.handoff_reason) ?? 0) + 1));
+    if (x.engine === "realtime") (ai.realtime.calls++, (realtimeSeconds += num(x.duration_s)));
+  }
+  ai.avg_duration_s = ai.total ? Math.round(ai.total_duration_s / ai.total) : null;
+  ai.handoff_rate = ai.total ? round(ai.handed_to_person / ai.total, 4) : null;
+  ai.by_handoff_reason = [...handoffReasons].map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason));
+  ai.realtime.minutes = round(realtimeSeconds / 60, 2) ?? 0;
+  const perMinute = ctx.config.AI_REALTIME_COST_PER_MINUTE_USD;
+  ai.realtime.estimated_cost_usd = perMinute === undefined ? null : round(ai.realtime.minutes * perMinute, 2);
   return {
     from,
     to,
@@ -133,6 +163,7 @@ export async function supportOverview(ctx: AppContext, ws: string, r: RangeQuery
     by_department: depts.map((d) => ({ department_id: d.department_id, tickets: num(d.n), handoffs: num(d.h), resolved: num(d.res), csat_avg: round(d.csat), sla_breaches: num(d.sla) })),
     ai_agents: [...agents.values()].sort((a, b) => b.turns - a.turns),
     calls: c,
+    ai_calls: ai,
   };
 }
 
@@ -251,12 +282,16 @@ export interface CallExportLine {
   room_id: string;
   ticket_id: string | null;
   ts: string;
-  transport: "webrtc" | "phone";
-  kind: "voice" | "video";
+  transport: "webrtc" | "phone" | "ai";
+  kind: "voice" | "video" | "ai_voice" | "ai_video";
   state: string;
   duration_s: number | null;
   ended_by: string | null;
   end_reason: string | null;
+  /** AI calls: the speech engine ("browser" or "realtime") and why the call went to a person; null for other calls */
+  engine: string | null;
+  handoff_reason: string | null;
+  /** keyed hash of the team member who placed the call, or of the AI agent that took it */
   agent_key: string;
 }
 
@@ -264,8 +299,8 @@ export interface CallExportLine {
 export async function exportCalls(ctx: AppContext, ws: string, r: RangeQuery, o: { cursor?: string; limit: number }): Promise<Page<CallExportLine>> {
   const limit = Math.min(Math.max(o.limit, 1), EXPORT_MAX_LIMIT);
   const c = decodeCursor(o.cursor, 2);
-  const rows = await ctx.db.read().all<{ id: string; room_id: string; ticket_id: string | null; created_at: string; transport: "webrtc" | "phone"; kind: "voice" | "video"; state: string; duration_s: number | null; ended_by: string | null; end_reason: string | null; initiated_by: string }>(
-    `SELECT id, room_id, ticket_id, created_at, transport, kind, state, duration_s, ended_by, end_reason, initiated_by FROM calls
+  const rows = await ctx.db.read().all<{ id: string; room_id: string; ticket_id: string | null; created_at: string; transport: "webrtc" | "phone" | "ai"; kind: "voice" | "video" | "ai_voice" | "ai_video"; state: string; duration_s: number | null; ended_by: string | null; end_reason: string | null; initiated_by: string; ai_agent_id: string | null; engine: string | null; handoff_reason: string | null }>(
+    `SELECT id, room_id, ticket_id, created_at, transport, kind, state, duration_s, ended_by, end_reason, initiated_by, ai_agent_id, engine, handoff_reason FROM calls
      WHERE workspace_id = ? AND created_at >= ? AND created_at < ? ${c ? "AND (created_at > ? OR (created_at = ? AND id > ?))" : ""} ORDER BY created_at, id LIMIT ?`,
     ws,
     r.from.toISOString(),
@@ -277,7 +312,7 @@ export async function exportCalls(ctx: AppContext, ws: string, r: RangeQuery, o:
   const { pepper } = await getPepper(ctx, ws);
   const last = page[page.length - 1];
   return {
-    rows: page.map((x) => ({ id: x.id, room_id: x.room_id, ticket_id: x.ticket_id, ts: x.created_at, transport: x.transport, kind: x.kind, state: x.state, duration_s: x.duration_s, ended_by: x.ended_by, end_reason: x.end_reason, agent_key: agentKey(pepper, x.initiated_by) })),
+    rows: page.map((x) => ({ id: x.id, room_id: x.room_id, ticket_id: x.ticket_id, ts: x.created_at, transport: x.transport, kind: x.kind, state: x.state, duration_s: x.duration_s, ended_by: x.ended_by, end_reason: x.end_reason, engine: x.transport === "ai" ? x.engine : null, handoff_reason: x.handoff_reason, agent_key: agentKey(pepper, x.ai_agent_id ? `bot:${x.ai_agent_id}` : x.initiated_by) })),
     next_cursor: rows.length > limit && last ? encodeCursor([last.created_at, last.id]) : null,
   };
 }

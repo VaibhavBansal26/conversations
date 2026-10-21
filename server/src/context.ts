@@ -1,3 +1,4 @@
+import type { RealtimeProvider } from "./calls/realtime.js";
 import type { Config } from "./config.js";
 import type { Db } from "./db/index.js";
 import type { Logger } from "./logger.js";
@@ -33,6 +34,8 @@ export interface AppContext {
   providers: ProviderRegistry;
   storage: Storage;
   ai: AiProvider;
+  /** the optional realtime speech engine of AI calls (OpenAI); null when it is not configured on this installation */
+  realtime: RealtimeProvider | null;
   /** Stripe behind an interface: the real SDK, a fake in tests, or a stub that answers 503 when no key is configured */
   billing: BillingProvider;
   ratelimit: RateLimiter;

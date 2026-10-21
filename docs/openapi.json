@@ -1176,8 +1176,25 @@
                                 "type": "integer",
                                 "minimum": 1,
                                 "maximum": 1000
+                              },
+                              "realtime_minutes_daily": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 1000
+                              },
+                              "realtime_max_concurrent": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 10
                               }
                             }
+                          },
+                          "ai_engine": {
+                            "type": "string",
+                            "enum": [
+                              "browser",
+                              "realtime"
+                            ]
                           },
                           "phone": {
                             "type": "object",
@@ -5881,8 +5898,25 @@
                         "type": "integer",
                         "minimum": 1,
                         "maximum": 1000
+                      },
+                      "realtime_minutes_daily": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1000
+                      },
+                      "realtime_max_concurrent": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 10
                       }
                     }
+                  },
+                  "ai_engine": {
+                    "type": "string",
+                    "enum": [
+                      "browser",
+                      "realtime"
+                    ]
                   },
                   "phone": {
                     "type": "object",

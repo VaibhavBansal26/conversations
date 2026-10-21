@@ -5,7 +5,7 @@ import { sweepCalls } from "../src/calls/service.js";
 import { speakable, speechLanguage, FakeSpeechProvider, browserSpeech } from "../src/calls/speech.js";
 import { createKb } from "../src/services/settings.js";
 import { ALL_EVENTS, ack, recorder, sleep, startServer } from "./rt-helpers.js";
-import { setSettings } from "./helpers.js";
+import { setSettings, tokenFor, addMemberRaw } from "./helpers.js";
 import { ScriptedProvider, answerWith, KB } from "./agent-helpers.js";
 
 const EVENTS = [...ALL_EVENTS, "call:state", "call:peer"];
@@ -459,5 +459,31 @@ describe("what is offered to visitors", () => {
     await enable(w.wsId, { enabled: true });
     await updateAgent(srv.ctx, w.owner, w.agent.id, { allowed_actions: ["route"] });
     expect((await cfg()).calls.ai).toMatchObject({ enabled: false, agent: null });
+  });
+});
+
+describe("the settings of calls with the AI", () => {
+  const patch = async (token: string, body: unknown) => {
+    const r = await fetch(`${srv.url}/api/calls/settings`, { method: "PATCH", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify(body) });
+    return { status: r.status, body: (await r.json()) as any };
+  };
+  it("are off by default with the browser engine, a patch changes only what it names, and bounds are enforced", async () => {
+    const { wsId, owner } = await srv.seedWorkspace(srv.ctx, "Settings");
+    const token = await tokenFor(srv.ctx, owner);
+    const fresh = await fetch(`${srv.url}/api/calls/config`, { headers: { authorization: `Bearer ${token}` } });
+    expect(((await fresh.json()) as any).ai).toMatchObject({ engine: "browser", realtime_available: false });
+    const a = await patch(token, { ai: { enabled: true, max_concurrent: 2 } });
+    expect(a.status).toBe(200);
+    expect(a.body.settings.calls.ai).toMatchObject({ enabled: true, voice: true, video: true, max_duration_s: 600, idle_timeout_s: 120, max_concurrent: 2, daily_limit: 100, realtime_minutes_daily: 30, realtime_max_concurrent: 2 });
+    expect(a.body.settings.calls.ai_engine).toBe("browser");
+    const b = await patch(token, { ai: { video: false }, ai_engine: "realtime" });
+    expect(b.body.settings.calls.ai).toMatchObject({ enabled: true, video: false, max_concurrent: 2 }); // earlier values kept
+    expect(b.body.settings.calls.ai_engine).toBe("realtime");
+    for (const bad of [{ ai: { max_duration_s: 10 } }, { ai: { max_duration_s: 99999 } }, { ai: { idle_timeout_s: 5 } }, { ai: { max_concurrent: 0 } }, { ai: { daily_limit: 5000 } }, { ai: { realtime_minutes_daily: 0 } }, { ai_engine: "magic" }]) {
+      expect((await patch(token, bad)).status, JSON.stringify(bad)).toBe(400);
+    }
+    // the call settings permission: an agent may not change them
+    const agent = await addMemberRaw(srv.ctx, wsId, { name: "Ann Agent", role: "agent" });
+    expect((await patch(await tokenFor(srv.ctx, agent), { ai: { enabled: false } })).status).toBe(403);
   });
 });

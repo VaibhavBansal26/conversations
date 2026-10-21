@@ -123,7 +123,7 @@ describe("starting", () => {
   it("opens the microphone, starts the call with the language and what the browser can do, and shows who the visitor talks to", async () => {
     await started();
     expect(media.calls).toEqual([{ audio: true }]);
-    expect(sock.of("aicall:start")).toEqual([{ room_id: "room_1", kind: "voice", locale: expect.any(String), speech: { stt: true, tts: true } }]);
+    expect(sock.of("aicall:start")).toEqual([{ room_id: "room_1", kind: "voice", locale: expect.any(String), speech: { stt: true, tts: true, webrtc: false } }]);
     expect(overlay().hidden).toBe(false);
     expect(overlay().querySelector(".ai-name")!.textContent).toBe("Call with Aria");
     expect(overlay().querySelector(".ai-badge")!.textContent).toBe("AI assistant, not a person");

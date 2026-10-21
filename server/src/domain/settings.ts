@@ -118,8 +118,13 @@ export const CallSettingsSchema = z.object({
       max_concurrent: z.number().int().min(1).max(20).default(3),
       /** AI calls started per workspace per UTC day (spend guard) */
       daily_limit: z.number().int().min(1).max(1000).default(100),
+      /** the realtime engine only: minutes of realtime calls per workspace per UTC day, and how many may run at once (it is the costly one) */
+      realtime_minutes_daily: z.number().int().min(1).max(1000).default(30),
+      realtime_max_concurrent: z.number().int().min(1).max(10).default(2),
     })
-    .default(() => ({ enabled: false, voice: true, video: true, max_duration_s: 600, idle_timeout_s: 120, max_concurrent: 3, daily_limit: 100 })),
+    .default(() => ({ enabled: false, voice: true, video: true, max_duration_s: 600, idle_timeout_s: 120, max_concurrent: 3, daily_limit: 100, realtime_minutes_daily: 30, realtime_max_concurrent: 2 })),
+  /** who does the speech in AI calls: the visitor's browser (free, the default) or the optional realtime engine (OpenAI, needs OPENAI_API_KEY and a model on the server; falls back to the browser when unavailable) */
+  ai_engine: z.enum(["browser", "realtime"]).default("browser"),
   /** how long a call rings before it counts as missed */
   ring_seconds: z.number().int().min(15).max(120).default(45),
   /** where relay (TURN) credentials come from: none = STUN only (calls fail behind strict NATs), static = the server's TURN_URLS and TURN_SECRET, twilio = the workspace's own Twilio account */
@@ -140,9 +145,12 @@ export const CallsPatchSchema = z.object({
       idle_timeout_s: z.number().int().min(30).max(600),
       max_concurrent: z.number().int().min(1).max(20),
       daily_limit: z.number().int().min(1).max(1000),
+      realtime_minutes_daily: z.number().int().min(1).max(1000),
+      realtime_max_concurrent: z.number().int().min(1).max(10),
     })
     .partial()
     .optional(),
+  ai_engine: z.enum(["browser", "realtime"]).optional(),
   phone: z
     .object({
       enabled: z.boolean(),

@@ -94,8 +94,21 @@ export interface PhoneCallSettings {
   max_duration_s: number;
   quiet_hours: { enabled: boolean; start: string; end: string };
 }
+export interface AiCallSettings {
+  enabled: boolean;
+  voice: boolean;
+  video: boolean;
+  max_duration_s: number;
+  idle_timeout_s: number;
+  max_concurrent: number;
+  daily_limit: number;
+  realtime_minutes_daily: number;
+  realtime_max_concurrent: number;
+}
 export interface CallSettings {
   browser: { enabled: boolean; voice: boolean; video: boolean; screen_share: boolean };
+  ai?: AiCallSettings;
+  ai_engine?: "browser" | "realtime";
   phone?: PhoneCallSettings;
   ring_seconds: number;
   turn_provider: "none" | "static" | "twilio";

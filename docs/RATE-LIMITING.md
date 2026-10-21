@@ -126,7 +126,7 @@ Generated from `policies.ts` and `routePolicies.ts` (`npm run docs:ratelimit`; `
 | `ai.workspace` | workspace | window | 200 per 1 d | free 200, pro 5000, business 50000 | fail-open | AI calls per workspace per day, by plan (5 entry points) |
 | `ai.concurrency` | workspace | concurrency | 4 concurrent | - | fail-open | Concurrent AI calls per workspace (5 entry points) |
 | `calls.ai.visitor` | composite | window | 6 per 1 h | - | fail-closed | Calls with the AI assistant a visitor may start per hour (spend guard; the workspace's daily limit is a setting) (socket aicall:start) |
-| `calls.ai.say` | composite | gcra | 20 per 1 min, burst 8 | - | fail-open | Things a visitor says to the AI assistant in a call, per visitor (20 a minute, bursts of 8): each one is a model turn (socket aicall:say) |
+| `calls.ai.say` | composite | gcra | 20 per 1 min, burst 8 | - | fail-open | Things a visitor says to the AI assistant in a call, per visitor (20 a minute, bursts of 8): each one is a model turn (socket aicall:say, socket aicall:tool) |
 | `calls.phone.agent` | composite | window | 10 per 1 h | - | fail-closed | Phone calls a team member may place per hour (spend guard; the workspace's daily limit is a setting) (POST /api/rooms/:id/phone-call) |
 | `analytics.read` | apiKey | gcra | 60 per 1 min, burst 60 | - | fail-open | Analytics API reads, per API key (60 per minute) (5 entry points) |
 | `analytics.export` | apiKey | gcra | 10 per 1 min, burst 10 | - | fail-open | Analytics exports, per API key (10 per minute) (4 entry points) |
@@ -171,6 +171,9 @@ Socket event costs (per-socket bucket, `ws.event`):
 | `aicall:say` | 2 |
 | `aicall:end` | 2 |
 | `aicall:handoff` | 5 |
+| `aicall:tool` | 2 |
+| `aicall:transcript` | 1 |
+| `aicall:fallback` | 2 |
 | `call:accept` | 2 |
 | `call:decline` | 2 |
 | `call:end` | 2 |

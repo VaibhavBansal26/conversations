@@ -30,6 +30,31 @@ export class FakeStream {
   }
 }
 
+export class FakeDC {
+  readyState: "connecting" | "open" | "closed" = "connecting";
+  sent: any[] = [];
+  onopen: (() => void) | null = null;
+  onmessage: ((e: { data: string }) => void) | null = null;
+  constructor(readonly label: string) {}
+  send(data: string) {
+    this.sent.push(JSON.parse(data));
+  }
+  close() {
+    this.readyState = "closed";
+  }
+  /** test helpers */
+  open() {
+    this.readyState = "open";
+    this.onopen?.();
+  }
+  receive(ev: Record<string, unknown>) {
+    this.onmessage?.({ data: JSON.stringify(ev) });
+  }
+  of(type: string) {
+    return this.sent.filter((x) => x.type === type);
+  }
+}
+
 export class FakePC {
   static all: FakePC[] = [];
   signalingState = "stable";
@@ -47,6 +72,16 @@ export class FakePC {
   onconnectionstatechange: (() => void) | null = null;
   constructor(readonly cfg: { iceServers: unknown[] }) {
     FakePC.all.push(this);
+  }
+  channels: FakeDC[] = [];
+  transceivers: { kind: string; direction: string }[] = [];
+  createDataChannel(label: string) {
+    const dc = new FakeDC(label);
+    this.channels.push(dc);
+    return dc;
+  }
+  addTransceiver(kind: string, init: { direction: string }) {
+    this.transceivers.push({ kind, direction: init.direction });
   }
   addTrack(t: FakeTrack) {
     const sender = { track: t as FakeTrack | null, replaceTrack: async (x: FakeTrack | null) => void (sender.track = x) };

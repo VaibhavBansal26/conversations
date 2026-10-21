@@ -42,6 +42,9 @@ Every event is acknowledged: `{ok: true, ...}` or `{ok: false, error: {code, mes
 | `aicall:say` | visitor | visitor session | 2 | `call_id*`, `text*`, `seq*`, `via` |
 | `aicall:end` | visitor | visitor session | 2 | `call_id*`, `reason` |
 | `aicall:handoff` | visitor | visitor session | 5 | `call_id*` |
+| `aicall:tool` | visitor | visitor session | 2 | `call_id*`, `name*`, `arguments` |
+| `aicall:transcript` | visitor | visitor session | 1 | `call_id*`, `role*`, `text*`, `item_id*`, `greeting`, `via` |
+| `aicall:fallback` | visitor | visitor session | 2 | `call_id*`, `reason` |
 | `call:accept` | visitor | visitor session | 2 | `call_id*` |
 | `call:decline` | visitor | visitor session | 2 | `call_id*` |
 | `call:end` | team, visitor | `calls:make` | 2 | `call_id*` |

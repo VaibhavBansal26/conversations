@@ -51,7 +51,8 @@ export function chatSecurity(ctx: AppContext, domainPattern: string | null): Cha
     "img-src 'self' https: data: blob:",
     "font-src 'self'",
     "media-src 'self' https: blob:",
-    `connect-src 'self' ${own} ${ws}`,
+    // the realtime speech engine connects the visitor's browser to the provider (WebRTC signalling over HTTPS): only when this installation has it
+    `connect-src 'self' ${own} ${ws}${ctx.realtime && ctx.config.AI_REALTIME_ENABLED ? ` ${new URL(ctx.config.OPENAI_BASE_URL).origin}` : ""}`,
     "form-action 'none'",
     "base-uri 'none'",
     "object-src 'none'",

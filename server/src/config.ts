@@ -152,6 +152,15 @@ export const configSchema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
   ANTHROPIC_MODEL: z.string().default("claude-sonnet-5-5"),
   AI_TIMEOUT_MS: z.coerce.number().int().positive().default(20000),
+  /** the optional "realtime" speech engine of AI calls (docs/CALLS.md, ADR 0035): the visitor's browser talks to OpenAI over WebRTC with a short-lived secret minted here */
+  OPENAI_API_KEY: z.string().optional(),
+  OPENAI_BASE_URL: z.string().url().default("https://api.openai.com/v1"),
+  OPENAI_REALTIME_MODEL: z.string().optional(),
+  OPENAI_REALTIME_VOICE: z.string().optional(),
+  OPENAI_REALTIME_TRANSCRIBE_MODEL: z.string().optional(),
+  OPENAI_CLIENT_SECRET_TTL_SECONDS: z.coerce.number().int().min(10).max(7200).default(60),
+  AI_REALTIME_ENABLED: bool.default(true),
+  AI_REALTIME_COST_PER_MINUTE_USD: z.coerce.number().min(0).max(100).optional(),
 
   STORAGE_DRIVER: z.enum(["local"]).default("local"),
   UPLOAD_MAX_BYTES: z.coerce
