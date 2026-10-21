@@ -73,8 +73,14 @@ test("the service worker shows a pushed notification with the page to open", asy
     await cdp.send("ServiceWorker.enable");
     await expect.poll(() => regs.find((r) => r.scopeURL === `${baseURL}/`)?.registrationId ?? null).not.toBeNull();
     const reg = regs.find((r) => r.scopeURL === `${baseURL}/`)!;
-    await cdp.send("ServiceWorker.deliverPushMessage", { origin: baseURL!, registrationId: reg.registrationId, data: JSON.stringify({ title: "Missed call", body: "Sam Agent called you.", url: "/team", tag: "call-e2e" }) });
-    await expect.poll(() => page.evaluate(async () => (await (await navigator.serviceWorker.ready).getNotifications()).map((n) => [n.title, n.body, n.tag]))).toEqual([["Missed call", "Sam Agent called you.", "call-e2e"]]);
+    // a push delivered while the worker is still activating can be dropped by Chrome, so deliver until it shows (the tag keeps it to one notification)
+    const shown = () => page.evaluate(async () => (await (await navigator.serviceWorker.ready).getNotifications()).map((n) => [n.title, n.body, n.tag]));
+    await expect
+      .poll(async () => {
+        if ((await shown()).length === 0) await cdp.send("ServiceWorker.deliverPushMessage", { origin: baseURL!, registrationId: reg.registrationId, data: JSON.stringify({ title: "Missed call", body: "Sam Agent called you.", url: "/team", tag: "call-e2e" }) });
+        return shown();
+      }, { timeout: 20_000, intervals: [500, 1000, 2000] })
+      .toEqual([["Missed call", "Sam Agent called you.", "call-e2e"]]);
     // the click target travels with the notification; the worker opens only pages of this app (a click on an OS notification cannot be automated here)
     expect(await page.evaluate(async () => (await (await navigator.serviceWorker.ready).getNotifications())[0]!.data)).toEqual({ url: "/team" });
   } finally {

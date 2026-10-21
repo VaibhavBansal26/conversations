@@ -119,7 +119,8 @@ test("a call nobody answers is missed after the ring time and the callee is told
     await expect(w.samPage.getByRole("alertdialog", { name: "Incoming call" })).toBeVisible();
     await expect(w.samPage.getByRole("alertdialog", { name: "Incoming call" })).toBeHidden({ timeout: 25_000 });
     await expect(w.ownerPage.getByRole("dialog", { name: "Call with Sam Agent" })).toContainText("did not answer");
-    await expect(w.ownerPage.getByText("Missed voice call")).toBeVisible();
+    // the same direct message may already hold missed calls from other specs (16-push): the newest card is this call's
+    await expect(w.ownerPage.getByText("Missed voice call").last()).toBeVisible();
     await expect(w.samPage.getByRole("dialog", { name: /Call with/ })).toContainText("Missed call from");
   } finally {
     await w.done();
