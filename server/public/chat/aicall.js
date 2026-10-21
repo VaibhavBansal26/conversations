@@ -209,6 +209,12 @@
     var cfg = (o.config && o.config.ai) || { enabled: false };
     var timing = { promptMs: 20000, endMs: 45000, mergeMs: 700 };
     if (o.timing) for (var tk in o.timing) timing[tk] = o.timing[tk];
+    /** the silence prompt and the silence end follow the workspace's idle timeout (default 120 s: prompt at 20 s, end at 45 s), always before the server's own limit */
+    function timingFor(idleS) {
+      if (o.timing || !idleS) return;
+      timing.promptMs = Math.round(Math.min(20000, Math.max(5000, idleS * 170)));
+      timing.endMs = Math.round(Math.min(45000, idleS * 375));
+    }
 
     var S = fresh();
     function fresh() {
@@ -642,6 +648,7 @@
             return ack;
           }
           S.call = ack.call; S.ai = ack.ai; S.lang = ack.ai.speech_lang || "en"; S.since = Date.now();
+          timingFor(ack.ai.idle_timeout_s);
           if (mic === "denied") S.typedOnly = true;
           renderStage(); renderHeader(); renderBar();
           S.clock = setInterval(renderHeader, 1000);
