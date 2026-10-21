@@ -27,6 +27,12 @@ export const TicketSettingsSchema = z.object({
 });
 export type TicketSettings = z.infer<typeof TicketSettingsSchema>;
 
+/** Routing of tickets to people (docs/AI-AGENTS.md). */
+export const RoutingSettingsSchema = z.object({
+  /** a seat only receives a handoff while it is connected (a seat that is active but has the app closed is not available) */
+  require_online: z.boolean().default(true),
+});
+
 const WidgetShape = z.object({
   title: z.string().max(80).default("Chat with us"),
   intro: z.string().max(240).default("We usually reply within a few minutes."),
@@ -53,6 +59,8 @@ const WidgetShape = z.object({
   chat_type: z.enum(["live_chat", "sms"]).default("live_chat"),
   office_hours: OfficeHoursSchema.default(() => OfficeHoursSchema.parse({})),
   default_inbox_id: z.string().nullable().default(null),
+  /** ask the visitor which department they need before the conversation starts (departments marked visible in the widget) */
+  department_selector: z.boolean().default(false),
 });
 
 export const WidgetSettingsSchema = WidgetShape;
@@ -70,6 +78,7 @@ export const WorkspaceSettingsSchema = z.object({
   ai_redact_pii: z.boolean().default(false),
   ai_tone: z.enum(["friendly", "professional", "concise", "empathetic"]).default("friendly"),
   tickets: TicketSettingsSchema.default(() => TicketSettingsSchema.parse({})),
+  routing: RoutingSettingsSchema.default(() => RoutingSettingsSchema.parse({})),
   widget: WidgetShape.default(() => WidgetShape.parse({})),
 });
 
@@ -88,6 +97,7 @@ export const WorkspaceSettingsPatchSchema = z.object({
   ai_redact_pii: z.boolean().optional(),
   ai_tone: WorkspaceSettingsSchema.shape.ai_tone.optional(),
   tickets: TicketSettingsSchema.partial().optional(),
+  routing: RoutingSettingsSchema.partial().optional(),
   widget: WidgetShape.partial().optional(),
 });
 
@@ -103,11 +113,12 @@ export function parseSettings(raw: string | null | undefined): WorkspaceSettings
 }
 
 export function mergeSettings(cur: WorkspaceSettings, patch: z.infer<typeof WorkspaceSettingsPatchSchema>): WorkspaceSettings {
-  const { widget, tickets, ...rest } = patch;
+  const { widget, tickets, routing, ...rest } = patch;
   return WorkspaceSettingsSchema.parse({
     ...cur,
     ...rest,
     tickets: { ...cur.tickets, ...(tickets ?? {}) },
+    routing: { ...cur.routing, ...(routing ?? {}) },
     widget: { ...cur.widget, ...(widget ?? {}) },
   });
 }

@@ -1,5 +1,5 @@
 // Adapted from the legacy UI (see docs/PROVENANCE.md): grouped settings navigation.
-import { Bell, Bot, ChevronLeft, ChevronRight, CreditCard, FileUp, Inbox, KeyRound, LayoutTemplate, Library, MessageSquareText, Phone, Settings2, ShieldCheck, Ticket, UserCog, Users, type LucideIcon } from "lucide-react";
+import { Bell, Bot, Building2, ChevronLeft, ChevronRight, CreditCard, FileUp, Inbox, KeyRound, LayoutTemplate, Library, MessageSquareText, Phone, Settings2, ShieldCheck, Ticket, UserCog, Users, type LucideIcon } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 import { Link, NavLink, Navigate, Outlet, useLocation } from "react-router";
 import { useIsManager } from "../../auth/AuthContext";
@@ -19,6 +19,7 @@ export const SETTINGS_PAGES: readonly SettingsPageDef[] = [
   { path: "general", label: "General", managerOnly: true, group: "General", icon: Settings2 },
   { path: "notifications", label: "Notifications & availability", managerOnly: false, group: "General", icon: Bell },
   { path: "inboxes", label: "Inboxes", managerOnly: true, group: "Channels & inboxes", icon: Inbox },
+  { path: "departments", label: "Departments & routing", managerOnly: true, group: "Channels & inboxes", icon: Building2 },
   { path: "channels", label: "SMS & email", managerOnly: true, group: "Channels & inboxes", icon: Phone },
   { path: "widget", label: "Chat widget", managerOnly: true, group: "Channels & inboxes", icon: MessageSquareText, wide: true },
   { path: "tokens", label: "Embed tokens", managerOnly: true, group: "Channels & inboxes", icon: KeyRound },

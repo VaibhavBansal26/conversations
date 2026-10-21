@@ -6,6 +6,8 @@ import { getSettings } from "./workspaces.js";
 import { resolveVisitorAttachments } from "./attachments.js";
 import { findInbox } from "./inboxes.js";
 import { getContact } from "./contacts.js";
+import { matchRule } from "./routingRules.js";
+import { parseJson } from "../util/json.js";
 import { closedMarker, emitInserted, insertMessage, visitorMessageDtos, type MessageRow } from "./messageStore.js";
 import { pageMessages, processContent } from "./messages.js";
 import { onContactMessage, postBotMessage } from "./postProcess.js";
@@ -61,8 +63,30 @@ export async function visitorRoomDto(ctx: AppContext, room: RoomRow) {
   };
 }
 
-/** Start (or resume) the visitor's conversation. One room per contact, so a second call returns the first. */
-export async function visitorStartRoom(ctx: AppContext, session: SessionRow, input: { inbox_id?: string | null } = {}) {
+/** The page address without query string and fragment (they can carry tokens), or null when it is not a web address. */
+export function cleanPageUrl(raw: string | undefined): string | null {
+  if (!raw) return null;
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    return `${u.origin}${u.pathname}`.slice(0, 300);
+  } catch {
+    return null;
+  }
+}
+
+export interface StartRoomInput {
+  /** the department the visitor picked (must be visible in the widget) */
+  inbox_id?: string | null;
+  page_url?: string;
+  locale?: string;
+}
+
+/**
+ * Start (or resume) the visitor's conversation. One room per contact, so a second call returns the first. The department of a new conversation
+ * is the one the visitor picked, else the first routing rule that matches the page, language and contact, else the widget's default.
+ */
+export async function visitorStartRoom(ctx: AppContext, session: SessionRow, input: StartRoomInput = {}) {
   const s = await fresh(ctx, session);
   const existing = await ctx.db.get<RoomRow>("SELECT * FROM rooms WHERE workspace_id = ? AND contact_id = ? AND archived = 0", s.workspace_id, s.contact_id);
   if (existing) {
@@ -72,14 +96,25 @@ export async function visitorStartRoom(ctx: AppContext, session: SessionRow, inp
     return { room: existing, created: false };
   }
   const widget = (await getSettings(ctx, s.workspace_id)).widget;
+  const pageUrl = cleanPageUrl(input.page_url);
+  const locale = input.locale?.trim().slice(0, 20) || null;
   let inboxId = widget.default_inbox_id;
   if (input.inbox_id) {
     const inbox = await findInbox(ctx, s.workspace_id, input.inbox_id);
     if (!inbox || !inbox.live_routing_visibility) throw unprocessable("INBOX_NOT_AVAILABLE", "That inbox is not available for live chat");
     inboxId = inbox.id;
+  } else {
+    const contact = await getContact(ctx, s.workspace_id, s.contact_id);
+    const m = await matchRule(ctx, s.workspace_id, { page_url: pageUrl, locale, channel: "dm", tags: parseJson<string[]>(contact.tags, []), email: contact.email, attrs: parseJson<Record<string, unknown>>(contact.attrs, {}) });
+    if (m.rule) inboxId = m.rule.department_id;
   }
   if (inboxId && !(await findInbox(ctx, s.workspace_id, inboxId))) inboxId = null;
   const res = await findOrCreateRoom(ctx, s.workspace_id, { contactId: s.contact_id, sessionId: s.id, inboxId, roomType: "inbound" });
+  if (res.created && (pageUrl || locale)) {
+    // what the routing and the AI agent may use later: where the visitor is and which language their browser speaks
+    const meta = { ...parseJson<Record<string, unknown>>(res.room.meta, {}), context: { page_url: pageUrl, locale } };
+    await ctx.db.run("UPDATE rooms SET meta = ? WHERE id = ?", JSON.stringify(meta), res.room.id);
+  }
   if (res.created && widget.welcome_message.trim()) await postBotMessage(ctx, res.room, widget.welcome_message, { welcome: true });
   return res;
 }

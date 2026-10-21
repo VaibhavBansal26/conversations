@@ -16,6 +16,16 @@ export interface InboxRow {
   live_routing_visibility: number;
   default_email_inbound: number;
   default_sms_inbound: number;
+  /** department configuration (docs/AI-AGENTS.md, services/departments.ts) */
+  description: string;
+  routing_mode: "round_robin" | "least_busy" | "skills_based" | "manual_pick" | null;
+  capacity: number;
+  hours: string;
+  sla_first_response_s: number | null;
+  sla_resolution_s: number | null;
+  overflow_inbox_id: string | null;
+  auto_reply_closed: string;
+  auto_reply_queued: string;
   created_at: string;
 }
 
@@ -30,6 +40,7 @@ export async function inboxDto(ctx: AppContext, i: InboxRow) {
     live_routing_visibility: !!i.live_routing_visibility,
     default_email_inbound: !!i.default_email_inbound,
     default_sms_inbound: !!i.default_sms_inbound,
+    description: i.description,
     last_assigned_member_id: i.last_assigned_member_id,
     member_ids: await memberIds(ctx, i.id),
     created_at: i.created_at,

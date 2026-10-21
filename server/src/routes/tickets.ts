@@ -1,12 +1,14 @@
 import { Hono } from "hono";
 import type { AppContext } from "../context.js";
 import { parseBody, parseQuery, requireLiveSeat, type Env } from "../http.js";
-import { TicketBulk, TicketMerge, TicketPatch, TicketQuery } from "../schemas.js";
+import { TicketBulk, TicketMerge, TicketPatch, TicketQuery, TicketTransfer } from "../schemas.js";
+import { claimTicket, transferTicket } from "../services/routing.js";
 import { getRoomRow, getVisibleRoom } from "../services/roomStore.js";
 import {
   bulkTickets,
   closeTicket,
   getTicketDetail,
+  getVisibleTicket,
   listTickets,
   mergeTickets,
   reopenTicket,
@@ -33,6 +35,14 @@ export function ticketRoutes(ctx: AppContext) {
   r.post("/tickets/:id/reopen", async (c) => c.json(ticketDto(await reopenTicket(ctx, c.get("actor"), c.req.param("id")))));
   r.post("/tickets/:id/merge", async (c) => c.json(ticketDto(await mergeTickets(ctx, c.get("actor"), c.req.param("id"), (await parseBody(c, TicketMerge)).into_id))));
 
+  r.post("/tickets/:id/claim", async (c) => c.json(ticketDto(await claimTicket(ctx, c.get("actor"), c.req.param("id")))));
+  r.post("/tickets/:id/transfer", async (c) => {
+    const a = c.get("actor");
+    const b = await parseBody(c, TicketTransfer);
+    await getVisibleTicket(ctx, a, c.req.param("id"));
+    const res = await transferTicket(ctx, c.req.param("id"), { to: b.department_id, note: b.note, by: { type: "member", id: a.memberId } });
+    return c.json({ ticket: ticketDto(res.ticket), outcome: res.outcome, department_id: res.department?.id ?? null, assignee_id: res.assignee?.id ?? null });
+  });
   r.get("/rooms/:id/tickets", async (c) => {
     const a = c.get("actor");
     const room = await getVisibleRoom(ctx, a, c.req.param("id"));

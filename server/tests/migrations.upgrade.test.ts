@@ -595,3 +595,127 @@ describe.skipIf(!postgres)("PostgreSQL: tickets migrations on a populated databa
     }
   });
 });
+
+// ---- departments (migrations 029 and 030): the release before them is 028 -------------------------------------------------------------------
+
+const PRE_DEPARTMENTS = 28;
+
+/** A populated 028 database also holds tickets; this adds two (a live one and a closed one) on top of the shared seed. */
+async function seedTickets(db: Db) {
+  const ins = (id: string, room: string, n: number, status: string) =>
+    db.run("INSERT INTO tickets(id, workspace_id, room_id, contact_id, number, status, handler, opened_at, last_activity_at, created_at, updated_at) VALUES (?, 'w1', ?, 'c1', ?, ?, 'human:m2', ?, ?, ?, ?)", id, room, n, status, T(41), T(41), T(41), T(41));
+  await ins("tkA", "r1", 1, "open");
+  await ins("tkB", "r2", 2, "closed");
+  await db.run("INSERT INTO ticket_counters(workspace_id, next_number) VALUES ('w1', 2)");
+}
+
+async function expectDepartmentsMigration(db: Db, before: Record<string, number>, tables: string[]) {
+  expect(await counts(db, tables)).toEqual(before);
+  // old inboxes and members read as unconfigured departments: they keep behaving as before
+  expect(await db.get("SELECT description, routing_mode, capacity, hours, sla_first_response_s, sla_resolution_s, overflow_inbox_id, auto_reply_closed, auto_reply_queued FROM inboxes WHERE id = 'i1'")).toEqual({
+    description: "", routing_mode: null, capacity: 0, hours: "{}", sla_first_response_s: null, sla_resolution_s: null, overflow_inbox_id: null, auto_reply_closed: "", auto_reply_queued: "",
+  });
+  expect(await db.get("SELECT skills, languages, capacity FROM inbox_members WHERE inbox_id = 'i1' AND member_id = 'm2'")).toEqual({ skills: "[]", languages: "[]", capacity: null });
+  expect(await db.get("SELECT sla_first_response_due_at, sla_resolution_due_at, sla_first_response_breached_at, sla_resolution_breached_at, reassigned_count FROM tickets WHERE id = 'tkA'")).toEqual({
+    sla_first_response_due_at: null, sla_resolution_due_at: null, sla_first_response_breached_at: null, sla_resolution_breached_at: null, reassigned_count: 0,
+  });
+  // the CHECK constraints of the new columns hold, the overflow reference clears when its target is deleted, rules cascade with their department
+  await expect(db.run("UPDATE inboxes SET routing_mode = 'random' WHERE id = 'i1'")).rejects.toThrow(/CHECK|check constraint/i);
+  await expect(db.run("UPDATE inboxes SET capacity = -1 WHERE id = 'i1'")).rejects.toThrow(/CHECK|check constraint/i);
+  await expect(db.run("UPDATE inbox_members SET capacity = -2 WHERE inbox_id = 'i1'")).rejects.toThrow(/CHECK|check constraint/i);
+  await db.run("INSERT INTO inboxes(id, workspace_id, name, created_at) VALUES ('i2', 'w1', 'Overflow', ?)", T(42));
+  await db.run("UPDATE inboxes SET overflow_inbox_id = 'i2', routing_mode = 'least_busy' WHERE id = 'i1'");
+  await db.run("INSERT INTO routing_rules(id, workspace_id, position, name, department_id, created_at, updated_at) VALUES ('rl1', 'w1', 0, 'r', 'i2', ?, ?)", T(42), T(42));
+  await db.run("DELETE FROM inboxes WHERE id = 'i2'");
+  expect((await db.get<{ overflow_inbox_id: string | null }>("SELECT overflow_inbox_id FROM inboxes WHERE id = 'i1'"))!.overflow_inbox_id).toBeNull();
+  expect(await db.all("SELECT 1 FROM routing_rules")).toEqual([]);
+  // roles: departments:manage for owner and manager only, everything else as the catalogue says
+  for (const r of SYSTEM_ROLES) expect((await roleList(db, r.id)).sort(), r.id).toEqual([...r.permissions].sort());
+  expect(await roleList(db, "role_owner")).toContain("departments:manage");
+  expect(await roleList(db, "role_manager")).toContain("departments:manage");
+  expect(await roleList(db, "role_agent")).not.toContain("departments:manage");
+  expect(await roleList(db, "role_custom_reader")).toEqual(["conversations:read", "contacts:read"]); // untouched by this migration (the seed adds it after 028 ran)
+  await expect(db.run("UPDATE roles SET name = 'hacked' WHERE id = 'role_owner'")).rejects.toThrow(/immutable/);
+}
+
+describe("SQLite: departments migrations on a populated database of the release before them", () => {
+  it("adds department configuration without touching a row", async () => {
+    const { dir, path } = await openSqliteFile();
+    const prev = releaseDir(PRE_DEPARTMENTS);
+    try {
+      const old = await openDb(path);
+      await migrate(old, prev);
+      await seedPreviousRelease(old);
+      await seedTickets(old);
+      const tables = await userTables(old);
+      const before = await counts(old, tables);
+      await old.close();
+      const db = await openDb(path);
+      const applied = await migrate(db);
+      expect(applied.slice(0, 2)).toEqual(["029_departments.sql", "030_roles_departments.sqlite.sql"]);
+      expect(await db.all("PRAGMA foreign_key_check")).toEqual([]);
+      await expectDepartmentsMigration(db, before, tables);
+      expect(await migrate(db)).toEqual([]);
+      await db.close();
+    } finally {
+      rmSync(prev, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("schema drift guard: a database upgraded from 028 equals a fresh one", async () => {
+    const fresh = await openDb(":memory:");
+    await migrate(fresh);
+    const { dir, path } = await openSqliteFile();
+    const prev = releaseDir(PRE_DEPARTMENTS);
+    try {
+      const old = await openDb(path);
+      await migrate(old, prev);
+      await seedPreviousRelease(old);
+      await old.close();
+      const upgraded = await openDb(path);
+      await migrate(upgraded);
+      expect(await schemaOf(upgraded)).toEqual(await schemaOf(fresh));
+      await upgraded.close();
+    } finally {
+      await fresh.close();
+      rmSync(prev, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe.skipIf(!postgres)("PostgreSQL: departments migrations on a populated database of the release before them", () => {
+  it("adds department configuration without touching a row and matches a fresh schema", async () => {
+    const mk = async () => {
+      const schema = `u_${Math.random().toString(16).slice(2, 10)}`;
+      const admin = new pg.Client({ connectionString: process.env.TEST_DATABASE_URL });
+      await admin.connect();
+      await admin.query(`CREATE SCHEMA ${schema}`);
+      const u = new URL(process.env.TEST_DATABASE_URL!);
+      u.searchParams.set("options", `-c search_path=${schema}`);
+      const db = await openDb({ url: u.toString(), poolMax: 4 });
+      return { db, drop: async () => (await db.close(), await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`), await admin.end()) };
+    };
+    const a = await mk();
+    const b = await mk();
+    const prev = releaseDir(PRE_DEPARTMENTS);
+    try {
+      await migrate(a.db, undefined, { hashPartitions: 2 });
+      await migrate(b.db, prev, { hashPartitions: 2 });
+      await seedPreviousRelease(b.db);
+      await seedTickets(b.db);
+      const tables = await userTables(b.db);
+      const before = await counts(b.db, tables);
+      const applied = await migrate(b.db, undefined, { hashPartitions: 2 });
+      expect(applied.slice(0, 2)).toEqual(["029_departments.sql", "030_roles_departments.pg.sql"]);
+      expect(await schemaOf(b.db)).toEqual(await schemaOf(a.db));
+      await expectDepartmentsMigration(b.db, before, tables);
+      expect(await migrate(b.db, undefined, { hashPartitions: 2 })).toEqual([]);
+    } finally {
+      rmSync(prev, { recursive: true, force: true });
+      await a.drop();
+      await b.drop();
+    }
+  });
+});

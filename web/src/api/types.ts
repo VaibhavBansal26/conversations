@@ -61,6 +61,7 @@ export interface WidgetSettings {
   chat_type: "live_chat" | "sms";
   office_hours: OfficeHours;
   default_inbox_id: string | null;
+  department_selector?: boolean;
 }
 
 export type AiTone = "friendly" | "professional" | "concise" | "empathetic";
@@ -74,6 +75,7 @@ export interface WorkspaceSettings {
   ai_redact_pii: boolean;
   ai_tone: AiTone;
   tickets: TicketSettings;
+  routing?: { require_online: boolean };
   widget: WidgetSettings;
 }
 
@@ -337,12 +339,77 @@ export interface Inbox {
   name: string;
   icon: string;
   algorithm: "manual" | "round_robin";
+  description?: string;
   live_routing_visibility: boolean;
   default_email_inbound: boolean;
   default_sms_inbound: boolean;
   last_assigned_member_id: string | null;
   member_ids: string[];
   created_at: string;
+}
+
+export type RoutingMode = "round_robin" | "least_busy" | "skills_based" | "manual_pick";
+
+export interface DepartmentHours extends OfficeHours {
+  /** local dates (YYYY-MM-DD, in the timezone) the department is closed */
+  holidays: string[];
+}
+
+export interface DepartmentMember {
+  member_id: string;
+  name: string;
+  skills: string[];
+  languages: string[];
+  capacity: number | null;
+}
+
+export interface DepartmentStatus {
+  id: string;
+  name: string;
+  open: boolean;
+  next_opening: string | null;
+  available_agents: number;
+  queue_length: number;
+  estimated_wait_s: number | null;
+}
+
+/** An inbox with its routing configuration (docs/DEPARTMENTS.md). */
+export interface Department extends Inbox {
+  routing_mode: RoutingMode | null;
+  effective_routing_mode: RoutingMode;
+  capacity: number;
+  hours: DepartmentHours;
+  sla_first_response_s: number | null;
+  sla_resolution_s: number | null;
+  overflow_inbox_id: string | null;
+  auto_reply_closed: string;
+  auto_reply_queued: string;
+  members: DepartmentMember[];
+  status: DepartmentStatus;
+}
+
+export type RuleField = "page_url" | "locale" | "channel" | "tag" | "email_domain" | "attr";
+export type RuleOp = "equals" | "not_equals" | "contains" | "not_contains" | "starts_with" | "ends_with" | "exists";
+export interface RuleCondition {
+  field: RuleField;
+  key?: string;
+  op: RuleOp;
+  value: string;
+}
+export interface RoutingRule {
+  id: string;
+  position: number;
+  name: string;
+  enabled: boolean;
+  conditions: RuleCondition[];
+  department_id: string;
+  created_at: string;
+  updated_at: string;
+}
+export interface RuleTestResult {
+  department_id: string | null;
+  rule: RoutingRule | null;
+  evaluated: { rule_id: string; name: string; matched: boolean }[];
 }
 
 export interface Template {

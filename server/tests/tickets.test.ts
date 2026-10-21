@@ -126,6 +126,19 @@ describe("who answers", () => {
     expect(ev.map((e) => e.type)).toEqual(["opened", "taken_over"]);
   });
 
+  it("a colleague answering a ticket assigned to someone else answers it but does not take it over", async () => {
+    const f = await fullApp();
+    const ann = await addMemberRaw(f.ctx, f.wsId, { name: "Ann" });
+    const { room } = await mkRoom(f.ctx, f.wsId, { assignees: [ann] });
+    await contactSays(f.ctx, room, "hi");
+    const t0 = await live(f, room.id);
+    await f.ctx.db.run("UPDATE tickets SET status = 'waiting_for_human', handler = ? WHERE id = ?", `human:${ann.memberId}`, t0.id);
+    await agentSays(f.ctx, f.owner, room.id, "Olivia here, quick answer");
+    const t = await live(f, room.id);
+    expect(t).toMatchObject({ status: "open", handler: `human:${ann.memberId}` });
+    expect(t.first_human_response_at).not.toBeNull();
+  });
+
   it("notes and system lines attach to the live ticket but never open, answer or reopen one", async () => {
     const f = await fullApp();
     const { room } = await mkRoom(f.ctx, f.wsId);

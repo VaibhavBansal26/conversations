@@ -12,6 +12,7 @@ import { nowIso } from "../context.js";
 import { ensureMessagePartitions } from "../db/partitions.js";
 import { retentionSweep } from "../services/archive.js";
 import { ticketSweep } from "../services/tickets.js";
+import { drainQueue, slaSweep } from "../services/routing.js";
 import { teamRetentionSweep } from "../services/teamChat.js";
 import { runAutoRecharge } from "../billing/credits.js";
 import { enqueueJob, runDueJobs, type JobHandler } from "./queue.js";
@@ -71,12 +72,20 @@ export async function reconcileDeliveries(ctx: AppContext, opts: { minAgeMinutes
 
 /** One scheduler pass; exposed so tests (and a manual `kick`) can drive time explicitly. */
 export async function tick(ctx: AppContext, parts: { snooze?: boolean; jobs?: boolean; digest?: boolean; reconcile?: boolean; tickets?: boolean } = { snooze: true, jobs: true }) {
-  const out = { woken: 0, jobs: 0, digests: 0, reconciled: 0, tickets: { resolved: 0, closed: 0 } };
+  const out = { woken: 0, jobs: 0, digests: 0, reconciled: 0, tickets: { resolved: 0, closed: 0, escalated: 0, resolution_breaches: 0, assigned: 0 } };
   if (parts.snooze) out.woken = await wakeDueRooms(ctx, notifySnoozeEnded.bind(null, ctx));
   if (parts.digest) out.digests = (await collectDigests(ctx)).queued;
   if (parts.jobs) out.jobs = (await runDueJobs(ctx, jobHandlers)).ran;
   if (parts.reconcile) out.reconciled = await reconcileDeliveries(ctx);
-  if (parts.tickets) out.tickets = await ticketSweep(ctx);
+  if (parts.tickets) {
+    const idle = await ticketSweep(ctx);
+    const sla = await slaSweep(ctx);
+    // anyone who became free (or a shift that started) since the last pass takes from the queues, oldest ticket first
+    const workspaces = await ctx.db.all<{ workspace_id: string }>("SELECT DISTINCT workspace_id FROM tickets WHERE status = 'waiting_for_human' AND handler IS NULL LIMIT 200");
+    let assigned = 0;
+    for (const w of workspaces) assigned += await drainQueue(ctx, w.workspace_id);
+    out.tickets = { ...idle, ...sla, assigned };
+  }
   return out;
 }
 

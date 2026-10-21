@@ -1,5 +1,5 @@
 import type { OfficeHours } from "../domain/settings.js";
-import { zonedParts } from "../util/time.js";
+import { addDays, zonedDate, zonedParts } from "../util/time.js";
 
 const toMin = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3));
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -11,10 +11,16 @@ export function isOpen(oh: OfficeHours, at: Date): boolean {
   return oh.days.some((d) => d.day === day && minutes >= toMin(d.start) && minutes < toMin(d.end));
 }
 
-/** Human text such as "tomorrow at 09:00" or "Monday at 09:00", or null when no opening exists. */
-export function nextOpening(oh: OfficeHours, at: Date): string | null {
+/**
+ * Human text such as "tomorrow at 09:00" or "Monday at 09:00", or null when no opening exists. `closedDates` (local `YYYY-MM-DD`, holidays)
+ * are skipped, and the search then reaches three weeks ahead.
+ */
+export function nextOpening(oh: OfficeHours, at: Date, closedDates: readonly string[] = []): string | null {
   const { day, minutes } = zonedParts(at, oh.timezone);
-  for (let offset = 0; offset <= 7; offset++) {
+  const base = closedDates.length ? zonedDate(at, oh.timezone) : null;
+  const horizon = base ? 21 : 7;
+  for (let offset = 0; offset <= horizon; offset++) {
+    if (base && closedDates.includes(addDays(base, offset))) continue;
     const d = (day + offset) % 7;
     const starts = oh.days
       .filter((x) => x.day === d && (offset > 0 || toMin(x.start) > minutes))

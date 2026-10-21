@@ -20,6 +20,7 @@ const ContactSettings = lazy(() => import("./pages/settings/ContactSettings").th
 const KnowledgeBaseSettings = lazy(() => import("./pages/settings/KnowledgeBaseSettings").then((m) => ({ default: m.KnowledgeBaseSettings })));
 const MemberSettings = lazy(() => import("./pages/settings/MemberSettings").then((m) => ({ default: m.MemberSettings })));
 const NotificationSettings = lazy(() => import("./pages/settings/NotificationSettings").then((m) => ({ default: m.NotificationSettings })));
+const DepartmentSettings = lazy(() => import("./pages/settings/DepartmentSettings").then((m) => ({ default: m.DepartmentSettings })));
 const TicketSettings = lazy(() => import("./pages/settings/TicketSettings").then((m) => ({ default: m.TicketSettings })));
 const TemplateSettings = lazy(() => import("./pages/settings/TemplateSettings").then((m) => ({ default: m.TemplateSettings })));
 const TokenSettings = lazy(() => import("./pages/settings/TokenSettings").then((m) => ({ default: m.TokenSettings })));
@@ -62,6 +63,7 @@ export function App() {
             <Route path="members" element={<MemberSettings />} />
             <Route path="tokens" element={<TokenSettings />} />
             <Route path="channels" element={<ChannelSettings />} />
+            <Route path="departments" element={<DepartmentSettings />} />
             <Route path="tickets" element={<TicketSettings />} />
             <Route path="templates" element={<TemplateSettings />} />
             <Route path="contacts" element={<ContactSettings />} />

@@ -5,7 +5,15 @@ import type { TicketBrief } from "../../api/types";
 import { TicketMenu } from "./TicketMenu";
 
 let allowed = new Set<string>();
-vi.mock("../../auth/AuthContext", () => ({ useCan: (p: string) => allowed.has(p) }));
+vi.mock("../../auth/AuthContext", () => ({ useCan: (p: string) => allowed.has(p), useSession: () => ({ member: { id: "mem_me" } }) }));
+vi.mock("../../api/departmentHooks", () => ({
+  useDepartmentStatus: () => ({
+    data: [
+      { id: "inb_sales", name: "Sales", open: true, available_agents: 2, queue_length: 0, estimated_wait_s: null, next_opening: null },
+      { id: "inb_bill", name: "Billing", open: false, available_agents: 0, queue_length: 1, estimated_wait_s: null, next_opening: "tomorrow at 09:00 (UTC)" },
+    ],
+  }),
+}));
 
 const ticket = (over: Partial<TicketBrief> = {}): TicketBrief => ({ id: "tkt_1", number: 12, status: "open", handler: null, department_id: null, priority: 1, subject: "Invoice", ...over });
 const calls: { url: string; method: string; body?: string }[] = [];
@@ -61,5 +69,29 @@ describe("TicketMenu", () => {
     await userEvent.click(screen.getByRole("button", { name: /Ticket #12/ }));
     await userEvent.click(await screen.findByRole("menuitem", { name: /Waiting for the customer/ }));
     await waitFor(() => expect(calls.filter((c) => c.method === "PATCH")[1]?.body).toBe(JSON.stringify({ status: "pending_customer" })));
+  });
+
+  it("takes a ticket that is waiting for a person, but not one that is already yours", async () => {
+    mount(ticket({ status: "waiting_for_human", handler: null }));
+    await userEvent.click(screen.getByRole("button", { name: /Ticket #12/ }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /Take this ticket/ }));
+    await waitFor(() => expect(calls.some((c) => c.url.endsWith("/api/tickets/tkt_1/claim") && c.method === "POST")).toBe(true));
+  });
+
+  it("does not offer to take your own ticket", async () => {
+    mount(ticket({ status: "waiting_for_human", handler: "human:mem_me" }));
+    await userEvent.click(screen.getByRole("button", { name: /Ticket #12/ }));
+    await screen.findByRole("menuitem", { name: /Mark as resolved/ });
+    expect(screen.queryByRole("menuitem", { name: /Take this ticket/ })).toBeNull();
+  });
+
+  it("transfers to another department, showing who is free there, and leaves the current one out", async () => {
+    mount(ticket({ department_id: "inb_sales" }));
+    await userEvent.click(screen.getByRole("button", { name: /Ticket #12/ }));
+    expect(screen.queryByRole("menuitem", { name: /Sales/ })).toBeNull();
+    const item = await screen.findByRole("menuitem", { name: /Billing/ });
+    expect(item).toHaveTextContent("closed");
+    await userEvent.click(item);
+    await waitFor(() => expect(calls.find((c) => c.url.endsWith("/api/tickets/tkt_1/transfer"))?.body).toBe(JSON.stringify({ department_id: "inb_bill" })));
   });
 });

@@ -6,6 +6,7 @@ import { conflict, forbidden, notFound, unprocessable } from "../errors.js";
 import { hashPassword } from "../util/crypto.js";
 import { newId } from "../util/ids.js";
 import { parseJson } from "../util/json.js";
+import { onSeatChanged, releaseSeatTickets } from "./routing.js";
 
 export interface MemberRow {
   id: string;
@@ -212,6 +213,10 @@ export async function updateMember(ctx: AppContext, actor: Actor, memberId: stri
       availability: row.availability,
     });
   }
+  // a seat that cannot take work any more hands its unaccepted tickets back; one that can again takes from the queue (never fails the request)
+  if (patch.availability !== undefined || patch.dnd_until !== undefined || patch.live_seat !== undefined) {
+    await onSeatChanged(ctx, actor.workspaceId, row).catch((e) => ctx.log.warn("seat change routing failed", { member: memberId, error: e instanceof Error ? e.message : String(e) }));
+  }
   return row;
 }
 
@@ -243,6 +248,7 @@ export async function removeMember(ctx: AppContext, actor: Actor, memberId: stri
   await invalidateMember(ctx, actor.workspaceId, memberId);
   await ctx.cache.invalidate(`counts:${actor.workspaceId}:*`);
   for (const r of rooms) await reassign(r.room_id);
+  await releaseSeatTickets(ctx, actor.workspaceId, memberId, "all").catch((e) => ctx.log.warn("seat removal routing failed", { member: memberId, error: e instanceof Error ? e.message : String(e) }));
   ctx.bus.disconnectMember(actor.workspaceId, memberId);
   ctx.bus.toWorkspace(actor.workspaceId, "member:removed", { member_id: memberId });
 }

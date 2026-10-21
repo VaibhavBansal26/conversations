@@ -13,3 +13,21 @@ export function zonedParts(date: Date, timeZone: string): { day: number; minutes
   const day = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(parts.weekday as string);
   return { day, minutes: Number(parts.hour) * 60 + Number(parts.minute) };
 }
+
+/** Local calendar date `YYYY-MM-DD` of `date` in an IANA timezone (UTC for unknown zones). */
+export function zonedDate(date: Date, timeZone: string): string {
+  let fmt: Intl.DateTimeFormat;
+  try {
+    fmt = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" });
+  } catch {
+    fmt = new Intl.DateTimeFormat("en-CA", { timeZone: "UTC", year: "numeric", month: "2-digit", day: "2-digit" });
+  }
+  const p = Object.fromEntries(fmt.formatToParts(date).map((x) => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day}`;
+}
+
+/** `YYYY-MM-DD` plus `n` calendar days (pure date arithmetic, no time zone involved). */
+export function addDays(date: string, n: number): string {
+  const [y, m, d] = date.split("-").map(Number) as [number, number, number];
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}

@@ -38,6 +38,8 @@ export function useTicketActions() {
       mutationFn: ({ id, ...body }: { id: string; subject?: string; priority?: TicketPriority; tags?: string[]; status?: "open" | "pending_customer" }) => api.patch<Ticket>(`/tickets/${id}`, body),
       onSuccess: refresh,
     }),
+    claim: useMutation({ mutationFn: (id: string) => api.post<Ticket>(`/tickets/${id}/claim`), onSuccess: refresh }),
+    transfer: useMutation({ mutationFn: (v: { id: string; department_id: string; note?: string }) => api.post<{ outcome: string }>(`/tickets/${v.id}/transfer`, { department_id: v.department_id, note: v.note }), onSuccess: refresh }),
     bulk: useMutation({ mutationFn: (v: { ticket_ids: string[]; action: "resolve" | "close" }) => api.post<{ succeeded: number; failed: number }>("/tickets/bulk", v), onSuccess: refresh }),
   };
 }

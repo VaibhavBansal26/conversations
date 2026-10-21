@@ -1,7 +1,8 @@
-import { CheckCheck, Flag, RotateCcw, Ticket as TicketIcon } from "lucide-react";
+import { ArrowRightLeft, CheckCheck, Flag, Hand, RotateCcw, Ticket as TicketIcon } from "lucide-react";
+import { useDepartmentStatus } from "../../api/departmentHooks";
 import { useTicketActions } from "../../api/ticketHooks";
 import type { TicketBrief, TicketPriority } from "../../api/types";
-import { useCan } from "../../auth/AuthContext";
+import { useCan, useSession } from "../../auth/AuthContext";
 import { PRIORITY_LABEL } from "../../lib/tickets";
 import { DropdownMenuCheckItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRoot, DropdownMenuSeparator, DropdownMenuTrigger } from "../../ui";
 import { TicketChip } from "./TicketChip";
@@ -11,7 +12,11 @@ export function TicketMenu({ ticket }: { ticket: TicketBrief }) {
   const canWrite = useCan("tickets:write");
   const canClose = useCan("tickets:close");
   const actions = useTicketActions();
+  const me = useSession().member.id;
   const ended = ticket.status === "resolved" || ticket.status === "closed";
+  const departments = useDepartmentStatus(canWrite && !ended).data ?? [];
+  // a ticket that is waiting for a person (queued, or assigned to someone who has not answered) can be taken by any seat that sees it
+  const claimable = canWrite && (ticket.status === "waiting_for_human" || ticket.status === "new") && ticket.handler !== `human:${me}`;
   if (!canWrite && !canClose) return <TicketChip number={ticket.number} status={ticket.status} collapse />;
   return (
     <DropdownMenuRoot>
@@ -24,6 +29,11 @@ export function TicketMenu({ ticket }: { ticket: TicketBrief }) {
             <TicketIcon className="size-3.5" aria-hidden="true" /> Ticket #{ticket.number}
           </span>
         </DropdownMenuLabel>
+        {claimable && (
+          <DropdownMenuItem onSelect={() => actions.claim.mutate(ticket.id)}>
+            <Hand className="size-4 text-subtle" aria-hidden="true" /> Take this ticket
+          </DropdownMenuItem>
+        )}
         {canClose && !ended && (
           <DropdownMenuItem onSelect={() => actions.resolve.mutate(ticket.id)}>
             <CheckCheck className="size-4 text-subtle" aria-hidden="true" /> Mark as resolved
@@ -55,6 +65,24 @@ export function TicketMenu({ ticket }: { ticket: TicketBrief }) {
                 {PRIORITY_LABEL[p]}
               </DropdownMenuCheckItem>
             ))}
+            {departments.filter((d) => d.id !== ticket.department_id).length > 0 && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>
+                  <span className="inline-flex items-center gap-1.5">
+                    <ArrowRightLeft className="size-3.5" aria-hidden="true" /> Transfer to
+                  </span>
+                </DropdownMenuLabel>
+                {departments
+                  .filter((d) => d.id !== ticket.department_id)
+                  .map((d) => (
+                    <DropdownMenuItem key={d.id} onSelect={() => actions.transfer.mutate({ id: ticket.id, department_id: d.id })}>
+                      {d.name}
+                      <span className="ml-auto text-xs text-subtle">{d.open ? `${d.available_agents} free` : "closed"}</span>
+                    </DropdownMenuItem>
+                  ))}
+              </>
+            )}
           </>
         )}
       </DropdownMenuContent>

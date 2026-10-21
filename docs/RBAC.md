@@ -41,6 +41,7 @@ Source of truth: `server/src/authz/permissions.ts` (a test checks that the built
 | `tickets:write` | Edit tickets (subject, priority, tags, status), reopen them and take them over from the AI agent | yes | yes | yes |  |
 | `tickets:close` | Resolve and close tickets, one by one or in bulk | yes | yes | yes |  |
 | `tickets:merge` | Merge duplicate tickets of one conversation | yes | yes |  |  |
+| `departments:manage` | Configure departments: hours, routing mode, capacity, service levels, skills and the routing rules | yes | yes |  |  |
 
 *Agent* additionally sees only the conversations assigned to them or their inboxes (`inbox_visibility`), whatever permissions they hold; *Manager*, *Owner* and *Viewer* see every conversation of the workspace.
 

@@ -255,3 +255,15 @@ export const TicketPatch = z.object({
 export const TicketBulk = z.object({ ticket_ids: z.array(id).min(1).max(100), action: z.enum(["resolve", "close"]) });
 export const TicketMerge = z.object({ into_id: id });
 export const TicketCsat = z.object({ score: z.number().int().min(1).max(5), comment: z.string().max(500).optional(), ticket_id: id.optional() });
+
+/** Starting a conversation from the widget: all optional (an empty body is fine). `department_id` is the widget's name for `inbox_id`. */
+export const PublicRoomBody = z
+  .object({
+    inbox_id: id.optional(),
+    department_id: id.optional(),
+    /** where the visitor is: only origin and path are kept (routing rules, AI agent context) */
+    page_url: z.string().max(500).optional(),
+    locale: z.string().max(20).optional(),
+  })
+  .default({});
+export const TicketTransfer = z.object({ department_id: id, note: z.string().trim().max(500).optional() });

@@ -36,6 +36,7 @@ export const PERMISSIONS = {
   "tickets:write": "Edit tickets (subject, priority, tags, status), reopen them and take them over from the AI agent",
   "tickets:close": "Resolve and close tickets, one by one or in bulk",
   "tickets:merge": "Merge duplicate tickets of one conversation",
+  "departments:manage": "Configure departments: hours, routing mode, capacity, service levels, skills and the routing rules",
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;

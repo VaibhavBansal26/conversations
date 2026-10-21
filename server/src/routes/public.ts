@@ -9,14 +9,16 @@ import { saveUpload, VISITOR_UPLOAD_MIME } from "../services/attachments.js";
 import { z } from "zod";
 import { AppError } from "../errors.js";
 import { recordCsat } from "../services/roomMetrics.js";
-import { knownIp, parseBody, parseQuery } from "../http.js";
+import { knownIp, parseBody, parseQuery, validate } from "../http.js";
 import { applyPrincipalLimits, enforce } from "../ratelimit/http.js";
 import { ipKey } from "../util/clientIp.js";
-import { MessageListQuery, OtpVerify, ReadBody, SessionAttributes, SessionBody, TicketCsat, VisitorSend } from "../schemas.js";
+import { MessageListQuery, OtpVerify, ReadBody, PublicRoomBody, SessionAttributes, SessionBody, TicketCsat, VisitorSend } from "../schemas.js";
 import { rateTicket, visitorTicketDto } from "../services/tickets.js";
 import { listMemberRows } from "../services/members.js";
 import { loadRefs, visitorMessageDto } from "../services/messageStore.js";
 import { isOpen } from "../services/office.js";
+import { departmentStatus } from "../services/departments.js";
+import type { InboxRow } from "../services/inboxes.js";
 import {
   getVisitorRoom,
   visitorListMessages,
@@ -53,6 +55,15 @@ export function publicRoutes(ctx: AppContext) {
       "SELECT id, name, icon FROM inboxes WHERE workspace_id = ? AND live_routing_visibility = 1 ORDER BY name",
       ws.id,
     );
+    // availability needs a few queries per department: shared by every visitor for the cache window
+    const departments = await ctx.cache.wrap(`widget-depts:${ws.id}`, async () =>
+      Promise.all(
+        (await ctx.db.all<InboxRow>("SELECT * FROM inboxes WHERE workspace_id = ? AND live_routing_visibility = 1 ORDER BY name LIMIT 20", ws.id)).map(async (d) => {
+          const st = await departmentStatus(ctx, d);
+          return { id: d.id, name: d.name, description: d.description, icon: d.icon, open: st.open, available: st.available_agents > 0 };
+        }),
+      ),
+    );
     const agents = (await listMemberRows(ctx, ws.id)).filter((m) => m.live_seat && m.availability === "active").map((m) => ({ id: m.id, name: m.name.split(" ")[0] }));
     // an edge cache may hold this for 30s; the key MUST include the api key and Origin (the domain allow-list is evaluated per origin)
     c.header("Cache-Control", "public, max-age=0, s-maxage=30");
@@ -63,6 +74,7 @@ export function publicRoutes(ctx: AppContext) {
       widget: publicWidgetConfig(widget),
       office_open: isOpen(widget.office_hours, ctx.clock()),
       live_routing_inboxes: inboxes,
+      departments,
       agents_available: agents.length,
       agents: agents.slice(0, 3),
     });
@@ -123,8 +135,8 @@ export function publicRoutes(ctx: AppContext) {
   });
   r.get("/rooms", async (c) => c.json({ data: await visitorRoomDtos(ctx, await visitorRooms(ctx, c.get("session"))) }));
   r.post("/rooms", async (c) => {
-    const body = await c.req.json().catch(() => ({}));
-    const res = await visitorStartRoom(ctx, c.get("session"), { inbox_id: typeof body?.inbox_id === "string" ? body.inbox_id : undefined });
+    const body = validate(PublicRoomBody, await c.req.json().catch(() => ({})));
+    const res = await visitorStartRoom(ctx, c.get("session"), { inbox_id: body.department_id ?? body.inbox_id, page_url: body.page_url, locale: body.locale });
     return c.json({ room: await visitorRoomDto(ctx, res.room), created: res.created }, res.created ? 201 : 200);
   });
   r.get("/rooms/:id/messages", async (c) => c.json(await visitorListMessages(ctx, c.get("session"), c.req.param("id"), parseQuery(c, MessageListQuery))));

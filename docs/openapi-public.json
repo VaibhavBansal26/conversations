@@ -407,7 +407,7 @@
         "tags": [
           "Widget (public)"
         ],
-        "summary": "Start a conversation",
+        "summary": "Start a conversation. Optional `department_id` (a department marked visible in the widget), `page_url` (origin and path are kept) and `locale`; without a department the first matching routing rule decides, then the widget default",
         "operationId": "post_public_rooms",
         "x-rate-limit": {
           "pre": [],
@@ -427,8 +427,42 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "default": {},
+                "type": "object",
+                "properties": {
+                  "inbox_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "department_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "page_url": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "locale": {
+                    "type": "string",
+                    "maxLength": 20
+                  }
+                }
+              }
+            }
           }
         },
         "security": [

@@ -8,6 +8,9 @@ import * as invR from "../routes/invitations.js";
 import * as anR from "../routes/analytics.js";
 import * as anApiR from "../routes/analyticsApi.js";
 import * as pubR from "../routes/public.js";
+import * as depRoutes from "../routes/departments.js";
+import * as depR from "../services/departments.js";
+import * as rulesR from "../services/routingRules.js";
 
 /**
  * The documented surface of the REST API: one entry per route registered on the app (a test requires an entry for every route and a route
@@ -123,6 +126,21 @@ const rows: [string, string, string, Opt?][] = [
   ["GET /api/rooms/:id/tickets", "Tickets", "Every ticket of a conversation, newest first"],
   ["GET /api/contacts/:id/tickets", "Tickets", "Ticket history of a contact (the contact panel)"],
 
+  ["POST /api/tickets/:id/claim", "Tickets", "Take a ticket that is waiting (in the queue, or assigned to nobody); the first claim wins (`409 TICKET_TAKEN`)"],
+  ["POST /api/tickets/:id/transfer", "Tickets", "Move a ticket to another department: it is routed there by that department's mode, the room follows, and the team gets an internal note (the visitor is told too)", { body: S.TicketTransfer }],
+
+  // ---- departments and routing
+  ["GET /api/departments", "Departments", "Every inbox as a department: description, hours and holidays, routing mode, capacity, service levels, overflow, auto-replies, members with skills, languages and capacity, and live status (open, free people, queue)"],
+  ["GET /api/department-status", "Departments", "Every department of the workspace with open or closed, free people, queue length and typical wait (names and counts only: the transfer menu and the queue overview)"],
+  ["GET /api/departments/:id", "Departments", "One department with its configuration and status"],
+  ["PATCH /api/departments/:id", "Departments", "Change a department's routing configuration (audited). `overflow_inbox_id` loops are refused (`OVERFLOW_LOOP`)", { body: depR.DepartmentPatchSchema }],
+  ["GET /api/routing-rules", "Departments", "Routing rules in priority order"],
+  ["POST /api/routing-rules", "Departments", "Create a rule: all conditions must hold, the first matching rule picks the department of a new conversation", { body: rulesR.RuleBodySchema, status: 201 }],
+  ["PUT /api/routing-rules/order", "Departments", "Set the order (priority) of all rules", { body: depRoutes.RuleOrderBody }],
+  ["POST /api/routing-rules/test", "Departments", "Sandbox: which department a conversation with this page address, language, channel, tags and attributes would go to, and which rules were evaluated", { body: depRoutes.RuleTestBody }],
+  ["PATCH /api/routing-rules/:id", "Departments", "Edit a rule", { body: rulesR.RulePatchSchema }],
+  ["DELETE /api/routing-rules/:id", "Departments", "Delete a rule", { status: 204 }],
+
   // ---- contacts
   ["GET /api/contacts", "Contacts", "List contacts (search, keyset cursor)"],
   ["POST /api/contacts", "Contacts", "Create a contact", { body: S.ContactBody, status: 201 }],
@@ -215,7 +233,7 @@ const rows: [string, string, string, Opt?][] = [
   ["POST /public/sessions", "Widget (public)", "Create a visitor session. With `external_id` + `identity_hash` the session is identified and verified (no code); see docs/MOBILE-BRIDGE.md", { body: S.SessionBody, status: 201 }],
   ["GET /public/session", "Widget (public)", "The current visitor session"],
   ["GET /public/rooms", "Widget (public)", "The visitor's conversations"],
-  ["POST /public/rooms", "Widget (public)", "Start a conversation", { status: 201 }],
+  ["POST /public/rooms", "Widget (public)", "Start a conversation. Optional `department_id` (a department marked visible in the widget), `page_url` (origin and path are kept) and `locale`; without a department the first matching routing rule decides, then the widget default", { body: S.PublicRoomBody, status: 201 }],
   ["GET /public/rooms/:id/messages", "Widget (public)", "Messages of the visitor's conversation: no notes and only customer-facing system lines (conversation started, payments); `room` states the status and the close marker the rating prompt needs", { query: S.MessageListQuery }],
   ["POST /public/rooms/:id/messages", "Widget (public)", "Visitor sends a message", { body: S.VisitorSend, status: 201 }],
   ["DELETE /public/session", "Widget (public)", "End the visitor session (the host app's log-out); the session secret stops working at once", { status: 204 }],

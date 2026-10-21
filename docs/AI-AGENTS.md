@@ -68,8 +68,13 @@ Thread header: the ticket chip (`#12 Open`) is a menu (resolve, close, reopen, w
 
 Migration 027 (`tickets`, `ticket_events`, `ticket_counters`, `messages.ticket_id`) and 028 (permissions) are additive: no table is rebuilt and nothing touches the SQLite schema tables ([ADR 0023](adr/0023-sqlite-migrations-defensive-mode.md)). Retention (`retention_days`) and workspace erasure delete tickets and their events together with the messages; the archive keeps `ticket_id` on restored messages.
 
+## 2. Departments, routing and handoff
+
+Departments are inboxes with routing configuration; the engine that gives a ticket to a person (modes, capacity, hours and holidays, overflow, the queue, service levels, transfer, routing rules) is described in [DEPARTMENTS.md](DEPARTMENTS.md) and [ADR 0028](adr/0028-departments-are-inboxes.md). This is what the AI agent calls when it hands a conversation to a person, and what an agent's "transfer" button calls. Handoff reasons are recorded on the ticket (`handoff_reason`, the `handoff` event): `customer_requested_human`, `low_confidence`, `no_answer`, `repeated_rephrase`, `negative_sentiment`, `high_urgency`, `sensitive_topic`, `tool_failure`, `vip_contact`, `outside_hours`, `max_turns`, `transfer`, `agent_unavailable`, `agent_removed`, `sla_escalation`, `queue_drain`. A handoff leaves the person an internal note (reason, department, who got it, what the caller wants them to know) and tells the visitor what happens next: connecting you with a team and the typical wait, the place in the queue, or when the department reopens.
+
 ## Status
 
 | Part | State |
 | --- | --- |
-| Tickets (this section) | built and tested on SQLite and PostgreSQL; widget rating card not yet rendered by the widget (it shows the closing line as text until the widget work lands) |
+| Tickets (section 1) | built and tested on SQLite and PostgreSQL; widget rating card not yet rendered by the widget (it shows the closing line as text until the widget work lands) |
+| Departments and the handoff engine (section 2) | built and tested on SQLite and PostgreSQL including parallel handoffs; the widget's department picker is not rendered yet (the API and the config are); nothing here talks to a real mail or SMS provider beyond the existing offline email job |

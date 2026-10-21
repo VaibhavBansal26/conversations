@@ -31,7 +31,8 @@ Every document under `docs/` is listed here (a check fails otherwise). Generated
 | review security, report a vulnerability | [SECURITY.md](SECURITY.md) |
 | learn the vocabulary (and the legacy names) | [GLOSSARY.md](GLOSSARY.md), [MIGRATION-NOTES.md](MIGRATION-NOTES.md) |
 | understand the AI features | [AI.md](AI.md) |
-| understand tickets, AI support agents, departments, visitor details and calls | [AI-AGENTS.md](AI-AGENTS.md) |
+| understand tickets, AI support agents, departments, visitor details and calls | [AI-AGENTS.md](AI-AGENTS.md), [DEPARTMENTS.md](DEPARTMENTS.md) |
+| set up departments, opening hours, routing modes, capacity, service levels and routing rules | [DEPARTMENTS.md](DEPARTMENTS.md) |
 | see what changed | [../CHANGELOG.md](../CHANGELOG.md) |
 
 ## Documents
@@ -42,6 +43,7 @@ Every document under `docs/` is listed here (a check fails otherwise). Generated
 | [APPROACH.md](APPROACH.md) | stack choices, design principles, judgement calls, known limitations |
 | [AI.md](AI.md) | AI features, providers, prompt safety, offline heuristics |
 | [AI-AGENTS.md](AI-AGENTS.md) | tickets and their lifecycle, AI support agents, departments and routing, visitor details in the widget, voice and video calls: what is built, tested and unverified |
+| [DEPARTMENTS.md](DEPARTMENTS.md) | departments (inboxes with routing configuration): hours and holidays, who is available, routing modes, capacity, the queue, service levels, transfer, routing rules, race safety |
 | [TESTING.md](TESTING.md) | test strategy, how to run, test catalogue, edge-case map, test counts |
 | [MIGRATION-NOTES.md](MIGRATION-NOTES.md) | legacy to new mapping of collections, endpoints, events, and defects not carried over |
 | [CONFIGURATION.md](CONFIGURATION.md) | every environment variable: type, default, example, meaning, security notes (generated) |

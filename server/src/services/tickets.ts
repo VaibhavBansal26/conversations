@@ -11,6 +11,7 @@ import { recordAudit } from "./audit.js";
 import { emitInserted, insertMessage } from "./messageStore.js";
 import { getRoomRow, roomVisibility, type RoomRow } from "./roomStore.js";
 import { publishRoomUpdated } from "./rooms.js";
+import { drainQueue } from "./routing.js";
 import { getSettings } from "./workspaces.js";
 
 /**
@@ -55,6 +56,11 @@ export interface TicketRow {
   merged_into_id: string | null;
   last_activity_at: string;
   meta: string;
+  sla_first_response_due_at: string | null;
+  sla_resolution_due_at: string | null;
+  sla_first_response_breached_at: string | null;
+  sla_resolution_breached_at: string | null;
+  reassigned_count: number;
   created_at: string;
   updated_at: string;
 }
@@ -102,6 +108,13 @@ export function ticketDto(t: TicketRow) {
     summary: t.summary,
     handoff_reason: t.handoff_reason,
     merged_into_id: t.merged_into_id,
+    reassigned_count: t.reassigned_count,
+    sla: {
+      first_response_due_at: t.sla_first_response_due_at,
+      first_response_breached_at: t.sla_first_response_breached_at,
+      resolution_due_at: t.sla_resolution_due_at,
+      resolution_breached_at: t.sla_resolution_breached_at,
+    },
     last_activity_at: t.last_activity_at,
     created_at: t.created_at,
     updated_at: t.updated_at,
@@ -172,9 +185,12 @@ export interface OpenTicketInput {
 export async function openTicket(ctx: AppContext, i: OpenTicketInput, now: string): Promise<TicketRow> {
   const id = newId("tkt");
   const number = await nextNumber(ctx, i.room.workspace_id);
+  // service levels of the department the conversation is in: resolution counts from now, first response too until an AI agent takes the ticket
+  const dept = i.room.inbox_id ? await ctx.db.get<{ sla_first_response_s: number | null; sla_resolution_s: number | null }>("SELECT sla_first_response_s, sla_resolution_s FROM inboxes WHERE id = ?", i.room.inbox_id) : undefined;
+  const due = (s: number | null | undefined) => (s ? new Date(Date.parse(now) + s * 1000).toISOString() : null);
   const row = await ctx.db.get<TicketRow>(
-    `INSERT INTO tickets(id, workspace_id, room_id, contact_id, number, subject, status, handler, department_id, priority, channel, opened_at, last_activity_at, created_at, updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING *`,
+    `INSERT INTO tickets(id, workspace_id, room_id, contact_id, number, subject, status, handler, department_id, priority, channel, opened_at, last_activity_at, created_at, updated_at, sla_first_response_due_at, sla_resolution_due_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING *`,
     id,
     i.room.workspace_id,
     i.room.id,
@@ -190,6 +206,8 @@ export async function openTicket(ctx: AppContext, i: OpenTicketInput, now: strin
     now,
     now,
     now,
+    due(dept?.sla_first_response_s),
+    due(dept?.sla_resolution_s),
   );
   await recordTicketEvent(ctx, row!, "opened", i.by, { channel: i.channel }, now);
   return row!;
@@ -300,7 +318,8 @@ export async function ticketOnMessage(ctx: AppContext, room: RoomRow, m: TicketM
   if (status === "new" || status === "bot_handling" || status === "waiting_for_human") {
     const wasBot = status === "bot_handling" || handlerOf(live.handler)?.type === "bot";
     status = "open";
-    handler = agentId ? `human:${agentId}` : live.handler;
+    // a ticket assigned to someone stays theirs when a colleague answers it first; a queued or bot-handled one becomes the replier's
+    if (agentId && (!live.handler || live.handler.startsWith("bot:"))) handler = `human:${agentId}`;
     await recordTicketEvent(ctx, live, wasBot ? "taken_over" : "accepted", agentId ? { type: "member", id: agentId } : { type: "system" }, { from: live.status, by_reply: true }, now);
   } else if (status === "resolved") {
     status = "open";
@@ -330,6 +349,11 @@ export async function publishTickets(ctx: AppContext, ids: string[]): Promise<vo
     if (!t) continue;
     ctx.bus.toRoom(t.workspace_id, t.room_id, "ticket:updated", { ticket: ticketDto(t) }, { visitor: { room_id: t.room_id, ticket: visitorTicketDto(t) } });
   }
+}
+
+/** A ticket that a person was working has ended: that person has room again, so tickets waiting in the department's queue may go to them. */
+async function freeCapacity(ctx: AppContext, t: Pick<TicketRow, "workspace_id" | "department_id" | "handler">): Promise<void> {
+  if (t.handler?.startsWith("human:")) await drainQueue(ctx, t.workspace_id, t.department_id ?? undefined);
 }
 
 /* ---------- transitions ---------- */
@@ -401,6 +425,7 @@ export async function resolveTicket(ctx: AppContext, actor: Actor, id: string, o
   if (!opts.silent) await announceResolved(ctx, row);
   await publishTickets(ctx, [row.id]);
   await publishRoom(ctx, row);
+  await freeCapacity(ctx, row);
   return row;
 }
 
@@ -411,6 +436,7 @@ export async function closeTicket(ctx: AppContext, actor: Actor, id: string): Pr
   const row = await closeRow(ctx, resolved!, null, { type: "member", id: actor.memberId }, nowIso(ctx));
   await publishTickets(ctx, [row.id]);
   await publishRoom(ctx, row);
+  await freeCapacity(ctx, row);
   return row;
 }
 
@@ -498,7 +524,10 @@ export async function onRoomClosed(ctx: AppContext, room: Pick<RoomRow, "id" | "
   const live = await liveTicketOf(ctx, room.id);
   if (!live || live.status === "resolved") return;
   const row = await resolveTicketRow(ctx, live.id, by, { reason: "room_closed" });
-  if (row) await publishTickets(ctx, [row.id]);
+  if (row) {
+    await publishTickets(ctx, [row.id]);
+    await freeCapacity(ctx, row);
+  }
 }
 
 /* ---------- reading ---------- */
@@ -750,6 +779,7 @@ export async function ticketSweep(ctx: AppContext, opts: { limit?: number } = {}
       out.resolved++;
       await announceResolved(ctx, row);
       await publishTickets(ctx, [row.id]);
+      await freeCapacity(ctx, row);
     }
   }
   const done = await ctx.db.all<TicketRow>("SELECT * FROM tickets WHERE status = 'resolved' AND resolved_at < ? ORDER BY resolved_at LIMIT ?", new Date(now.getTime() - 3600_000).toISOString(), limit);

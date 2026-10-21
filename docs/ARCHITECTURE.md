@@ -100,6 +100,7 @@ Development runs the same thing with `npm run dev` (API on :3000, Vite on :5173 
 | `providers/` | `SmsProvider`/`EmailProvider`/`Storage` interfaces, Fake/Console providers (`simulated` = test mode), Twilio/SendGrid `fetch` adapters with timeouts and normalised errors, `ProviderRegistry` (per-workspace credentials, else the platform default; [CHANNELS.md](CHANNELS.md)), `LocalDiskStorage` |
 | `realtime/` | `RealtimeBus` interface, `SocketBus` (Socket.IO: admission control, limits, backpressure, drain, event coalescing) |
 | `services/tickets.ts`, `routes/tickets.ts` | tickets: the state machine run by `insertMessage`, resolve/close/reopen/merge, listing and counts, the idle sweep, rating ([AI-AGENTS.md](AI-AGENTS.md), [ADR 0027](adr/0027-tickets-inside-rooms.md)); web: `pages/TicketsPage.tsx`, `components/tickets/`, `api/ticketHooks.ts` |
+| `services/departments.ts`, `services/routing.ts`, `services/routingRules.ts`, `routes/departments.ts` | departments (hours, availability, status, configuration), the handoff engine (`routeTicket`, handoff, transfer, claim, queue drain, seat changes, SLA sweep) and routing rules ([DEPARTMENTS.md](DEPARTMENTS.md), [ADR 0028](adr/0028-departments-are-inboxes.md)); web: `pages/settings/DepartmentSettings.tsx`, `components/settings/HoursEditor.tsx` |
 | `services/teamChat.ts`, `routes/teamChat.ts` | internal team chat: channels, direct and group messages, threads, reactions, pins, search, read cursors, notifications ([TEAM-CHAT.md](TEAM-CHAT.md), [ADR 0021](adr/0021-team-chat.md)); web: `web/src/team/`, `pages/TeamPage.tsx` |
 | `webhooks/signatures.ts` | Twilio HMAC-SHA1, SendGrid ECDSA / shared secret, replay + idempotency table; per-workspace endpoints `/webhooks/c/:id/...` verify with the connection's own credentials |
 | `jobs/` | `JobQueue` (`DbJobQueue` / `BullJobQueue`) with backoff, scheduler passes |
@@ -177,7 +178,9 @@ erDiagram
   rooms ||--o{ tickets : "episodes of support"
   tickets ||--o{ ticket_events : timeline
   tickets ||--o{ messages : "messages.ticket_id"
-  workspaces ||--|| ticket_counters : "per-workspace numbers"
+  workspaces ||--|| ticket_counters : "per-workspace numbers (also the routing lock)"
+  workspaces ||--o{ routing_rules : "first match picks the department"
+  inboxes ||--o{ routing_rules : "target"
 
   rooms {
     text id PK

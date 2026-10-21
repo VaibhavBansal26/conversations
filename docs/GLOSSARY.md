@@ -12,6 +12,9 @@ Domain terms as used in this repository, and how they map to the legacy ("Suppor
 | **Visitor** | an anonymous or identified person using the chat widget; has a *visitor session* | support user |
 | **Room (conversation)** | one thread between the team and one contact across chat, SMS and email; has status `open` or `closed`, priority, assignees, snooze. The code says *room*, the UI says *conversation* | `SupportRoom` |
 | **Ticket** | one issue inside a room, with a per-workspace number, status, handler, department, priority, resolution and rating; opens with the first message of an issue and ends when resolved or closed. A *conversation* (code: *room*) is the one thread per contact and outlives its tickets ([AI-AGENTS.md](AI-AGENTS.md), [ADR 0027](adr/0027-tickets-inside-rooms.md)) | `SupportRoom` status, "case" |
+| **Department** | an inbox with routing configuration: hours and holidays, routing mode, capacity, service levels, overflow, members with skills and languages ([DEPARTMENTS.md](DEPARTMENTS.md), [ADR 0028](adr/0028-departments-are-inboxes.md)) | `SupportInbox` |
+| **Routing mode** | how a department gives a ticket to a person: round robin, least busy, skills based or manual pick | assignment algorithm |
+| **Queue** | tickets waiting for a person (`waiting_for_human` with no handler), given out oldest first as people become free | (none) |
 | **Handler** | who is working a ticket: `bot:<agent id>` or `human:<member id>` | assignee (a conversation's assignee is unchanged) |
 | **Team chat** | internal chat between workspace members: channels, direct and group messages, threads, reactions ([TEAM-CHAT.md](TEAM-CHAT.md)); not customer conversations | legacy generation B "conversations rooms" |
 | **Team channel** | a public (anyone in the workspace can join) or private (invite-only) chat space; `#general` exists in every workspace; not to be confused with the SMS/email *channels* | |

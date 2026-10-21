@@ -120,6 +120,28 @@ export async function notifyMentions(ctx: AppContext, room: RoomRow, message: Me
   }
 }
 
+/** In-app entry about a ticket (assigned to you, waiting for a person, a missed service level) and, when asked, the usual offline email. */
+export async function notifyTicket(ctx: AppContext, m: MemberRow, n: { type: string; room: RoomRow; title: string; body: string; email: boolean }): Promise<void> {
+  const id = newId("ntf");
+  await ctx.db.run(
+    "INSERT INTO notifications(id, workspace_id, member_id, type, room_id, message_id, title, body, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+    id,
+    m.workspace_id,
+    m.id,
+    n.type,
+    n.room.id,
+    null,
+    n.title,
+    n.body,
+    nowIso(ctx),
+  );
+  ctx.bus.toMember(m.workspace_id, m.id, "notification:new", {
+    notification: notificationDto((await ctx.db.get<NotificationRow>("SELECT * FROM notifications WHERE id = ?", id))!),
+    unread_count: await unreadNotificationCount(ctx, m.id),
+  });
+  if (n.email && (await canEmail(ctx, m))) await enqueueJob(ctx, "notify_email", { notification_id: id }, { dedupeKey: `notify_email:${id}` });
+}
+
 /** Tell the seat that snoozed a room that it is back. */
 export async function notifySnoozeEnded(ctx: AppContext, room: RoomRow, snoozedBy: string | null): Promise<void> {
   if (!snoozedBy) return;

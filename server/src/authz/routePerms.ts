@@ -38,8 +38,12 @@ const GROUPS: [RouteAccess, string[]][] = [
     "DELETE /api/messages/:id", "POST /api/messages/:id/retry", "POST /api/attachments", "POST /api/templates/:id/render", "POST /api/rooms/:id/assign",
   ]],
   ["conversations:delete", ["DELETE /api/rooms/:id"]],
-  ["tickets:read", ["GET /api/tickets", "GET /api/tickets/counts", "GET /api/tickets/:id", "GET /api/rooms/:id/tickets", "GET /api/contacts/:id/tickets"]],
-  ["tickets:write", ["PATCH /api/tickets/:id", "POST /api/tickets/:id/reopen"]],
+  ["tickets:read", ["GET /api/tickets", "GET /api/tickets/counts", "GET /api/tickets/:id", "GET /api/rooms/:id/tickets", "GET /api/contacts/:id/tickets", "GET /api/department-status"]],
+  ["tickets:write", ["PATCH /api/tickets/:id", "POST /api/tickets/:id/reopen", "POST /api/tickets/:id/claim", "POST /api/tickets/:id/transfer"]],
+  ["departments:manage", [
+    "GET /api/departments", "GET /api/departments/:id", "PATCH /api/departments/:id", "GET /api/routing-rules", "POST /api/routing-rules", "PUT /api/routing-rules/order",
+    "POST /api/routing-rules/test", "PATCH /api/routing-rules/:id", "DELETE /api/routing-rules/:id",
+  ]],
   ["tickets:close", ["POST /api/tickets/:id/resolve", "POST /api/tickets/:id/close", "POST /api/tickets/bulk"]],
   ["tickets:merge", ["POST /api/tickets/:id/merge"]],
   ["team_chat:use", [

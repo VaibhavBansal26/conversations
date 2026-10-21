@@ -1110,6 +1110,15 @@
                           }
                         }
                       },
+                      "routing": {
+                        "type": "object",
+                        "properties": {
+                          "require_online": {
+                            "default": true,
+                            "type": "boolean"
+                          }
+                        }
+                      },
                       "widget": {
                         "type": "object",
                         "properties": {
@@ -1317,6 +1326,10 @@
                               "string",
                               "null"
                             ]
+                          },
+                          "department_selector": {
+                            "default": false,
+                            "type": "boolean"
                           }
                         }
                       }
@@ -6110,6 +6123,1056 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/tickets/{id}/claim": {
+      "post": {
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "Take a ticket that is waiting (in the queue, or assigned to nobody); the first claim wins (`409 TICKET_TAKEN`)",
+        "operationId": "post_api_tickets_id_claim",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "tickets:write",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/tickets/{id}/transfer": {
+      "post": {
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "Move a ticket to another department: it is routed there by that department's mode, the room follows, and the team gets an internal note (the visitor is told too)",
+        "operationId": "post_api_tickets_id_transfer",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "tickets:write",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "department_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "department_id"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/departments": {
+      "get": {
+        "tags": [
+          "Departments"
+        ],
+        "summary": "Every inbox as a department: description, hours and holidays, routing mode, capacity, service levels, overflow, auto-replies, members with skills, languages and capacity, and live status (open, free people, queue)",
+        "operationId": "get_api_departments",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "departments:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.read",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/department-status": {
+      "get": {
+        "tags": [
+          "Departments"
+        ],
+        "summary": "Every department of the workspace with open or closed, free people, queue length and typical wait (names and counts only: the transfer menu and the queue overview)",
+        "operationId": "get_api_department_status",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "tickets:read",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.read",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/departments/{id}": {
+      "get": {
+        "tags": [
+          "Departments"
+        ],
+        "summary": "One department with its configuration and status",
+        "operationId": "get_api_departments_id",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "departments:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.read",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Departments"
+        ],
+        "summary": "Change a department's routing configuration (audited). `overflow_inbox_id` loops are refused (`OVERFLOW_LOOP`)",
+        "operationId": "patch_api_departments_id",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "departments:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "description": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "routing_mode": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "round_robin",
+                          "least_busy",
+                          "skills_based",
+                          "manual_pick"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "capacity": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "hours": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "default": false,
+                        "type": "boolean"
+                      },
+                      "timezone": {
+                        "default": "UTC",
+                        "type": "string"
+                      },
+                      "days": {
+                        "default": [
+                          {
+                            "day": 1,
+                            "start": "09:00",
+                            "end": "17:00"
+                          },
+                          {
+                            "day": 2,
+                            "start": "09:00",
+                            "end": "17:00"
+                          },
+                          {
+                            "day": 3,
+                            "start": "09:00",
+                            "end": "17:00"
+                          },
+                          {
+                            "day": 4,
+                            "start": "09:00",
+                            "end": "17:00"
+                          },
+                          {
+                            "day": 5,
+                            "start": "09:00",
+                            "end": "17:00"
+                          }
+                        ],
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "day": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 6
+                            },
+                            "start": {
+                              "type": "string",
+                              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                            },
+                            "end": {
+                              "type": "string",
+                              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                            }
+                          },
+                          "required": [
+                            "day",
+                            "start",
+                            "end"
+                          ]
+                        }
+                      },
+                      "holidays": {
+                        "default": [],
+                        "maxItems": 100,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                        }
+                      }
+                    }
+                  },
+                  "sla_first_response_s": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 30,
+                        "maximum": 2592000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "sla_resolution_s": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 60,
+                        "maximum": 31536000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "overflow_inbox_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "auto_reply_closed": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "auto_reply_queued": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "live_routing_visibility": {
+                    "type": "boolean"
+                  },
+                  "members": {
+                    "maxItems": 200,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "member_id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "skills": {
+                          "maxItems": 20,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 40
+                          }
+                        },
+                        "languages": {
+                          "maxItems": 10,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "pattern": "^[a-z]{2,3}(-[a-z0-9]{2,8})?$"
+                          }
+                        },
+                        "capacity": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 100
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "member_id"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/routing-rules": {
+      "get": {
+        "tags": [
+          "Departments"
+        ],
+        "summary": "Routing rules in priority order",
+        "operationId": "get_api_routing_rules",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "departments:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.read",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Departments"
+        ],
+        "summary": "Create a rule: all conditions must hold, the first matching rule picks the department of a new conversation",
+        "operationId": "post_api_routing_rules",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "departments:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "enabled": {
+                    "default": true,
+                    "type": "boolean"
+                  },
+                  "conditions": {
+                    "minItems": 1,
+                    "maxItems": 5,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "enum": [
+                            "page_url",
+                            "locale",
+                            "channel",
+                            "tag",
+                            "email_domain",
+                            "attr"
+                          ]
+                        },
+                        "key": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 60
+                        },
+                        "op": {
+                          "type": "string",
+                          "enum": [
+                            "equals",
+                            "not_equals",
+                            "contains",
+                            "not_contains",
+                            "starts_with",
+                            "ends_with",
+                            "exists"
+                          ]
+                        },
+                        "value": {
+                          "default": "",
+                          "type": "string",
+                          "maxLength": 200
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "op"
+                      ]
+                    }
+                  },
+                  "department_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "name",
+                  "conditions",
+                  "department_id"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/routing-rules/order": {
+      "put": {
+        "tags": [
+          "Departments"
+        ],
+        "summary": "Set the order (priority) of all rules",
+        "operationId": "put_api_routing_rules_order",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "departments:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ids": {
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    }
+                  }
+                },
+                "required": [
+                  "ids"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/routing-rules/test": {
+      "post": {
+        "tags": [
+          "Departments"
+        ],
+        "summary": "Sandbox: which department a conversation with this page address, language, channel, tags and attributes would go to, and which rules were evaluated",
+        "operationId": "post_api_routing_rules_test",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "departments:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "page_url": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "locale": {
+                    "type": "string",
+                    "maxLength": 20
+                  },
+                  "channel": {
+                    "type": "string",
+                    "enum": [
+                      "dm",
+                      "sms",
+                      "email"
+                    ]
+                  },
+                  "tags": {
+                    "maxItems": 30,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 60
+                    }
+                  },
+                  "email": {
+                    "type": "string",
+                    "maxLength": 254
+                  },
+                  "attrs": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "maxLength": 60
+                    },
+                    "additionalProperties": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/routing-rules/{id}": {
+      "patch": {
+        "tags": [
+          "Departments"
+        ],
+        "summary": "Edit a rule",
+        "operationId": "patch_api_routing_rules_id",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "departments:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "enabled": {
+                    "default": true,
+                    "type": "boolean"
+                  },
+                  "conditions": {
+                    "minItems": 1,
+                    "maxItems": 5,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "enum": [
+                            "page_url",
+                            "locale",
+                            "channel",
+                            "tag",
+                            "email_domain",
+                            "attr"
+                          ]
+                        },
+                        "key": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 60
+                        },
+                        "op": {
+                          "type": "string",
+                          "enum": [
+                            "equals",
+                            "not_equals",
+                            "contains",
+                            "not_contains",
+                            "starts_with",
+                            "ends_with",
+                            "exists"
+                          ]
+                        },
+                        "value": {
+                          "default": "",
+                          "type": "string",
+                          "maxLength": 200
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "op"
+                      ]
+                    }
+                  },
+                  "department_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "position": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Departments"
+        ],
+        "summary": "Delete a rule",
+        "operationId": "delete_api_routing_rules_id",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "departments:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
           },
           "401": {
             "$ref": "#/components/responses/Error"
@@ -11042,7 +12105,7 @@
         "tags": [
           "Widget (public)"
         ],
-        "summary": "Start a conversation",
+        "summary": "Start a conversation. Optional `department_id` (a department marked visible in the widget), `page_url` (origin and path are kept) and `locale`; without a department the first matching routing rule decides, then the widget default",
         "operationId": "post_public_rooms",
         "security": [],
         "x-access": "public",
@@ -11064,8 +12127,42 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "default": {},
+                "type": "object",
+                "properties": {
+                  "inbox_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "department_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "page_url": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "locale": {
+                    "type": "string",
+                    "maxLength": 20
+                  }
+                }
+              }
+            }
           }
         }
       }
