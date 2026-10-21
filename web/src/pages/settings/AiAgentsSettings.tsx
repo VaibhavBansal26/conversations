@@ -1,5 +1,5 @@
 import { Bot, FlaskConical, MessageSquareWarning, Pencil, Plus, ThumbsDown, ThumbsUp, Trash2 } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router";
 import { useAgentMutations, useAgents, useAgentTurns, useSandbox, useUnanswered, type AgentDraft, type TurnFilters } from "../../api/agentHooks";
 import { useDepartments } from "../../api/departmentHooks";
@@ -48,6 +48,31 @@ const blank = (): AgentDraft => ({
   max_turns: 6, max_attempts: 2, allowed_actions: ACTIONS.map((a) => a.id), handoff_triggers: { human_request: true, low_confidence: true, repeated_rephrase: true, negative_sentiment: true, high_urgency: true, sensitive_topic: true, vip_contact: true, tool_failure: true, sensitive_topics: [] },
   waiting_behavior: "gather_info", disclosure_label: "AI assistant", channels: ["widget"], enabled: false,
 });
+
+/** The agent a workspace gets the first time it opens this screen with none: on, answering from the knowledge base, handing over when it should. */
+export const DEFAULT_AGENT: Partial<AgentDraft> & { name: string } = {
+  name: "Aria",
+  persona: "You are a helpful, polite support assistant. Answer only from the knowledge base. If you do not know, say so and offer a person.",
+  greeting: "Hi! I'm an AI assistant. Ask me anything, or ask for a person at any time.",
+  autonomy: "auto_answer",
+  enabled: true,
+};
+const OFFERED_KEY = "conversations.default-agent-offered";
+const offered = () => {
+  try {
+    return localStorage.getItem(OFFERED_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
+const markOffered = (on = true) => {
+  try {
+    if (on) localStorage.setItem(OFFERED_KEY, "1");
+    else localStorage.removeItem(OFFERED_KEY);
+  } catch {
+    /* private mode: the agent list itself still prevents a second one */
+  }
+};
 
 function Sandbox({ agent }: { agent: AiAgent }) {
   const sandbox = useSandbox(agent.id);
@@ -245,8 +270,17 @@ function AgentEditor({ agent, onClose }: { agent: AiAgent | null; onClose: () =>
 
 function Agents() {
   const agents = useAgents();
-  const { update, remove } = useAgentMutations();
+  const { create, update, remove } = useAgentMutations();
   const depts = useDepartments();
+  const [createdDefault, setCreatedDefault] = useState(false);
+  const tried = useRef(false);
+  // First visit with no agent at all: create the default one once (the browser remembers, so deleting it is final).
+  useEffect(() => {
+    if (!agents.data || agents.data.length > 0 || tried.current || offered()) return;
+    tried.current = true;
+    markOffered();
+    create.mutate(DEFAULT_AGENT, { onSuccess: () => setCreatedDefault(true), onError: () => markOffered(false) });
+  }, [agents.data, create]);
   const [editing, setEditing] = useState<string | "new" | null>(null);
   const [confirm, setConfirm] = useState<AiAgent | null>(null);
   const data = agents.data ?? [];
@@ -268,7 +302,12 @@ function Agents() {
         </div>
       )}
       {agents.isError && <ErrorNotice error={agents.error} onRetry={() => void agents.refetch()} />}
-      {agents.data && data.length === 0 && editing === null && (
+      {createdDefault && (
+        <p role="status" className="rounded-md bg-primary-soft px-3 py-2 text-sm text-primary-text">
+          We created an AI agent called Aria and switched it on. It answers from your Knowledge base and hands over to your team when it cannot. Add a few knowledge-base entries, then try it below.
+        </p>
+      )}
+      {agents.data && data.length === 0 && editing === null && !create.isPending && (
         <EmptyState icon={Bot} title="No AI agents yet" hint="Add your help-centre answers under Knowledge base first, then create an agent and try it before switching it on." action={<Button onClick={() => setEditing("new")}>New agent</Button>} />
       )}
       {data.length > 0 && (

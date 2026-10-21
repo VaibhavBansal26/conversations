@@ -49,6 +49,26 @@ describe("AiAgentsSettings", () => {
   beforeEach(() => {
     calls.length = 0;
     agents = [agent()];
+    localStorage.clear();
+  });
+
+  it("creates the default agent, switched on, the first time the screen opens with none, and only once", async () => {
+    agents = [];
+    const first = mount();
+    await waitFor(() => expect(calls.filter((c) => c.method === "POST" && c.path === "/api/agents")).toHaveLength(1));
+    expect(JSON.parse(calls.find((c) => c.method === "POST")!.body!)).toMatchObject({ name: "Aria", enabled: true, autonomy: "auto_answer" });
+    expect(await screen.findByText(/We created an AI agent called Aria/)).toBeInTheDocument();
+    first.unmount();
+    calls.length = 0;
+    mount();
+    await screen.findByText("No AI agents yet");
+    expect(calls.some((c) => c.method === "POST")).toBe(false);
+  });
+
+  it("does not create a default agent when one exists", async () => {
+    mount();
+    await screen.findByText("Aria");
+    expect(calls.some((c) => c.method === "POST")).toBe(false);
   });
 
   it("lists agents with their state, autonomy and departments, and switches one off", async () => {

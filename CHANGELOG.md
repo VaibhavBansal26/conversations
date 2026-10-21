@@ -4,6 +4,10 @@ All notable user-visible changes. Format: [Keep a Changelog](https://keepachange
 
 ## [Unreleased]
 
+### Changed
+
+- Settings > AI agents creates a default agent (Aria, switched on) the first time it is opened in a workspace that has none.
+
 ### Added (support analytics, evals, demo)
 - **Support analytics** ([docs/ANALYTICS.md](docs/ANALYTICS.md)): `GET /api/v1/analytics/support` (containment, hand-off rate and reasons, median wait for a person, service-level breaches, rating by handler, per department, per AI agent, calls), `GET /export/tickets` and `GET /export/calls` (NDJSON, keyed hashes, no free text or numbers) and `ticket_id` on messages-meta lines, all additive in API v1 with JSON Schemas and contract tests; Analytics > Support in the app.
 - **Evals**: `npm run eval:agent` and the same 51 golden cases in the test suite, with thresholds; guards checked against a hostile model. **Demo**: `SEED_AI=1 npm run seed` for departments, an AI agent that is on, calls and email capture.
