@@ -2,14 +2,17 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import type { AppContext } from "../context.js";
 import { publicWidgetConfig } from "../domain/settings.js";
-import { badRequest, forbidden } from "../errors.js";
+import { badRequest, forbidden, unprocessable } from "../errors.js";
+import { nowIso } from "../context.js";
+import { parseJson } from "../util/json.js";
+import { saveUpload, VISITOR_UPLOAD_MIME } from "../services/attachments.js";
 import { z } from "zod";
 import { AppError } from "../errors.js";
 import { recordCsat } from "../services/roomMetrics.js";
 import { knownIp, parseBody, parseQuery } from "../http.js";
 import { applyPrincipalLimits, enforce } from "../ratelimit/http.js";
 import { ipKey } from "../util/clientIp.js";
-import { MessageListQuery, OtpVerify, ReadBody, SessionBody, VisitorSend } from "../schemas.js";
+import { MessageListQuery, OtpVerify, ReadBody, SessionAttributes, SessionBody, VisitorSend } from "../schemas.js";
 import { listMemberRows } from "../services/members.js";
 import { loadRefs, visitorMessageDto } from "../services/messageStore.js";
 import { isOpen } from "../services/office.js";
@@ -38,7 +41,8 @@ export const Csat = z.object({ score: z.number().int().min(1).max(5), comment: z
 export function publicRoutes(ctx: AppContext) {
   const r = new Hono<PEnv>();
 
-  const tokenAuth = (c: Context, seen = false) => authenticateToken(ctx, c.req.header("x-api-key"), c.req.header("origin"), { seen, preview: c.req.header("x-preview") });
+  const tokenAuth = (c: Context, seen = false) =>
+    authenticateToken(ctx, c.req.header("x-api-key"), c.req.header("origin"), { seen, preview: c.req.header("x-preview"), hostedChat: c.req.header("x-hosted-chat") === "1" });
 
   r.get("/widget/config", async (c) => {
     const token = await tokenAuth(c, true);
@@ -79,7 +83,7 @@ export function publicRoutes(ctx: AppContext) {
     // browsers always send Origin; if it is present it must still belong to the embed token that created the session
     const origin = c.req.header("origin");
     if (origin && s.token_id) {
-      const t = await ctx.db.get<{ domain: string; status: "active" | "revoked" }>("SELECT domain, status FROM tokens WHERE id = ?", s.token_id);
+      const t = await ctx.db.get<{ domain: string; status: "active" | "revoked"; hosted_chat_enabled: number }>("SELECT domain, status, hosted_chat_enabled FROM tokens WHERE id = ?", s.token_id);
       if (!t || !sessionOriginAllowed(ctx, s, t, origin)) throw forbidden("This origin is not allowed", "ORIGIN_NOT_ALLOWED");
     }
     c.set("session", s);
@@ -90,6 +94,31 @@ export function publicRoutes(ctx: AppContext) {
   r.get("/session", async (c) => {
     const s = c.get("session");
     return c.json(sessionDto(s, await getContact(ctx, s.workspace_id, s.contact_id)));
+  });
+  // end this session (the host app's "log out"): the secret stops working at once; the next session starts anonymous or signed again
+  r.delete("/session", async (c) => {
+    await ctx.db.run("UPDATE visitor_sessions SET expired = 1 WHERE id = ?", c.get("session").id);
+    return c.body(null, 204);
+  });
+  // free-form attributes the host app wants to show the team ("plan", "app_version"). Visitor-supplied, so stored apart from the contact's own fields
+  r.post("/session/attributes", async (c) => {
+    const s = c.get("session");
+    const { attributes } = await parseBody(c, SessionAttributes);
+    const contact = await getContact(ctx, s.workspace_id, s.contact_id);
+    const attrs = parseJson<Record<string, unknown>>(contact.attrs, {});
+    const app = { ...(typeof attrs.app === "object" && attrs.app ? (attrs.app as Record<string, unknown>) : {}), ...attributes };
+    for (const k of Object.keys(app)) if (app[k] === null) delete app[k];
+    if (Object.keys(app).length > 40) throw unprocessable("TOO_MANY_ATTRIBUTES", "At most 40 attributes are kept");
+    await ctx.db.run("UPDATE contacts SET attrs = ?, updated_at = ? WHERE id = ?", JSON.stringify({ ...attrs, app }), nowIso(ctx), contact.id);
+    return c.json({ ok: true });
+  });
+  r.post("/attachments", async (c) => {
+    const s = c.get("session");
+    const form = await c.req.parseBody();
+    const f = form["file"];
+    if (!f || typeof f === "string") throw unprocessable("FILE_REQUIRED", "Send the file as multipart field 'file'");
+    const att = await saveUpload(ctx, { workspaceId: s.workspace_id, memberId: s.id }, { name: f.name, type: f.type, content: Buffer.from(await f.arrayBuffer()) }, { allowMime: VISITOR_UPLOAD_MIME });
+    return c.json({ ...att, url: ctx.storage.signedUrl(att.key, { fileName: att.file_name, contentType: att.content_type, ttlSeconds: ctx.config.SIGNED_URL_TTL_SECONDS }) }, 201);
   });
   r.get("/rooms", async (c) => c.json({ data: await visitorRoomDtos(ctx, await visitorRooms(ctx, c.get("session"))) }));
   r.post("/rooms", async (c) => {

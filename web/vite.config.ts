@@ -18,6 +18,7 @@ export default defineConfig({
       "/widget.js": target,
       "/widget-demo.html": target,
       "/widget-preview": target,
+      "/chat": target,
       "/socket.io": { target, ws: true },
     },
   },

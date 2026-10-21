@@ -443,7 +443,7 @@ export async function attachSocketServer(httpServer: HttpServer, ctx: AppContext
         socket.data = { kind: "team", memberId: actor.memberId, userId: actor.userId, workspaceId: ws, exp: decodeExp(auth.token), ip, imp: actor.impersonatedBy } satisfies TeamData;
       } else if (typeof auth.session === "string") {
         const session = await authenticateSession(ctx, auth.session, { deviceId: auth.deviceId, ip }, ws);
-        const token = session.token_id ? await ctx.db.get<{ domain: string; status: "active" | "revoked" }>("SELECT domain, status FROM tokens WHERE id = ?", session.token_id) : undefined;
+        const token = session.token_id ? await ctx.db.get<{ domain: string; status: "active" | "revoked"; hosted_chat_enabled: number }>("SELECT domain, status, hosted_chat_enabled FROM tokens WHERE id = ?", session.token_id) : undefined;
         const origin = socket.handshake.headers.origin;
         if (token && (token.status !== "active" || (origin !== undefined && !sessionOriginAllowed(ctx, session, token, origin)))) throw unauthorized("Origin not allowed", "ORIGIN_NOT_ALLOWED");
         handshakeSession.set(socket, session);

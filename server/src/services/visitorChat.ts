@@ -3,6 +3,7 @@ import type { AppContext } from "../context.js";
 import { isUniqueViolation } from "../db/index.js";
 import { AppError, notFound, unprocessable } from "../errors.js";
 import { getSettings } from "./workspaces.js";
+import { resolveVisitorAttachments } from "./attachments.js";
 import { findInbox } from "./inboxes.js";
 import { getContact } from "./contacts.js";
 import { closedMarker, emitInserted, insertMessage, visitorMessageDtos, type MessageRow } from "./messageStore.js";
@@ -90,7 +91,7 @@ export async function visitorSend(
   ctx: AppContext,
   session: SessionRow,
   roomId: string,
-  input: { content: string; client_msg_id?: string },
+  input: { content?: string; attachment_ids?: string[]; client_msg_id?: string },
 ): Promise<{ message: MessageRow; created: boolean; room: RoomRow }> {
   const room = await getVisitorRoom(ctx, session, roomId);
   const findDup = async () =>
@@ -102,8 +103,9 @@ export async function visitorSend(
   await enforceSendLimits(ctx, { workspaceId: room.workspace_id, roomId, contactId: room.contact_id, clientMsgId: input.client_msg_id });
   const raw = input.content ?? "";
   if (raw.length > VISITOR_MAX_CHARS) throw unprocessable("CONTENT_TOO_LONG", `Messages are limited to ${VISITOR_MAX_CHARS} characters`);
+  const attachments = input.attachment_ids?.length ? await resolveVisitorAttachments(ctx, room.workspace_id, session.id, input.attachment_ids) : [];
   const { content, text } = processContent("dm", raw, "text");
-  if (!text) throw unprocessable("EMPTY_MESSAGE", "Message is empty");
+  if (!text && !attachments.length) throw unprocessable("EMPTY_MESSAGE", "Message is empty");
   const contact = await getContact(ctx, room.workspace_id, room.contact_id);
   try {
     const r = await insertMessage(ctx, {
@@ -112,10 +114,11 @@ export async function visitorSend(
       senderType: "contact",
       senderId: contact.id,
       senderName: contact.name || "Visitor",
-      kind: "text",
+      kind: attachments.length ? (attachments.every((a) => a.content_type.startsWith("image/")) ? "image" : "attachment") : "text",
       source: "dm",
       content,
       contentText: text,
+      attachments,
       clientMsgId: input.client_msg_id ?? null,
     });
     await emitInserted(ctx, r);

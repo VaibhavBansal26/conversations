@@ -59,13 +59,22 @@ export function sanitizeFileName(name: string): string {
 
 const extOf = (n: string) => (n.includes(".") ? n.split(".").pop()!.toLowerCase() : "");
 
-export async function saveUpload(ctx: AppContext, actor: Actor, file: { name: string; type?: string; content: Buffer }): Promise<Attachment> {
+/** Kinds a visitor may upload from the chat: pictures (camera, photo library) and PDFs. Everything else is for the team. */
+export const VISITOR_UPLOAD_MIME = /^(image\/(png|jpeg|gif|webp)|application\/pdf)$/;
+
+export async function saveUpload(
+  ctx: AppContext,
+  actor: Pick<Actor, "workspaceId" | "memberId">,
+  file: { name: string; type?: string; content: Buffer },
+  opts: { allowMime?: RegExp } = {},
+): Promise<Attachment> {
   if (file.content.length === 0) throw unprocessable("EMPTY_FILE", "File is empty");
   if (file.content.length > ctx.config.UPLOAD_MAX_BYTES) throw new AppError(413, "FILE_TOO_LARGE", `Files are limited to ${ctx.config.UPLOAD_MAX_BYTES} bytes`);
   const fileName = sanitizeFileName(file.name);
   const ext = extOf(fileName);
   const sniffed = sniff(file.content);
   if (!sniffed) throw new AppError(415, "UNSUPPORTED_FILE_TYPE", "This file type is not allowed");
+  if (opts.allowMime && !opts.allowMime.test(sniffed.mime)) throw new AppError(415, "UNSUPPORTED_FILE_TYPE", "Only pictures and PDF files can be sent here");
   if (!sniffed.exts.includes(ext)) {
     throw new AppError(415, "FILE_TYPE_MISMATCH", "The file extension does not match its contents");
   }
@@ -90,6 +99,17 @@ export async function resolveAttachments(ctx: AppContext, workspaceId: string, i
   const out: Attachment[] = [];
   for (const id of new Set(ids)) {
     const a = await ctx.db.get<Attachment>("SELECT id, key, file_name, content_type, size FROM attachments WHERE id = ? AND workspace_id = ?", id, workspaceId);
+    if (!a) throw unprocessable("UNKNOWN_ATTACHMENT", `Attachment ${id} not found`);
+    out.push(a);
+  }
+  return out;
+}
+
+/** Attachments a visitor session uploaded itself (a visitor can never attach another person's file, even from the same workspace). */
+export async function resolveVisitorAttachments(ctx: AppContext, workspaceId: string, sessionId: string, ids: string[]): Promise<Attachment[]> {
+  const out: Attachment[] = [];
+  for (const id of new Set(ids)) {
+    const a = await ctx.db.get<Attachment>("SELECT id, key, file_name, content_type, size FROM attachments WHERE id = ? AND workspace_id = ? AND uploaded_by = ?", id, workspaceId, sessionId);
     if (!a) throw unprocessable("UNKNOWN_ATTACHMENT", `Attachment ${id} not found`);
     out.push(a);
   }

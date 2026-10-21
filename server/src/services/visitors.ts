@@ -7,8 +7,11 @@ import { nowIso } from "../context.js";
 import { AppError, forbidden, notFound, unauthorized, unprocessable } from "../errors.js";
 import { hmacHex, randomDigits, randomToken, safeEqual, sha256 } from "../util/crypto.js";
 import { newId } from "../util/ids.js";
+import { recordAudit } from "./audit.js";
+import { decideIdentity, type IdentityInput } from "./identity.js";
 import { addSeconds } from "../util/time.js";
-import { findOrCreateContact, getContact, type ContactRow } from "./contacts.js";
+import { isUniqueViolation } from "../db/index.js";
+import { findByEmail, findOrCreateContact, getContact, type ContactRow } from "./contacts.js";
 import { getSettings, getWorkspace } from "./workspaces.js";
 import type { Actor } from "../domain/types.js";
 
@@ -29,6 +32,8 @@ export interface TokenRow {
   last_used_at: string | null;
   last_seen_origin: string | null;
   last_seen_at: string | null;
+  /** the hosted full-page chat (/chat) may use this token from the app's own origin */
+  hosted_chat_enabled: number;
   created_at: string;
 }
 
@@ -76,10 +81,11 @@ export const tokenDto = (t: TokenRow) => ({
   /** the newest widget config request from a real site (never the in-app preview) and the Origin it came from */
   last_seen_origin: t.last_seen_origin,
   last_seen_at: t.last_seen_at,
+  hosted_chat_enabled: !!t.hosted_chat_enabled,
   created_at: t.created_at,
 });
 
-export async function createToken(ctx: AppContext, actor: Actor, domainInput: string): Promise<TokenRow> {
+export async function createToken(ctx: AppContext, actor: Actor, domainInput: string, opts: { hosted_chat_enabled?: boolean } = {}): Promise<TokenRow> {
   if (!can(actor, "tokens:manage")) throw forbidden("Only managers can manage embed tokens");
   const domain = normalizeDomain(domainInput);
   if (await ctx.db.get("SELECT 1 FROM tokens WHERE workspace_id = ? AND domain = ? AND status = 'active'", actor.workspaceId, domain)) {
@@ -87,13 +93,14 @@ export async function createToken(ctx: AppContext, actor: Actor, domainInput: st
   }
   const id = newId("tok");
   await ctx.db.run(
-    "INSERT INTO tokens(id, workspace_id, domain, token, created_by, created_at) VALUES (?,?,?,?,?,?)",
+    "INSERT INTO tokens(id, workspace_id, domain, token, created_by, created_at, hosted_chat_enabled) VALUES (?,?,?,?,?,?,?)",
     id,
     actor.workspaceId,
     domain,
     `cvt_${randomToken(24)}`,
     actor.memberId,
     nowIso(ctx),
+    !!opts.hosted_chat_enabled,
   );
   return (await ctx.db.get<TokenRow>("SELECT * FROM tokens WHERE id = ?", id))!;
 }
@@ -104,8 +111,18 @@ export async function rotateToken(ctx: AppContext, actor: Actor, id: string): Pr
   if (!old) throw notFound("Token");
   return await ctx.db.tx(async () => {
     await ctx.db.run("UPDATE tokens SET status = 'revoked' WHERE id = ?", id);
-    return await createToken(ctx, actor, old.domain);
+    // a rotated token keeps its hosted-chat setting
+    return await createToken(ctx, actor, old.domain, { hosted_chat_enabled: !!old.hosted_chat_enabled });
   });
+}
+
+/** Switch the hosted full-page chat on or off for one token. Existing hosted sessions stop working immediately when it goes off. */
+export async function setHostedChat(ctx: AppContext, actor: Actor, id: string, enabled: boolean): Promise<TokenRow> {
+  if (!can(actor, "tokens:manage")) throw forbidden("Only managers can manage embed tokens");
+  const res = await ctx.db.run("UPDATE tokens SET hosted_chat_enabled = ? WHERE id = ? AND workspace_id = ? AND status = 'active'", enabled, id, actor.workspaceId);
+  if (!res.changes) throw notFound("Token");
+  await recordAudit(ctx, { workspaceId: actor.workspaceId, actor: { type: "member", id: actor.memberId }, action: "token.hosted_chat_changed", target: id, detail: { enabled } });
+  return (await ctx.db.get<TokenRow>("SELECT * FROM tokens WHERE id = ?", id))!;
 }
 
 export async function revokeToken(ctx: AppContext, actor: Actor, id: string): Promise<void> {
@@ -125,7 +142,7 @@ export async function authenticateToken(
   ctx: AppContext,
   apiKey: string | undefined,
   origin: string | undefined,
-  opts: { seen?: boolean; preview?: string } = {},
+  opts: { seen?: boolean; preview?: string; hostedChat?: boolean } = {},
 ): Promise<TokenRow & { preview?: boolean }> {
   if (opts.preview) {
     const claim = verifyPreview(ctx, opts.preview);
@@ -138,11 +155,20 @@ export async function authenticateToken(
   }
   const row = apiKey ? await ctx.db.get<TokenRow>("SELECT * FROM tokens WHERE token = ?", apiKey) : undefined;
   if (!row || row.status !== "active") throw unauthorized("Invalid or revoked API key", "INVALID_API_KEY");
-  if (!originMatches(origin, row.domain)) throw forbidden("This origin is not allowed for the API key", "ORIGIN_NOT_ALLOWED");
+  // the hosted chat page runs on the app's own origin: allowed only for a token that opted in, from exactly that origin, or (a same-origin GET carries no
+  // Origin header) from a request that says it is the hosted page. A cross-site browser request always carries an Origin, so this opens nothing to other sites.
+  const hosted = !!row.hosted_chat_enabled && hostedOriginOk(ctx, origin, !!opts.hostedChat);
+  if (!hosted && !originMatches(origin, row.domain)) throw forbidden("This origin is not allowed for the API key", "ORIGIN_NOT_ALLOWED");
   await assertWorkspaceActive(ctx, row.workspace_id);
-  if (opts.seen) await ctx.db.run("UPDATE tokens SET last_used_at = ?, last_seen_at = ?, last_seen_origin = ? WHERE id = ?", nowIso(ctx), nowIso(ctx), origin!.slice(0, 200), row.id);
+  if (opts.seen && !hosted && origin) await ctx.db.run("UPDATE tokens SET last_used_at = ?, last_seen_at = ?, last_seen_origin = ? WHERE id = ?", nowIso(ctx), nowIso(ctx), origin!.slice(0, 200), row.id);
   else await ctx.db.run("UPDATE tokens SET last_used_at = ? WHERE id = ?", nowIso(ctx), row.id);
   return row;
+}
+
+/** The app's own origin, or no Origin at all from a request marked `x-hosted-chat` (same-origin GET). Never "null". */
+export function hostedOriginOk(ctx: AppContext, origin: string | undefined, marked: boolean): boolean {
+  if (origin === undefined) return marked;
+  return origin === ownOrigin(ctx);
 }
 
 /* ---------- visitor sessions ---------- */
@@ -176,20 +202,23 @@ export interface VisitorInfo {
 }
 
 /** May a request from `origin` use this session? Normal sessions: the embed token's domain; preview sessions: the app's own origin only. */
-export function sessionOriginAllowed(ctx: AppContext, session: Pick<SessionRow, "preview">, token: Pick<TokenRow, "domain" | "status">, origin: string): boolean {
+export function sessionOriginAllowed(ctx: AppContext, session: Pick<SessionRow, "preview">, token: Pick<TokenRow, "domain" | "status" | "hosted_chat_enabled">, origin: string): boolean {
   if (token.status !== "active") return false;
-  return session.preview ? origin === ownOrigin(ctx) : originMatches(origin, token.domain);
+  if (session.preview) return origin === ownOrigin(ctx);
+  return originMatches(origin, token.domain) || (!!token.hosted_chat_enabled && origin === ownOrigin(ctx));
 }
 
-export async function createSession(ctx: AppContext, token: TokenRow & { preview?: boolean }, input: { device_id: string; ip?: string | null } & VisitorInfo) {
+export async function createSession(ctx: AppContext, token: TokenRow & { preview?: boolean }, input: { device_id: string; ip?: string | null } & VisitorInfo & IdentityInput) {
   const ws = token.workspace_id;
+  const identity = await decideIdentity(ctx, ws, input);
   const widget = (await getSettings(ctx, ws)).widget;
   const missing = widget.required_info.filter((k) => !input[k]?.toString().trim());
   if (missing.length) throw unprocessable("REQUIRED_INFO_MISSING", `Please provide: ${missing.join(", ")}`, { missing });
 
   let contact: ContactRow;
-  const identified = !!(input.email?.trim() || input.phone?.trim());
-  if (identified) contact = (await findOrCreateContact(ctx, ws, { name: input.name, email: input.email, phone: input.phone, source: "widget" })).contact;
+  const identified = identity.mode === "legacy" && !!(input.email?.trim() || input.phone?.trim());
+  if (identity.mode === "verified") contact = await verifiedContact(ctx, ws, identity, input.name);
+  else if (identified) contact = (await findOrCreateContact(ctx, ws, { name: input.name, email: input.email, phone: input.phone, source: "widget" })).contact;
   else {
     // anonymous visitors keep their contact per device so a returning browser continues its conversation
     const prev = await ctx.db.get<{ contact_id: string }>(
@@ -215,7 +244,7 @@ export async function createSession(ctx: AppContext, token: TokenRow & { preview
     input.device_id,
   );
   // same device continuing: keep its verification and conversation; anyone else starts unverified
-  const inheritVerified = previous.some((p) => p.verified && p.expires_at > now.toISOString());
+  const inheritVerified = identity.mode === "verified" || previous.some((p) => p.verified && p.expires_at > now.toISOString());
   await ctx.db.tx(async () => {
     await ctx.db.run(
       "INSERT INTO visitor_sessions(id, workspace_id, contact_id, token_id, secret_hash, device_id, ip, verified, user_info, expires_at, created_at, preview) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -227,7 +256,8 @@ export async function createSession(ctx: AppContext, token: TokenRow & { preview
       input.device_id,
       input.ip ?? null,
       inheritVerified,
-      JSON.stringify({ name: input.name, email: input.email, phone: input.phone }),
+      // what the visitor typed, for support staff; under enforcement or a verified identity only the signed parts are trusted elsewhere
+      JSON.stringify(identity.mode === "legacy" ? { name: input.name, email: input.email, phone: input.phone } : { name: input.name }),
       addSeconds(now, token.preview ? PREVIEW_SESSION_HOURS * 3600 : SESSION_TTL_DAYS * 86400).toISOString(),
       now.toISOString(),
       !!token.preview,
@@ -249,6 +279,41 @@ export async function createSession(ctx: AppContext, token: TokenRow & { preview
     contact,
     requires_verification: !inheritVerified && hasHistory,
   };
+}
+
+/** A signed identity maps to exactly one contact: by external id first, then by email (which adopts the external id). Never by anything unsigned. */
+async function verifiedContact(ctx: AppContext, ws: string, id: { externalId?: string; email?: string }, name?: string): Promise<ContactRow> {
+  const byExternal = id.externalId ? await ctx.db.get<ContactRow>("SELECT * FROM contacts WHERE workspace_id = ? AND external_id = ? AND deleted_at IS NULL", ws, id.externalId) : undefined;
+  let contact = byExternal ?? (id.email ? await findByEmail(ctx, ws, id.email) : undefined);
+  if (contact) {
+    if (id.externalId && contact.external_id && contact.external_id !== id.externalId) {
+      throw new AppError(409, "IDENTITY_CONFLICT", "This email already belongs to another user id");
+    }
+    const sets: string[] = [];
+    const args: (string | number)[] = [];
+    if (id.externalId && !contact.external_id) (sets.push("external_id = ?"), args.push(id.externalId));
+    if (id.email && !contact.email) (sets.push("email = ?"), args.push(id.email));
+    if (name?.trim() && !contact.name) (sets.push("name = ?"), args.push(name.trim()));
+    if (sets.length) {
+      try {
+        await ctx.db.run(`UPDATE contacts SET ${sets.join(", ")}, updated_at = ? WHERE id = ?`, ...args, nowIso(ctx), contact.id);
+      } catch (e) {
+        if (isUniqueViolation(e)) throw new AppError(409, "IDENTITY_CONFLICT", "Another contact already uses this email or user id");
+        throw e;
+      }
+      contact = await getContact(ctx, ws, contact.id);
+    }
+    return contact;
+  }
+  const created = (await findOrCreateContact(ctx, ws, { name: name?.trim() || "Visitor", email: id.email, source: "widget" })).contact;
+  if (!id.externalId) return created;
+  try {
+    await ctx.db.run("UPDATE contacts SET external_id = ? WHERE id = ?", id.externalId, created.id);
+  } catch (e) {
+    if (isUniqueViolation(e)) throw new AppError(409, "IDENTITY_CONFLICT", "Another contact already uses this user id");
+    throw e;
+  }
+  return await getContact(ctx, ws, created.id);
 }
 
 export const sessionDto = (s: SessionRow, contact: ContactRow, secret?: string) => ({

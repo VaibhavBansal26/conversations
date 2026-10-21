@@ -21,6 +21,8 @@ export interface ContactRow {
   sms_opt_out: number;
   unsubscribed: number;
   source: string;
+  /** the id the host app uses for this person, set through a signed identity (docs/MOBILE-BRIDGE.md) */
+  external_id: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -45,6 +47,7 @@ export async function contactDtos(ctx: AppContext, rows: ContactRow[]) {
     sms_opt_out: !!c.sms_opt_out,
     unsubscribed: !!c.unsubscribed,
     source: c.source,
+    external_id: c.external_id ?? null,
     followers: followers.get(c.id) ?? [],
     created_at: c.created_at,
     updated_at: c.updated_at,

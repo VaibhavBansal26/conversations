@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { AppContext } from "../context.js";
 import { parseBody, requireLiveSeat, requireManager, type Env } from "../http.js";
-import { AiRoomBody, InboundAddressBody, KbBody, RephraseBody, SenderBody, SmsNumberBody, TemplateBody, TemplateRender, TokenBody } from "../schemas.js";
+import { AiRoomBody, InboundAddressBody, KbBody, RephraseBody, SenderBody, SmsNumberBody, TemplateBody, TemplateRender, TokenBody, TokenPatch, IdentityPatch } from "../schemas.js";
 import { suggestReplies, summarizeThread, rephraseDraft } from "../ai/service.js";
 import { AiOutputError, AiUnavailableError } from "../ai/provider.js";
 import type { MiddlewareHandler } from "hono";
@@ -25,7 +25,8 @@ import {
   updateSender,
 } from "../services/settings.js";
 import { createTemplate, deleteTemplate, listTemplates, renderTemplate, templateDto, updateTemplate } from "../services/templates.js";
-import { createToken, listTokens, revokeToken, rotateToken, tokenDto } from "../services/visitors.js";
+import { createToken, listTokens, revokeToken, rotateToken, setHostedChat, tokenDto } from "../services/visitors.js";
+import { identityStatus, rotateIdentitySecret, setIdentityEnforce } from "../services/identity.js";
 import { createPreviewLink } from "../services/widgetPreview.js";
 
 const snd = (s: { id: string; address: string; display_name: string; verified: number; is_default: number }) => ({
@@ -80,7 +81,15 @@ export function settingsRoutes(ctx: AppContext) {
   });
 
   r.get("/tokens", requireManager, async (c) => c.json({ data: (await listTokens(ctx, c.get("actor").workspaceId)).map(tokenDto) }));
-  r.post("/tokens", async (c) => c.json(tokenDto(await createToken(ctx, c.get("actor"), (await parseBody(c, TokenBody)).domain)), 201));
+  r.post("/tokens", async (c) => {
+    const b = await parseBody(c, TokenBody);
+    return c.json(tokenDto(await createToken(ctx, c.get("actor"), b.domain, { hosted_chat_enabled: b.hosted_chat_enabled })), 201);
+  });
+  r.patch("/tokens/:id", async (c) => c.json(tokenDto(await setHostedChat(ctx, c.get("actor"), c.req.param("id"), (await parseBody(c, TokenPatch)).hosted_chat_enabled))));
+  // identity verification for signed-in users of the host app (hosted chat and widget): docs/MOBILE-BRIDGE.md
+  r.get("/identity", async (c) => c.json(await identityStatus(ctx, c.get("actor"))));
+  r.post("/identity/rotate", async (c) => c.json(await rotateIdentitySecret(ctx, c.get("actor")), 201));
+  r.patch("/identity", async (c) => c.json(await setIdentityEnforce(ctx, c.get("actor"), (await parseBody(c, IdentityPatch)).enforce)));
   r.post("/tokens/:id/preview", async (c) => c.json(await createPreviewLink(ctx, c.get("actor"), c.req.param("id")), 201));
   r.post("/tokens/:id/rotate", async (c) => c.json(tokenDto(await rotateToken(ctx, c.get("actor"), c.req.param("id"))), 201));
   r.delete("/tokens/:id", async (c) => {

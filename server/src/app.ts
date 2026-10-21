@@ -19,6 +19,7 @@ import { requireAuth, type Env } from "./http.js";
 import { attachmentByKey } from "./services/attachments.js";
 import { authRoutes } from "./routes/auth.js";
 import { publicRoutes } from "./routes/public.js";
+import { chatRoutes } from "./routes/chat.js";
 import { adminRoutes } from "./routes/admin.js";
 import { analyticsApiRoutes } from "./routes/analyticsApi.js";
 import { analyticsRoutes } from "./routes/analytics.js";
@@ -69,7 +70,9 @@ export function createApp(ctx: AppContext): Hono {
   app.use("/api/*", compress({ threshold: 1024 }));
   app.use("/api/*", timeout(ctx.config.REQUEST_TIMEOUT_MS, () => new HTTPException(504, { message: "Request timed out" })));
   app.use("/public/*", timeout(ctx.config.REQUEST_TIMEOUT_MS, () => new HTTPException(504, { message: "Request timed out" })));
-  app.use("*", secureHeaders({ crossOriginResourcePolicy: false, contentSecurityPolicy: undefined }));
+  // the hosted chat pages set their own full header set (CSP with per-token frame-ancestors, no blanket X-Frame-Options): see routes/chat.ts
+  const standardHeaders = secureHeaders({ crossOriginResourcePolicy: false, contentSecurityPolicy: undefined });
+  app.use("*", async (c, next) => (c.req.path === "/chat" || c.req.path === "/chat/bridge-test" ? await next() : await standardHeaders(c, next)));
 
   // team API: explicit allow-list from env. Public widget endpoints: any origin (access is decided by the embed token's domain).
   app.use(
@@ -128,6 +131,7 @@ export function createApp(ctx: AppContext): Hono {
   app.route("/api", api);
 
   app.route("/public", publicRoutes(ctx));
+  app.route("/chat", chatRoutes(ctx)); // hosted full-page chat for native web views and iframes (services/hostedChat.ts)
   app.route("/webhooks", webhookRoutes(ctx));
 
   app.get("/files/*", async (c) => {
@@ -185,7 +189,7 @@ export function createApp(ctx: AppContext): Hono {
   if (existsSync(webDist)) {
     app.get("*", (c) => {
       const p = new URL(c.req.url).pathname;
-      if (p.startsWith("/api/") || p.startsWith("/admin/api/") || p.startsWith("/public/") || p.startsWith("/webhooks/") || p.startsWith("/socket.io")) return c.notFound();
+      if (p.startsWith("/api/") || p.startsWith("/admin/api/") || p.startsWith("/public/") || p.startsWith("/webhooks/") || p.startsWith("/socket.io") || p === "/chat" || p.startsWith("/chat/")) return c.notFound();
       return serveSpa(webDist, c) ?? c.notFound();
     });
   }

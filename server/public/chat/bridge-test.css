@@ -1,0 +1,15 @@
+.bt main { max-width: 860px; margin: 0 auto; padding: 24px 16px 48px; }
+.bt h1 { font-size: 24px; margin: 0 0 8px; }
+.bt h2 { font-size: 18px; margin-top: 28px; }
+.bt p { color: var(--muted); }
+.bt code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+.bt-row { display: flex; align-items: center; gap: 16px; margin: 16px 0; }
+#bt-run { min-height: 44px; padding: 0 20px; border: 0; border-radius: 10px; background: var(--c); color: var(--t); font-weight: 600; }
+#bt-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+#bt-table th, #bt-table td { text-align: start; padding: 8px 10px; border-block-end: 1px solid var(--line); vertical-align: top; }
+#bt-table td.pass { color: var(--ok); font-weight: 600; }
+#bt-table td.fail { color: var(--err); font-weight: 600; }
+#bt-table td.skip { color: var(--muted); }
+#bt-log { background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; padding: 12px; max-height: 320px; overflow: auto; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+#bt-frame { width: 390px; height: 640px; border: 1px solid var(--line); border-radius: 12px; margin-top: 16px; }
+#bt-frame[hidden] { display: none; }

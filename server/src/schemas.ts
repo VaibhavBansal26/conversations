@@ -148,7 +148,9 @@ export const SendGridConnectBody = z.object({
 export const EmailSettingsBody = z.object({ inbound_domain: z.string().max(253).nullable().optional(), event_public_key: z.string().max(400).nullable().optional() });
 export const ImportNumbersBody = z.object({ e164s: z.array(z.string().max(20)).min(1).max(100) });
 export const TestSendBody = z.object({ to: z.string().trim().min(3).max(254) });
-export const TokenBody = z.object({ domain: z.string().min(1).max(255) });
+export const TokenBody = z.object({ domain: z.string().min(1).max(255), hosted_chat_enabled: z.boolean().optional() });
+export const TokenPatch = z.object({ hosted_chat_enabled: z.boolean() });
+export const IdentityPatch = z.object({ enforce: z.boolean() });
 
 export const TemplateBody = z.object({
   name: z.string().trim().min(1).max(100),
@@ -176,8 +178,22 @@ export const SessionBody = z.object({
   name: z.string().trim().max(100).optional(),
   email: z.string().email().max(254).optional().or(z.literal("")),
   phone: z.string().max(40).optional().or(z.literal("")),
+  /** your own id for this person; only used together with a valid identity_hash */
+  external_id: z.string().trim().min(1).max(128).optional(),
+  /** hex HMAC-SHA256(identity secret, external_id|email), computed on YOUR server (docs/MOBILE-BRIDGE.md#identity-verification) */
+  identity_hash: z.string().trim().max(64).optional(),
 });
-export const VisitorSend = z.object({ content: z.string().min(1).max(4000), client_msg_id: clientMsgId.optional() });
+export const SessionAttributes = z.object({
+  attributes: z.record(z.string().regex(/^[a-z][a-z0-9_]{0,39}$/, "Keys are lower-case letters, digits and _"), z.union([z.string().max(200), z.number(), z.boolean(), z.null()])).refine((o) => Object.keys(o).length <= 20, "At most 20 attributes"),
+});
+export const VisitorSend = z
+  .object({
+    content: z.string().max(4000).optional(),
+    /** ids returned by POST /public/attachments (at most 4 per message) */
+    attachment_ids: z.array(id).max(4).optional(),
+    client_msg_id: clientMsgId.optional(),
+  })
+  .refine((b) => (b.content ?? "").length > 0 || (b.attachment_ids?.length ?? 0) > 0, "Send some text or an attachment");
 export const OtpVerify = z.object({ code: z.string().regex(/^\d{5}$/, "Code is 5 digits") });
 
 export const TypingBody = z.object({ room_id: id, typing: z.boolean(), internal: z.boolean().optional() });

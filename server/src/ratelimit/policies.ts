@@ -40,6 +40,7 @@ export const POLICIES: Policy[] = [
   P({ id: "public.send", description: "Visitor sends a message", keyBy: "visitor", algo: "gcra", limit: 30, windowSec: 30, burst: 30, onFail: "open" }),
   P({ id: "public.read", description: "Visitor read receipts", keyBy: "visitor", algo: "gcra", limit: 60, windowSec: 30, burst: 60, onFail: "open" }),
   P({ id: "public.query", description: "Visitor reads (session, rooms, messages)", keyBy: "visitor", algo: "gcra", limit: 10, windowSec: 1, burst: 40, onFail: "open", lease: true }),
+  P({ id: "public.upload", description: "Visitor file uploads (camera and photo attachments), 10 per minute per visitor", keyBy: "visitor", algo: "gcra", limit: 10, windowSec: 60, burst: 10, onFail: "closed" }),
   P({ id: "public.otp.send", description: "OTP sends per visitor session (5 per 10 min)", keyBy: "visitor", algo: "gcra", limit: 5, windowSec: 600, burst: 5, onFail: "closed", penalty: true }),
   P({ id: "public.otp.contact", description: "OTP sends per contact per day (caps cost of SMS pumping)", keyBy: "composite", algo: "window", limit: 10, windowSec: 86400, onFail: "closed" }),
   P({ id: "public.otp.ip", description: "OTP sends per IP per hour", keyBy: "ip", algo: "window", limit: 30, windowSec: 3600, onFail: "closed" }),
