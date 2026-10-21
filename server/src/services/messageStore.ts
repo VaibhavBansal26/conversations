@@ -82,6 +82,8 @@ export interface InsertResult {
   extra: MessageRow[];
   /** tickets whose state this message changed (opened, reopened, taken over): published after commit by `emitInserted` */
   tickets: string[];
+  /** a person who just joined a ticket by replying (the visitor is told by `emitInserted`) */
+  joined: string | null;
 }
 
 async function rawInsert(ctx: AppContext, m: NewMessage, now: string): Promise<MessageRow> {
@@ -215,7 +217,7 @@ export async function insertMessage(ctx: AppContext, m: NewMessage): Promise<Ins
     );
     if (unsnoozed) await metricsUnsnoozed(ctx, m.workspaceId, m.roomId, now);
     await metricsMessage(ctx, before, message, reopens, now);
-    return { message, room: await getRoomRow(ctx, m.workspaceId, m.roomId), reopened: reopens, unsnoozed, extra, tickets: attach.touched };
+    return { message, room: await getRoomRow(ctx, m.workspaceId, m.roomId), reopened: reopens, unsnoozed, extra, tickets: attach.touched, joined: attach.joined ?? null };
   });
 }
 
@@ -302,7 +304,7 @@ function publicMeta(m: MessageRow) {
  * "Conversation started" and payment confirmations are about the customer; assignment, status, priority, snooze, SMS consent and
  * reopen/close markers describe the team's work and name agents, so they stay in the team views.
  */
-export const VISITOR_SYSTEM_SUBTYPES = ["create", "payment", "ticket_resolved"] as const;
+export const VISITOR_SYSTEM_SUBTYPES = ["create", "payment", "ticket_resolved", "agent_joined", "handed_back"] as const;
 /** SQL predicate over `messages` columns for what a visitor may be shown (notes and internal system lines excluded). meta is compact JSON written by this server. */
 export const VISITOR_VISIBLE_SQL = `kind != 'note' AND (kind != 'system' OR ${VISITOR_SYSTEM_SUBTYPES.map((s) => `meta LIKE '%"sub_type":"${s}"%'`).join(" OR ")})`;
 export function visibleToVisitor(m: Pick<MessageRow, "kind" | "meta">): boolean {
@@ -336,8 +338,9 @@ export async function closedMarker(ctx: AppContext, room: { id: string; status: 
 /** Fields the visitor widget may see: notes never reach it, internal meta (triage) is stripped. */
 export function visitorMessageDto(ctx: AppContext, m: MessageRow, visitorReadSeq: number, refs?: RefMap) {
   const dto = messageDto(ctx, m, { visitorReadSeq, refs });
-  const { sub_type, ai, status, card } = dto.meta as Record<string, unknown>;
-  return { ...dto, subject: m.source === "email" ? dto.subject : null, from_addr: undefined, meta: { sub_type, ai, status, ...(card ? { card } : {}) }, failure_reason: null };
+  const { sub_type, ai, status, card, agent, sources } = dto.meta as Record<string, unknown>;
+  // `agent` names the AI agent and its disclosure label; `sources` are the help-centre links under its answer
+  return { ...dto, subject: m.source === "email" ? dto.subject : null, from_addr: undefined, meta: { sub_type, ai, status, ...(card ? { card } : {}), ...(agent ? { agent } : {}), ...(sources ? { sources } : {}) }, failure_reason: null };
 }
 
 export async function visitorMessageDtos(ctx: AppContext, rows: MessageRow[], visitorReadSeq: number) {
@@ -415,4 +418,5 @@ export async function emitInserted(ctx: AppContext, r: InsertResult): Promise<vo
   for (const e of r.extra) await emitMessage(ctx, r.room, e);
   await emitMessage(ctx, r.room, r.message);
   if (r.tickets.length) await publishTickets(ctx, r.tickets);
+  if (r.joined) await postSystemMessage(ctx, r.room.id, r.room.workspace_id, `${r.message.sender_name || "A team member"} joined the conversation`, { sub_type: "agent_joined", actor_id: r.joined });
 }

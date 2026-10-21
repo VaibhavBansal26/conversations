@@ -16,6 +16,9 @@ export interface KbDoc {
   id: string;
   question: string;
   answer: string;
+  /** optional grouping (an AI agent's knowledge scope) and the page the answer comes from */
+  collection?: string;
+  url?: string | null;
 }
 export interface KbHit {
   doc: KbDoc;

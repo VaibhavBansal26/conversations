@@ -121,6 +121,90 @@ function languageOf(room: Pick<RoomRow, "meta">, ticket: Pick<TicketRow, "meta">
   return raw ? raw.toLowerCase().split(/[-_]/)[0]! : null;
 }
 
+export interface Choice {
+  dept: InboxRow | null;
+  picked: Candidate | null;
+  mode: RoutingMode | "pool";
+  outcome: RouteOutcome;
+  path: string[];
+  skillsFallback: boolean;
+  closedReason: string | null;
+}
+
+/**
+ * Where a ticket would go and who would get it, without writing anything: the department chain (hours, overflow), the mode's pick among the
+ * available people. `routeTicket` runs it inside its locked transaction; the agent sandbox runs it to show the routing decision of a test chat.
+ */
+export async function chooseRoute(
+  ctx: AppContext,
+  ws: string,
+  from: { departmentId: string | null; skills?: string[]; language?: string | null; exclude?: ReadonlySet<string> },
+): Promise<Choice> {
+  const exclude = from.exclude ?? new Set<string>();
+  let deptId: string | null = from.departmentId ?? (await getSettings(ctx, ws)).widget.default_inbox_id;
+  const path: string[] = [];
+  let dept: InboxRow | null = null;
+  let picked: Candidate | null = null;
+  let mode: RoutingMode | "pool" = "pool";
+  let outcome: RouteOutcome = "queued";
+  let skillsFallback = false;
+  let closedReason: string | null = null;
+  const want = { skills: from.skills ?? [], language: from.language ?? null };
+
+  for (let hop = 0; hop < 6; hop++) {
+    dept = await loadDepartment(ctx, ws, deptId);
+    if (!dept) break;
+    if (path.includes(dept.id)) break; // an overflow loop (also refused when configured): stay where we are
+    path.push(dept.id);
+    mode = effectiveMode(dept);
+    const open = departmentOpenAt(parseHours(dept.hours), ctx.clock());
+    const overflow = dept.overflow_inbox_id && !path.includes(dept.overflow_inbox_id) ? dept.overflow_inbox_id : null;
+    if (!open) {
+      closedReason = "closed";
+      outcome = "closed";
+      if (overflow) {
+        deptId = overflow;
+        continue;
+      }
+      break;
+    }
+    closedReason = null;
+    if (mode === "manual_pick") {
+      outcome = "manual";
+      break;
+    }
+    const cands = await candidatesOf(ctx, dept, { exclude });
+    const pointerSeat = dept.last_assigned_member_id ? (await seatsOf(ctx, dept.id)).find((x) => x.id === dept!.last_assigned_member_id) : undefined;
+    const { pick, skillsFallback: fb } = pickSeat(mode, cands, pointerSeat ? { position: pointerSeat.position, id: pointerSeat.id } : null, want);
+    skillsFallback = fb;
+    if (pick) {
+      picked = pick;
+      outcome = "assigned";
+      break;
+    }
+    outcome = "queued";
+    if (overflow) {
+      deptId = overflow;
+      continue;
+    }
+    break;
+  }
+  // no department anywhere: the whole workspace is the pool, least busy first
+  if (!dept) {
+    const online = (await getSettings(ctx, ws)).routing.require_online ? new Set(await ctx.presence.onlineIds(`${ws}:member`)) : null;
+    const now = nowIso(ctx);
+    const seats = (await listMemberRows(ctx, ws)).filter((m) => m.live_seat && m.availability === "active" && !m.removed_at && !exclude.has(m.id) && !(m.dnd_until && m.dnd_until > now) && (!online || online.has(m.id)));
+    const loads = new Map<string, number>();
+    for (const s of seats) loads.set(s.id, Number((await ctx.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM tickets WHERE workspace_id = ? AND handler = ? AND status IN ('waiting_for_human','open')", ws, `human:${s.id}`))!.n));
+    const best = [...seats].sort((a, b) => loads.get(a.id)! - loads.get(b.id)! || a.id.localeCompare(b.id))[0];
+    if (best) {
+      picked = { seat: { ...best, position: 0, skills: "[]", languages: "[]", member_capacity: null }, load: loads.get(best.id)!, capacity: 0 };
+      outcome = "assigned";
+    }
+  }
+  return { dept, picked, mode, outcome, path, skillsFallback, closedReason };
+}
+
 /** Route one ticket. See the module comment; the returned result says what happened and why (also stored as a ticket event). */
 export async function routeTicket(ctx: AppContext, ticketId: string, opts: RouteOptions): Promise<RouteResult> {
   const first = await ctx.db.get<TicketRow>("SELECT * FROM tickets WHERE id = ?", ticketId);
@@ -143,68 +227,13 @@ export async function routeTicket(ctx: AppContext, ticketId: string, opts: Route
     }
 
     const exclude = opts.exclude ?? new Set<string>();
-    const wsSettings = await getSettings(ctx, ws);
-    const defaultId = wsSettings.widget.default_inbox_id;
-    let deptId: string | null = opts.departmentId !== undefined ? opts.departmentId : (t.department_id ?? defaultId);
-    const path: string[] = [];
-    let dept: InboxRow | null = null;
-    let picked: Candidate | null = null;
-    let mode: RoutingMode | "pool" = "pool";
-    let outcome: RouteOutcome = "queued";
-    let skillsFallback = false;
-    let closedReason: string | null = null;
-
-    for (let hop = 0; hop < 6; hop++) {
-      dept = await loadDepartment(ctx, ws, deptId);
-      if (!dept) break;
-      if (path.includes(dept.id)) break; // an overflow loop (also refused when configured): stay where we are
-      path.push(dept.id);
-      mode = effectiveMode(dept);
-      const open = departmentOpenAt(parseHours(dept.hours), ctx.clock());
-      const overflow = dept.overflow_inbox_id && !path.includes(dept.overflow_inbox_id) ? dept.overflow_inbox_id : null;
-      if (!open) {
-        closedReason = "closed";
-        outcome = "closed";
-        if (overflow) {
-          deptId = overflow;
-          continue;
-        }
-        break;
-      }
-      closedReason = null;
-      if (mode === "manual_pick") {
-        outcome = "manual";
-        break;
-      }
-      const cands = await candidatesOf(ctx, dept, { exclude });
-      const want = { skills: opts.skills ?? parseJson<{ required_skills?: string[] }>(t.meta, {}).required_skills ?? [], language: opts.language ?? languageOf(room, t) };
-      const pointerSeat = dept.last_assigned_member_id ? (await seatsOf(ctx, dept.id)).find((x) => x.id === dept!.last_assigned_member_id) : undefined;
-      const { pick, skillsFallback: fb } = pickSeat(mode, cands, pointerSeat ? { position: pointerSeat.position, id: pointerSeat.id } : null, want);
-      skillsFallback = fb;
-      if (pick) {
-        picked = pick;
-        outcome = "assigned";
-        break;
-      }
-      outcome = "queued";
-      if (overflow) {
-        deptId = overflow;
-        continue;
-      }
-      break;
-    }
-    // no department anywhere: the whole workspace is the pool, least busy first
-    if (!dept) {
-      const online = (await getSettings(ctx, ws)).routing.require_online ? new Set(await ctx.presence.onlineIds(`${ws}:member`)) : null;
-      const seats = (await listMemberRows(ctx, ws)).filter((m) => m.live_seat && m.availability === "active" && !m.removed_at && !exclude.has(m.id) && !(m.dnd_until && m.dnd_until > now) && (!online || online.has(m.id)));
-      const loads = new Map<string, number>();
-      for (const s of seats) loads.set(s.id, Number((await ctx.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM tickets WHERE workspace_id = ? AND handler = ? AND status IN ('waiting_for_human','open')", ws, `human:${s.id}`))!.n));
-      const best = [...seats].sort((a, b) => (loads.get(a.id)! - loads.get(b.id)!) || a.id.localeCompare(b.id))[0];
-      if (best) {
-        picked = { seat: { ...best, position: 0, skills: "[]", languages: "[]", member_capacity: null }, load: loads.get(best.id)!, capacity: 0 };
-        outcome = "assigned";
-      }
-    }
+    const ticketSkills = parseJson<{ required_skills?: string[] }>(t.meta, {}).required_skills ?? [];
+    const { dept, picked, mode, outcome, path, skillsFallback, closedReason } = await chooseRoute(ctx, ws, {
+      departmentId: opts.departmentId !== undefined ? opts.departmentId : t.department_id,
+      skills: opts.skills ?? ticketSkills,
+      language: opts.language ?? languageOf(room, t),
+      exclude,
+    });
 
     const finalDept = dept;
     const assigneeId = picked?.seat.id ?? null;
@@ -360,6 +389,10 @@ export const handoffReasonText = (reason: string): string =>
     agent_removed: "The previous person was removed.",
     sla_escalation: "The first-response time was missed.",
     queue_drain: "A person became available.",
+    suspicious_input: "The visitor's messages looked like instructions aimed at the AI agent.",
+    unsafe_answer: "The AI agent's answer was blocked by a safety check.",
+    model_handoff: "The AI agent asked for a person.",
+    suggest_only: "The AI agent only drafts replies for the team.",
   })[reason] ?? `Reason: ${reason.replace(/_/g, " ")}.`;
 
 /* ---------- handoff ---------- */
@@ -460,7 +493,10 @@ export async function transferTicket(ctx: AppContext, ticketId: string, input: {
   return r;
 }
 
-/** A person takes a ticket from the queue (manual_pick departments, or any waiting ticket). The first claim wins. */
+/**
+ * A person takes a ticket: from the queue (manual pick departments, or anything waiting), or over from the AI agent, which stops at once. The first
+ * claim wins. The visitor is told that a team member joined; a ticket that is already someone else's open ticket is not taken away.
+ */
 export async function claimTicket(ctx: AppContext, actor: Actor, ticketId: string): Promise<TicketRow> {
   const t = await getVisibleTicket(ctx, actor, ticketId);
   if (t.status === "open" && t.handler === `human:${actor.memberId}`) return t; // already yours
@@ -470,7 +506,7 @@ export async function claimTicket(ctx: AppContext, actor: Actor, ticketId: strin
     await ctx.db.get(`SELECT next_number FROM ticket_counters WHERE workspace_id = ?${ctx.db.forUpdate}`, t.workspace_id);
     const claimed = await ctx.db.get<TicketRow>(
       `UPDATE tickets SET handler = ?, status = 'open', handoff_at = COALESCE(handoff_at, ?), last_activity_at = ?, updated_at = ?
-       WHERE id = ? AND status IN ('new','bot_handling','waiting_for_human') AND (handler IS NULL OR handler = ?) RETURNING *`,
+       WHERE id = ? AND status IN ('new','bot_handling','waiting_for_human') AND (handler IS NULL OR handler LIKE 'bot:%' OR handler = ?) RETURNING *`,
       `human:${actor.memberId}`,
       now,
       now,
@@ -485,13 +521,17 @@ export async function claimTicket(ctx: AppContext, actor: Actor, ticketId: strin
       await addFollower(ctx, t.contact_id, actor.memberId);
     }
     await metricsAssignee(ctx, t.room_id, actor.memberId);
-    await recordTicketEvent(ctx, claimed, "claimed", { type: "member", id: actor.memberId }, { from: t.handler }, now);
+    await recordTicketEvent(ctx, claimed, t.handler?.startsWith("bot:") ? "taken_over" : "claimed", { type: "member", id: actor.memberId }, { from: t.handler }, now);
     return claimed;
   });
   if (!row) throw new AppError(409, "TICKET_TAKEN", "Someone else already took this ticket, or it is no longer waiting");
   const room = await roomOf(ctx, row);
   await publishRoomUpdated(ctx, room, { lost: prev.filter((m) => m !== actor.memberId), newlyVisible: [actor.memberId] });
   await publishTickets(ctx, [row.id]);
+  if (t.handler?.startsWith("bot:")) {
+    await recordAudit(ctx, { workspaceId: t.workspace_id, actor: { type: "member", id: actor.memberId }, action: "ticket.takeover", target: t.id, detail: { from: t.handler } });
+  }
+  await postSystemMessage(ctx, room.id, t.workspace_id, `${actor.name} joined the conversation`, { sub_type: "agent_joined", actor_id: actor.memberId });
   return row;
 }
 

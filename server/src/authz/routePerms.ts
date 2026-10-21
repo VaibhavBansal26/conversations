@@ -15,7 +15,7 @@ const GROUPS: [RouteAccess, string[]][] = [
     "POST /api/auth/register", "POST /api/auth/login", "POST /api/auth/refresh", "POST /api/auth/logout", "POST /api/auth/mfa/verify", "POST /api/auth/password/forgot", "POST /api/auth/password/reset",
     "GET /api/auth/invitations/:token", "POST /api/auth/invitations/accept",
     "GET /public/widget/config", "POST /public/sessions", "GET /public/session", "GET /public/rooms", "POST /public/rooms", "GET /public/rooms/:id/messages", "POST /public/rooms/:id/messages",
-    "POST /public/rooms/:id/read", "POST /public/rooms/:id/csat", "POST /public/rooms/:id/ticket-csat", "POST /public/otp/send", "POST /public/otp/verify",
+    "POST /public/rooms/:id/read", "POST /public/rooms/:id/csat", "POST /public/rooms/:id/ticket-csat", "POST /public/rooms/:id/quick-reply", "POST /public/rooms/:id/request-human", "POST /public/rooms/:id/messages/:messageId/feedback", "POST /public/otp/send", "POST /public/otp/verify",
     "DELETE /public/session", "POST /public/session/attributes", "POST /public/attachments",
     "GET /chat", "GET /chat/bridge-test", "GET /chat/assets/:file",
     "POST /webhooks/stripe", "POST /webhooks/stripe/connect", "POST /webhooks/twilio/sms", "POST /webhooks/twilio/status", "POST /webhooks/sendgrid/inbound", "POST /webhooks/sendgrid/events",
@@ -35,11 +35,12 @@ const GROUPS: [RouteAccess, string[]][] = [
   ]],
   ["conversations:reply", [
     "POST /api/rooms", "POST /api/rooms/bulk", "PATCH /api/rooms/:id", "POST /api/rooms/:id/snooze", "DELETE /api/rooms/:id/snooze", "POST /api/rooms/:id/messages", "PATCH /api/messages/:id",
-    "DELETE /api/messages/:id", "POST /api/messages/:id/retry", "POST /api/attachments", "POST /api/templates/:id/render", "POST /api/rooms/:id/assign",
+    "DELETE /api/messages/:id", "POST /api/messages/:id/retry", "POST /api/attachments", "POST /api/templates/:id/render", "POST /api/rooms/:id/assign", "POST /api/messages/:id/feedback",
   ]],
   ["conversations:delete", ["DELETE /api/rooms/:id"]],
   ["tickets:read", ["GET /api/tickets", "GET /api/tickets/counts", "GET /api/tickets/:id", "GET /api/rooms/:id/tickets", "GET /api/contacts/:id/tickets", "GET /api/department-status"]],
-  ["tickets:write", ["PATCH /api/tickets/:id", "POST /api/tickets/:id/reopen", "POST /api/tickets/:id/claim", "POST /api/tickets/:id/transfer"]],
+  ["tickets:write", ["PATCH /api/tickets/:id", "POST /api/tickets/:id/reopen", "POST /api/tickets/:id/claim", "POST /api/tickets/:id/hand-back", "POST /api/tickets/:id/transfer"]],
+  ["agents:manage", ["GET /api/agents", "POST /api/agents", "GET /api/agents/turns", "GET /api/agents/unanswered", "GET /api/agents/:id", "PATCH /api/agents/:id", "DELETE /api/agents/:id", "POST /api/agents/:id/sandbox"]],
   ["departments:manage", [
     "GET /api/departments", "GET /api/departments/:id", "PATCH /api/departments/:id", "GET /api/routing-rules", "POST /api/routing-rules", "PUT /api/routing-rules/order",
     "POST /api/routing-rules/test", "PATCH /api/routing-rules/:id", "DELETE /api/routing-rules/:id",

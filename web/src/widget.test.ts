@@ -356,3 +356,91 @@ describe("payment request card", () => {
     expect(shadow().querySelector(".m.pay a")).toBeNull();
   });
 });
+
+describe("AI agent in the widget", () => {
+  const bot = (o: any = {}) => mkMsg({ id: "msg_ai", seq: 2, sender: { type: "bot", name: "Aria" }, content_text: "Open Settings, choose Security.", meta: { ai: true, agent: { name: "Aria", label: "AI helper" } }, ...o });
+  const card = (answered?: string) => bot({ id: "msg_card", seq: 3, content_text: "Did this solve it?", meta: { ai: true, agent: { name: "Aria", label: "AI helper" }, card: { type: "quick_replies", purpose: "solved", answered, options: [{ id: "yes", label: "Yes, thanks" }, { id: "no", label: "No, I need more help" }, { id: "human", label: "Talk to a person" }] } } });
+  const withMessages = (data: any[], ticket: any = { id: "tkt_1", number: 1, status: "bot_handling", resolved: false, csat_pending: false }) => {
+    replies["GET /public/rooms/room_1/messages"] = () => ({ json: { data, room: { id: "room_1", status: "open", closed_marker: null, ticket } } });
+  };
+  const opened = async () => {
+    widget = await boot();
+    widget.open();
+    await flush(); await flush(); await flush();
+  };
+
+  it("labels the AI answer with the agent's label, shows quick replies on the latest bot card and posts the tap", async () => {
+    withMessages([bot(), card()]);
+    await opened();
+    expect(shadow().querySelector(".tag")!.textContent).toBe("AI helper");
+    const buttons = [...shadow().querySelectorAll<HTMLButtonElement>(".qr button")];
+    expect(buttons.map((b) => b.textContent)).toEqual(["Yes, thanks", "No, I need more help", "Talk to a person"]);
+    replies["POST /public/rooms/room_1/quick-reply"] = () => ({ json: { ok: true, ticket: { id: "tkt_1", number: 1, status: "resolved", resolved: true, csat_pending: true } } });
+    withMessages([bot(), card("yes")], { id: "tkt_1", number: 1, status: "resolved", resolved: true, csat_pending: true });
+    buttons[0]!.click();
+    await flush(); await flush(); await flush();
+    expect(calls.find((c) => c.path === "/public/rooms/room_1/quick-reply")!.body).toEqual({ message_id: "msg_card", option_id: "yes" });
+    expect(shadow().querySelector(".qr")).toBeNull();
+  });
+
+  it("does not offer buttons on a card that was answered or that is no longer the newest message", async () => {
+    withMessages([card("no")]);
+    await opened();
+    expect(shadow().querySelector(".qr")).toBeNull();
+    widget.destroy();
+    document.body.innerHTML = "";
+    withMessages([card(), mkMsg({ id: "msg_later", seq: 4, sender: { type: "contact" }, content_text: "something else" })]);
+    widget = await boot();
+    widget.open();
+    await flush(); await flush(); await flush();
+    expect(shadow().querySelector(".qr")).toBeNull();
+  });
+
+  it("offers Talk to a person while a bot has the conversation, posts the request and hides while a person has it", async () => {
+    withMessages([bot()]);
+    await opened();
+    const human = shadow().querySelector<HTMLElement>(".human")!;
+    expect(human.hidden).toBe(false);
+    replies["POST /public/rooms/room_1/request-human"] = () => ({ json: { ok: true, already: false, ticket: { id: "tkt_1", number: 1, status: "waiting_for_human", resolved: false, csat_pending: false } } });
+    withMessages([bot()], { id: "tkt_1", number: 1, status: "waiting_for_human", resolved: false, csat_pending: false });
+    human.querySelector("button")!.click();
+    await flush(); await flush(); await flush();
+    expect(calls.some((c) => c.path === "/public/rooms/room_1/request-human" && c.method === "POST")).toBe(true);
+    expect(shadow().querySelector<HTMLElement>(".human")!.hidden).toBe(true);
+  });
+
+  it("follows the ticket live: a handed-over ticket hides the button, a resolved one shows it again", async () => {
+    withMessages([bot()]);
+    await opened();
+    sockets[0]!.fire("ticket:updated", { room_id: "room_1", ticket: { id: "tkt_1", number: 1, status: "open", resolved: false, csat_pending: false } });
+    expect(shadow().querySelector<HTMLElement>(".human")!.hidden).toBe(true);
+    sockets[0]!.fire("ticket:updated", { room_id: "room_1", ticket: { id: "tkt_1", number: 1, status: "resolved", resolved: true, csat_pending: true } });
+    expect(shadow().querySelector<HTMLElement>(".human")!.hidden).toBe(false);
+  });
+
+  it("rates the latest AI answer once with thumbs", async () => {
+    withMessages([bot()]);
+    await opened();
+    const up = shadow().querySelector<HTMLButtonElement>('.fb button[data-rating="1"]')!;
+    expect(up.getAttribute("aria-label")).toBe("Helpful");
+    replies["POST /public/rooms/room_1/messages/msg_ai/feedback"] = () => ({ json: { ok: true } });
+    up.click();
+    await flush(); await flush();
+    expect(calls.find((c) => c.path === "/public/rooms/room_1/messages/msg_ai/feedback")!.body).toEqual({ rating: 1 });
+    expect(shadow().querySelector(".fb button")).toBeNull();
+    expect(shadow().querySelector(".fb")!.textContent).toContain("Thanks for your feedback");
+  });
+
+  it("asks for a 1-5 rating after the ticket is resolved and posts it to the ticket", async () => {
+    const closing = mkMsg({ id: "msg_res", seq: 5, sender: { type: "system" }, kind: "system", content_text: "Glad we could help.", meta: { sub_type: "ticket_resolved", card: { type: "csat", ticket_id: "tkt_1", ticket_number: 1 } } });
+    withMessages([bot(), closing], { id: "tkt_1", number: 1, status: "resolved", resolved: true, csat_pending: true });
+    await opened();
+    const buttons = shadow().querySelectorAll<HTMLButtonElement>(".rate button");
+    expect(buttons).toHaveLength(5);
+    replies["POST /public/rooms/room_1/ticket-csat"] = () => ({ json: { ok: true } });
+    buttons[4]!.click();
+    await flush(); await flush();
+    expect(calls.find((c) => c.path === "/public/rooms/room_1/ticket-csat")!.body).toEqual({ score: 5 });
+    expect(shadow().querySelector(".rate")).toBeNull();
+  });
+});

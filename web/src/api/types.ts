@@ -425,7 +425,112 @@ export interface KbEntry {
   id: string;
   question: string;
   answer: string;
+  /** groups entries; an AI agent can be limited to some collections */
+  collection: string;
+  /** the page the answer comes from, shown to the visitor as a source */
+  url: string | null;
   updated_at: string;
+}
+
+export type AgentAutonomy = "suggest_only" | "auto_answer" | "auto_resolve";
+export type AgentTone = "friendly" | "professional" | "concise" | "empathetic";
+export type AgentAction = "collect_info" | "route" | "resolve" | "quick_replies" | "request_human" | "schedule_callback" | "offer_call";
+export interface HandoffTriggers {
+  human_request: boolean;
+  low_confidence: boolean;
+  repeated_rephrase: boolean;
+  negative_sentiment: boolean;
+  high_urgency: boolean;
+  sensitive_topic: boolean;
+  vip_contact: boolean;
+  tool_failure: boolean;
+  sensitive_topics: string[];
+}
+export interface AiAgent {
+  id: string;
+  name: string;
+  avatar_url: string | null;
+  persona: string;
+  tone: AgentTone;
+  languages: string[];
+  greeting: string;
+  department_ids: string[];
+  hours: OfficeHours;
+  kb_collections: string[];
+  autonomy: AgentAutonomy;
+  confidence_threshold: number;
+  coverage_threshold: number;
+  max_turns: number;
+  max_attempts: number;
+  allowed_actions: AgentAction[];
+  handoff_triggers: HandoffTriggers;
+  waiting_behavior: "silent" | "gather_info";
+  disclosure_label: string;
+  channels: "widget"[];
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+export type AgentTurnOutcome = "answered" | "suggested" | "clarified" | "refused" | "handoff" | "resolved" | "skipped";
+export interface AgentSource {
+  id: string;
+  question: string;
+  url: string | null;
+  score: number;
+  coverage: number;
+}
+export interface AgentTurn {
+  id: string;
+  created_at: string;
+  ticket_id: string;
+  ticket_number: number | null;
+  room_id: string;
+  agent_id: string;
+  outcome: AgentTurnOutcome;
+  intent: string | null;
+  department_id: string | null;
+  confidence: number | null;
+  reason: string | null;
+  visitor_text: string;
+  answer: string | null;
+  sources: AgentSource[];
+  actions: { tool: string; ok: boolean }[];
+  provider: string;
+  tokens: { in: number; out: number };
+  latency_ms: number;
+  votes: { up: number; down: number };
+  message_id: string | null;
+}
+export interface AgentTurnPage {
+  data: AgentTurn[];
+  pagination: { limit: number; has_more: boolean; next_cursor: string | null };
+}
+export interface UnansweredCluster {
+  count: number;
+  sample: string;
+  examples: string[];
+  last_seen: string;
+  suggested_question: string;
+}
+export interface SandboxResult {
+  kind: string;
+  reply: string;
+  handoff: { reason: string; departmentId: string | null; skills: string[] } | null;
+  confidence: number | null;
+  intent: string | null;
+  sentiment: string | null;
+  urgency: number | null;
+  department: { id: string | null; confidence: number };
+  sources: AgentSource[];
+  actions: { tool: string }[];
+  subject: string | null;
+  quick_replies: boolean;
+  provider: string;
+  degraded: boolean;
+  tokens: { in: number; out: number };
+  latency_ms: number;
+  trace: string[];
+  routing: { outcome: string; department: { id: string; name: string } | null; mode: string | null; assignee: { id: string; name: string } | null; path: string[]; closed: string | null; confirm_between: unknown } | null;
 }
 
 export interface EmbedToken {

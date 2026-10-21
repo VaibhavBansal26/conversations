@@ -2,6 +2,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { api } from "./client";
 import type { Ticket, TicketCounts, TicketPage, TicketPriority } from "./types";
 import { keys } from "../state/keys";
+import { toast } from "../ui";
 
 export interface TicketFilters {
   /** `live` (default), `all` or a comma list of statuses */
@@ -39,6 +40,7 @@ export function useTicketActions() {
       onSuccess: refresh,
     }),
     claim: useMutation({ mutationFn: (id: string) => api.post<Ticket>(`/tickets/${id}/claim`), onSuccess: refresh }),
+    handBack: useMutation({ mutationFn: (id: string) => api.post<Ticket>(`/tickets/${id}/hand-back`), onSuccess: refresh, onError: (e: Error) => toast({ title: "Could not hand back", description: e.message, tone: "error" }) }),
     transfer: useMutation({ mutationFn: (v: { id: string; department_id: string; note?: string }) => api.post<{ outcome: string }>(`/tickets/${v.id}/transfer`, { department_id: v.department_id, note: v.note }), onSuccess: refresh }),
     bulk: useMutation({ mutationFn: (v: { ticket_ids: string[]; action: "resolve" | "close" }) => api.post<{ succeeded: number; failed: number }>("/tickets/bulk", v), onSuccess: refresh }),
   };

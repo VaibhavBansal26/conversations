@@ -122,7 +122,8 @@ export async function visitorStartRoom(ctx: AppContext, session: SessionRow, inp
 export async function visitorListMessages(ctx: AppContext, session: SessionRow, roomId: string, opts: { before?: string; after?: string; limit: number }) {
   const room = await getVisitorRoom(ctx, session, roomId);
   const page = await pageMessages(ctx, roomId, { ...opts, hideNotes: true, visitorView: true });
-  return { data: await visitorMessageDtos(ctx, page.data, room.visitor_read_seq), pagination: page.pagination, room: { id: room.id, status: room.status, closed_marker: await closedMarker(ctx, room) } };
+  const ticket = await ctx.db.get<TicketRow>("SELECT * FROM tickets WHERE room_id = ? ORDER BY opened_at DESC, id DESC LIMIT 1", room.id);
+  return { data: await visitorMessageDtos(ctx, page.data, room.visitor_read_seq), pagination: page.pagination, room: { id: room.id, status: room.status, closed_marker: await closedMarker(ctx, room), ticket: ticket ? visitorTicketDto(ticket) : null } };
 }
 
 export async function visitorSend(
@@ -130,6 +131,8 @@ export async function visitorSend(
   session: SessionRow,
   roomId: string,
   input: { content?: string; attachment_ids?: string[]; client_msg_id?: string },
+  /** set by the server for messages it writes on the visitor's behalf (a quick reply, "talk to a person"), never taken from the client */
+  extra: { meta?: Record<string, unknown> } = {},
 ): Promise<{ message: MessageRow; created: boolean; room: RoomRow }> {
   const room = await getVisitorRoom(ctx, session, roomId);
   const findDup = async () =>
@@ -157,6 +160,7 @@ export async function visitorSend(
       content,
       contentText: text,
       attachments,
+      meta: extra.meta,
       clientMsgId: input.client_msg_id ?? null,
     });
     await emitInserted(ctx, r);

@@ -94,4 +94,26 @@ describe("TicketMenu", () => {
     await userEvent.click(item);
     await waitFor(() => expect(calls.find((c) => c.url.endsWith("/api/tickets/tkt_1/transfer"))?.body).toBe(JSON.stringify({ department_id: "inb_bill" })));
   });
+
+  it("takes over from an AI agent, and hands a ticket back only when the person has it", async () => {
+    mount(ticket({ status: "bot_handling", handler: "bot:agt_1" }));
+    await userEvent.click(screen.getByRole("button", { name: /Ticket #12/ }));
+    expect(screen.queryByRole("menuitem", { name: /Hand back/ })).toBeNull();
+    await userEvent.click(await screen.findByRole("menuitem", { name: /Take over from the AI agent/ }));
+    await waitFor(() => expect(calls.some((c) => c.url.endsWith("/api/tickets/tkt_1/claim"))).toBe(true));
+  });
+
+  it("hands the ticket back to the AI agent", async () => {
+    mount(ticket({ status: "open", handler: "human:mem_me" }));
+    await userEvent.click(screen.getByRole("button", { name: /Ticket #12/ }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /Hand back to the AI agent/ }));
+    await waitFor(() => expect(calls.some((c) => c.url.endsWith("/api/tickets/tkt_1/hand-back") && c.method === "POST")).toBe(true));
+  });
+
+  it("does not offer a hand-back for somebody else's ticket", async () => {
+    mount(ticket({ status: "open", handler: "human:mem_other" }));
+    await userEvent.click(screen.getByRole("button", { name: /Ticket #12/ }));
+    await screen.findByRole("menuitem", { name: /Mark as resolved/ });
+    expect(screen.queryByRole("menuitem", { name: /Hand back/ })).toBeNull();
+  });
 });

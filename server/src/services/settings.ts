@@ -180,16 +180,18 @@ export interface KbRow extends KbDoc {
 }
 export const listKb = (ctx: AppContext, ws: string) => ctx.db.all<KbRow>("SELECT * FROM kb_entries WHERE workspace_id = ? ORDER BY created_at DESC, id", ws);
 
-export async function createKb(ctx: AppContext, actor: Actor, i: { question: string; answer: string }): Promise<KbRow> {
+export async function createKb(ctx: AppContext, actor: Actor, i: { question: string; answer: string; collection?: string; url?: string | null }): Promise<KbRow> {
   manager(actor);
   const id = newId("kb");
   const now = nowIso(ctx);
   await ctx.db.run(
-    "INSERT INTO kb_entries(id, workspace_id, question, answer, created_at, updated_at) VALUES (?,?,?,?,?,?)",
+    "INSERT INTO kb_entries(id, workspace_id, question, answer, collection, url, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
     id,
     actor.workspaceId,
     i.question,
     i.answer,
+    i.collection?.trim() ?? "",
+    i.url?.trim() || null,
     now,
     now,
   );
@@ -197,14 +199,16 @@ export async function createKb(ctx: AppContext, actor: Actor, i: { question: str
   return (await ctx.db.get<KbRow>("SELECT * FROM kb_entries WHERE id = ?", id))!;
 }
 
-export async function updateKb(ctx: AppContext, actor: Actor, id: string, i: { question: string; answer: string }): Promise<KbRow> {
+export async function updateKb(ctx: AppContext, actor: Actor, id: string, i: { question: string; answer: string; collection?: string; url?: string | null }): Promise<KbRow> {
   manager(actor);
   if (
     !(
       await ctx.db.run(
-        "UPDATE kb_entries SET question = ?, answer = ?, updated_at = ? WHERE id = ? AND workspace_id = ?",
+        "UPDATE kb_entries SET question = ?, answer = ?, collection = ?, url = ?, updated_at = ? WHERE id = ? AND workspace_id = ?",
         i.question,
         i.answer,
+        i.collection?.trim() ?? "",
+        i.url?.trim() || null,
         nowIso(ctx),
         id,
         actor.workspaceId,

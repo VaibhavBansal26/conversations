@@ -56,6 +56,10 @@ Settings > Chat widget > Customise (title, intro, colours with an accessibility 
 
 Only customer-facing lines: your replies, the welcome and away bot messages, "Conversation started" and payment confirmations. Internal notes and system lines such as assignment, closing, reopening, snoozing and SMS consent are never sent to the widget (REST or socket; [REALTIME.md](REALTIME.md)). The satisfaction prompt after a close comes from the server stating the closed state, not from a visible line.
 
+### AI agent in the widget
+
+When an AI agent answers, its messages carry the agent's name and label (default "AI assistant"), the knowledge-base page as a link, a "Yes, thanks / No, I need more help / Talk to a person" row under the latest answer, and thumbs up and down under the newest AI answer. A small "Talk to a person" link above the message box is always there unless a person already has the conversation; it hands the ticket to the team. When a ticket is resolved the visitor gets the closing line and a 1 to 5 rating (once). The state comes from `room.ticket` and the `ticket:updated` event; internal action lines ("set the department to ...") and notes are never sent. The widget is English only; the hosted chat has the same controls in English, Spanish, French, German and Japanese ([AI-AGENTS.md](AI-AGENTS.md)).
+
 ### Office hours and away behaviour
 
 With office hours enabled, a visitor message outside the hours gets the away message once per cooldown, followed by "We'll be back ..." when the next opening is known. The conversation is still created and answered later. The config response carries `office_open` and `agents_available`.

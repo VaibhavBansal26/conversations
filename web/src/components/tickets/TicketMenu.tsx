@@ -1,4 +1,4 @@
-import { ArrowRightLeft, CheckCheck, Flag, Hand, RotateCcw, Ticket as TicketIcon } from "lucide-react";
+import { ArrowRightLeft, Bot, CheckCheck, Flag, Hand, RotateCcw, Ticket as TicketIcon } from "lucide-react";
 import { useDepartmentStatus } from "../../api/departmentHooks";
 import { useTicketActions } from "../../api/ticketHooks";
 import type { TicketBrief, TicketPriority } from "../../api/types";
@@ -16,7 +16,10 @@ export function TicketMenu({ ticket }: { ticket: TicketBrief }) {
   const ended = ticket.status === "resolved" || ticket.status === "closed";
   const departments = useDepartmentStatus(canWrite && !ended).data ?? [];
   // a ticket that is waiting for a person (queued, or assigned to someone who has not answered) can be taken by any seat that sees it
-  const claimable = canWrite && (ticket.status === "waiting_for_human" || ticket.status === "new") && ticket.handler !== `human:${me}`;
+  const claimable = canWrite && (ticket.status === "waiting_for_human" || ticket.status === "new" || ticket.status === "bot_handling") && ticket.handler !== `human:${me}`;
+  const aiHandling = ticket.status === "bot_handling" && !!ticket.handler?.startsWith("bot:");
+  // a person who has the ticket can give it back to the AI agent of its department
+  const canHandBack = canWrite && !ended && !!ticket.handler?.startsWith("human:") && ticket.handler === `human:${me}`;
   if (!canWrite && !canClose) return <TicketChip number={ticket.number} status={ticket.status} collapse />;
   return (
     <DropdownMenuRoot>
@@ -31,7 +34,12 @@ export function TicketMenu({ ticket }: { ticket: TicketBrief }) {
         </DropdownMenuLabel>
         {claimable && (
           <DropdownMenuItem onSelect={() => actions.claim.mutate(ticket.id)}>
-            <Hand className="size-4 text-subtle" aria-hidden="true" /> Take this ticket
+            <Hand className="size-4 text-subtle" aria-hidden="true" /> {aiHandling ? "Take over from the AI agent" : "Take this ticket"}
+          </DropdownMenuItem>
+        )}
+        {canHandBack && (
+          <DropdownMenuItem onSelect={() => actions.handBack.mutate(ticket.id)}>
+            <Bot className="size-4 text-subtle" aria-hidden="true" /> Hand back to the AI agent
           </DropdownMenuItem>
         )}
         {canClose && !ended && (

@@ -48,3 +48,6 @@ Domain terms as used in this repository, and how they map to the legacy ("Suppor
 | **CSAT** | customer satisfaction score (1 to 5) given by the visitor after a conversation is closed | (none) |
 | **Hot room** | a single room receiving a very high write rate, which serialises on its sequence counter ([PERFORMANCE.md](PERFORMANCE.md)) | (none) |
 | **Seq** | the per-room, contiguous message sequence number used for ordering and gap detection | `hr_time` |
+| **AI agent** | a configured assistant (persona, departments, knowledge collections, autonomy, hand-off triggers) that answers visitors from the knowledge base and hands over to a person; visitors see its name and an "AI" label ([AI-AGENTS.md](AI-AGENTS.md), [ADR 0029](adr/0029-ai-agent-pipeline.md)) | bot, chatbot (the widget's older auto-responder is unchanged) |
+| **Turn** | one decision of an AI agent on one visitor message (answered, suggested, asked for details, declined, handed over, resolved), recorded for review | (none) |
+| **Rules agent** | the offline, deterministic answerer used when no model is configured, the model fails or the AI budget is used up | heuristic provider |

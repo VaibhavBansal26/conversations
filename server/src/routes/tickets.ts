@@ -3,6 +3,7 @@ import type { AppContext } from "../context.js";
 import { parseBody, parseQuery, requireLiveSeat, type Env } from "../http.js";
 import { TicketBulk, TicketMerge, TicketPatch, TicketQuery, TicketTransfer } from "../schemas.js";
 import { claimTicket, transferTicket } from "../services/routing.js";
+import { handBackTicket } from "../agents/handover.js";
 import { getRoomRow, getVisibleRoom } from "../services/roomStore.js";
 import {
   bulkTickets,
@@ -36,6 +37,7 @@ export function ticketRoutes(ctx: AppContext) {
   r.post("/tickets/:id/merge", async (c) => c.json(ticketDto(await mergeTickets(ctx, c.get("actor"), c.req.param("id"), (await parseBody(c, TicketMerge)).into_id))));
 
   r.post("/tickets/:id/claim", async (c) => c.json(ticketDto(await claimTicket(ctx, c.get("actor"), c.req.param("id")))));
+  r.post("/tickets/:id/hand-back", async (c) => c.json(ticketDto(await handBackTicket(ctx, c.get("actor"), c.req.param("id")))));
   r.post("/tickets/:id/transfer", async (c) => {
     const a = c.get("actor");
     const b = await parseBody(c, TicketTransfer);

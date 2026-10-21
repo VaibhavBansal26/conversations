@@ -146,6 +146,10 @@
     ".err{color:var(--err);font-size:13px}.err:empty{display:none}.hint{color:var(--muted);font-size:13px;line-height:1.45;margin:0}",
     ".link{background:transparent!important;color:var(--fg)!important;text-decoration:underline;padding:0!important;border:0;cursor:pointer;min-height:0!important;font-size:12px}",
     ".form .link{font-size:13px;align-self:flex-start}",
+    ".qr{align-self:flex-start;display:flex;flex-wrap:wrap;gap:6px;max-width:92%;margin:2px 0 4px}",
+    ".qr button{border:1px solid var(--c);background:var(--bg);color:var(--fg);border-radius:999px;padding:7px 13px;font-size:13.5px;font-weight:550;cursor:pointer;min-height:34px}.qr button:hover,.qr button:focus-visible{background:var(--c);color:var(--t)}",
+    ".fb{align-self:flex-start;display:flex;gap:4px;align-items:center;font-size:12px;color:var(--muted);margin:-2px 0 4px 2px}.fb button{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;padding:4px 6px;border-radius:6px}.fb button:hover,.fb button:focus-visible{background:var(--bg);color:var(--fg)}.fb button[aria-pressed=true]{color:var(--c)}",
+    ".human{padding:4px 12px 2px;background:var(--bg);border-top:1px solid var(--line);flex:none;text-align:center}.human[hidden]{display:none}.human button{border:0;background:transparent;color:var(--muted);text-decoration:underline;cursor:pointer;font-size:12.5px;padding:3px 6px}.human button:hover,.human button:focus-visible{color:var(--fg)}",
   ].join("\n");
 
   function createWidget(opts) {
@@ -256,7 +260,7 @@
         var body = h(doc, "div", { class: cls, "data-id": m.id || null, "data-qid": m.client_msg_id || null });
         if (!mine && sender.type !== "system" && sender.name) {
           var who = h(doc, "span", { class: "who", text: sender.name });
-          if (m.meta && m.meta.ai) who.appendChild(h(doc, "span", { class: "tag", text: "AI" }));
+          if (m.meta && m.meta.ai) who.appendChild(h(doc, "span", { class: "tag", text: (m.meta.agent && m.meta.agent.label) || "AI" }));
           body.appendChild(who);
         }
         var text = m.content_text != null ? m.content_text : m.content || "";
@@ -283,9 +287,75 @@
           body.appendChild(meta);
         }
         els.list.appendChild(body);
+        if (!mine && m.id) renderCardExtras(m);
       });
       renderRating();
+      renderHumanButton();
       els.list.scrollTop = els.list.scrollHeight;
+    }
+
+    /* ---------- AI agent: quick replies, thumbs, "Talk to a person" ---------- */
+    function lastOf(pred) { var l = sorted().filter(pred); return l[l.length - 1]; }
+    function renderCardExtras(m) {
+      var card = m.meta && m.meta.card;
+      if (card && card.type === "quick_replies" && !card.answered && card.options && m === lastOf(function (x) { return !x.deleted && x.sender && x.sender.type !== "system"; })) {
+        var row = h(doc, "div", { class: "qr", role: "group", "aria-label": "Quick replies" });
+        card.options.forEach(function (o) {
+          row.appendChild(h(doc, "button", { type: "button", "data-option": o.id, text: o.label, onclick: function () { tapQuickReply(m, o.id); } }));
+        });
+        els.list.appendChild(row);
+      }
+      if (card && card.type === "csat" && state.room && state.room.ticket && state.room.ticket.csat_pending && m === lastOf(function (x) { return x.meta && x.meta.card && x.meta.card.type === "csat"; })) {
+        var box = h(doc, "div", { class: "rate", role: "group", "aria-label": "How did we do?" });
+        box.appendChild(h(doc, "span", { text: "How did we do?" }));
+        [1, 2, 3, 4, 5].forEach(function (n) {
+          box.appendChild(h(doc, "button", { type: "button", "aria-label": n + " out of 5", "data-score": String(n), text: String(n), onclick: function () {
+            state.room.ticket = Object.assign({}, state.room.ticket, { csat_pending: false });
+            api("/public/rooms/" + state.room.id + "/ticket-csat", { method: "POST", body: { score: n } }).catch(function () {}).then(renderMessages);
+          } }));
+        });
+        els.list.appendChild(box);
+      }
+      if (m.sender && m.sender.type === "bot" && m.meta && m.meta.ai && m.kind !== "system" && m === lastOf(function (x) { return x.sender && x.sender.type === "bot" && x.meta && x.meta.ai; })) {
+        var key = keyPrefix + "fb_" + m.id;
+        var voted = store.getItem(key);
+        var fb = h(doc, "div", { class: "fb", role: "group", "aria-label": "Was this helpful?" });
+        fb.appendChild(h(doc, "span", { text: voted ? "Thanks for your feedback." : "Was this helpful?" }));
+        if (!voted) {
+          [[1, "\uD83D\uDC4D", "Helpful"], [-1, "\uD83D\uDC4E", "Not helpful"]].forEach(function (o) {
+            fb.appendChild(h(doc, "button", { type: "button", "aria-label": o[2], "aria-pressed": "false", "data-rating": String(o[0]), text: o[1], onclick: function () {
+              store.setItem(key, String(o[0]));
+              api("/public/rooms/" + state.room.id + "/messages/" + m.id + "/feedback", { method: "POST", body: { rating: o[0] } }).catch(function () {}).then(renderMessages);
+            } }));
+          });
+        }
+        els.list.appendChild(fb);
+      }
+    }
+    function tapQuickReply(m, optionId) {
+      // mark it answered locally so the buttons disappear at once; the server's message:updated confirms
+      m.meta = Object.assign({}, m.meta, { card: Object.assign({}, m.meta.card, { answered: optionId }) });
+      renderMessages();
+      return api("/public/rooms/" + state.room.id + "/quick-reply", { method: "POST", body: { message_id: m.id, option_id: optionId } }).then(function (r) {
+        if (r && r.ticket) state.room.ticket = r.ticket;
+        return loadMessages().then(renderMessages);
+      }).catch(function () { return loadMessages().then(renderMessages); });
+    }
+    function humanNeeded() {
+      var tk = state.room && state.room.ticket;
+      return !!state.room && !(tk && (tk.status === "waiting_for_human" || tk.status === "open"));
+    }
+    function renderHumanButton() {
+      if (!els.human) return;
+      els.human.hidden = !humanNeeded();
+    }
+    function requestHuman() {
+      if (!state.room) return;
+      els.human.hidden = true;
+      return api("/public/rooms/" + state.room.id + "/request-human", { method: "POST", body: {} }).then(function (r) {
+        if (r && r.ticket) state.room.ticket = r.ticket;
+        return loadMessages().then(renderMessages);
+      }).catch(function () { els.human.hidden = false; });
     }
 
     /* ---------- satisfaction rating: offered once after the team closes the conversation ---------- */
@@ -307,6 +377,7 @@
       if (!room || !state.room || room.id !== state.room.id) return;
       state.room.status = room.status;
       state.room.closed_marker = room.closed_marker || null;
+      if (room.ticket !== undefined) state.room.ticket = room.ticket;
     }
     function renderRating() {
       var marker = state.room && closedMarker();
@@ -345,7 +416,8 @@
       els.input.addEventListener("input", sendTyping);
       els.input.addEventListener("input", function () { els.input.style.height = "auto"; els.input.style.height = Math.min(els.input.scrollHeight, 120) + "px"; });
       var send = h(doc, "button", { type: "button", class: "send", "aria-label": "Send message", onclick: submit }, [icon(doc, "send", 18)]);
-      els.body.appendChild(els.banner); els.body.appendChild(els.list); els.body.appendChild(els.typing);
+      els.human = h(doc, "div", { class: "human", hidden: true }, [h(doc, "button", { type: "button", "data-human": "1", text: "Talk to a person", onclick: requestHuman })]);
+      els.body.appendChild(els.banner); els.body.appendChild(els.list); els.body.appendChild(els.typing); els.body.appendChild(els.human);
       els.body.appendChild(h(doc, "div", { class: "compose" }, [els.input, send]));
       els.body.style.display = "flex"; els.body.style.flexDirection = "column"; els.body.style.flex = "1"; els.body.style.minHeight = "0";
       els.banner.hidden = state.connected || !state.session;
@@ -492,6 +564,7 @@
       socket.on("message:new", function (p) { onIncoming(p.message); });
       socket.on("room:updated", function (p) { applyRoomState(p && p.room); renderMessages(); });
       socket.on("message:updated", function (p) { upsert(p.message); renderMessages(); });
+      socket.on("ticket:updated", function (p) { if (state.room && p && p.room_id === state.room.id) { state.room.ticket = p.ticket; renderMessages(); } });
       socket.on("message:deleted", function (p) {
         state.messages = state.messages.filter(function (m) { return m.id !== p.message_id; });
         renderMessages();

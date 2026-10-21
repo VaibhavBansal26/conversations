@@ -170,7 +170,20 @@ export const TemplateBody = z.object({
     .optional(),
 });
 export const TemplateRender = z.object({ contact_id: id.optional(), room_id: id.optional(), format: z.enum(["text", "html"]).default("text") });
-export const KbBody = z.object({ question: z.string().trim().min(3).max(500), answer: z.string().trim().min(1).max(4000) });
+export const KbBody = z.object({
+  question: z.string().trim().min(3).max(500),
+  answer: z.string().trim().min(1).max(4000),
+  /** group entries (an AI agent can be limited to some collections) */
+  collection: z.string().trim().max(60).default(""),
+  /** the help-centre page this answer comes from; shown to visitors as a link under the AI agent's answer */
+  url: z
+    .string()
+    .trim()
+    .max(500)
+    .refine((u) => u === "" || /^https?:\/\/[^\s]+$/i.test(u), "Use an http or https address")
+    .nullable()
+    .default(null),
+});
 export const RephraseBody = z.object({
   text: z.string().min(1).max(8000),
   mode: z.enum(["improve", "fix_grammar", "shorten", "friendly", "professional", "empathetic"]).default("improve"),
@@ -267,3 +280,5 @@ export const PublicRoomBody = z
   })
   .default({});
 export const TicketTransfer = z.object({ department_id: id, note: z.string().trim().max(500).optional() });
+export const QuickReplyBody = z.object({ message_id: id, option_id: z.string().min(1).max(80) });
+export const VisitorFeedback = z.object({ rating: z.union([z.literal(1), z.literal(-1)]), comment: z.string().trim().max(500).optional() });

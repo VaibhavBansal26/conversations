@@ -100,31 +100,31 @@ Generated from `policies.ts` and `routePolicies.ts` (`npm run docs:ratelimit`; `
 | `public.config` | ip | gcra | 60 per 1 min, burst 60 | - | fail-open | Widget config fetch, per IP (GET /public/widget/config, GET /chat, GET /chat/bridge-test) |
 | `public.session` | composite | gcra | 20 per 1 min, burst 20 | - | fail-closed + penalty box | Visitor session creation, per IP + Origin + embed token (POST /public/sessions) |
 | `public.room` | visitor | gcra | 10 per 50 s, burst 10 | - | fail-open | Visitor starts a conversation (POST /public/rooms) |
-| `public.send` | visitor | gcra | 30 per 30 s, burst 30 | - | fail-open | Visitor sends a message (POST /public/rooms/:id/messages) |
-| `public.read` | visitor | gcra | 60 per 30 s, burst 60 | - | fail-open | Visitor read receipts (5 entry points) |
+| `public.send` | visitor | gcra | 30 per 30 s, burst 30 | - | fail-open | Visitor sends a message (POST /public/rooms/:id/messages, POST /public/rooms/:id/quick-reply, POST /public/rooms/:id/request-human) |
+| `public.read` | visitor | gcra | 60 per 30 s, burst 60 | - | fail-open | Visitor read receipts (6 entry points) |
 | `public.query` | visitor | gcra | 10 per 1 s, burst 40 | - | fail-open + lease | Visitor reads (session, rooms, messages) (GET /public/session, GET /public/rooms, GET /public/rooms/:id/messages) |
 | `public.upload` | visitor | gcra | 10 per 1 min, burst 10 | - | fail-closed | Visitor file uploads (camera and photo attachments), 10 per minute per visitor (POST /public/attachments) |
 | `public.otp.send` | visitor | gcra | 5 per 10 min, burst 5 | - | fail-closed + penalty box | OTP sends per visitor session (5 per 10 min) (POST /public/otp/send) |
 | `public.otp.contact` | composite | window | 10 per 1 d | - | fail-closed | OTP sends per contact per day (caps cost of SMS pumping) (POST /public/otp/send) |
 | `public.otp.ip` | ip | window | 30 per 1 h | - | fail-closed | OTP sends per IP per hour (POST /public/otp/send) |
 | `public.otp.verify` | visitor | gcra | 10 per 5 min, burst 10 | - | fail-closed + penalty box | OTP verification attempts per visitor session (POST /public/otp/verify) |
-| `msg.room` | composite | window | 300 per 1 min | - | fail-open | Messages per room (visitor + agents together): stops a runaway client or loop (POST /api/rooms/:id/messages, POST /public/rooms/:id/messages, socket message:send) |
-| `msg.workspace` | workspace | window | 5000 per 1 h | free 5000, pro 50000, business 500000 | fail-open | Messages per workspace per hour, by plan (POST /api/rooms/:id/messages, POST /public/rooms/:id/messages, socket message:send) |
+| `msg.room` | composite | window | 300 per 1 min | - | fail-open | Messages per room (visitor + agents together): stops a runaway client or loop (5 entry points) |
+| `msg.workspace` | workspace | window | 5000 per 1 h | free 5000, pro 50000, business 500000 | fail-open | Messages per workspace per hour, by plan (5 entry points) |
 | `team.send` | user | gcra | 90 per 1 min, burst 40 | - | fail-open | Team chat messages, per member (REST and socket) (POST /api/team/channels/:id/messages, socket team:message:send) |
 | `team.channel` | composite | window | 300 per 1 min | - | fail-open | Team chat messages per channel per minute: stops a runaway client or loop (POST /api/team/channels/:id/messages, socket team:message:send) |
 | `team.workspace` | workspace | window | 20000 per 1 h | free 20000, pro 200000, business 2000000 | fail-open | Team chat messages per workspace per hour, by plan (POST /api/team/channels/:id/messages, socket team:message:send) |
 | `team.search` | user | gcra | 20 per 1 min, burst 10 | - | fail-open | Team chat searches, per member (20 per minute) (GET /api/team/search) |
 | `team.create` | workspace | window | 100 per 1 h | - | fail-open | Channel and group message creation per workspace per hour (POST /api/team/channels, POST /api/team/dms) |
-| `api.read` | user | gcra | 20 per 1 s, burst 100 | - | fail-open + lease | Authenticated reads, per user (58 entry points) |
-| `api.write` | user | gcra | 10 per 1 s, burst 50 | - | fail-open + lease | Authenticated writes, per user (112 entry points) |
-| `api.workspace` | workspace | window | 1200 per 1 min | free 1200, pro 6000, business 30000 | fail-open | All API calls per workspace per minute, by plan (182 entry points) |
+| `api.read` | user | gcra | 20 per 1 s, burst 100 | - | fail-open + lease | Authenticated reads, per user (62 entry points) |
+| `api.write` | user | gcra | 10 per 1 s, burst 50 | - | fail-open + lease | Authenticated writes, per user (117 entry points) |
+| `api.workspace` | workspace | window | 1200 per 1 min | free 1200, pro 6000, business 30000 | fail-open | All API calls per workspace per minute, by plan (192 entry points) |
 | `api.send` | user | gcra | 120 per 1 min, burst 60 | - | fail-open | Agent message sends, per user (POST /api/rooms/:id/messages) |
 | `api.upload` | user | gcra | 30 per 1 min, burst 30 | - | fail-open | Uploads, per user (POST /api/attachments, POST /api/team/attachments) |
 | `api.import` | workspace | gcra | 10 per 10 min, burst 10 | - | fail-open | CSV imports (cost 5 of a small bucket), per workspace (POST /api/contacts/import) |
 | `heavy.concurrency` | workspace | concurrency | 2 concurrent | - | fail-open | Concurrent heavy requests (imports) per workspace (POST /api/contacts/import) |
-| `ai.minute` | user | gcra | 30 per 1 min, burst 20 | - | fail-open | AI calls, per user (POST /api/ai/suggest-replies, POST /api/ai/summary, POST /api/ai/rephrase) |
-| `ai.workspace` | workspace | window | 200 per 1 d | free 200, pro 5000, business 50000 | fail-open | AI calls per workspace per day, by plan (POST /api/ai/suggest-replies, POST /api/ai/summary, POST /api/ai/rephrase) |
-| `ai.concurrency` | workspace | concurrency | 4 concurrent | - | fail-open | Concurrent AI calls per workspace (POST /api/ai/suggest-replies, POST /api/ai/summary, POST /api/ai/rephrase) |
+| `ai.minute` | user | gcra | 30 per 1 min, burst 20 | - | fail-open | AI calls, per user (4 entry points) |
+| `ai.workspace` | workspace | window | 200 per 1 d | free 200, pro 5000, business 50000 | fail-open | AI calls per workspace per day, by plan (4 entry points) |
+| `ai.concurrency` | workspace | concurrency | 4 concurrent | - | fail-open | Concurrent AI calls per workspace (4 entry points) |
 | `analytics.read` | apiKey | gcra | 60 per 1 min, burst 60 | - | fail-open | Analytics API reads, per API key (60 per minute) (4 entry points) |
 | `analytics.export` | apiKey | gcra | 10 per 1 min, burst 10 | - | fail-open | Analytics exports, per API key (10 per minute) (GET /api/v1/analytics/export/rooms, GET /api/v1/analytics/export/messages-meta) |
 | `analytics.workspace` | workspace | window | 120 per 1 min | free 120, pro 600, business 3000 | fail-open | Analytics API calls per workspace per minute, by plan (6 entry points) |

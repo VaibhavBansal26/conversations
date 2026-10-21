@@ -1,5 +1,6 @@
 import { Library, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
+import { useLocation } from "react-router";
 import { api } from "../../api/client";
 import { useKb, useListMutation } from "../../api/settingsHooks";
 import type { KbEntry } from "../../api/types";
@@ -11,16 +12,17 @@ import { Button, EmptyState, ErrorNotice, Field, Input, Skeleton, Textarea, toas
 export function KnowledgeBaseSettings() {
   const kb = useKb();
   const [editing, setEditing] = useState<string | "new" | null>(null);
-  const [draft, setDraft] = useState({ question: "", answer: "" });
+  const prefill = (useLocation().state as { question?: string } | null)?.question;
+  const [draft, setDraft] = useState({ question: "", answer: "", collection: "", url: "" });
   const [confirm, setConfirm] = useState<KbEntry | null>(null);
   const save = useListMutation(
-    (d: typeof draft) => (editing === "new" ? api.post("/kb", d) : api.put(`/kb/${editing}`, d)),
+    (d: typeof draft) => (editing === "new" ? api.post("/kb", { ...d, url: d.url || null }) : api.put(`/kb/${editing}`, { ...d, url: d.url || null })),
     keys.kb,
   );
   const remove = useListMutation((id: string) => api.delete(`/kb/${id}`), keys.kb);
 
   const open = (e: KbEntry | null) => {
-    setDraft(e ? { question: e.question, answer: e.answer } : { question: "", answer: "" });
+    setDraft(e ? { question: e.question, answer: e.answer, collection: e.collection ?? "", url: e.url ?? "" } : { question: prefill ?? "", answer: "", collection: "", url: "" });
     setEditing(e ? e.id : "new");
     save.reset();
   };
@@ -66,6 +68,12 @@ export function KnowledgeBaseSettings() {
               }
             >
               <strong className="text-sm">{e.question}</strong>
+              {(e.collection || e.url) && (
+                <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-subtle">
+                  {e.collection && <span>Collection: {e.collection}</span>}
+                  {e.url && <span className="truncate">{e.url}</span>}
+                </p>
+              )}
               <p className="mt-1 line-clamp-2 text-[13px] text-muted-foreground">{e.answer}</p>
             </ListRow>
           ))}
@@ -80,6 +88,14 @@ export function KnowledgeBaseSettings() {
           <Field label="Answer" hint={`${draft.answer.length} / 4000`}>
             <Textarea rows={5} maxLength={4000} required value={draft.answer} onChange={(e) => setDraft({ ...draft, answer: e.target.value })} />
           </Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Collection" hint="Optional group, such as billing. An AI agent can be limited to some collections.">
+              <Input value={draft.collection} maxLength={60} onChange={(e) => setDraft({ ...draft, collection: e.target.value })} />
+            </Field>
+            <Field label="Page address" hint="Optional. Shown to visitors as the source of an answer.">
+              <Input type="url" value={draft.url} maxLength={500} placeholder="https://help.example.com/..." onChange={(e) => setDraft({ ...draft, url: e.target.value })} />
+            </Field>
+          </div>
           {save.isError && <ErrorNotice error={save.error} />}
           <div className="flex gap-2">
             <Button type="submit" loading={save.isPending}>

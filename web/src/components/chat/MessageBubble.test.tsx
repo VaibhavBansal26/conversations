@@ -116,4 +116,20 @@ describe("MessageBubble voice notes and images", () => {
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).toBeNull();
   });
+
+  it("marks an AI agent's answer and lets the team rate it", async () => {
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => (calls.push(`${init?.method} ${url} ${init?.body}`), new Response("{}", { status: 200, headers: { "content-type": "application/json" } }))));
+    render(<MessageBubble {...props} message={makeMessage({ id: "msg_9", room_id: "room_9", sender: { type: "bot", id: "agt_1", name: "Aria" }, content_text: "Open Settings.", meta: { ai: true } })} />);
+    expect(screen.getByText("AI")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Not helpful answer" }));
+    expect(calls.some((c) => c.includes("/api/messages/msg_9/feedback?room_id=room_9") && c.includes('"rating":-1'))).toBe(true);
+    expect(screen.getByRole("button", { name: "Not helpful answer" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("shows no rating on a plain bot message or a person's message", () => {
+    render(<MessageBubble {...props} message={makeMessage({ sender: { type: "bot", id: null, name: "Bot" }, content_text: "Hello", meta: {} })} />);
+    expect(screen.queryByRole("group", { name: "Rate this AI answer" })).toBeNull();
+    expect(screen.getAllByText("Bot").length).toBeGreaterThan(0);
+  });
 });

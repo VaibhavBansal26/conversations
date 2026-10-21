@@ -10,6 +10,9 @@ import * as anApiR from "../routes/analyticsApi.js";
 import * as pubR from "../routes/public.js";
 import * as depRoutes from "../routes/departments.js";
 import * as depR from "../services/departments.js";
+import * as agentsR from "../agents/config.js";
+import * as reviewR from "../agents/review.js";
+import * as sandboxR from "../agents/sandbox.js";
 import * as rulesR from "../services/routingRules.js";
 
 /**
@@ -129,6 +132,19 @@ const rows: [string, string, string, Opt?][] = [
   ["POST /api/tickets/:id/claim", "Tickets", "Take a ticket that is waiting (in the queue, or assigned to nobody); the first claim wins (`409 TICKET_TAKEN`)"],
   ["POST /api/tickets/:id/transfer", "Tickets", "Move a ticket to another department: it is routed there by that department's mode, the room follows, and the team gets an internal note (the visitor is told too)", { body: S.TicketTransfer }],
 
+  ["POST /api/tickets/:id/hand-back", "Tickets", "Give a ticket you have back to the AI agent that serves its department (`409 NO_AGENT` when none is on). Taking over is `POST /api/tickets/:id/claim`, which stops the agent at once"],
+
+  // ---- AI agents
+  ["GET /api/agents", "AI agents", "The workspace's AI support agents with their persona, scope, autonomy, thresholds, allowed actions and hand-off triggers"],
+  ["POST /api/agents", "AI agents", "Create an AI agent (at most 5 per workspace; off until `enabled`). Audited", { body: agentsR.AgentBodySchema, status: 201 }],
+  ["GET /api/agents/turns", "AI agents", "Transcript review: every decision the agents took (answered, clarified, refused, handed off, resolved) with the visitor's words, the answer, sources, confidence, reason and thumbs; filter by agent, outcome, rating, ticket; keyset paged", { query: reviewR.TurnQuery }],
+  ["GET /api/agents/unanswered", "AI agents", "Questions the knowledge base could not answer, grouped by similarity and counted: the order to write knowledge-base entries in", { query: reviewR.UnansweredQuery }],
+  ["GET /api/agents/:id", "AI agents", "One AI agent"],
+  ["PATCH /api/agents/:id", "AI agents", "Change an AI agent (audited)", { body: agentsR.AgentPatchSchema }],
+  ["DELETE /api/agents/:id", "AI agents", "Delete an AI agent; tickets it was handling go back to people", { status: 204 }],
+  ["POST /api/agents/:id/sandbox", "AI agents", "Try the agent without a conversation: the real decision for one message with its reasoning, sources, confidence, tool requests and the routing decision it would lead to. Stores nothing; counts against the AI budget", { body: sandboxR.SandboxBody }],
+  ["POST /api/messages/:id/feedback", "AI agents", "Thumbs up (1) or down (-1) on a bot answer, as a member of the team", { body: reviewR.FeedbackBody }],
+
   // ---- departments and routing
   ["GET /api/departments", "Departments", "Every inbox as a department: description, hours and holidays, routing mode, capacity, service levels, overflow, auto-replies, members with skills, languages and capacity, and live status (open, free people, queue)"],
   ["GET /api/department-status", "Departments", "Every department of the workspace with open or closed, free people, queue length and typical wait (names and counts only: the transfer menu and the queue overview)"],
@@ -242,6 +258,9 @@ const rows: [string, string, string, Opt?][] = [
   ["POST /public/rooms/:id/read", "Widget (public)", "Visitor read receipt", { body: S.ReadBody }],
   ["POST /public/rooms/:id/csat", "Widget (public)", "Satisfaction score after the conversation is closed", { body: pubR.Csat }],
   ["POST /public/rooms/:id/ticket-csat", "Widget (public)", "Rating (1 to 5) of the latest resolved ticket, once; `409 CSAT_NOT_AVAILABLE` when nothing is waiting for one", { body: S.TicketCsat }],
+  ["POST /public/rooms/:id/quick-reply", "Widget (public)", "Tap a quick reply under a bot message (`Yes, thanks` resolves the ticket, `Not quite` lets the AI agent try again or hand over, `Talk to a person`, a department). The tap is stored as the visitor's message; a card can be tapped once (`409 ALREADY_ANSWERED`)", { body: S.QuickReplyBody }],
+  ["POST /public/rooms/:id/request-human", "Widget (public)", "\"Talk to a person\": always available, whether or not an AI agent exists. Stores the request and hands the ticket off through the department's routing; repeating it while a person has the ticket changes nothing"],
+  ["POST /public/rooms/:id/messages/:messageId/feedback", "Widget (public)", "Thumbs up (1) or down (-1) on an AI answer", { body: S.VisitorFeedback }],
   ["POST /public/otp/send", "Widget (public)", "Send a one-time code to verify the visitor"],
   ["POST /public/otp/verify", "Widget (public)", "Verify the one-time code", { body: S.OtpVerify }],
 

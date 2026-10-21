@@ -10,7 +10,7 @@ const URGENT = ["urgent", "asap", "immediately", "emergency", "right now", "outa
 const NEGATIVE = [...COMPLAINT, "bad", "slow", "problem", "frustrated", "annoyed", "hate", "broken"];
 const POSITIVE = ["thanks", "thank you", "great", "love", "awesome", "perfect", "happy", "excellent", "appreciate", "amazing"];
 
-function triage(text: string) {
+export function triage(text: string) {
   const links = (text.match(/https?:\/\//g) ?? []).length;
   const spam = has(text, SPAM) || links >= 3;
   const complaint = has(text, COMPLAINT);
@@ -147,6 +147,20 @@ function autorespond(i: Record<string, any>) {
   return { answer: best.answer, confidence: Math.min(0.95, 0.55 + best.coverage * 0.4), handoff: false };
 }
 
+/**
+ * The rules-based support agent: the offline stand-in for the model behind `agent_answer`. It answers with the best FAQ entry when that entry covers
+ * enough of what the visitor wrote, and otherwise asks for a person. No generation, so it can neither invent nor promise anything.
+ */
+function agentAnswer(i: Record<string, any>) {
+  const kb = (i.kb as { id: string; answer: string; coverage: number }[]) ?? [];
+  const threshold = typeof i.coverageThreshold === "number" ? i.coverageThreshold : 0.5;
+  const t = triage(String(i.text ?? ""));
+  const subject = (sentences(String(i.text ?? ""))[0] ?? "").slice(0, 100);
+  const best = kb[0];
+  if (!best || best.coverage < threshold) return { answer: "", confidence: 0.1, intent: t.intent, subject, handoff: true, handoff_reason: "no_answer", cited_ids: [], actions: [] };
+  return { answer: best.answer, confidence: Math.min(0.95, 0.55 + best.coverage * 0.4), intent: t.intent, subject, handoff: false, cited_ids: [best.id], actions: [] };
+}
+
 /** Deterministic, offline stand-in so every AI feature works without a key (and in tests). Rule-based, not a language model. */
 export class HeuristicProvider implements AiProvider {
   readonly name = "heuristic";
@@ -163,6 +177,8 @@ export class HeuristicProvider implements AiProvider {
         return JSON.stringify(rephrase(i));
       case "autorespond":
         return JSON.stringify(autorespond(i));
+      case "agent_answer":
+        return JSON.stringify(agentAnswer(i));
     }
   }
 }

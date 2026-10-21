@@ -12,8 +12,10 @@ import { recordCsat } from "../services/roomMetrics.js";
 import { knownIp, parseBody, parseQuery, validate } from "../http.js";
 import { applyPrincipalLimits, enforce } from "../ratelimit/http.js";
 import { ipKey } from "../util/clientIp.js";
-import { MessageListQuery, OtpVerify, ReadBody, PublicRoomBody, SessionAttributes, SessionBody, TicketCsat, VisitorSend } from "../schemas.js";
+import { MessageListQuery, OtpVerify, PublicRoomBody, QuickReplyBody, ReadBody, SessionAttributes, SessionBody, TicketCsat, VisitorFeedback, VisitorSend } from "../schemas.js";
 import { rateTicket, visitorTicketDto } from "../services/tickets.js";
+import { visitorFeedback, visitorQuickReply, visitorRequestHuman } from "../agents/visitorActions.js";
+import { selectAgent } from "../agents/config.js";
 import { listMemberRows } from "../services/members.js";
 import { loadRefs, visitorMessageDto } from "../services/messageStore.js";
 import { isOpen } from "../services/office.js";
@@ -64,6 +66,9 @@ export function publicRoutes(ctx: AppContext) {
         }),
       ),
     );
+    // the visitor is told when they talk to an AI: the agent that would answer on the website (its name, avatar and disclosure label)
+    const sel = await selectAgent(ctx, ws.id, { channel: "widget", departmentId: widget.default_inbox_id });
+    const ai = sel ? { name: sel.agent.name, label: sel.agent.disclosure_label, avatar_url: sel.agent.avatar_url } : null;
     const agents = (await listMemberRows(ctx, ws.id)).filter((m) => m.live_seat && m.availability === "active").map((m) => ({ id: m.id, name: m.name.split(" ")[0] }));
     // an edge cache may hold this for 30s; the key MUST include the api key and Origin (the domain allow-list is evaluated per origin)
     c.header("Cache-Control", "public, max-age=0, s-maxage=30");
@@ -74,6 +79,7 @@ export function publicRoutes(ctx: AppContext) {
       widget: publicWidgetConfig(widget),
       office_open: isOpen(widget.office_hours, ctx.clock()),
       live_routing_inboxes: inboxes,
+      ai,
       departments,
       agents_available: agents.length,
       agents: agents.slice(0, 3),
@@ -171,6 +177,11 @@ export function publicRoutes(ctx: AppContext) {
     if (!t) throw new AppError(409, "CSAT_NOT_AVAILABLE", "There is no resolved ticket waiting for a rating");
     return c.json({ ok: true, ticket: visitorTicketDto(t) });
   });
+  // a tap on a quick reply under a bot message ("Yes, thanks", "Talk to a person", a department)
+  r.post("/rooms/:id/quick-reply", async (c) => c.json(await visitorQuickReply(ctx, c.get("session"), c.req.param("id"), await parseBody(c, QuickReplyBody))));
+  // "Talk to a person": always available, whatever the workspace has switched on
+  r.post("/rooms/:id/request-human", async (c) => c.json(await visitorRequestHuman(ctx, c.get("session"), c.req.param("id"))));
+  r.post("/rooms/:id/messages/:messageId/feedback", async (c) => c.json(await visitorFeedback(ctx, c.get("session"), c.req.param("id"), c.req.param("messageId"), await parseBody(c, VisitorFeedback))));
   r.post("/otp/verify", async (c) => c.json(await verifyOtp(ctx, c.get("session"), (await parseBody(c, OtpVerify)).code)));
 
   return r;

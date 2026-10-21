@@ -107,7 +107,7 @@ export function settingsRoutes(ctx: AppContext) {
   r.post("/templates/:id/render", async (c) => c.json(await renderTemplate(ctx, c.get("actor"), c.req.param("id"), await parseBody(c, TemplateRender))));
 
   r.get("/kb", async (c) =>
-    c.json({ data: (await listKb(ctx, c.get("actor").workspaceId)).map((k) => ({ id: k.id, question: k.question, answer: k.answer, updated_at: k.updated_at })) }),
+    c.json({ data: (await listKb(ctx, c.get("actor").workspaceId)).map((k) => ({ id: k.id, question: k.question, answer: k.answer, collection: k.collection ?? "", url: k.url ?? null, updated_at: k.updated_at })) }),
   );
   r.post("/kb", async (c) => c.json(await createKb(ctx, c.get("actor"), await parseBody(c, KbBody)), 201));
   r.put("/kb/:id", async (c) => c.json(await updateKb(ctx, c.get("actor"), c.req.param("id"), await parseBody(c, KbBody))));

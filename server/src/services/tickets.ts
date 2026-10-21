@@ -225,6 +225,8 @@ export interface TicketMessageFacts {
 export interface TicketAttach {
   /** the ticket the message belongs to (null when it belongs to none: a welcome line before any issue) */
   ticketId: string | null;
+  /** a person's first reply on a ticket that was with the AI agent or waiting for someone: the visitor is told that this person joined */
+  joined?: string;
   /** tickets whose state changed in this transaction: `publishTickets` sends them to the team and the visitor after commit */
   touched: string[];
 }
@@ -315,8 +317,10 @@ export async function ticketOnMessage(ctx: AppContext, room: RoomRow, m: TicketM
   }
   let status = live.status;
   let handler = live.handler;
+  let joined: string | undefined;
   if (status === "new" || status === "bot_handling" || status === "waiting_for_human") {
     const wasBot = status === "bot_handling" || handlerOf(live.handler)?.type === "bot";
+    if (agentId && (wasBot || status === "waiting_for_human")) joined = agentId;
     status = "open";
     // a ticket assigned to someone stays theirs when a colleague answers it first; a queued or bot-handled one becomes the replier's
     if (agentId && (!live.handler || live.handler.startsWith("bot:"))) handler = `human:${agentId}`;
@@ -339,7 +343,7 @@ export async function ticketOnMessage(ctx: AppContext, room: RoomRow, m: TicketM
     live.id,
   );
   if (status !== live.status || handler !== live.handler || !live.first_human_response_at) touch(live);
-  return { ticketId: live.id, touched: [...touched] };
+  return { ticketId: live.id, touched: [...touched], joined };
 }
 
 /** Tell the team (and the visitor) a ticket changed. Called after commit. */

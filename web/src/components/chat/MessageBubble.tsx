@@ -1,6 +1,7 @@
 // Adapted from the legacy UI (see docs/PROVENANCE.md): message card layout, hover action bar, quote block, inbound-form and voice-note cards.
-import { Copy, Lock, Pencil, RefreshCw, Reply, Trash2 } from "lucide-react";
+import { Copy, Lock, Pencil, RefreshCw, Reply, ThumbsDown, ThumbsUp, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { api } from "../../api/client";
 import type { Message } from "../../api/types";
 import { formatClock } from "../../lib/time";
 import { Avatar, Button, cn, Textarea, Tooltip, toast } from "../../ui";
@@ -34,6 +35,29 @@ function ActionButton({ label, onClick, children }: { label: string; onClick: ()
         {children}
       </button>
     </Tooltip>
+  );
+}
+
+/** The team marks an AI agent's answer helpful or not; the ratings feed the review page under Settings, AI agents. */
+function AnswerRating({ message }: { message: Message }) {
+  const [vote, setVote] = useState<1 | -1 | null>(null);
+  const [failed, setFailed] = useState(false);
+  const rate = (rating: 1 | -1) => {
+    setVote(rating);
+    setFailed(false);
+    api.post(`/messages/${message.id}/feedback?room_id=${encodeURIComponent(message.room_id)}`, { rating }).catch(() => (setVote(null), setFailed(true)));
+  };
+  return (
+    <div className="mt-1 flex items-center gap-1 px-1 text-xs text-subtle" role="group" aria-label="Rate this AI answer">
+      <span>Was this answer right?</span>
+      <button type="button" aria-label="Helpful answer" aria-pressed={vote === 1} onClick={() => rate(1)} className={cn("grid size-6 place-items-center rounded-md hover:bg-surface-3", vote === 1 && "bg-success-soft text-success-text")}>
+        <ThumbsUp className="size-3.5" aria-hidden="true" />
+      </button>
+      <button type="button" aria-label="Not helpful answer" aria-pressed={vote === -1} onClick={() => rate(-1)} className={cn("grid size-6 place-items-center rounded-md hover:bg-surface-3", vote === -1 && "bg-danger-soft text-danger-text")}>
+        <ThumbsDown className="size-3.5" aria-hidden="true" />
+      </button>
+      {failed && <span role="alert" className="text-danger-text">Could not save</span>}
+    </div>
   );
 }
 
@@ -86,7 +110,7 @@ export function MessageBubble({ message: m, selfMemberId, contactName, contactSe
           <div className={cn("mb-1 flex items-center gap-1.5 px-1 text-xs text-subtle", outgoing && "flex-row-reverse")}>
             <span className="font-medium text-muted-foreground">{senderName}</span>
             {!isNote && m.source !== "dm" && <span className="rounded bg-surface-3 px-1.5 text-[10px] font-semibold uppercase tracking-wide">{CHANNEL_LABEL[m.source]}</span>}
-            {m.sender.type === "bot" && <span className="rounded bg-primary-soft px-1.5 text-[10px] font-semibold uppercase tracking-wide text-primary-text">Bot</span>}
+            {m.sender.type === "bot" && <span className="rounded bg-primary-soft px-1.5 text-[10px] font-semibold uppercase tracking-wide text-primary-text">{m.meta.ai ? "AI" : "Bot"}</span>}
           </div>
         )}
         <div
@@ -143,6 +167,7 @@ export function MessageBubble({ message: m, selfMemberId, contactName, contactSe
             {outgoing && !isNote && <DeliveryStatus message={m} />}
           </div>
         </div>
+        {m.sender.type === "bot" && m.meta.ai === true && m.kind === "text" && !m.local && last && <AnswerRating message={m} />}
         {m.delivery === "not_sent_test_mode" && !m.local && (
           <p className="mt-1 max-w-full text-xs text-warning-text" data-testid="test-mode-note">
             Test mode: not sent. {m.source === "email" ? "Email" : "SMS"} is not connected, so this message was only saved.{" "}

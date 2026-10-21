@@ -71,7 +71,7 @@ async function loadLines(ctx: AppContext, roomId: string, opts: { notes: boolean
 /** The per-workspace BM25 index is built once and shared by suggestions and the auto-responder; KB edits invalidate it on every node. */
 export const kbIndex = (ctx: AppContext, ws: string): Promise<Bm25Index> => ctx.cache.wrap(`kb-index:${ws}`, async () => new Bm25Index(await kbDocs(ctx, ws)));
 
-const kbDocs = async (ctx: AppContext, ws: string): Promise<KbDoc[]> => ctx.db.all<KbDoc>("SELECT id, question, answer FROM kb_entries WHERE workspace_id = ?", ws);
+const kbDocs = async (ctx: AppContext, ws: string): Promise<KbDoc[]> => ctx.db.all<KbDoc>("SELECT id, question, answer, collection, url FROM kb_entries WHERE workspace_id = ?", ws);
 
 async function groundingText(ctx: AppContext, ws: string, roomId: string, kb: KbHit[]): Promise<string> {
   const agentTexts = (

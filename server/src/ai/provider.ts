@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { Config } from "../config.js";
 import { HeuristicProvider } from "./heuristic.js";
 
-export type AiTask = "suggest_replies" | "summarize" | "triage" | "rephrase" | "autorespond";
+export type AiTask = "suggest_replies" | "summarize" | "triage" | "rephrase" | "autorespond" | "agent_answer";
 
 export interface AiRequest {
   task: AiTask;

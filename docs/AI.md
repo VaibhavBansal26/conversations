@@ -67,6 +67,8 @@ A handoff posts "I'm connecting you with a teammate who will reply here as soon 
 
 Retrieval is a local Okapi BM25 over the FAQ list (`ai/retrieval.ts`: lowercase tokens, small stop-word list, light suffix stripping, question weighted double, coverage = share of query terms matched). No vector database.
 
+> The autonomous AI support agent (answers visitors, hands over, tools, sandbox, review) is described in [AI-AGENTS.md](AI-AGENTS.md) section 3 and [ADR 0029](adr/0029-ai-agent-pipeline.md); it uses the providers, retrieval and safety text of this document.
+
 ## 3. Prompt design and safety
 
 Every prompt is built from three parts:

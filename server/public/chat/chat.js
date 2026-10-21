@@ -279,7 +279,7 @@
       var body = h("div", { class: cls, "data-id": m.id || null, "data-qid": m.client_msg_id || null });
       if (!mine && sender.type !== "system" && sender.name) {
         var who = h("span", { class: "who", text: sender.name });
-        if (m.meta && m.meta.ai) who.appendChild(h("span", { class: "tag", text: t("ai_tag") }));
+        if (m.meta && m.meta.ai) who.appendChild(h("span", { class: "tag", text: (m.meta.agent && m.meta.agent.label) || t("ai_tag") }));
         body.appendChild(who);
       }
       var text = m.content_text != null ? m.content_text : m.content || "";
@@ -309,8 +309,10 @@
         body.appendChild(h("span", { class: "meta", text: fmtTime(m.created_at) }));
       }
       list.appendChild(body);
+      if (!mine && m.id) renderCardExtras(m);
     });
     renderRating();
+    renderHumanButton();
     if (opts.prepend) list.scrollTop = prevTop + (list.scrollHeight - prevH);
     else if (opts.forceBottom || wasBottom) scrollToBottom();
     else if (opts.newIncoming && els.jump) els.jump.hidden = false;
@@ -322,6 +324,67 @@
       return h("a", { class: "att", href: a.url || "#", "data-cv-link": "attachment", "aria-label": t("image") + ": " + a.file_name }, [h("img", { src: url, alt: a.file_name || t("image"), loading: "lazy" })]);
     }
     return h("a", { class: "att file", href: url || "#", "data-cv-link": "attachment", text: "📎 " + (a.file_name || t("attachment")) });
+  }
+
+  /* AI agent: quick replies, thumbs, "Talk to a person" (same rules as the widget) */
+  function lastOf(pred) { var l = sorted().filter(pred); return l[l.length - 1]; }
+  function renderCardExtras(m) {
+    var card = m.meta && m.meta.card;
+    if (card && card.type === "quick_replies" && !card.answered && card.options && m === lastOf(function (x) { return !x.deleted && x.sender && x.sender.type !== "system"; })) {
+      var row = h("div", { class: "qr", role: "group", "aria-label": t("qr_label") });
+      card.options.forEach(function (o) {
+        row.appendChild(h("button", { type: "button", "data-option": o.id, text: o.label, onclick: function () { tapQuickReply(m, o.id); } }));
+      });
+      els.list.appendChild(row);
+    }
+    if (card && card.type === "csat" && state.room && state.room.ticket && state.room.ticket.csat_pending && m === lastOf(function (x) { return x.meta && x.meta.card && x.meta.card.type === "csat"; })) {
+      var box = h("div", { class: "rate", role: "group", "aria-label": t("rate_prompt") });
+      box.appendChild(h("span", { text: t("rate_prompt") }));
+      [1, 2, 3, 4, 5].forEach(function (n) {
+        box.appendChild(h("button", { type: "button", "aria-label": t("rate_score", { n: n }), "data-score": String(n), text: String(n), onclick: function () {
+          state.room.ticket = Object.assign({}, state.room.ticket, { csat_pending: false });
+          api("/public/rooms/" + state.room.id + "/ticket-csat", { method: "POST", body: { score: n } }).catch(function () {}).then(function () { renderMessages(); });
+        } }));
+      });
+      els.list.appendChild(box);
+    }
+    if (m.sender && m.sender.type === "bot" && m.meta && m.meta.ai && m.kind !== "system" && m === lastOf(function (x) { return x.sender && x.sender.type === "bot" && x.meta && x.meta.ai; })) {
+      var key = keyPrefix + "fb_" + m.id;
+      var voted = store.getItem(key);
+      var fb = h("div", { class: "fb", role: "group", "aria-label": t("fb_prompt") });
+      fb.appendChild(h("span", { text: voted ? t("thanks_feedback") : t("fb_prompt") }));
+      if (!voted) {
+        [[1, "\uD83D\uDC4D", "fb_helpful"], [-1, "\uD83D\uDC4E", "fb_not_helpful"]].forEach(function (o) {
+          fb.appendChild(h("button", { type: "button", "aria-label": t(o[2]), "data-rating": String(o[0]), text: o[1], onclick: function () {
+            store.setItem(key, String(o[0]));
+            api("/public/rooms/" + state.room.id + "/messages/" + m.id + "/feedback", { method: "POST", body: { rating: o[0] } }).catch(function () {}).then(function () { renderMessages(); });
+          } }));
+        });
+      }
+      els.list.appendChild(fb);
+    }
+  }
+  function tapQuickReply(m, optionId) {
+    // mark it answered locally so the buttons disappear at once; the server's message:updated confirms
+    m.meta = Object.assign({}, m.meta, { card: Object.assign({}, m.meta.card, { answered: optionId }) });
+    renderMessages();
+    return api("/public/rooms/" + state.room.id + "/quick-reply", { method: "POST", body: { message_id: m.id, option_id: optionId } }).then(function (r) {
+      if (r && r.ticket) state.room.ticket = r.ticket;
+      return loadMessages().then(function () { renderMessages(); });
+    }).catch(function () { return loadMessages().then(function () { renderMessages(); }); });
+  }
+  function humanNeeded() {
+    var tk = state.room && state.room.ticket;
+    return !!state.room && !(tk && (tk.status === "waiting_for_human" || tk.status === "open"));
+  }
+  function renderHumanButton() { if (els.human) els.human.hidden = !humanNeeded(); }
+  function requestHuman() {
+    if (!state.room) return;
+    els.human.hidden = true;
+    return api("/public/rooms/" + state.room.id + "/request-human", { method: "POST", body: {} }).then(function (r) {
+      if (r && r.ticket) state.room.ticket = r.ticket;
+      return loadMessages().then(function () { renderMessages(); });
+    }).catch(function () { els.human.hidden = false; });
   }
 
   /* satisfaction rating: offered once after the team closes the conversation (same rules as the widget) */
@@ -397,6 +460,7 @@
     var wrap = h("div", { class: "msgs-wrap", style: null }, [els.list, els.jump]);
     els.typing = h("div", { class: "typing", "aria-live": "polite" });
     els.chips = h("div", { class: "chips", hidden: true });
+    els.human = h("div", { class: "human", hidden: true }, [h("button", { type: "button", "data-human": "1", text: t("talk_person"), onclick: requestHuman })]);
     els.file = h("input", { type: "file", accept: "image/*,application/pdf", multiple: true, hidden: true, "aria-hidden": "true", tabindex: "-1" });
     // copy the FileList first: clearing the input empties the live list
     els.file.addEventListener("change", function () { var picked = Array.prototype.slice.call(els.file.files); els.file.value = ""; addFiles(picked); });
@@ -417,6 +481,7 @@
     ]);
     els.body.appendChild(wrap);
     els.body.appendChild(els.typing);
+    els.body.appendChild(els.human);
     els.body.appendChild(els.chips);
     els.body.appendChild(els.file);
     els.body.appendChild(els.compose);
@@ -601,6 +666,7 @@
     if (!room || !state.room || room.id !== state.room.id) return;
     state.room.status = room.status;
     state.room.closed_marker = room.closed_marker || null;
+    if (room.ticket !== undefined) state.room.ticket = room.ticket;
     if (room.status === "closed" && state.roomStatus && state.roomStatus !== "closed") emit("conversation_closed", { room_id: room.id });
     state.roomStatus = room.status;
   }
@@ -672,6 +738,7 @@
     });
     socket.on("message:new", function (p) { onIncoming(p.message); });
     socket.on("room:updated", function (p) { applyRoomState(p && p.room); renderMessages(); });
+    socket.on("ticket:updated", function (p) { if (state.room && p && p.room_id === state.room.id) { state.room.ticket = p.ticket; renderMessages(); } });
     socket.on("message:updated", function (p) { upsert(p.message); renderMessages(); });
     socket.on("message:deleted", function (p) { state.messages = state.messages.filter(function (m) { return m.id !== p.message_id; }); renderMessages(); });
     socket.on("message:receipt", function (p) {

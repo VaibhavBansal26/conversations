@@ -30,3 +30,4 @@ Short records of decisions that shaped the system. Add one when you make a decis
 * [0026](./0026-bridge-protocol-v1.md) The page-to-host bridge: one envelope, versioned, command and event sets
 * [0027](./0027-tickets-inside-rooms.md) Tickets are episodes inside a room, opened by the message path
 * [0028](./0028-departments-are-inboxes.md) Departments are inboxes, and routing decisions hold one workspace lock
+* [0029](./0029-ai-agent-pipeline.md) The AI agent is a read-only decision followed by a write, with a rules agent underneath

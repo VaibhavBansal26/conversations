@@ -6271,6 +6271,1619 @@
         }
       }
     },
+    "/api/tickets/{id}/hand-back": {
+      "post": {
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "Give a ticket you have back to the AI agent that serves its department (`409 NO_AGENT` when none is on). Taking over is `POST /api/tickets/:id/claim`, which stops the agent at once",
+        "operationId": "post_api_tickets_id_hand_back",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "tickets:write",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/agents": {
+      "get": {
+        "tags": [
+          "AI agents"
+        ],
+        "summary": "The workspace's AI support agents with their persona, scope, autonomy, thresholds, allowed actions and hand-off triggers",
+        "operationId": "get_api_agents",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "agents:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.read",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "AI agents"
+        ],
+        "summary": "Create an AI agent (at most 5 per workspace; off until `enabled`). Audited",
+        "operationId": "post_api_agents",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "agents:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "avatar_url": {
+                    "default": null,
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 500,
+                        "format": "uri"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "persona": {
+                    "default": "",
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "tone": {
+                    "default": "friendly",
+                    "type": "string",
+                    "enum": [
+                      "friendly",
+                      "professional",
+                      "concise",
+                      "empathetic"
+                    ]
+                  },
+                  "languages": {
+                    "default": [],
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-z]{2,3}(-[a-z0-9]{2,8})?$"
+                    }
+                  },
+                  "greeting": {
+                    "default": "",
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "department_ids": {
+                    "default": [],
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    }
+                  },
+                  "hours": {
+                    "default": {
+                      "enabled": false,
+                      "timezone": "UTC",
+                      "days": [
+                        {
+                          "day": 1,
+                          "start": "09:00",
+                          "end": "17:00"
+                        },
+                        {
+                          "day": 2,
+                          "start": "09:00",
+                          "end": "17:00"
+                        },
+                        {
+                          "day": 3,
+                          "start": "09:00",
+                          "end": "17:00"
+                        },
+                        {
+                          "day": 4,
+                          "start": "09:00",
+                          "end": "17:00"
+                        },
+                        {
+                          "day": 5,
+                          "start": "09:00",
+                          "end": "17:00"
+                        }
+                      ]
+                    },
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "default": false,
+                        "type": "boolean"
+                      },
+                      "timezone": {
+                        "default": "UTC",
+                        "type": "string"
+                      },
+                      "days": {
+                        "default": [
+                          {
+                            "day": 1,
+                            "start": "09:00",
+                            "end": "17:00"
+                          },
+                          {
+                            "day": 2,
+                            "start": "09:00",
+                            "end": "17:00"
+                          },
+                          {
+                            "day": 3,
+                            "start": "09:00",
+                            "end": "17:00"
+                          },
+                          {
+                            "day": 4,
+                            "start": "09:00",
+                            "end": "17:00"
+                          },
+                          {
+                            "day": 5,
+                            "start": "09:00",
+                            "end": "17:00"
+                          }
+                        ],
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "day": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 6
+                            },
+                            "start": {
+                              "type": "string",
+                              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                            },
+                            "end": {
+                              "type": "string",
+                              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                            }
+                          },
+                          "required": [
+                            "day",
+                            "start",
+                            "end"
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "kb_collections": {
+                    "default": [],
+                    "maxItems": 30,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 60
+                    }
+                  },
+                  "autonomy": {
+                    "default": "auto_answer",
+                    "type": "string",
+                    "enum": [
+                      "suggest_only",
+                      "auto_answer",
+                      "auto_resolve"
+                    ]
+                  },
+                  "confidence_threshold": {
+                    "default": 0.6,
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "coverage_threshold": {
+                    "default": 0.5,
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "max_turns": {
+                    "default": 6,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 30
+                  },
+                  "max_attempts": {
+                    "default": 2,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10
+                  },
+                  "allowed_actions": {
+                    "default": [
+                      "collect_info",
+                      "route",
+                      "resolve",
+                      "quick_replies",
+                      "request_human",
+                      "schedule_callback",
+                      "offer_call"
+                    ],
+                    "maxItems": 7,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "collect_info",
+                        "route",
+                        "resolve",
+                        "quick_replies",
+                        "request_human",
+                        "schedule_callback",
+                        "offer_call"
+                      ]
+                    }
+                  },
+                  "handoff_triggers": {
+                    "default": {
+                      "human_request": true,
+                      "low_confidence": true,
+                      "repeated_rephrase": true,
+                      "negative_sentiment": true,
+                      "high_urgency": true,
+                      "sensitive_topic": true,
+                      "vip_contact": true,
+                      "tool_failure": true,
+                      "sensitive_topics": [
+                        "refund",
+                        "chargeback",
+                        "charge back",
+                        "lawsuit",
+                        "legal",
+                        "attorney",
+                        "lawyer",
+                        "fraud",
+                        "stolen",
+                        "harass",
+                        "abuse",
+                        "medical",
+                        "suicide",
+                        "self-harm",
+                        "self harm",
+                        "gdpr",
+                        "delete my data",
+                        "delete my account",
+                        "hacked",
+                        "compromised",
+                        "unauthorized",
+                        "unauthorised",
+                        "account takeover",
+                        "social security",
+                        "cancel my account",
+                        "cancel my subscription",
+                        "cancellation",
+                        "dispute",
+                        "reembolso",
+                        "devolución",
+                        "devolucion",
+                        "abogado",
+                        "fraude",
+                        "hackeado",
+                        "remboursement",
+                        "avocat",
+                        "plainte",
+                        "piraté",
+                        "erstattung",
+                        "rückerstattung",
+                        "anwalt",
+                        "betrug",
+                        "kündigen",
+                        "gehackt",
+                        "返金",
+                        "払い戻し",
+                        "弁護士",
+                        "詐欺",
+                        "解約",
+                        "不正アクセス",
+                        "ハッキング"
+                      ]
+                    },
+                    "type": "object",
+                    "properties": {
+                      "human_request": {
+                        "default": true,
+                        "type": "boolean"
+                      },
+                      "low_confidence": {
+                        "default": true,
+                        "type": "boolean"
+                      },
+                      "repeated_rephrase": {
+                        "default": true,
+                        "type": "boolean"
+                      },
+                      "negative_sentiment": {
+                        "default": true,
+                        "type": "boolean"
+                      },
+                      "high_urgency": {
+                        "default": true,
+                        "type": "boolean"
+                      },
+                      "sensitive_topic": {
+                        "default": true,
+                        "type": "boolean"
+                      },
+                      "vip_contact": {
+                        "default": true,
+                        "type": "boolean"
+                      },
+                      "tool_failure": {
+                        "default": true,
+                        "type": "boolean"
+                      },
+                      "sensitive_topics": {
+                        "default": [
+                          "refund",
+                          "chargeback",
+                          "charge back",
+                          "lawsuit",
+                          "legal",
+                          "attorney",
+                          "lawyer",
+                          "fraud",
+                          "stolen",
+                          "harass",
+                          "abuse",
+                          "medical",
+                          "suicide",
+                          "self-harm",
+                          "self harm",
+                          "gdpr",
+                          "delete my data",
+                          "delete my account",
+                          "hacked",
+                          "compromised",
+                          "unauthorized",
+                          "unauthorised",
+                          "account takeover",
+                          "social security",
+                          "cancel my account",
+                          "cancel my subscription",
+                          "cancellation",
+                          "dispute",
+                          "reembolso",
+                          "devolución",
+                          "devolucion",
+                          "abogado",
+                          "fraude",
+                          "hackeado",
+                          "remboursement",
+                          "avocat",
+                          "plainte",
+                          "piraté",
+                          "erstattung",
+                          "rückerstattung",
+                          "anwalt",
+                          "betrug",
+                          "kündigen",
+                          "gehackt",
+                          "返金",
+                          "払い戻し",
+                          "弁護士",
+                          "詐欺",
+                          "解約",
+                          "不正アクセス",
+                          "ハッキング"
+                        ],
+                        "maxItems": 100,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 2,
+                          "maxLength": 40
+                        }
+                      }
+                    }
+                  },
+                  "waiting_behavior": {
+                    "default": "gather_info",
+                    "type": "string",
+                    "enum": [
+                      "silent",
+                      "gather_info"
+                    ]
+                  },
+                  "disclosure_label": {
+                    "default": "AI assistant",
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 40
+                  },
+                  "channels": {
+                    "default": [
+                      "widget"
+                    ],
+                    "minItems": 1,
+                    "maxItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "widget"
+                      ]
+                    }
+                  },
+                  "enabled": {
+                    "default": false,
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents/turns": {
+      "get": {
+        "tags": [
+          "AI agents"
+        ],
+        "summary": "Transcript review: every decision the agents took (answered, clarified, refused, handed off, resolved) with the visitor's words, the answer, sources, confidence, reason and thumbs; filter by agent, outcome, rating, ticket; keyset paged",
+        "operationId": "get_api_agents_turns",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "agents:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.read",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "outcome",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "answered",
+                "suggested",
+                "clarified",
+                "refused",
+                "handoff",
+                "resolved",
+                "skipped"
+              ]
+            }
+          },
+          {
+            "name": "rated",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "up",
+                "down",
+                "any"
+              ]
+            }
+          },
+          {
+            "name": "ticket_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 300
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/agents/unanswered": {
+      "get": {
+        "tags": [
+          "AI agents"
+        ],
+        "summary": "Questions the knowledge base could not answer, grouped by similarity and counted: the order to write knowledge-base entries in",
+        "operationId": "get_api_agents_unanswered",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "agents:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.read",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 180
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/agents/{id}": {
+      "get": {
+        "tags": [
+          "AI agents"
+        ],
+        "summary": "One AI agent",
+        "operationId": "get_api_agents_id",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "agents:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.read",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "AI agents"
+        ],
+        "summary": "Change an AI agent (audited)",
+        "operationId": "patch_api_agents_id",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "agents:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "avatar_url": {
+                    "default": null,
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 500,
+                        "format": "uri"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "persona": {
+                    "default": "",
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "tone": {
+                    "default": "friendly",
+                    "type": "string",
+                    "enum": [
+                      "friendly",
+                      "professional",
+                      "concise",
+                      "empathetic"
+                    ]
+                  },
+                  "languages": {
+                    "default": [],
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-z]{2,3}(-[a-z0-9]{2,8})?$"
+                    }
+                  },
+                  "greeting": {
+                    "default": "",
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "department_ids": {
+                    "default": [],
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    }
+                  },
+                  "hours": {
+                    "default": {
+                      "enabled": false,
+                      "timezone": "UTC",
+                      "days": [
+                        {
+                          "day": 1,
+                          "start": "09:00",
+                          "end": "17:00"
+                        },
+                        {
+                          "day": 2,
+                          "start": "09:00",
+                          "end": "17:00"
+                        },
+                        {
+                          "day": 3,
+                          "start": "09:00",
+                          "end": "17:00"
+                        },
+                        {
+                          "day": 4,
+                          "start": "09:00",
+                          "end": "17:00"
+                        },
+                        {
+                          "day": 5,
+                          "start": "09:00",
+                          "end": "17:00"
+                        }
+                      ]
+                    },
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "default": false,
+                        "type": "boolean"
+                      },
+                      "timezone": {
+                        "default": "UTC",
+                        "type": "string"
+                      },
+                      "days": {
+                        "default": [
+                          {
+                            "day": 1,
+                            "start": "09:00",
+                            "end": "17:00"
+                          },
+                          {
+                            "day": 2,
+                            "start": "09:00",
+                            "end": "17:00"
+                          },
+                          {
+                            "day": 3,
+                            "start": "09:00",
+                            "end": "17:00"
+                          },
+                          {
+                            "day": 4,
+                            "start": "09:00",
+                            "end": "17:00"
+                          },
+                          {
+                            "day": 5,
+                            "start": "09:00",
+                            "end": "17:00"
+                          }
+                        ],
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "day": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 6
+                            },
+                            "start": {
+                              "type": "string",
+                              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                            },
+                            "end": {
+                              "type": "string",
+                              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                            }
+                          },
+                          "required": [
+                            "day",
+                            "start",
+                            "end"
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "kb_collections": {
+                    "default": [],
+                    "maxItems": 30,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 60
+                    }
+                  },
+                  "autonomy": {
+                    "default": "auto_answer",
+                    "type": "string",
+                    "enum": [
+                      "suggest_only",
+                      "auto_answer",
+                      "auto_resolve"
+                    ]
+                  },
+                  "confidence_threshold": {
+                    "default": 0.6,
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "coverage_threshold": {
+                    "default": 0.5,
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "max_turns": {
+                    "default": 6,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 30
+                  },
+                  "max_attempts": {
+                    "default": 2,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10
+                  },
+                  "allowed_actions": {
+                    "default": [
+                      "collect_info",
+                      "route",
+                      "resolve",
+                      "quick_replies",
+                      "request_human",
+                      "schedule_callback",
+                      "offer_call"
+                    ],
+                    "maxItems": 7,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "collect_info",
+                        "route",
+                        "resolve",
+                        "quick_replies",
+                        "request_human",
+                        "schedule_callback",
+                        "offer_call"
+                      ]
+                    }
+                  },
+                  "handoff_triggers": {
+                    "default": {
+                      "human_request": true,
+                      "low_confidence": true,
+                      "repeated_rephrase": true,
+                      "negative_sentiment": true,
+                      "high_urgency": true,
+                      "sensitive_topic": true,
+                      "vip_contact": true,
+                      "tool_failure": true,
+                      "sensitive_topics": [
+                        "refund",
+                        "chargeback",
+                        "charge back",
+                        "lawsuit",
+                        "legal",
+                        "attorney",
+                        "lawyer",
+                        "fraud",
+                        "stolen",
+                        "harass",
+                        "abuse",
+                        "medical",
+                        "suicide",
+                        "self-harm",
+                        "self harm",
+                        "gdpr",
+                        "delete my data",
+                        "delete my account",
+                        "hacked",
+                        "compromised",
+                        "unauthorized",
+                        "unauthorised",
+                        "account takeover",
+                        "social security",
+                        "cancel my account",
+                        "cancel my subscription",
+                        "cancellation",
+                        "dispute",
+                        "reembolso",
+                        "devolución",
+                        "devolucion",
+                        "abogado",
+                        "fraude",
+                        "hackeado",
+                        "remboursement",
+                        "avocat",
+                        "plainte",
+                        "piraté",
+                        "erstattung",
+                        "rückerstattung",
+                        "anwalt",
+                        "betrug",
+                        "kündigen",
+                        "gehackt",
+                        "返金",
+                        "払い戻し",
+                        "弁護士",
+                        "詐欺",
+                        "解約",
+                        "不正アクセス",
+                        "ハッキング"
+                      ]
+                    },
+                    "type": "object",
+                    "properties": {
+                      "human_request": {
+                        "default": true,
+                        "type": "boolean"
+                      },
+                      "low_confidence": {
+                        "default": true,
+                        "type": "boolean"
+                      },
+                      "repeated_rephrase": {
+                        "default": true,
+                        "type": "boolean"
+                      },
+                      "negative_sentiment": {
+                        "default": true,
+                        "type": "boolean"
+                      },
+                      "high_urgency": {
+                        "default": true,
+                        "type": "boolean"
+                      },
+                      "sensitive_topic": {
+                        "default": true,
+                        "type": "boolean"
+                      },
+                      "vip_contact": {
+                        "default": true,
+                        "type": "boolean"
+                      },
+                      "tool_failure": {
+                        "default": true,
+                        "type": "boolean"
+                      },
+                      "sensitive_topics": {
+                        "default": [
+                          "refund",
+                          "chargeback",
+                          "charge back",
+                          "lawsuit",
+                          "legal",
+                          "attorney",
+                          "lawyer",
+                          "fraud",
+                          "stolen",
+                          "harass",
+                          "abuse",
+                          "medical",
+                          "suicide",
+                          "self-harm",
+                          "self harm",
+                          "gdpr",
+                          "delete my data",
+                          "delete my account",
+                          "hacked",
+                          "compromised",
+                          "unauthorized",
+                          "unauthorised",
+                          "account takeover",
+                          "social security",
+                          "cancel my account",
+                          "cancel my subscription",
+                          "cancellation",
+                          "dispute",
+                          "reembolso",
+                          "devolución",
+                          "devolucion",
+                          "abogado",
+                          "fraude",
+                          "hackeado",
+                          "remboursement",
+                          "avocat",
+                          "plainte",
+                          "piraté",
+                          "erstattung",
+                          "rückerstattung",
+                          "anwalt",
+                          "betrug",
+                          "kündigen",
+                          "gehackt",
+                          "返金",
+                          "払い戻し",
+                          "弁護士",
+                          "詐欺",
+                          "解約",
+                          "不正アクセス",
+                          "ハッキング"
+                        ],
+                        "maxItems": 100,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 2,
+                          "maxLength": 40
+                        }
+                      }
+                    }
+                  },
+                  "waiting_behavior": {
+                    "default": "gather_info",
+                    "type": "string",
+                    "enum": [
+                      "silent",
+                      "gather_info"
+                    ]
+                  },
+                  "disclosure_label": {
+                    "default": "AI assistant",
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 40
+                  },
+                  "channels": {
+                    "default": [
+                      "widget"
+                    ],
+                    "minItems": 1,
+                    "maxItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "widget"
+                      ]
+                    }
+                  },
+                  "enabled": {
+                    "default": false,
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "AI agents"
+        ],
+        "summary": "Delete an AI agent; tickets it was handling go back to people",
+        "operationId": "delete_api_agents_id",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "agents:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/agents/{id}/sandbox": {
+      "post": {
+        "tags": [
+          "AI agents"
+        ],
+        "summary": "Try the agent without a conversation: the real decision for one message with its reasoning, sources, confidence, tool requests and the routing decision it would lead to. Stores nothing; counts against the AI budget",
+        "operationId": "post_api_agents_id_sandbox",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "agents:manage",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "ai.minute",
+            "api.workspace"
+          ],
+          "in_handler": [
+            "ai.workspace",
+            "ai.concurrency"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "history": {
+                    "default": [],
+                    "maxItems": 30,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "role": {
+                          "type": "string",
+                          "enum": [
+                            "visitor",
+                            "assistant"
+                          ]
+                        },
+                        "text": {
+                          "type": "string",
+                          "maxLength": 2000
+                        }
+                      },
+                      "required": [
+                        "role",
+                        "text"
+                      ]
+                    }
+                  },
+                  "contact": {
+                    "default": {
+                      "name": "",
+                      "tags": []
+                    },
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 100
+                      },
+                      "tags": {
+                        "default": [],
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 40
+                        }
+                      }
+                    }
+                  },
+                  "context": {
+                    "default": {
+                      "page_url": null,
+                      "locale": null
+                    },
+                    "type": "object",
+                    "properties": {
+                      "page_url": {
+                        "default": null,
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 500
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "locale": {
+                        "default": null,
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 20
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "department_id": {
+                    "default": null,
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "turns": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 50
+                  },
+                  "attempts": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 20
+                  }
+                },
+                "required": [
+                  "message"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/messages/{id}/feedback": {
+      "post": {
+        "tags": [
+          "AI agents"
+        ],
+        "summary": "Thumbs up (1) or down (-1) on a bot answer, as a member of the team",
+        "operationId": "post_api_messages_id_feedback",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-access": "conversations:reply",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "api.write",
+            "api.workspace"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "rating": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "const": 1
+                      },
+                      {
+                        "type": "number",
+                        "const": -1
+                      }
+                    ]
+                  },
+                  "comment": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "rating"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/departments": {
       "get": {
         "tags": [
@@ -9811,6 +11424,23 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 4000
+                  },
+                  "collection": {
+                    "default": "",
+                    "type": "string",
+                    "maxLength": 60
+                  },
+                  "url": {
+                    "default": null,
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -9894,6 +11524,23 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 4000
+                  },
+                  "collection": {
+                    "default": "",
+                    "type": "string",
+                    "maxLength": 60
+                  },
+                  "url": {
+                    "default": null,
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -12634,6 +14281,212 @@
                 },
                 "required": [
                   "score"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/rooms/{id}/quick-reply": {
+      "post": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "Tap a quick reply under a bot message (`Yes, thanks` resolves the ticket, `Not quite` lets the AI agent try again or hand over, `Talk to a person`, a department). The tap is stored as the visitor's message; a card can be tapped once (`409 ALREADY_ANSWERED`)",
+        "operationId": "post_public_rooms_id_quick_reply",
+        "security": [],
+        "x-access": "public",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "public.send"
+          ],
+          "in_handler": [
+            "msg.room",
+            "msg.workspace"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "message_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "option_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  }
+                },
+                "required": [
+                  "message_id",
+                  "option_id"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/rooms/{id}/request-human": {
+      "post": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "\"Talk to a person\": always available, whether or not an AI agent exists. Stores the request and hands the ticket off through the department's routing; repeating it while a person has the ticket changes nothing",
+        "operationId": "post_public_rooms_id_request_human",
+        "security": [],
+        "x-access": "public",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "public.send"
+          ],
+          "in_handler": [
+            "msg.room",
+            "msg.workspace"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/public/rooms/{id}/messages/{messageId}/feedback": {
+      "post": {
+        "tags": [
+          "Widget (public)"
+        ],
+        "summary": "Thumbs up (1) or down (-1) on an AI answer",
+        "operationId": "post_public_rooms_id_messages_messageId_feedback",
+        "security": [],
+        "x-access": "public",
+        "x-rate-limit": {
+          "pre": [],
+          "post": [
+            "public.read"
+          ],
+          "in_handler": []
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "rating": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "const": 1
+                      },
+                      {
+                        "type": "number",
+                        "const": -1
+                      }
+                    ]
+                  },
+                  "comment": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "rating"
                 ]
               }
             }
