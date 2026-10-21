@@ -6,6 +6,10 @@ All notable user-visible changes. Format: [Keep a Changelog](https://keepachange
 
 ### Changed
 
+- Settings > AI agents creates two default agents, Aria and vb, the first time it opens in a workspace with none; the browser remembers this per workspace, so a reset workspace gets them again.
+
+### Changed
+
 - **Pre-chat consent**: when Settings > Visitor details asks for consent, a visitor who types an email or phone number in the pre-chat form must now tick the consent box (before, consent was only asked in form cards in the thread). A name alone needs none. Sessions created with an email or phone but without `consent: true` are refused with `422 INVALID_FORM`.
 - `GET /public/widget/config` returns the effective visitor details of the default inbox (department overrides applied) as `widget.visitor_info`.
 - A one-to-one `tcall:invite` in a channel or group message now answers `USE_GROUP_CALL` instead of a generic refusal.

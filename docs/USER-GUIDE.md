@@ -595,7 +595,7 @@ Saves need `settings:write`. Shows the provider, or "(offline heuristics, no API
 
 Needs `agents:manage` (Owner, Manager). The "SMS and email answers" form uses the workspace settings (`settings:write`). Tabs "Agents" (default), "Review", "Unanswered". Concepts: [AI-AGENTS.md](AI-AGENTS.md).
 
-**Agents.** Up to 5 agents. On the first visit with none, the app creates "Aria" and switches it on, and says so. Presets: "Aria" (warm and patient), "vb" (direct and efficient), "Blank". Each row has an on/off switch, "Edit" and "Delete".
+**Agents.** Up to 5 agents. On the first visit with none, the app creates "Aria" and "vb", switches both on, and says so. Aria answers first; give each a department so they share conversations. Presets: "Aria" (warm and patient), "vb" (direct and efficient), "Blank". Each row has an on/off switch, "Edit" and "Delete".
 
 Editor (defaults for a blank agent):
 

@@ -109,7 +109,7 @@ Status words: **built** (code, UI and tests exist), **test-only** (built, but ev
 ### AI support agents in the chat
 
 - **Flow**: up to five agents answer visitors from the knowledge base, ask for details, run a closed list of tools and hand over to a person on triggers (asks for a person, low confidence, sensitive topic, upset, VIP, turn limit and others). Answers carry the agent's name and an AI label. The team can take over, hand back, try an agent in a sandbox and review rated turns and unanswered questions.
-- **Configure**: Settings > AI agents (new agents start switched off; the first visit creates "Aria", switched on).
+- **Configure**: Settings > AI agents (new agents start switched off; the first visit in a workspace creates "Aria" and "vb", both switched on; Aria takes conversations first unless each has a department).
 - **Permission**: `agents:manage`.
 - **Docs / tests**: [AI-AGENTS.md](AI-AGENTS.md) section 3, [ADR 0029](adr/0029-ai-agent-pipeline.md); `agents.test.ts`, `agents-flow.test.ts`, `agents.eval.test.ts`.
 - **Not verified**: a real language model; only scripted models and the offline rules agent were run.

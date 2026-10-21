@@ -57,13 +57,17 @@ const blank = (): AgentDraft => ({
   waiting_behavior: "gather_info", disclosure_label: "AI assistant", channels: ["widget"], enabled: false,
 });
 
-/** The agent a workspace gets the first time it opens this screen with none: on, answering from the knowledge base, handing over when it should. */
-export const DEFAULT_AGENT: Partial<AgentDraft> & { name: string } = {
-  ...fromPreset(AGENT_PRESETS[0]!),
-  persona: `${AGENT_PRESETS[0]!.persona} Answer only from the knowledge base. If you do not know, say so and offer a person.`,
+/**
+ * The agents a workspace gets the first time it opens this screen with none: Aria and vb, both on, answering from the knowledge base and handing
+ * over when they should. Aria is created first, so with no departments set she answers; give each a department to share the work.
+ */
+const asDefault = (p: AgentPreset): Partial<AgentDraft> & { name: string } => ({
+  ...fromPreset(p),
+  persona: `${p.persona} Answer only from the knowledge base. If you do not know, say so and offer a person.`,
   autonomy: "auto_answer",
   enabled: true,
-};
+});
+export const DEFAULT_AGENTS = AGENT_PRESETS.map(asDefault);
 function fromPreset(p: AgentPreset): Partial<AgentDraft> & { name: string } {
   return { name: p.name, tone: p.tone, persona: p.persona, greeting: p.greeting, avatar_url: p.avatar_url, avatar_alt: p.avatar_alt, disclosure_label: p.disclosure_label };
 }
@@ -339,7 +343,14 @@ function Agents() {
     if (!agents.data || agents.data.length > 0 || tried.current || offered(ws)) return;
     tried.current = true;
     markOffered(ws);
-    create.mutate(DEFAULT_AGENT, { onSuccess: () => setCreatedDefault(true), onError: () => markOffered(ws, false) });
+    void (async () => {
+      try {
+        for (const d of DEFAULT_AGENTS) await create.mutateAsync(d);
+        setCreatedDefault(true);
+      } catch {
+        markOffered(ws, false);
+      }
+    })();
   }, [agents.data, create, ws]);
   const [editing, setEditing] = useState<string | "new" | null>(null);
   const [preset, setPreset] = useState<AgentPreset | null>(null);
@@ -366,7 +377,7 @@ function Agents() {
       {agents.isError && <ErrorNotice error={agents.error} onRetry={() => void agents.refetch()} />}
       {createdDefault && (
         <p role="status" className="rounded-md bg-primary-soft px-3 py-2 text-sm text-primary-text">
-          We created an AI agent called Aria and switched it on. It answers from your Knowledge base and hands over to your team when it cannot. Add a few knowledge-base entries, then try it below.
+          We created two AI agents, Aria and vb, and switched them on. They answer from your Knowledge base and hand over to your team when they cannot. Aria answers first; give each a department to share conversations between them. Add a few knowledge-base entries, then try them below.
         </p>
       )}
       {agents.data && data.length === 0 && editing === null && !create.isPending && (
