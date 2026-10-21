@@ -85,7 +85,7 @@
       add(function () { return command("setCustomAttributes", { attributes: { plan: "pro", seats: 3, beta: true } }).then(function (a) { record("setCustomAttributes", "setCustomAttributes is acknowledged", !!(a && a.ok), JSON.stringify(a)); }); });
       add(function () { return command("open", {}).then(function (a) { record("open", "open focuses the composer", !!(a && a.ok) && inner().activeElement === inner().querySelector("textarea"), JSON.stringify(a)); }); });
       add(function () { return command("sendMessage", { text: "prefilled by the host" }).then(function (a) { var ta = inner().querySelector("textarea"); record("sendMessage_prefill", "sendMessage without send prefills the composer", !!(a && a.ok) && !!ta && ta.value === "prefilled by the host", JSON.stringify(a)); }); });
-      add(function () { inner().querySelector("textarea").value = ""; return command("sendMessage", { text: "Hello from the conformance page https://example.com/docs", send: true }).then(function (a) { record("sendMessage_send", "sendMessage with send:true sends and confirms", !!(a && a.ok && a.sent), JSON.stringify(a)); }); });
+      add(function () { inner().querySelector("textarea").value = ""; return command("sendMessage", { text: "Hello from the conformance page https://example.com/docs", send: true }).then(function (a) { record("sendMessage_send", "sendMessage with send:true sends and confirms", !!(a && a.ok && a.result && a.result.sent), JSON.stringify(a)); }); });
       add(function () {
         var link = inner().querySelector('.m.out a[data-cv-link]');
         if (!link) { record("link_clicked", "link_clicked event with a validated URL", false, "no link in the sent message"); return null; }
@@ -106,7 +106,8 @@
       add(function () { var n = events.length; sendRaw({ v: 1, id: "big-1", type: "identify", payload: { name: new Array(20000).join("x") } }); return sleep(600).then(function () { record("too_large", "an oversized message is dropped", !events.slice(n).some(function (x) { return x.parsed.ok && x.parsed.envelope.reply_to === "big-1"; }), ""); }); });
       var beforeReset = 0;
       add(function () { beforeReset = events.length; return command("reset", {}).then(function (a) { record("reset", "reset ends the session and acknowledges", !!(a && a.ok), JSON.stringify(a)); }); });
-      add(function () { return waitFor(ofType("conversation_started"), 12000, beforeReset).then(function (e) { record("reset_new_conversation", "after reset a fresh conversation starts", !!e, e ? e.payload.room_id.slice(0, 8) : "no event"); }); });
+      add(function () { return sleep(300).then(function () { return command("identify", { name: "Bridge Test After Reset" }); }); });
+      add(function () { return waitFor(ofType("conversation_started"), 12000, beforeReset).then(function (e) { record("reset_new_conversation", "after reset and identify a fresh conversation starts", !!e, e ? e.payload.room_id.slice(0, 8) : "no event"); }); });
       add(function () {
         // 40 commands in a burst: the page enforces its command rate limit
         var acks = [];

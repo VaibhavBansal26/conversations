@@ -119,7 +119,8 @@
   if (bridge.transport.name === "iframe") {
     global.addEventListener("message", function (e) {
       var fromParent = e.source === global.parent;
-      var allowed = fromParent && Bridge.originMatches(e.origin, DOMAIN);
+      // the token's site(s), or the app itself (the conformance page)
+      var allowed = fromParent && (Bridge.originMatches(e.origin, DOMAIN) || e.origin === global.location.origin);
       bridge.receive(e.data, { allowed: allowed });
     });
   }
@@ -190,7 +191,7 @@
   function upsert(m) {
     var i = findIndex(m);
     if (i >= 0) {
-      state.messages[i] = Object.assign({}, state.messages[i], m, { local: false });
+      state.messages[i] = Object.assign({}, state.messages[i], m, { local: false, localAttachments: null });
       delete state.pending[m.client_msg_id];
       return false;
     }
@@ -357,8 +358,10 @@
     var text = "";
     if (!state.online) text = t("offline");
     else if (state.session && state.room && !state.connected) text = t("reconnecting");
+    var stick = isNearBottom(); // the banner changes the height of the list: stay on the newest message
     els.banner.textContent = text;
     els.banner.hidden = !text;
+    if (stick && els.list) scrollToBottom();
     els.banner.className = "status" + (state.online ? " neutral" : "");
   }
   function renderTyping(name) { if (els.typing) els.typing.textContent = name ? t("typing", { name: name }) : ""; }
@@ -395,7 +398,8 @@
     els.typing = h("div", { class: "typing", "aria-live": "polite" });
     els.chips = h("div", { class: "chips", hidden: true });
     els.file = h("input", { type: "file", accept: "image/*,application/pdf", multiple: true, hidden: true, "aria-hidden": "true", tabindex: "-1" });
-    els.file.addEventListener("change", function () { addFiles(els.file.files); els.file.value = ""; });
+    // copy the FileList first: clearing the input empties the live list
+    els.file.addEventListener("change", function () { var picked = Array.prototype.slice.call(els.file.files); els.file.value = ""; addFiles(picked); });
     els.input = h("textarea", { rows: "1", placeholder: t("message_placeholder"), "aria-label": t("message_label"), maxlength: "4000", enterkeyhint: "send", autocomplete: "off" });
     els.input.addEventListener("keydown", function (e) {
       var coarse = global.matchMedia && global.matchMedia("(pointer: coarse)").matches;

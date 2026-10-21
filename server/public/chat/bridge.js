@@ -92,10 +92,11 @@
       return typeof p.device_id === "string" && DEVICE_ID.test(p.device_id) ? null : "device_id must be 8-64 characters of A-Z a-z 0-9 _ -";
     },
     ack: function (p) {
-      var bad = onlyKeys(p, ["ok", "handled", "error"]);
+      var bad = onlyKeys(p, ["ok", "handled", "error", "result"]);
       if (bad) return "unknown field " + bad;
       if (typeof p.ok !== "boolean") return "ok must be a boolean";
       if (p.handled !== undefined && typeof p.handled !== "boolean") return "handled must be a boolean";
+      if (p.result !== undefined && !isObj(p.result)) return "result must be an object";
       if (p.error !== undefined && !(isObj(p.error) && isStr(p.error.code, 64, 1) && isStr(p.error.message, 300))) return "error needs code and message";
       return null;
     },
@@ -291,7 +292,17 @@
       if (!h) return ack(env.id, false, { error: { code: "UNKNOWN_COMMAND", message: env.type } });
       Promise.resolve()
         .then(function () { return h(env.payload, env); })
-        .then(function (res) { ack(env.id, true, res && isObj(res) ? res : undefined); })
+        .then(function (res) {
+          // `handled` is part of the ack contract (back, link_clicked); anything else a command returns travels under `result`
+          var extra = {};
+          if (res && isObj(res)) {
+            if (typeof res.handled === "boolean") extra.handled = res.handled;
+            var rest = {}, any = false;
+            for (var k in res) if (k !== "handled") { rest[k] = res[k]; any = true; }
+            if (any) extra.result = rest;
+          }
+          ack(env.id, true, extra);
+        })
         .catch(function (e) { ack(env.id, false, { error: { code: (e && e.code) || "COMMAND_FAILED", message: String((e && e.message) || "Command failed").slice(0, 300) } }); });
     }
 

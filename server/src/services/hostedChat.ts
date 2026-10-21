@@ -88,6 +88,7 @@ export function chatPage(o: { lang: string; theme: "light" | "dark" | "auto"; do
 <meta name="referrer" content="no-referrer">
 <meta name="cv-domain" content="${esc(o.domain)}">
 <title>Chat</title>
+<link rel="icon" href="data:,">
 <link rel="stylesheet" href="/chat/assets/chat.css?v=${o.v}">
 </head>
 <body>
@@ -102,7 +103,7 @@ export function chatPage(o: { lang: string; theme: "light" | "dark" | "auto"; do
 }
 
 export const unavailablePage = () =>
-  `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><meta name="color-scheme" content="light dark"><title>Chat unavailable</title><link rel="stylesheet" href="/chat/assets/chat.css"></head><body><main class="unavailable"><h1>Chat is not available</h1><p>This chat link is not active. If you followed it from an app, update the app or contact its support team.</p></main></body></html>`;
+  `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><meta name="color-scheme" content="light dark"><title>Chat unavailable</title><link rel="icon" href="data:,"><link rel="stylesheet" href="/chat/assets/chat.css"></head><body><main class="unavailable"><h1>Chat is not available</h1><p>This chat link is not active. If you followed it from an app, update the app or contact its support team.</p></main></body></html>`;
 
 /** The conformance page: embeds the hosted chat in an iframe and drives every bridge command, checking every event. No token is baked in. */
 export function bridgeTestPage(v: string): string {
