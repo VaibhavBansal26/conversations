@@ -286,7 +286,7 @@ socket.connect()
 
 ## Push notifications: design note
 
-Status: a proposal. **Nothing here is implemented**, no device tokens are stored, and no push is sent. It is written so the work can be estimated and reviewed.
+Status: a proposal. **Native push is not implemented**: no APNs or FCM device tokens are stored and no native push is sent. (Web Push for team members in browsers is built; see [NOTIFICATIONS.md](NOTIFICATIONS.md). It does not reach visitors.) It is written so the work can be estimated and reviewed.
 
 Why: a web view and a socket do not receive anything while the app is suspended; a customer who left the app must be told that the team answered.
 

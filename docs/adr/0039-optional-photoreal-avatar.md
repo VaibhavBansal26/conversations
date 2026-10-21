@@ -1,6 +1,6 @@
 # 0039. The photoreal avatar is optional, connected per workspace, and never the default
 
-Status: accepted
+Status: accepted (2026-10-21).
 
 ## Context
 

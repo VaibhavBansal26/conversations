@@ -16,6 +16,7 @@ Settings > **Departments & routing** (`departments:manage`, Owner and Manager), 
 | `sla_first_response_s`, `sla_resolution_s` | service levels (see below) |
 | `overflow_inbox_id` | where a ticket goes when this department is closed or nobody here can take it; loops are refused (`OVERFLOW_LOOP`) |
 | `auto_reply_closed`, `auto_reply_queued` | replace the default text a visitor reads |
+| `visitor_info` | overrides of the workspace's visitor details for conversations in this department: the name, email and phone modes, each custom field's mode (`custom_fields: {key: mode}`), the moments, and the consent wording and privacy-policy address (`consent: {enabled, text, privacy_url}`); empty means the workspace's ([AI-AGENTS.md](AI-AGENTS.md) section 4) |
 | members | `skills` (free text, e.g. `billing`), `languages` (`en`, `pt-br`), `capacity` |
 
 Opening hours are judged in the department's own time zone: the start minute is inside, the end minute is not, a holiday closes the whole local day (in that zone) whatever the weekly schedule says, and daylight saving follows the zone (tested around Berlin's switch on 2026-03-29 and across the date line for Tokyo).

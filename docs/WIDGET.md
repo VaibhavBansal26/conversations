@@ -62,7 +62,7 @@ When an AI agent answers, its messages carry the agent's name and label (default
 
 ### Asking for details
 
-Settings > Visitor details decides which of name, email, phone and custom fields the widget asks for, and when ([AI-AGENTS.md](AI-AGENTS.md) section 4). Required fields appear in the pre-chat form; the others arrive as a form card in the conversation (on handoff, when nobody is available, for a callback, after resolution). Validation runs in the widget and again on the server; a half-filled card is kept when new messages arrive. Nothing is asked that the visitor already gave.
+Settings > Visitor details decides which of name, email, phone and custom fields the widget asks for, and when ([AI-AGENTS.md](AI-AGENTS.md) section 4). Required fields, and custom fields set to *ask, visitor may skip*, appear in the pre-chat form (a department can set its own field modes and consent wording); the others arrive as a form card in the conversation (on handoff, when nobody is available, for a callback, after resolution). Validation runs in the widget and again on the server; a half-filled card is kept when new messages arrive. Nothing is asked that the visitor already gave.
 
 ### Calls
 

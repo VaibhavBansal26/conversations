@@ -1,13 +1,17 @@
 # Voice and video calls
 
-Three kinds of call, all off until a manager switches them on and all without recording. Two are a team member talking to a visitor; the third is the visitor talking to the AI agent:
+Several kinds of call, all off until a manager switches them on and all without recording. Three involve a visitor; two are between teammates:
 
 1. **Browser calls** (WebRTC): voice and video between the inbox and the visitor's page (the embedded widget, the hosted chat or a mobile web view). Built and tested; real-network behaviour is not verified (see [What is verified](#what-is-verified)).
 2. **Phone calls** (Twilio Voice click-to-call): the app rings the agent's phone and then bridges the visitor's phone. Built and tested against a mocked Twilio only. See [Phone calls](#phone-calls).
 
-3. **Calls with the AI assistant** (voice, and "video" with an animated avatar): the visitor's browser listens and speaks, the server receives text. See [Calls with the AI assistant](#calls-with-the-ai-assistant).
+3. **Calls with the AI assistant** (voice, and "video" with an animated avatar, or optionally a photoreal one): the visitor's browser listens and speaks, the server receives text. See [Calls with the AI assistant](#calls-with-the-ai-assistant) and [Photoreal avatar](#photoreal-avatar).
+4. **Calls between teammates**, one to one from a direct message. See [Calls between teammates](#calls-between-teammates).
+5. **Group calls** of up to four teammates from a channel or group message, as a mesh. See [Group calls](#group-calls).
 
-Decisions: [ADR 0031](adr/0031-calls-signalling-over-sockets.md), [ADR 0032](adr/0032-phone-calls-through-the-workspaces-twilio.md), [ADR 0033](adr/0033-ai-calls-browser-speech.md).
+[Call links](#call-links) let a visitor join a call with the AI or the team from an address, without the chat open.
+
+Decisions: [ADR 0031](adr/0031-calls-signalling-over-sockets.md), [ADR 0032](adr/0032-phone-calls-through-the-workspaces-twilio.md), [ADR 0033](adr/0033-ai-calls-browser-speech.md), [ADR 0034](adr/0034-agent-portraits-and-the-talking-face.md), [ADR 0035](adr/0035-optional-realtime-voice-engine.md), [ADR 0036](adr/0036-teammate-calls.md), [ADR 0037](adr/0037-call-links.md), [ADR 0038](adr/0038-group-calls-mesh.md), [ADR 0039](adr/0039-optional-photoreal-avatar.md).
 
 ## Browser calls
 

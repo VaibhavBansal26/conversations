@@ -1,6 +1,6 @@
 # 0038. Group calls are a WebRTC mesh capped at four
 
-Status: accepted
+Status: accepted (2026-10-21).
 
 ## Context
 

@@ -23,4 +23,4 @@ Support needs a name, an email, a phone number or a callback number at different
 ## Consequences
 
 - A visitor who is a known customer but is not signed in stays a separate contact until the team merges them or they verify.
-- The `after` moment asks for an address to follow up; sending transcripts is not built.
+- The `after` moment asks for an address to follow up. Sending transcripts was built later ([TRANSCRIPTS.md](../TRANSCRIPTS.md)); a copy goes only to an address confirmed by a code or given with consent outside the pre-chat form.

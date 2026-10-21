@@ -90,7 +90,7 @@ Other controls:
 | Input size | per-message cap (1200 chars), a token budget (~3000 tokens for summaries/suggestions, 1500 for the auto-responder, 800 for rephrase context): **the first message and the newest messages that fit are kept**, the gap is marked `[... N earlier messages omitted ...]`, and the response says `truncated: true` |
 | PII | with `ai_redact_pii` on, emails, phone numbers and long digit runs (card-like) in the transcript, knowledge snippets, drafts and triage text are replaced by `[email]`, `[phone]`, `[number]` before leaving the server |
 | Output | zod-validated; malformed, empty, wrong-shaped, out-of-range or refusal output => unavailable/ignored |
-| Cost | per-seat rate limit on AI endpoints (20 burst, 1 per 2 s), bounded `max_tokens` per task (150-800), triage/auto-responder are opt-in, KB retrieval narrows context to at most 3 snippets, no AI calls on the inbound path |
+| Cost | per-seat rate limit on AI endpoints (20 burst, 1 per 2 s), bounded `max_tokens` per task (150-800), triage/auto-responder are opt-in, KB retrieval narrows context to at most 3 snippets, no AI call inside a webhook or send request: AI agent turns for chat, SMS and email run in the background after the message is stored (`onContactMessage`), so a slow or failing model never delays or fails the inbound path |
 | Failure | provider error or timeout never fails a request that is not itself an AI request; UI shows "AI unavailable" |
 
 ## 4. Configuration
